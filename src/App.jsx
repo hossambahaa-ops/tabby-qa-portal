@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import "./index.css";
 
-const SUPABASE_URL = "https://shuenqmzbrthiiokfzio.supabase.co";
-const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNodWVucW16YnJ0aGlpb2tmemlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Mzc4MjAsImV4cCI6MjA5MDUxMzgyMH0.WjbpCt33uJ_hGXucKEHn0q5_daaRnGzwRDVbTxs7lG4";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://shuenqmzbrthiiokfzio.supabase.co";
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNodWVucW16YnJ0aGlpb2tmemlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Mzc4MjAsImV4cCI6MjA5MDUxMzgyMH0.WjbpCt33uJ_hGXucKEHn0q5_daaRnGzwRDVbTxs7lG4";
 
 const sb = {
   headers: (token) => ({ apikey: SUPABASE_ANON, Authorization: `Bearer ${token || SUPABASE_ANON}`, "Content-Type": "application/json", Prefer: "return=representation" }),
@@ -179,7 +179,7 @@ function ScoreEntryPage({token,profile}){
 
 function AdminUsersPage({token,teams}){
   const[users,setUsers]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editTeam,setEditTeam]=useState("");const{show,el}=useToast();
-  const load=useCallback(async()=>{try{const d=await sb.query("profiles",{select:"id,email,display_name,role,domain,status,team_id,teams(name)",token});setUsers(d.sort((a,b)=>ROLE_LEVEL[b.role]-ROLE_LEVEL[a.role]));}catch(e){console.error(e);}setLoading(false);},[token]);
+  const load=useCallback(async()=>{try{const d=await sb.query("profiles",{select:"id,email,display_name,role,domain,status,team_id,teams!profiles_team_id_fkey(name)",token});setUsers(d.sort((a,b)=>ROLE_LEVEL[b.role]-ROLE_LEVEL[a.role]));}catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
   const save=async(uid)=>{try{await sb.query("profiles",{token,method:"PATCH",body:{role:editRole,team_id:editTeam||null},filters:`id=eq.${uid}`});setEditingId(null);show("success","Updated");load();}catch(e){show("error",e.message);}};
   return(<div className="page">
