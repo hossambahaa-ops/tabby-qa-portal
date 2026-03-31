@@ -70,23 +70,63 @@ const GoogleLogo=()=>(<svg width="20" height="20" viewBox="0 0 48 48"><path fill
 
 function DashboardPage({profile,token}){
   const[scores,setScores]=useState([]);const[composite,setComposite]=useState([]);const[loading,setLoading]=useState(true);
-  useEffect(()=>{(async()=>{try{const[s,c]=await Promise.all([sb.query("scores",{select:"id,score_value,target_value,week_start,kpi_definitions(name,slug,unit)",filters:`profile_id=eq.${profile.id}&order=week_start.desc&limit=20`,token}),sb.query("composite_scores",{select:"*",filters:`profile_id=eq.${profile.id}&order=week_start.desc&limit=12`,token})]);setScores(s);setComposite(c);}catch(e){console.error(e);}setLoading(false);})();},[profile.id,token]);
+  const[teamStats,setTeamStats]=useState(null);const[damCount,setDamCount]=useState(0);
+  const isLead=hasRole(profile?.role,"qa_lead");
+
+  useEffect(()=>{(async()=>{try{
+    // Personal scores and composites
+    const[s,c]=await Promise.all([
+      sb.query("scores",{select:"id,score_value,target_value,week_start,kpi_id,kpi_definitions(name,slug,unit)",filters:`profile_id=eq.${profile.id}&order=week_start.desc&limit=20`,token}).catch(()=>[]),
+      sb.query("composite_scores",{select:"*",filters:`profile_id=eq.${profile.id}&order=week_start.desc&limit=12`,token}).catch(()=>[]),
+    ]);
+    setScores(s);setComposite(c);
+
+    // For leads+, also load team overview
+    if(isLead){
+      const[flags,allProfiles]=await Promise.all([
+        sb.query("dam_flags",{select:"id,status",filters:"status=eq.pending",token}).catch(()=>[]),
+        sb.query("profiles",{select:"id,role,status",filters:"status=eq.active",token}).catch(()=>[]),
+      ]);
+      setDamCount(flags.length);
+      setTeamStats({totalQAs:allProfiles.filter(p=>p.role==="qa").length,totalLeads:allProfiles.filter(p=>p.role==="qa_lead").length,totalActive:allProfiles.filter(p=>p.status==="active").length});
+    }
+  }catch(e){console.error("Dashboard error:",e);}setLoading(false);})();},[profile.id,token,isLead]);
+
   const lc=composite[0],pc=composite[1];const trend=lc&&pc?(lc.composite_value-pc.composite_value).toFixed(1):null;
   const spark=composite.slice(0,8).reverse();const sMax=Math.max(...spark.map(d=>d.composite_value),1);const sMin=Math.min(...spark.map(d=>d.composite_value),0);const sR=sMax-sMin||1;
+
   return(<div className="page">
-    <div className="welcome-banner"><h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2><p>Here's your performance overview.</p><div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}</div></div>
+    <div className="welcome-banner"><h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2><p>{isLead?"Here's your team overview.":"Here's your performance overview."}</p><div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}</div></div>
     {loading?<div className="loading-spinner"><div className="spinner"/></div>:<>
-    <div className="stats-grid">
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent)",fontSize:18}}>📊</div><div className="stat-label">Composite score</div><div className="stat-value">{lc?lc.composite_value:"—"}</div>{trend&&<div className={`stat-change ${Number(trend)>=0?"up":"down"}`}>{Number(trend)>=0?"↑":"↓"} {Math.abs(trend)} vs last week</div>}</div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Team rank</div><div className="stat-value">{lc?.rank_in_team?`#${lc.rank_in_team}`:"—"}</div></div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--teal-bg)",color:"var(--teal)",fontSize:18}}>🌐</div><div className="stat-label">Domain rank</div><div className="stat-value">{lc?.rank_in_domain?`#${lc.rank_in_domain}`:"—"}</div></div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📅</div><div className="stat-label">Weeks tracked</div><div className="stat-value">{composite.length}</div></div>
-    </div>
-    {spark.length>1&&<div className="card" style={{marginBottom:20}}><div className="card-header"><span className="card-title">Composite trend</span></div>
-      <svg width="100%" height="80" viewBox={`0 0 ${spark.length*60} 80`} style={{overflow:"visible"}}><polyline fill="none" stroke="var(--accent)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={spark.map((d,i)=>`${i*60+30},${70-((d.composite_value-sMin)/sR)*60}`).join(" ")}/>{spark.map((d,i)=>(<g key={i}><circle cx={i*60+30} cy={70-((d.composite_value-sMin)/sR)*60} r="4" fill="var(--accent)"/><text x={i*60+30} y={70-((d.composite_value-sMin)/sR)*60-10} textAnchor="middle" fontSize="11" fill="var(--tx2)" fontFamily="var(--font)">{d.composite_value}</text></g>))}</svg>
+
+    {/* Lead+ overview stats */}
+    {isLead&&teamStats&&<div className="stats-grid">
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>👥</div><div className="stat-label">Active QAs</div><div className="stat-value">{teamStats.totalQAs}</div></div>
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>👔</div><div className="stat-label">QA Leads</div><div className="stat-value">{teamStats.totalLeads}</div></div>
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Pending DAM flags</div><div className="stat-value">{damCount}</div></div>
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>✅</div><div className="stat-label">Total active staff</div><div className="stat-value">{teamStats.totalActive}</div></div>
     </div>}
-    <div className="card"><div className="card-header"><span className="card-title">Recent scores</span></div>
-      {scores.length===0?<div className="placeholder" style={{padding:"30px 20px"}}><p style={{color:"var(--tx3)"}}>{hasRole(profile.role,"qa_lead")?"Go to Score Entry to start entering scores.":"Your lead will enter scores weekly."}</p></div>:
+
+    {/* Personal stats (for QAs or anyone with scores) */}
+    {(!isLead||composite.length>0)&&<div className="stats-grid">
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>📊</div><div className="stat-label">Composite score</div><div className="stat-value">{lc?lc.composite_value:"—"}</div>{trend&&<div className={`stat-change ${Number(trend)>=0?"up":"down"}`}>{Number(trend)>=0?"↑":"↓"} {Math.abs(trend)} vs last week</div>}</div>
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Team rank</div><div className="stat-value">{lc?.rank_in_team?`#${lc.rank_in_team}`:"—"}</div></div>
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>🌐</div><div className="stat-label">Domain rank</div><div className="stat-value">{lc?.rank_in_domain?`#${lc.rank_in_domain}`:"—"}</div></div>
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--teal-bg)",color:"var(--teal)",fontSize:18}}>📅</div><div className="stat-label">Weeks tracked</div><div className="stat-value">{composite.length}</div></div>
+    </div>}
+
+    {spark.length>1&&<div className="card" style={{marginBottom:20}}><div className="card-header"><span className="card-title">Composite trend</span></div>
+      <svg width="100%" height="80" viewBox={`0 0 ${spark.length*60} 80`} style={{overflow:"visible"}}><polyline fill="none" stroke="var(--accent-text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={spark.map((d,i)=>`${i*60+30},${70-((d.composite_value-sMin)/sR)*60}`).join(" ")}/>{spark.map((d,i)=>(<g key={i}><circle cx={i*60+30} cy={70-((d.composite_value-sMin)/sR)*60} r="4" fill="var(--accent-text)"/><text x={i*60+30} y={70-((d.composite_value-sMin)/sR)*60-10} textAnchor="middle" fontSize="11" fill="var(--tx2)" fontFamily="var(--font)">{d.composite_value}</text></g>))}</svg>
+    </div>}
+
+    <div className="card"><div className="card-header"><span className="card-title">{isLead&&scores.length===0?"Quick actions":"Recent scores"}</span></div>
+      {scores.length===0?<div className="placeholder" style={{padding:"30px 20px"}}>
+        {isLead?<div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
+          <button className="btn btn-primary" onClick={()=>window.dispatchEvent(new CustomEvent("navigate",{detail:"scores"}))} style={{cursor:"pointer"}}>Go to Score Entry</button>
+          <button className="btn btn-outline" onClick={()=>window.dispatchEvent(new CustomEvent("navigate",{detail:"dam"}))} style={{cursor:"pointer"}}>View DAM Flags</button>
+          <button className="btn btn-outline" onClick={()=>window.dispatchEvent(new CustomEvent("navigate",{detail:"admin"}))} style={{cursor:"pointer"}}>Admin Panel</button>
+        </div>:<p style={{color:"var(--tx3)"}}>Your lead will enter scores at the end of each month. Check back then.</p>}
+      </div>:
       <div className="table-wrap"><table><thead><tr><th>Week</th><th>KPI</th><th>Score</th><th>Target</th><th>Status</th></tr></thead><tbody>
         {scores.slice(0,10).map(s=>{const pass=s.target_value?s.score_value>=s.target_value:null;return(<tr key={s.id}><td>{fmtWeek(s.week_start)}</td><td style={{fontWeight:500}}>{s.kpi_definitions?.name||"—"}</td><td style={{fontWeight:600}}>{s.score_value}{s.kpi_definitions?.unit==="%"?"%":""}</td><td style={{color:"var(--tx2)"}}>{s.target_value||"—"}{s.target_value&&s.kpi_definitions?.unit==="%"?"%":""}</td><td>{pass!==null&&<span className={`status-badge ${pass?"status-active":"status-on_leave"}`} style={!pass?{background:"var(--red-bg)",color:"var(--red)"}:{}}>{pass?"Pass":"Below"}</span>}</td></tr>);})}
       </tbody></table></div>}
@@ -421,6 +461,7 @@ const NAV_ITEMS=[
 /* ═══ APP ═══ */
 export default function App(){
   const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);const[page,setPage]=useState("dashboard");const[sidebarOpen,setSidebarOpen]=useState(false);
+  useEffect(()=>{const handler=(e)=>setPage(e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[]);
   useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{const p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,team_id,status",filters:`id=eq.${s.user?.id}`,token:s.access_token});if(p.length>0)setProfile(p[0]);}catch(e){console.error("Profile:",e);}}setLoading(false);})();},[]);
   if(loading)return<div className="loading-fullscreen"><div className="spinner"/><p style={{marginTop:16,color:"var(--tx2)",fontSize:14}}>Loading portal...</p></div>;
   if(!session)return(<div className="login-page"><div className="login-card"><div style={{marginBottom:8}}><TabbyLogo size={28}/></div><div className="login-subtitle">Quality Assurance Performance Portal<br/>Sign in with your Tabby Google account.</div><button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}><GoogleLogo/>Sign in with Google</button><div className="login-divider">Supported domains</div><div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div><div className="login-footer">Internal tool &middot; Tabby QA Assurance</div></div></div>);
