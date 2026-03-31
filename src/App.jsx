@@ -165,7 +165,6 @@ function ScoreEntryPage({token,profile}){
   const [months, setMonths] = useState([]);
   const [selMonth, setSelMonth] = useState("");
   const [selQA, setSelQA] = useState("");
-  const [expandedRow, setExpandedRow] = useState(null);
 
   useEffect(() => {
     (async () => {
@@ -193,48 +192,22 @@ function ScoreEntryPage({token,profile}){
     }).filter(Boolean).join(" ");
   };
 
+  // Format values: percentages, decimals, etc.
+  const fmt = (val) => {
+    if (val === null || val === undefined || val === "") return "—";
+    // Already a string with % sign
+    if (typeof val === "string" && val.includes("%")) return val;
+    // Decimal that looks like a percentage (0.886 → 88.6%)
+    if (typeof val === "number" && val > 0 && val < 1) return (val * 100).toFixed(1) + "%";
+    // Long decimal number — round it
+    if (typeof val === "number" && !Number.isInteger(val)) return val.toFixed(2);
+    return String(val);
+  };
+
   const monthData = data.filter(r => r.month === selMonth);
   const qaEmails = [...new Set(monthData.map(r => r.qa_email))].sort();
   const filtered = selQA ? monthData.filter(r => r.qa_email === selQA) : monthData;
-
-  const metricGroups = [
-    { label: "Volume", metrics: [
-      { key: "sbs", label: "SBS" },
-      { key: "non_sbs", label: "Non-SBS" },
-      { key: "dsat", label: "DSAT" },
-    ]},
-    { label: "Coaching late tracking", metrics: [
-      { key: "late_count", label: "Late" },
-      { key: "never_count", label: "Never" },
-      { key: "valid_count", label: "Valid" },
-      { key: "invalid_count", label: "Invalid" },
-    ]},
-    { label: "Coaching activity", metrics: [
-      { key: "coaching_sessions", label: "Sessions" },
-      { key: "total_coachings_by_coaching_created_date", label: "By coaching date" },
-      { key: "total_coachings_by_eval_created_date", label: "By eval date" },
-      { key: "total_ontime_coachings", label: "On-time" },
-      { key: "coaching_eligibility_count", label: "Eligible" },
-      { key: "not_coached", label: "Not coached" },
-    ]},
-    { label: "Quality metrics", metrics: [
-      { key: "rtr_count", label: "RTR count" },
-      { key: "avg_rtr_score", label: "RTR score" },
-      { key: "observed_coaching_count", label: "Observations" },
-      { key: "avg_observation_score_pct", label: "Observation %" },
-      { key: "calibration_count", label: "Calibrations" },
-      { key: "avg_calibration_match_rate", label: "Calibration %" },
-    ]},
-    { label: "Coaching completion", metrics: [
-      { key: "coaching_completion_pct", label: "Completion %" },
-      { key: "ontime_coaching_pct", label: "On-time %" },
-    ]},
-    { label: "JKQ", metrics: [
-      { key: "jkq_score", label: "Score" },
-      { key: "jkq_result", label: "Result" },
-      { key: "jkq_episode", label: "Episode" },
-    ]},
-  ];
+  const sorted = [...filtered].sort((a, b) => (b.final_performance || 0) - (a.final_performance || 0));
 
   const fpColor = (v) => v >= 0.4 ? "var(--green)" : v >= 0.25 ? "var(--amber)" : "var(--red)";
   const fpBg = (v) => v >= 0.4 ? "var(--green-bg)" : v >= 0.25 ? "var(--amber-bg)" : "var(--red-bg)";
@@ -265,83 +238,97 @@ function ScoreEntryPage({token,profile}){
       </div>
     </div>
 
-    {filtered.length === 0 ? (
+    {sorted.length === 0 ? (
       <div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No MTD data for {selMonth}. Check that the Google Sheet sync is running.</p></div></div>
     ) : (
-      <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        {filtered.map(r => {
-          const isExp = expandedRow === r.id;
-          return (
-            <div key={r.id} className="card" style={{padding:0,overflow:"hidden"}}>
-              {/* Header row — always visible */}
-              <div onClick={()=>setExpandedRow(isExp ? null : r.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",cursor:"pointer",transition:"background .15s",background:isExp?"var(--bg)":"transparent"}}>
-                <div style={{display:"flex",alignItems:"center",gap:12}}>
-                  <div style={{width:40,height:40,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:600,fontSize:14}}>
-                    {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
-                  </div>
-                  <div>
-                    <div style={{fontWeight:600,fontSize:15}}>{nameFromEmail(r.qa_email)}</div>
-                    <div style={{fontSize:12,color:"var(--tx3)"}}>{r.qa_email} · TL: {r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</div>
-                  </div>
-                </div>
-                <div style={{display:"flex",alignItems:"center",gap:16}}>
-                  <div style={{textAlign:"right"}}>
-                    <span style={{display:"inline-block",padding:"3px 12px",borderRadius:20,fontSize:14,fontWeight:700,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">{selMonth} — {sorted.length} specialists</span>
+          <span style={{fontSize:12,color:"var(--tx3)"}}>Synced: {sorted[0]?.synced_at ? new Date(sorted[0].synced_at).toLocaleString() : "—"}</span>
+        </div>
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style={{minWidth:160}}>Specialist</th>
+                <th>TL</th>
+                <th style={{textAlign:"right"}}>SBS</th>
+                <th style={{textAlign:"right"}}>Non-SBS</th>
+                <th style={{textAlign:"right"}}>DSAT</th>
+                <th style={{textAlign:"right"}}>Late</th>
+                <th style={{textAlign:"right"}}>Never</th>
+                <th style={{textAlign:"right"}}>Valid</th>
+                <th style={{textAlign:"right"}}>Invalid</th>
+                <th style={{textAlign:"right"}}>Sessions</th>
+                <th style={{textAlign:"right"}}>On-time</th>
+                <th style={{textAlign:"right"}}>Eligible</th>
+                <th style={{textAlign:"right"}}>Not coached</th>
+                <th style={{textAlign:"right"}}>RTR</th>
+                <th style={{textAlign:"right"}}>RTR score</th>
+                <th style={{textAlign:"right"}}>Obs.</th>
+                <th style={{textAlign:"right"}}>Obs. %</th>
+                <th style={{textAlign:"right"}}>Calib.</th>
+                <th style={{textAlign:"right"}}>Calib. %</th>
+                <th style={{textAlign:"right"}}>Completion</th>
+                <th style={{textAlign:"right"}}>On-time %</th>
+                <th style={{textAlign:"center"}}>JKQ</th>
+                <th style={{textAlign:"right"}}>Tickets/d</th>
+                <th style={{textAlign:"right"}}>Occupancy</th>
+                <th style={{textAlign:"right"}}>Days</th>
+                <th style={{textAlign:"right"}}>Performance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((r, i) => (
+                <tr key={r.id}>
+                  <td>
+                    <div style={{display:"flex",alignItems:"center",gap:8}}>
+                      <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>
+                        {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
+                      </div>
+                      <div>
+                        <div style={{fontWeight:500,fontSize:13,whiteSpace:"nowrap"}}>{nameFromEmail(r.qa_email)}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.sbs ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.non_sbs ?? "—"}</td>
+                  <td style={{textAlign:"right",color:(r.dsat||0)>20?"var(--red)":"inherit",fontWeight:(r.dsat||0)>20?600:400}}>{r.dsat ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.late_count ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.never_count ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.valid_count ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.invalid_count ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.coaching_sessions ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.total_ontime_coachings ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.coaching_eligibility_count ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.not_coached ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.rtr_count ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{fmt(r.avg_rtr_score)}</td>
+                  <td style={{textAlign:"right"}}>{r.observed_coaching_count ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{fmt(r.avg_observation_score_pct)}</td>
+                  <td style={{textAlign:"right"}}>{r.calibration_count ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{fmt(r.avg_calibration_match_rate)}</td>
+                  <td style={{textAlign:"right"}}>{fmt(r.coaching_completion_pct)}</td>
+                  <td style={{textAlign:"right"}}>{fmt(r.ontime_coaching_pct)}</td>
+                  <td style={{textAlign:"center"}}>
+                    {r.jkq_result && r.jkq_result !== "N/A" ? (
+                      <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}{r.jkq_score>0?` (${r.jkq_score})`:""}</span>
+                    ) : <span style={{color:"var(--tx3)"}}>—</span>}
+                  </td>
+                  <td style={{textAlign:"right",color:"var(--teal)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{fmt(r.occupancy_pct)}</td>
+                  <td style={{textAlign:"right"}}>{r.working_days||"—"}{r.ramadan_wds?<span style={{fontSize:10,color:"var(--tx3)"}}> ({r.ramadan_wds}R)</span>:""}</td>
+                  <td style={{textAlign:"right"}}>
+                    <span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>
                       {((r.final_performance||0)*100).toFixed(1)}%
                     </span>
-                    <div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>Final performance</div>
-                  </div>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg>
-                </div>
-              </div>
-
-              {/* Expanded detail */}
-              {isExp && <div style={{padding:"0 20px 20px",borderTop:"1px solid var(--bd2)"}}>
-                {/* Summary stats row */}
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(120px, 1fr))",gap:10,marginTop:16,marginBottom:20}}>
-                  {[
-                    {label:"SBS",value:r.sbs,color:"var(--tx)"},
-                    {label:"Non-SBS",value:r.non_sbs,color:"var(--tx)"},
-                    {label:"DSAT",value:r.dsat,color:(r.dsat||0)>20?"var(--red)":"var(--tx)"},
-                    {label:"Tickets/day",value:r.ticket_per_day,color:"var(--teal)"},
-                    {label:"Working days",value:r.working_days+(r.ramadan_wds?` (${r.ramadan_wds}R)`:""),color:"var(--tx)"},
-                    {label:"Occupancy",value:r.occupancy_pct||"—",color:"var(--accent-text)"},
-                  ].map(s=>(
-                    <div key={s.label} style={{background:"var(--bg)",borderRadius:8,padding:"10px 12px"}}>
-                      <div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>{s.label}</div>
-                      <div style={{fontSize:18,fontWeight:600,color:s.color}}>{s.value ?? "—"}</div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Metric groups */}
-                {metricGroups.map(group => (
-                  <div key={group.label} style={{marginBottom:16}}>
-                    <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8,paddingBottom:4,borderBottom:"1px solid var(--bd2)"}}>{group.label}</div>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:"6px 16px"}}>
-                      {group.metrics.map(m => {
-                        const val = r[m.key];
-                        const display = val === null || val === undefined || val === "" ? "—" : val;
-                        return (
-                          <div key={m.key} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13}}>
-                            <span style={{color:"var(--tx2)"}}>{m.label}</span>
-                            <span style={{fontWeight:500}}>{display}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-
-                {/* Side tasks */}
-                <div style={{display:"flex",gap:16,fontSize:12,color:"var(--tx3)",paddingTop:8,borderTop:"1px solid var(--bd2)"}}>
-                  <span>Side tasks: <strong style={{color:"var(--tx)"}}>{r.side_tasks_duration_mins || 0} mins</strong></span>
-                  <span>Synced: <strong style={{color:"var(--tx)"}}>{r.synced_at ? new Date(r.synced_at).toLocaleString() : "—"}</strong></span>
-                </div>
-              </div>}
-            </div>
-          );
-        })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     )}
   </div>);
