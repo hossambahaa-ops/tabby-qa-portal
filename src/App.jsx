@@ -121,7 +121,7 @@ function ScoreEntryPage({token,profile}){
 
   useEffect(()=>{(async()=>{try{const[t,k]=await Promise.all([sb.query("teams",{select:"id,name,domain",token}),sb.query("kpi_definitions",{select:"id,name,slug,unit,target_value,min_value,max_value",filters:"is_active=eq.true&order=sort_order.asc",token})]);setTeams(t);setKpis(k);if(t.length>0)setSelTeam(t[0].id);}catch(e){console.error(e);}setLoading(false);})();},[token]);
 
-  useEffect(()=>{if(!selTeam||kpis.length===0)return;(async()=>{try{const m=await sb.query("profiles",{select:"id,display_name,email,domain",filters:`team_id=eq.${selTeam}&status=eq.active&order=display_name.asc`,token});setMembers(m);const init={};m.forEach(u=>{kpis.forEach(k=>{init[`${u.id}_${k.id}`]="";});});setEntries(init);}catch(e){console.error(e);}})();},[selTeam,kpis,token]);
+  useEffect(()=>{if(!selTeam||kpis.length===0)return;(async()=>{try{const tm=await sb.query("team_members",{select:"profile_id,profiles(id,display_name,email,domain,status)",filters:`team_id=eq.${selTeam}`,token});const m=tm.map(t=>t.profiles).filter(p=>p&&p.status==="active").sort((a,b)=>(a.display_name||"").localeCompare(b.display_name||""));setMembers(m);const init={};m.forEach(u=>{kpis.forEach(k=>{init[`${u.id}_${k.id}`]="";});});setEntries(init);}catch(e){console.error(e);}})();},[selTeam,kpis,token]);
 
   const ws=period==="weekly"?weekStart:monthVal+"-01";const team=teams.find(t=>t.id===selTeam);
 
@@ -178,20 +178,44 @@ function ScoreEntryPage({token,profile}){
 }
 
 function AdminUsersPage({token,teams}){
-  const[users,setUsers]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editTeam,setEditTeam]=useState("");const{show,el}=useToast();
-  const load=useCallback(async()=>{try{const d=await sb.query("profiles",{select:"id,email,display_name,role,domain,status,team_id,teams!profiles_team_id_fkey(name)",token});setUsers(d.sort((a,b)=>ROLE_LEVEL[b.role]-ROLE_LEVEL[a.role]));}catch(e){console.error(e);}setLoading(false);},[token]);
+  const[users,setUsers]=useState([]);const[memberships,setMemberships]=useState({});const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editTeams,setEditTeams]=useState([]);const{show,el}=useToast();
+  const load=useCallback(async()=>{try{
+    const[d,tm]=await Promise.all([
+      sb.query("profiles",{select:"id,email,display_name,role,domain,status",token}),
+      sb.query("team_members",{select:"id,profile_id,team_id,is_primary",token})
+    ]);
+    setUsers(d.sort((a,b)=>ROLE_LEVEL[b.role]-ROLE_LEVEL[a.role]));
+    const map={};tm.forEach(m=>{if(!map[m.profile_id])map[m.profile_id]=[];map[m.profile_id].push(m);});
+    setMemberships(map);
+  }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
-  const save=async(uid)=>{try{await sb.query("profiles",{token,method:"PATCH",body:{role:editRole,team_id:editTeam||null},filters:`id=eq.${uid}`});setEditingId(null);show("success","Updated");load();}catch(e){show("error",e.message);}};
+  const getUserTeamNames=(uid)=>{const ms=memberships[uid]||[];return ms.map(m=>{const t=teams.find(t2=>t2.id===m.team_id);return t?t.name:null;}).filter(Boolean);};
+  const save=async(uid)=>{try{
+    await sb.query("profiles",{token,method:"PATCH",body:{role:editRole},filters:`id=eq.${uid}`});
+    // Delete existing memberships and re-create
+    await sb.query("team_members",{token,method:"DELETE",filters:`profile_id=eq.${uid}`});
+    if(editTeams.length>0){
+      const rows=editTeams.map((tid,i)=>({profile_id:uid,team_id:tid,is_primary:i===0}));
+      await sb.query("team_members",{token,method:"POST",body:rows});
+      // Also update profiles.team_id to primary team for backward compat
+      await sb.query("profiles",{token,method:"PATCH",body:{team_id:editTeams[0]},filters:`id=eq.${uid}`});
+    } else {
+      await sb.query("profiles",{token,method:"PATCH",body:{team_id:null},filters:`id=eq.${uid}`});
+    }
+    setEditingId(null);show("success","Updated");load();
+  }catch(e){show("error",e.message);}};
+  const toggleTeam=(tid)=>{setEditTeams(prev=>prev.includes(tid)?prev.filter(t=>t!==tid):[...prev,tid]);};
   return(<div className="page">
     <div className="page-header"><div className="page-title">User management</div><div className="page-subtitle">{users.length} users</div></div>
     <div className="card">{loading?<div className="loading-spinner"><div className="spinner"/></div>:
-      <div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Domain</th><th>Team</th><th>Status</th><th></th></tr></thead><tbody>
-        {users.map(u=>(<tr key={u.id}><td style={{fontWeight:500}}>{u.display_name||"—"}</td><td style={{color:"var(--tx2)",fontSize:13}}>{u.email}</td>
+      <div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Domain</th><th>Teams</th><th>Status</th><th></th></tr></thead><tbody>
+        {users.map(u=>{const uTeams=getUserTeamNames(u.id);const uTeamIds=(memberships[u.id]||[]).map(m=>m.team_id);return(<tr key={u.id}><td style={{fontWeight:500}}>{u.display_name||"—"}</td><td style={{color:"var(--tx2)",fontSize:13}}>{u.email}</td>
         <td>{editingId===u.id?<select className="select" value={editRole} onChange={e=>setEditRole(e.target.value)} style={{fontSize:12,padding:"4px 8px"}}>{Object.entries(ROLE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>:<span className={`role-badge role-${u.role}`}>{ROLE_LABELS[u.role]}</span>}</td>
         <td><span className={`domain-badge domain-${u.domain==="tabby.ai"?"ai":"sa"}`}>{u.domain}</span></td>
-        <td>{editingId===u.id?<select className="select" value={editTeam} onChange={e=>setEditTeam(e.target.value)} style={{fontSize:12,padding:"4px 8px"}}><option value="">Unassigned</option>{teams.map(t=><option key={t.id} value={t.id}>{t.name}</option>)}</select>:<span style={{fontSize:13,color:"var(--tx2)"}}>{u.teams?.name||"Unassigned"}</span>}</td>
+        <td>{editingId===u.id?<div className="team-checkboxes">{teams.map(t=><label key={t.id} className={`team-checkbox ${editTeams.includes(t.id)?"checked":""}`}><input type="checkbox" checked={editTeams.includes(t.id)} onChange={()=>toggleTeam(t.id)} style={{display:"none"}}/>{t.name}</label>)}{teams.length===0&&<span style={{fontSize:12,color:"var(--tx3)"}}>No teams created</span>}</div>:
+          uTeams.length>0?<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{uTeams.map((n,i)=><span key={i} className="team-tag">{n}</span>)}</div>:<span style={{fontSize:13,color:"var(--tx3)"}}>Unassigned</span>}</td>
         <td><span className={`status-badge status-${u.status}`}>{u.status}</span></td>
-        <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditTeam(u.team_id||"");}}>Edit</button>}</td></tr>))}
+        <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditTeams([...uTeamIds]);}}>Edit</button>}</td></tr>);})}
       </tbody></table></div>}</div>{el}
   </div>);
 }

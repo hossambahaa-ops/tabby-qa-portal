@@ -170,6 +170,13 @@ tr:hover td { background: var(--bg); }
 /* ── Mobile overlay ── */
 .mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; }
 
+/* ── Team multi-select ── */
+.team-checkboxes { display: flex; flex-wrap: wrap; gap: 4px; }
+.team-checkbox { font-size: 11px; padding: 3px 10px; border-radius: 20px; border: 1px solid var(--bd); background: var(--bg3); color: var(--tx2); cursor: pointer; transition: all .15s; user-select: none; }
+.team-checkbox:hover { border-color: var(--accent); }
+.team-checkbox.checked { background: var(--accent-light); color: var(--accent); border-color: var(--accent); font-weight: 600; }
+.team-tag { font-size: 11px; padding: 2px 8px; border-radius: 12px; background: var(--bg2); color: var(--tx2); font-weight: 500; white-space: nowrap; }
+
 /* ── Forms ── */
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .form-group { display: flex; flex-direction: column; gap: 4px; }
