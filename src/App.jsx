@@ -160,83 +160,190 @@ function TeamManagementPage({token}){
 }
 
 function ScoreEntryPage({token,profile}){
-  const[teams,setTeams]=useState([]);const[members,setMembers]=useState([]);const[kpis,setKpis]=useState([]);const[allKpis,setAllKpis]=useState([]);
-  const[selTeam,setSelTeam]=useState("");const[period,setPeriod]=useState("monthly");
-  const[weekStart,setWeekStart]=useState(monday(new Date()));const[monthVal,setMonthVal]=useState(new Date().toISOString().slice(0,7));
-  const[entries,setEntries]=useState({});const[saving,setSaving]=useState(false);const[loading,setLoading]=useState(true);const[tab,setTab]=useState("manual");
-  const[roleTier,setRoleTier]=useState("qa");
-  const[csvData,setCsvData]=useState(null);const[csvHeaders,setCsvHeaders]=useState([]);const[csvMapping,setCsvMapping]=useState({});const[csvPreview,setCsvPreview]=useState([]);
-  const fileRef=useRef();const{show,el}=useToast();
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [months, setMonths] = useState([]);
+  const [selMonth, setSelMonth] = useState("");
+  const [selQA, setSelQA] = useState("");
+  const [expandedRow, setExpandedRow] = useState(null);
 
-  useEffect(()=>{(async()=>{try{const[t,k]=await Promise.all([sb.query("teams",{select:"id,name,domain",token}),sb.query("kpi_definitions",{select:"id,name,slug,unit,target_value,min_value,max_value,weight,role_tier,frequency",filters:"is_active=eq.true&order=sort_order.asc",token})]);setTeams(t);setAllKpis(k);setKpis(k.filter(x=>x.role_tier===roleTier));if(t.length>0)setSelTeam(t[0].id);}catch(e){console.error(e);}setLoading(false);})();},[token]);
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await sb.query("mtd_scores", {
+          select: "*",
+          filters: "order=month.desc,qa_email.asc",
+          token
+        });
+        setData(rows);
+        const uniqueMonths = [...new Set(rows.map(r => r.month))];
+        setMonths(uniqueMonths);
+        if (uniqueMonths.length > 0) setSelMonth(uniqueMonths[0]);
+      } catch (e) { console.error("MTD Scores:", e); }
+      setLoading(false);
+    })();
+  }, [token]);
 
-  // Update KPIs when role tier changes
-  useEffect(()=>{setKpis(allKpis.filter(x=>x.role_tier===roleTier));},[roleTier,allKpis]);
+  const nameFromEmail = (email) => {
+    if (!email) return "—";
+    const local = email.split("@")[0];
+    return local.split(".").map(p => {
+      const clean = p.replace(/[\d]+$/, "");
+      return clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : "";
+    }).filter(Boolean).join(" ");
+  };
 
-  useEffect(()=>{if(!selTeam||kpis.length===0)return;const effectiveWs=period==="weekly"?weekStart:monthVal+"-01";(async()=>{try{
-    const tm=await sb.query("team_members",{select:"profile_id,profiles(id,display_name,email,domain,status,role)",filters:`team_id=eq.${selTeam}`,token});
-    const m=tm.map(t=>t.profiles).filter(p=>p&&p.status==="active"&&(roleTier==="qa"?p.role==="qa":roleTier==="qa_lead"?p.role==="qa_lead":p.role==="qa_supervisor")).sort((a,b)=>(a.display_name||"").localeCompare(b.display_name||""));
-    setMembers(m);
-    const init={};m.forEach(u=>{kpis.forEach(k=>{init[`${u.id}_${k.id}`]="";});});
-    const existing=await sb.query("scores",{select:"profile_id,kpi_id,score_value",filters:`team_id=eq.${selTeam}&week_start=eq.${effectiveWs}`,token});
-    if(existing.length>0){m.forEach(u=>{kpis.forEach(k=>{const found=existing.find(s=>s.profile_id===u.id&&s.kpi_id===k.id);if(found)init[`${u.id}_${k.id}`]=String(found.score_value);});});}
-    setEntries(init);
-  }catch(e){console.error(e);}})();},[selTeam,kpis,token,weekStart,monthVal,period,roleTier]);
+  const monthData = data.filter(r => r.month === selMonth);
+  const qaEmails = [...new Set(monthData.map(r => r.qa_email))].sort();
+  const filtered = selQA ? monthData.filter(r => r.qa_email === selQA) : monthData;
 
-  const ws=period==="weekly"?weekStart:monthVal+"-01";const team=teams.find(t=>t.id===selTeam);
+  const metricGroups = [
+    { label: "Volume", metrics: [
+      { key: "sbs", label: "SBS" },
+      { key: "non_sbs", label: "Non-SBS" },
+      { key: "dsat", label: "DSAT" },
+    ]},
+    { label: "Coaching late tracking", metrics: [
+      { key: "late_count", label: "Late" },
+      { key: "never_count", label: "Never" },
+      { key: "valid_count", label: "Valid" },
+      { key: "invalid_count", label: "Invalid" },
+    ]},
+    { label: "Coaching activity", metrics: [
+      { key: "coaching_sessions", label: "Sessions" },
+      { key: "total_coachings_by_coaching_created_date", label: "By coaching date" },
+      { key: "total_coachings_by_eval_created_date", label: "By eval date" },
+      { key: "total_ontime_coachings", label: "On-time" },
+      { key: "coaching_eligibility_count", label: "Eligible" },
+      { key: "not_coached", label: "Not coached" },
+    ]},
+    { label: "Quality metrics", metrics: [
+      { key: "rtr_count", label: "RTR count" },
+      { key: "avg_rtr_score", label: "RTR score" },
+      { key: "observed_coaching_count", label: "Observations" },
+      { key: "avg_observation_score_pct", label: "Observation %" },
+      { key: "calibration_count", label: "Calibrations" },
+      { key: "avg_calibration_match_rate", label: "Calibration %" },
+    ]},
+    { label: "Coaching completion", metrics: [
+      { key: "coaching_completion_pct", label: "Completion %" },
+      { key: "ontime_coaching_pct", label: "On-time %" },
+    ]},
+    { label: "JKQ", metrics: [
+      { key: "jkq_score", label: "Score" },
+      { key: "jkq_result", label: "Result" },
+      { key: "jkq_episode", label: "Episode" },
+    ]},
+  ];
 
-  const saveScores=async()=>{setSaving(true);try{const rows=[];members.forEach(u=>{kpis.forEach(k=>{const v=entries[`${u.id}_${k.id}`];if(v!==""&&v!==undefined)rows.push({profile_id:u.id,kpi_id:k.id,score_value:Number(v),target_value:k.target_value,week_start:ws,domain:u.domain,team_id:selTeam,entered_by:profile.id,source:"manual"});});});
-    if(rows.length===0){show("error","No scores entered");setSaving(false);return;}
-    // Delete existing scores for this team+week first, then insert fresh
-    const profileIds=members.map(m=>m.id);
-    for(const pid of profileIds){await sb.query("scores",{token,method:"DELETE",filters:`profile_id=eq.${pid}&week_start=eq.${ws}&team_id=eq.${selTeam}`}).catch(()=>{});}
-    await sb.query("scores",{token,method:"POST",body:rows});
-    try{await sb.rpc("calculate_composite_scores",{p_week_start:ws},token);}catch(e){console.warn("Composite:",e);}
-    show("success",`${rows.length} scores saved`);
-  }catch(e){show("error",e.message);}setSaving(false);};
+  const fpColor = (v) => v >= 0.4 ? "var(--green)" : v >= 0.25 ? "var(--amber)" : "var(--red)";
+  const fpBg = (v) => v >= 0.4 ? "var(--green-bg)" : v >= 0.25 ? "var(--amber-bg)" : "var(--red-bg)";
 
-  const handleFile=(e)=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=(ev)=>{const lines=ev.target.result.split(/\r?\n/).filter(l=>l.trim());if(lines.length<2){show("error","Empty file");return;}const hdrs=lines[0].split(",").map(h=>h.trim().replace(/^"|"$/g,""));const rows=lines.slice(1).map(l=>{const vals=l.split(",").map(v=>v.trim().replace(/^"|"$/g,""));const obj={};hdrs.forEach((h,i)=>{obj[h]=vals[i]||"";});return obj;});setCsvHeaders(hdrs);setCsvData(rows);setCsvPreview(rows.slice(0,5));setCsvMapping({});};reader.readAsText(f);};
+  if (loading) return <div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
 
-  const importCsv=async()=>{if(!csvData||!csvMapping.email){show("error","Map the email column");return;}setSaving(true);try{
-    const allP=await sb.query("profiles",{select:"id,email,domain,team_id",token});const eMap={};allP.forEach(p=>{eMap[p.email.toLowerCase()]=p;});
-    const rows=[];let skip=0;csvData.forEach(row=>{const email=(row[csvMapping.email]||"").toLowerCase().trim();const p=eMap[email];if(!p){skip++;return;}
-    kpis.forEach(k=>{const col=csvMapping[k.slug];if(!col||!row[col])return;const v=parseFloat(row[col]);if(isNaN(v))return;let w=ws;if(csvMapping.week_start&&row[csvMapping.week_start]){const d=new Date(row[csvMapping.week_start]);if(!isNaN(d))w=d.toISOString().split("T")[0];}
-    rows.push({profile_id:p.id,kpi_id:k.id,score_value:v,target_value:k.target_value,week_start:w,domain:p.domain,team_id:p.team_id,entered_by:profile.id,source:"csv_import"});});});
-    if(rows.length===0){show("error",`No valid scores. ${skip} emails not matched.`);setSaving(false);return;}
-    for(let i=0;i<rows.length;i+=50)await sb.query("scores",{token,method:"POST",body:rows.slice(i,i+50)});
-    const weeks=[...new Set(rows.map(r=>r.week_start))];for(const w2 of weeks){try{await sb.rpc("calculate_composite_scores",{p_week_start:w2},token);}catch{}}
-    show("success",`${rows.length} scores imported${skip>0?` (${skip} skipped)`:""}`);setCsvData(null);setCsvHeaders([]);setCsvMapping({});setCsvPreview([]);
-  }catch(e){show("error",e.message);}setSaving(false);};
+  return (<div className="page">
+    <div className="page-header">
+      <div className="page-title">Score entry</div>
+      <div className="page-subtitle">MTD performance data — synced from Metabase hourly</div>
+    </div>
 
-  if(loading)return<div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
-  return(<div className="page">
-    <div className="page-header"><div className="page-title">Score entry</div><div className="page-subtitle">Enter weekly or monthly scores for your team</div></div>
-    <div className="tab-bar"><button className={`tab-btn ${tab==="manual"?"active":""}`} onClick={()=>setTab("manual")}><Icon d={icons.edit} size={16}/>Manual entry</button><button className={`tab-btn ${tab==="csv"?"active":""}`} onClick={()=>setTab("csv")}><Icon d={icons.upload} size={16}/>CSV import</button></div>
-    {tab==="manual"?<>
-      <div className="card" style={{marginBottom:16}}><div className="controls-row">
-        <div className="form-group" style={{flex:1}}><label className="form-label">Team</label><select className="select form-input" value={selTeam} onChange={e=>setSelTeam(e.target.value)}>{teams.map(t=><option key={t.id} value={t.id}>{t.name} ({t.domain})</option>)}</select></div>
-        <div className="form-group" style={{flex:1}}><label className="form-label">Role tier</label><select className="select form-input" value={roleTier} onChange={e=>setRoleTier(e.target.value)}><option value="qa">Quality Specialist</option><option value="qa_lead">Quality Leader</option><option value="qa_supervisor">Quality Supervisor</option></select></div>
-        <div className="form-group" style={{flex:1}}><label className="form-label">Period</label><select className="select form-input" value={period} onChange={e=>setPeriod(e.target.value)}><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div>
-        <div className="form-group" style={{flex:1}}><label className="form-label">{period==="weekly"?"Week starting":"Month"}</label>{period==="weekly"?<input type="date" className="form-input" value={weekStart} onChange={e=>setWeekStart(monday(e.target.value))}/>:<input type="month" className="form-input" value={monthVal} onChange={e=>setMonthVal(e.target.value)}/>}</div>
-      </div></div>
-      <div className="card"><div className="card-header"><span className="card-title">{team?.name||"Select team"} — {period==="weekly"?fmtWeek(weekStart):monthVal}</span><button className="btn btn-primary" onClick={saveScores} disabled={saving}>{saving?"Saving...":<><Icon d={icons.check} size={16}/>Save all</>}</button></div>
-        {members.length===0?<div className="placeholder" style={{padding:"30px"}}><p style={{color:"var(--tx3)"}}>No active members. Assign users to this team in Admin → Users.</p></div>:
-        <div className="table-wrap"><table><thead><tr><th style={{minWidth:180}}>QA Agent</th>{kpis.map(k=><th key={k.id} style={{minWidth:110}}>{k.name} ({k.unit})<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>Target: {k.target_value}</span></th>)}</tr></thead><tbody>
-          {members.map(u=>(<tr key={u.id}><td style={{fontWeight:500}}>{u.display_name||u.email}</td>{kpis.map(k=>(<td key={k.id}><input type="number" className="form-input score-input" value={entries[`${u.id}_${k.id}`]||""} onChange={e=>setEntries({...entries,[`${u.id}_${k.id}`]:e.target.value})} placeholder="—" step="0.1"/></td>))}</tr>))}
-        </tbody></table></div>}
+    <div className="card" style={{marginBottom:16}}>
+      <div className="controls-row">
+        <div className="form-group" style={{flex:1}}>
+          <label className="form-label">Month</label>
+          <select className="select form-input" value={selMonth} onChange={e=>{setSelMonth(e.target.value);setSelQA("");}}>
+            {months.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+        </div>
+        <div className="form-group" style={{flex:2}}>
+          <label className="form-label">Filter by QA</label>
+          <select className="select form-input" value={selQA} onChange={e=>setSelQA(e.target.value)}>
+            <option value="">All specialists ({qaEmails.length})</option>
+            {qaEmails.map(e => <option key={e} value={e}>{nameFromEmail(e)} ({e})</option>)}
+          </select>
+        </div>
       </div>
-    </>:
-    <div className="card"><div className="card-header"><span className="card-title">Import from CSV</span></div>
-      {!csvData?<div className="csv-dropzone" onClick={()=>fileRef.current?.click()}><input ref={fileRef} type="file" accept=".csv,.txt" style={{display:"none"}} onChange={handleFile}/><Icon d={icons.upload} size={32} color="var(--accent)"/><p style={{marginTop:12,fontWeight:500}}>Click to upload a CSV file</p><p style={{color:"var(--tx3)",fontSize:13,marginTop:4}}>Export from Google Sheets or Metabase as CSV</p>
-        <div style={{marginTop:16,padding:"12px 16px",background:"var(--bg)",borderRadius:8,fontSize:12,color:"var(--tx2)",maxWidth:500}}><strong>Expected columns:</strong> email (required), plus one column per KPI ({kpis.map(k=>k.slug).join(", ")}). Optional: week_start (YYYY-MM-DD).</div></div>:
-      <><div style={{marginBottom:20}}><h4 style={{fontSize:14,fontWeight:600,marginBottom:12}}>Map your columns</h4><div className="form-grid">
-        <div className="form-group"><label className="form-label">Email column *</label><select className="select form-input" value={csvMapping.email||""} onChange={e=>setCsvMapping({...csvMapping,email:e.target.value})}><option value="">— Select —</option>{csvHeaders.map(h=><option key={h} value={h}>{h}</option>)}</select></div>
-        <div className="form-group"><label className="form-label">Week start column</label><select className="select form-input" value={csvMapping.week_start||""} onChange={e=>setCsvMapping({...csvMapping,week_start:e.target.value})}><option value="">— Use default ({ws}) —</option>{csvHeaders.map(h=><option key={h} value={h}>{h}</option>)}</select></div>
-        {kpis.map(k=>(<div className="form-group" key={k.id}><label className="form-label">{k.name}</label><select className="select form-input" value={csvMapping[k.slug]||""} onChange={e=>setCsvMapping({...csvMapping,[k.slug]:e.target.value})}><option value="">— Skip —</option>{csvHeaders.map(h=><option key={h} value={h}>{h}</option>)}</select></div>))}
-      </div></div>
-      <div style={{marginBottom:16}}><h4 style={{fontSize:14,fontWeight:600,marginBottom:8}}>Preview (first 5 rows)</h4><div className="table-wrap"><table><thead><tr>{csvHeaders.map(h=><th key={h}>{h}</th>)}</tr></thead><tbody>{csvPreview.map((row,i)=><tr key={i}>{csvHeaders.map(h=><td key={h}>{row[h]}</td>)}</tr>)}</tbody></table></div><p style={{fontSize:12,color:"var(--tx3)",marginTop:8}}>{csvData.length} total rows</p></div>
-      <div style={{display:"flex",gap:8}}><button className="btn btn-primary" onClick={importCsv} disabled={saving}>{saving?"Importing...":<><Icon d={icons.upload} size={16}/>Import {csvData.length} rows</>}</button><button className="btn btn-outline" onClick={()=>{setCsvData(null);setCsvHeaders([]);setCsvMapping({});}}>Cancel</button></div></>}
-    </div>}{el}
+    </div>
+
+    {filtered.length === 0 ? (
+      <div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No MTD data for {selMonth}. Check that the Google Sheet sync is running.</p></div></div>
+    ) : (
+      <div style={{display:"flex",flexDirection:"column",gap:12}}>
+        {filtered.map(r => {
+          const isExp = expandedRow === r.id;
+          return (
+            <div key={r.id} className="card" style={{padding:0,overflow:"hidden"}}>
+              {/* Header row — always visible */}
+              <div onClick={()=>setExpandedRow(isExp ? null : r.id)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"16px 20px",cursor:"pointer",transition:"background .15s",background:isExp?"var(--bg)":"transparent"}}>
+                <div style={{display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:40,height:40,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:600,fontSize:14}}>
+                    {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
+                  </div>
+                  <div>
+                    <div style={{fontWeight:600,fontSize:15}}>{nameFromEmail(r.qa_email)}</div>
+                    <div style={{fontSize:12,color:"var(--tx3)"}}>{r.qa_email} · TL: {r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</div>
+                  </div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:16}}>
+                  <div style={{textAlign:"right"}}>
+                    <span style={{display:"inline-block",padding:"3px 12px",borderRadius:20,fontSize:14,fontWeight:700,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>
+                      {((r.final_performance||0)*100).toFixed(1)}%
+                    </span>
+                    <div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>Final performance</div>
+                  </div>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg>
+                </div>
+              </div>
+
+              {/* Expanded detail */}
+              {isExp && <div style={{padding:"0 20px 20px",borderTop:"1px solid var(--bd2)"}}>
+                {/* Summary stats row */}
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(120px, 1fr))",gap:10,marginTop:16,marginBottom:20}}>
+                  {[
+                    {label:"SBS",value:r.sbs,color:"var(--tx)"},
+                    {label:"Non-SBS",value:r.non_sbs,color:"var(--tx)"},
+                    {label:"DSAT",value:r.dsat,color:(r.dsat||0)>20?"var(--red)":"var(--tx)"},
+                    {label:"Tickets/day",value:r.ticket_per_day,color:"var(--teal)"},
+                    {label:"Working days",value:r.working_days+(r.ramadan_wds?` (${r.ramadan_wds}R)`:""),color:"var(--tx)"},
+                    {label:"Occupancy",value:r.occupancy_pct||"—",color:"var(--accent-text)"},
+                  ].map(s=>(
+                    <div key={s.label} style={{background:"var(--bg)",borderRadius:8,padding:"10px 12px"}}>
+                      <div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>{s.label}</div>
+                      <div style={{fontSize:18,fontWeight:600,color:s.color}}>{s.value ?? "—"}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Metric groups */}
+                {metricGroups.map(group => (
+                  <div key={group.label} style={{marginBottom:16}}>
+                    <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8,paddingBottom:4,borderBottom:"1px solid var(--bd2)"}}>{group.label}</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit, minmax(150px, 1fr))",gap:"6px 16px"}}>
+                      {group.metrics.map(m => {
+                        const val = r[m.key];
+                        const display = val === null || val === undefined || val === "" ? "—" : val;
+                        return (
+                          <div key={m.key} style={{display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13}}>
+                            <span style={{color:"var(--tx2)"}}>{m.label}</span>
+                            <span style={{fontWeight:500}}>{display}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+
+                {/* Side tasks */}
+                <div style={{display:"flex",gap:16,fontSize:12,color:"var(--tx3)",paddingTop:8,borderTop:"1px solid var(--bd2)"}}>
+                  <span>Side tasks: <strong style={{color:"var(--tx)"}}>{r.side_tasks_duration_mins || 0} mins</strong></span>
+                  <span>Synced: <strong style={{color:"var(--tx)"}}>{r.synced_at ? new Date(r.synced_at).toLocaleString() : "—"}</strong></span>
+                </div>
+              </div>}
+            </div>
+          );
+        })}
+      </div>
+    )}
   </div>);
 }
 
@@ -660,7 +767,7 @@ function PlaceholderPage({title,description,icon,minRole,userRole}){const locked
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
   {key:"leaderboard",label:"Leaderboard",icon:icons.leaderboard},
-  {key:"scores",label:"Score entry",icon:icons.scores,minRole:"qa_lead",section:"Performance"},
+  {key:"scores",label:"Score entry",icon:icons.scores,section:"Performance"},
   {key:"dam",label:"DAM flags",icon:icons.dam,minRole:"qa_lead"},
   {key:"plans",label:"AP / PIP",icon:icons.plan,minRole:"qa_lead"},
   {key:"coaching",label:"Coaching",icon:icons.coaching,minRole:"qa_lead",section:"Management"},
@@ -679,7 +786,7 @@ export default function App(){
   const userRole=profile?.role||"qa";const visibleNav=NAV_ITEMS.filter(n=>!n.minRole||hasRole(userRole,n.minRole)||n.key==="escalations");let curSec=null;
   const renderPage=()=>{const t=session.access_token;switch(page){
     case"dashboard":return<DashboardPage profile={profile} token={t}/>;
-    case"scores":return hasRole(userRole,"qa_lead")?<ScoreEntryPage token={t} profile={profile}/>:<PlaceholderPage title="Score entry" icon={icons.scores} minRole="qa_lead" userRole={userRole}/>;
+    case"scores":return<ScoreEntryPage token={t} profile={profile}/>;
     case"admin":return hasRole(userRole,"admin")?<AdminPage token={t} profile={profile}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>;
     case"leaderboard":return<LeaderboardPage token={t} profile={profile}/>;
     case"dam":return hasRole(userRole,"qa_lead")?<DAMPage token={t} profile={profile}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
