@@ -121,10 +121,19 @@ function ScoreEntryPage({token,profile}){
 
   useEffect(()=>{(async()=>{try{const[t,k]=await Promise.all([sb.query("teams",{select:"id,name,domain",token}),sb.query("kpi_definitions",{select:"id,name,slug,unit,target_value,min_value,max_value",filters:"is_active=eq.true&order=sort_order.asc",token})]);setTeams(t);setKpis(k);if(t.length>0)setSelTeam(t[0].id);}catch(e){console.error(e);}setLoading(false);})();},[token]);
 
-  useEffect(()=>{if(!selTeam||kpis.length===0)return;(async()=>{try{const tm=await sb.query("team_members",{select:"profile_id,profiles(id,display_name,email,domain,status)",filters:`team_id=eq.${selTeam}`,token});const m=tm.map(t=>t.profiles).filter(p=>p&&p.status==="active").sort((a,b)=>(a.display_name||"").localeCompare(b.display_name||""));setMembers(m);const init={};m.forEach(u=>{kpis.forEach(k=>{init[`${u.id}_${k.id}`]="";});});setEntries(init);}catch(e){console.error(e);}})();},[selTeam,kpis,token]);
-
-  // Load existing scores when team or week changes
-  useEffect(()=>{if(!selTeam||kpis.length===0||members.length===0)return;const effectiveWs=period==="weekly"?weekStart:monthVal+"-01";(async()=>{try{const existing=await sb.query("scores",{select:"profile_id,kpi_id,score_value",filters:`team_id=eq.${selTeam}&week_start=eq.${effectiveWs}`,token});if(existing.length>0){const filled={};members.forEach(u=>{kpis.forEach(k=>{const found=existing.find(s=>s.profile_id===u.id&&s.kpi_id===k.id);filled[`${u.id}_${k.id}`]=found?String(found.score_value):"";});});setEntries(filled);}}catch(e){console.error(e);}})();},[selTeam,kpis,members,weekStart,monthVal,period,token]);
+  useEffect(()=>{if(!selTeam||kpis.length===0)return;const effectiveWs=period==="weekly"?weekStart:monthVal+"-01";(async()=>{try{
+    // Load team members
+    const tm=await sb.query("team_members",{select:"profile_id,profiles(id,display_name,email,domain,status)",filters:`team_id=eq.${selTeam}`,token});
+    const m=tm.map(t=>t.profiles).filter(p=>p&&p.status==="active").sort((a,b)=>(a.display_name||"").localeCompare(b.display_name||""));
+    setMembers(m);
+    // Initialize empty entries
+    const init={};m.forEach(u=>{kpis.forEach(k=>{init[`${u.id}_${k.id}`]="";});});
+    // Load existing scores for this team+week
+    const existing=await sb.query("scores",{select:"profile_id,kpi_id,score_value",filters:`team_id=eq.${selTeam}&week_start=eq.${effectiveWs}`,token});
+    // Pre-fill if scores exist
+    if(existing.length>0){m.forEach(u=>{kpis.forEach(k=>{const found=existing.find(s=>s.profile_id===u.id&&s.kpi_id===k.id);if(found)init[`${u.id}_${k.id}`]=String(found.score_value);});});}
+    setEntries(init);
+  }catch(e){console.error(e);}})();},[selTeam,kpis,token,weekStart,monthVal,period]);
 
   const ws=period==="weekly"?weekStart:monthVal+"-01";const team=teams.find(t=>t.id===selTeam);
 
