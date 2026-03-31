@@ -120,28 +120,28 @@ function TeamManagementPage({token}){
 }
 
 function ScoreEntryPage({token,profile}){
-  const[teams,setTeams]=useState([]);const[members,setMembers]=useState([]);const[kpis,setKpis]=useState([]);
-  const[selTeam,setSelTeam]=useState("");const[period,setPeriod]=useState("weekly");
+  const[teams,setTeams]=useState([]);const[members,setMembers]=useState([]);const[kpis,setKpis]=useState([]);const[allKpis,setAllKpis]=useState([]);
+  const[selTeam,setSelTeam]=useState("");const[period,setPeriod]=useState("monthly");
   const[weekStart,setWeekStart]=useState(monday(new Date()));const[monthVal,setMonthVal]=useState(new Date().toISOString().slice(0,7));
   const[entries,setEntries]=useState({});const[saving,setSaving]=useState(false);const[loading,setLoading]=useState(true);const[tab,setTab]=useState("manual");
+  const[roleTier,setRoleTier]=useState("qa");
   const[csvData,setCsvData]=useState(null);const[csvHeaders,setCsvHeaders]=useState([]);const[csvMapping,setCsvMapping]=useState({});const[csvPreview,setCsvPreview]=useState([]);
   const fileRef=useRef();const{show,el}=useToast();
 
-  useEffect(()=>{(async()=>{try{const[t,k]=await Promise.all([sb.query("teams",{select:"id,name,domain",token}),sb.query("kpi_definitions",{select:"id,name,slug,unit,target_value,min_value,max_value",filters:"is_active=eq.true&order=sort_order.asc",token})]);setTeams(t);setKpis(k);if(t.length>0)setSelTeam(t[0].id);}catch(e){console.error(e);}setLoading(false);})();},[token]);
+  useEffect(()=>{(async()=>{try{const[t,k]=await Promise.all([sb.query("teams",{select:"id,name,domain",token}),sb.query("kpi_definitions",{select:"id,name,slug,unit,target_value,min_value,max_value,weight,role_tier,frequency",filters:"is_active=eq.true&order=sort_order.asc",token})]);setTeams(t);setAllKpis(k);setKpis(k.filter(x=>x.role_tier===roleTier));if(t.length>0)setSelTeam(t[0].id);}catch(e){console.error(e);}setLoading(false);})();},[token]);
+
+  // Update KPIs when role tier changes
+  useEffect(()=>{setKpis(allKpis.filter(x=>x.role_tier===roleTier));},[roleTier,allKpis]);
 
   useEffect(()=>{if(!selTeam||kpis.length===0)return;const effectiveWs=period==="weekly"?weekStart:monthVal+"-01";(async()=>{try{
-    // Load team members
-    const tm=await sb.query("team_members",{select:"profile_id,profiles(id,display_name,email,domain,status)",filters:`team_id=eq.${selTeam}`,token});
-    const m=tm.map(t=>t.profiles).filter(p=>p&&p.status==="active").sort((a,b)=>(a.display_name||"").localeCompare(b.display_name||""));
+    const tm=await sb.query("team_members",{select:"profile_id,profiles(id,display_name,email,domain,status,role)",filters:`team_id=eq.${selTeam}`,token});
+    const m=tm.map(t=>t.profiles).filter(p=>p&&p.status==="active"&&(roleTier==="qa"?p.role==="qa":roleTier==="qa_lead"?p.role==="qa_lead":p.role==="qa_supervisor")).sort((a,b)=>(a.display_name||"").localeCompare(b.display_name||""));
     setMembers(m);
-    // Initialize empty entries
     const init={};m.forEach(u=>{kpis.forEach(k=>{init[`${u.id}_${k.id}`]="";});});
-    // Load existing scores for this team+week
     const existing=await sb.query("scores",{select:"profile_id,kpi_id,score_value",filters:`team_id=eq.${selTeam}&week_start=eq.${effectiveWs}`,token});
-    // Pre-fill if scores exist
     if(existing.length>0){m.forEach(u=>{kpis.forEach(k=>{const found=existing.find(s=>s.profile_id===u.id&&s.kpi_id===k.id);if(found)init[`${u.id}_${k.id}`]=String(found.score_value);});});}
     setEntries(init);
-  }catch(e){console.error(e);}})();},[selTeam,kpis,token,weekStart,monthVal,period]);
+  }catch(e){console.error(e);}})();},[selTeam,kpis,token,weekStart,monthVal,period,roleTier]);
 
   const ws=period==="weekly"?weekStart:monthVal+"-01";const team=teams.find(t=>t.id===selTeam);
 
@@ -175,6 +175,7 @@ function ScoreEntryPage({token,profile}){
     {tab==="manual"?<>
       <div className="card" style={{marginBottom:16}}><div className="controls-row">
         <div className="form-group" style={{flex:1}}><label className="form-label">Team</label><select className="select form-input" value={selTeam} onChange={e=>setSelTeam(e.target.value)}>{teams.map(t=><option key={t.id} value={t.id}>{t.name} ({t.domain})</option>)}</select></div>
+        <div className="form-group" style={{flex:1}}><label className="form-label">Role tier</label><select className="select form-input" value={roleTier} onChange={e=>setRoleTier(e.target.value)}><option value="qa">Quality Specialist</option><option value="qa_lead">Quality Leader</option><option value="qa_supervisor">Quality Supervisor</option></select></div>
         <div className="form-group" style={{flex:1}}><label className="form-label">Period</label><select className="select form-input" value={period} onChange={e=>setPeriod(e.target.value)}><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></div>
         <div className="form-group" style={{flex:1}}><label className="form-label">{period==="weekly"?"Week starting":"Month"}</label>{period==="weekly"?<input type="date" className="form-input" value={weekStart} onChange={e=>setWeekStart(monday(e.target.value))}/>:<input type="month" className="form-input" value={monthVal} onChange={e=>setMonthVal(e.target.value)}/>}</div>
       </div></div>
@@ -250,6 +251,158 @@ function AdminPage({token,profile}){
     {tab==="users"&&<AdminUsersPage token={token} teams={teams}/>}{tab==="teams"&&<TeamManagementPage token={token}/>}</div>);
 }
 
+/* ═══ DAM ENGINE ═══ */
+function DAMPage({token,profile}){
+  const[tab,setTab]=useState("flags");const[rules,setRules]=useState([]);const[flags,setFlags]=useState([]);const[steps,setSteps]=useState([]);
+  const[loading,setLoading]=useState(true);const[showCreate,setShowCreate]=useState(false);
+  const[selRule,setSelRule]=useState("");const[selProfile,setSelProfile]=useState("");const[flagNotes,setFlagNotes]=useState("");
+  const[profiles,setProfiles]=useState([]);const{show,el}=useToast();
+
+  const load=useCallback(async()=>{try{
+    const[r,f,s,p]=await Promise.all([
+      sb.query("dam_rules",{select:"id,name,description,behavior_type,dam_reference,severity,auditing_flow,executor_role,auditor_role,goal,compliant_action",filters:"is_active=eq.true&order=behavior_type.asc,name.asc",token}),
+      sb.query("dam_flags",{select:"id,profile_id,rule_id,severity,recommended_action,triggered_at,status,notes,occurrence_number,reviewed_by,reviewed_at,profiles!dam_flags_profile_id_fkey(display_name,email),dam_rules(name,behavior_type,dam_reference)",filters:"order=triggered_at.desc&limit=100",token}).catch(()=>[]),
+      sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action,deduction_days,is_hr_investigation",filters:"order=rule_id.asc,occurrence.asc",token}),
+      sb.query("profiles",{select:"id,display_name,email,role",filters:"status=eq.active",token}),
+    ]);
+    setRules(r);setFlags(f);setSteps(s);setProfiles(p);
+  }catch(e){console.error(e);}setLoading(false);},[token]);
+
+  useEffect(()=>{load();},[load]);
+
+  const getStepsForRule=(ruleId)=>steps.filter(s=>s.rule_id===ruleId).sort((a,b)=>a.occurrence-b.occurrence);
+  const getOccurrenceCount=(profileId,ruleId)=>flags.filter(f=>f.profile_id===profileId&&f.rule_id===ruleId&&f.status!=="dismissed").length;
+
+  const createFlag=async()=>{
+    if(!selRule||!selProfile){show("error","Select a behavior and a person");return;}
+    const occ=getOccurrenceCount(selProfile,selRule)+1;
+    const rule=rules.find(r=>r.id===selRule);
+    const step=getStepsForRule(selRule).find(s=>s.occurrence===occ);
+    try{
+      await sb.query("dam_flags",{token,method:"POST",body:{
+        profile_id:selProfile,rule_id:selRule,severity:rule?.severity||"warning",
+        recommended_action:step?.includes_pip?"pip":(step?.is_hr_investigation?"termination_review":"coaching"),
+        occurrence_number:occ,escalation_step_id:step?.id||null,
+        notes:flagNotes,trigger_data:{created_by:profile.id,step_action:step?.action||"No step defined"},
+      }});
+      show("success",`Flag created — occurrence #${occ}${step?": "+step.action:""}`);
+      setShowCreate(false);setSelRule("");setSelProfile("");setFlagNotes("");load();
+    }catch(e){show("error",e.message);}
+  };
+
+  const updateFlagStatus=async(flagId,status)=>{
+    try{
+      await sb.query("dam_flags",{token,method:"PATCH",body:{status,reviewed_by:profile.id,reviewed_at:new Date().toISOString()},filters:`id=eq.${flagId}`});
+      show("success","Flag updated");load();
+    }catch(e){show("error",e.message);}
+  };
+
+  const behaviorTypes=[{key:"manipulation",label:"Manipulation",color:"var(--red)"},{key:"performance_management",label:"Performance management",color:"var(--amber)"},{key:"completion_attainment",label:"Completion & attainment",color:"var(--accent-text)"}];
+  const statusColors={pending:"var(--amber)",acknowledged:"var(--accent-text)",action_created:"var(--teal)",resolved:"var(--green)",dismissed:"var(--tx3)"};
+
+  if(loading)return<div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
+
+  return(<div className="page">
+    <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+      <div><div className="page-title">DAM engine</div><div className="page-subtitle">Disciplinary Actions Matrix — {flags.filter(f=>f.status==="pending").length} pending flags</div></div>
+      <button className="btn btn-primary" onClick={()=>setShowCreate(!showCreate)}><Icon d={icons.plus} size={16}/>Create flag</button>
+    </div>
+
+    <div className="tab-bar">
+      <button className={`tab-btn ${tab==="flags"?"active":""}`} onClick={()=>setTab("flags")}>Active flags ({flags.filter(f=>f.status!=="resolved"&&f.status!=="dismissed").length})</button>
+      <button className={`tab-btn ${tab==="rules"?"active":""}`} onClick={()=>setTab("rules")}>Behavior rules ({rules.length})</button>
+      <button className={`tab-btn ${tab==="history"?"active":""}`} onClick={()=>setTab("history")}>All history ({flags.length})</button>
+    </div>
+
+    {showCreate&&<div className="card" style={{marginBottom:16}}>
+      <div className="card-header"><span className="card-title">Create DAM flag</span></div>
+      <div className="form-grid">
+        <div className="form-group"><label className="form-label">Person</label>
+          <select className="select form-input" value={selProfile} onChange={e=>setSelProfile(e.target.value)}>
+            <option value="">— Select person —</option>
+            {profiles.filter(p=>p.role==="qa"||p.role==="qa_lead").map(p=><option key={p.id} value={p.id}>{p.display_name||p.email} ({ROLE_LABELS[p.role]})</option>)}
+          </select>
+        </div>
+        <div className="form-group"><label className="form-label">Behavior</label>
+          <select className="select form-input" value={selRule} onChange={e=>setSelRule(e.target.value)}>
+            <option value="">— Select behavior —</option>
+            {behaviorTypes.map(bt=><optgroup key={bt.key} label={bt.label}>
+              {rules.filter(r=>r.behavior_type===bt.key).map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
+            </optgroup>)}
+          </select>
+        </div>
+        <div className="form-group" style={{gridColumn:"1/-1"}}><label className="form-label">Notes</label>
+          <textarea className="form-input" rows={2} value={flagNotes} onChange={e=>setFlagNotes(e.target.value)} placeholder="Context, evidence, audit findings..." style={{resize:"vertical"}}/>
+        </div>
+      </div>
+      {selRule&&selProfile&&<div style={{marginTop:12,padding:"10px 14px",background:"var(--bg)",borderRadius:8,fontSize:13}}>
+        <strong>Next occurrence:</strong> #{getOccurrenceCount(selProfile,selRule)+1}
+        {(()=>{const step=getStepsForRule(selRule).find(s=>s.occurrence===getOccurrenceCount(selProfile,selRule)+1);return step?<span> → <span style={{color:step.is_hr_investigation?"var(--red)":"var(--amber)",fontWeight:600}}>{step.action}</span></span>:<span style={{color:"var(--tx3)"}}> — No escalation step defined for this occurrence</span>;})()}
+      </div>}
+      <div style={{display:"flex",gap:8,marginTop:16}}>
+        <button className="btn btn-primary" onClick={createFlag}><Icon d={icons.dam} size={16}/>Create flag</button>
+        <button className="btn btn-outline" onClick={()=>setShowCreate(false)}>Cancel</button>
+      </div>
+    </div>}
+
+    {tab==="flags"&&<div className="card">
+      {flags.filter(f=>f.status!=="resolved"&&f.status!=="dismissed").length===0?
+        <div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No active flags. Create one above or wait for auto-detection.</p></div>:
+        <div className="table-wrap"><table><thead><tr><th>Person</th><th>Behavior</th><th>Category</th><th>Occurrence</th><th>Escalation</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody>
+          {flags.filter(f=>f.status!=="resolved"&&f.status!=="dismissed").map(f=>{
+            const step=f.escalation_step_id?steps.find(s=>s.id===f.escalation_step_id):getStepsForRule(f.rule_id).find(s=>s.occurrence===f.occurrence_number);
+            return(<tr key={f.id}>
+              <td style={{fontWeight:500}}>{f.profiles?.display_name||f.profiles?.email||"—"}</td>
+              <td style={{fontSize:13}}>{f.dam_rules?.name||"—"}</td>
+              <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,background:f.dam_rules?.behavior_type==="manipulation"?"var(--red-bg)":f.dam_rules?.behavior_type==="performance_management"?"var(--amber-bg)":"var(--accent-light)",color:f.dam_rules?.behavior_type==="manipulation"?"var(--red)":f.dam_rules?.behavior_type==="performance_management"?"var(--amber)":"var(--accent-text)",fontWeight:500}}>{f.dam_rules?.behavior_type?.replace(/_/g," ")||"—"}</span></td>
+              <td style={{fontWeight:600}}>#{f.occurrence_number}</td>
+              <td style={{fontSize:13,color:step?.is_hr_investigation?"var(--red)":"var(--tx)"}}>{step?.action||"—"}{step?.deduction_days>0&&<span style={{color:"var(--red)",marginLeft:4}}>(-{step.deduction_days}d)</span>}</td>
+              <td><span style={{fontSize:11,padding:"3px 10px",borderRadius:20,fontWeight:600,background:f.status==="pending"?"var(--amber-bg)":"var(--green-bg)",color:statusColors[f.status]||"var(--tx3)"}}>{f.status}</span></td>
+              <td style={{fontSize:12,color:"var(--tx2)"}}>{new Date(f.triggered_at).toLocaleDateString()}</td>
+              <td><div style={{display:"flex",gap:4}}>
+                {f.status==="pending"&&<button className="btn btn-outline btn-sm" onClick={()=>updateFlagStatus(f.id,"acknowledged")}>Acknowledge</button>}
+                {(f.status==="pending"||f.status==="acknowledged")&&<button className="btn btn-outline btn-sm" onClick={()=>updateFlagStatus(f.id,"resolved")} style={{color:"var(--green)"}}>Resolve</button>}
+                {f.status==="pending"&&<button className="btn btn-outline btn-sm" onClick={()=>updateFlagStatus(f.id,"dismissed")} style={{color:"var(--tx3)"}}>Dismiss</button>}
+              </div></td>
+            </tr>);})}
+        </tbody></table></div>}
+    </div>}
+
+    {tab==="rules"&&<div>{behaviorTypes.map(bt=><div key={bt.key} className="card" style={{marginBottom:16}}>
+      <div className="card-header"><span className="card-title" style={{color:bt.color}}>{bt.label}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{rules.filter(r=>r.behavior_type===bt.key).length} behaviors</span></div>
+      {rules.filter(r=>r.behavior_type===bt.key).map(r=><div key={r.id} style={{padding:"12px 0",borderBottom:"1px solid var(--bd2)"}}>
+        <div style={{fontWeight:500,fontSize:14,marginBottom:4}}>{r.name}</div>
+        {r.description&&<div style={{fontSize:13,color:"var(--tx2)",marginBottom:6}}>{r.description}</div>}
+        <div style={{display:"flex",gap:16,flexWrap:"wrap",fontSize:12,color:"var(--tx3)"}}>
+          {r.auditing_flow&&<span>Audit: {r.auditing_flow}</span>}
+          {r.executor_role&&<span>Executor: {ROLE_LABELS[r.executor_role]}</span>}
+          {r.auditor_role&&<span>Auditor: {ROLE_LABELS[r.auditor_role]}</span>}
+        </div>
+        <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
+          {getStepsForRule(r.id).map(s=><span key={s.id} style={{fontSize:11,padding:"3px 10px",borderRadius:12,background:s.is_hr_investigation?"var(--red-bg)":"var(--bg2)",color:s.is_hr_investigation?"var(--red)":"var(--tx2)",fontWeight:500}}>
+            {s.occurrence}{s.occurrence===1?"st":s.occurrence===2?"nd":s.occurrence===3?"rd":"th"}: {s.action}
+          </span>)}
+        </div>
+      </div>)}
+    </div>)}</div>}
+
+    {tab==="history"&&<div className="card">
+      {flags.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No flags in history yet.</p></div>:
+      <div className="table-wrap"><table><thead><tr><th>Person</th><th>Behavior</th><th>Occ.</th><th>Status</th><th>Date</th><th>Notes</th></tr></thead><tbody>
+        {flags.map(f=>(<tr key={f.id}>
+          <td style={{fontWeight:500}}>{f.profiles?.display_name||"—"}</td>
+          <td style={{fontSize:13}}>{f.dam_rules?.name||"—"}</td>
+          <td>#{f.occurrence_number}</td>
+          <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:f.status==="resolved"?"var(--green-bg)":f.status==="dismissed"?"var(--bg2)":"var(--amber-bg)",color:statusColors[f.status]||"var(--tx3)"}}>{f.status}</span></td>
+          <td style={{fontSize:12,color:"var(--tx2)"}}>{new Date(f.triggered_at).toLocaleDateString()}</td>
+          <td style={{fontSize:12,color:"var(--tx2)",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.notes||"—"}</td>
+        </tr>))}
+      </tbody></table></div>}
+    </div>}
+    {el}
+  </div>);
+}
+
 function PlaceholderPage({title,description,icon,minRole,userRole}){const locked=minRole&&!hasRole(userRole,minRole);
   return(<div className="page"><div className="page-header"><div className="page-title">{title}</div></div><div className="card"><div className="placeholder"><div className="placeholder-icon"><Icon d={icon} size={28}/></div><h3>{title}</h3><p>{locked?`Requires ${ROLE_LABELS[minRole]} access or above.`:description}</p><div className="placeholder-badge">{locked?"Access restricted":"Coming soon"}</div></div></div></div>);}
 
@@ -277,7 +430,7 @@ export default function App(){
     case"scores":return hasRole(userRole,"qa_lead")?<ScoreEntryPage token={t} profile={profile}/>:<PlaceholderPage title="Score entry" icon={icons.scores} minRole="qa_lead" userRole={userRole}/>;
     case"admin":return hasRole(userRole,"admin")?<AdminPage token={t} profile={profile}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>;
     case"leaderboard":return<PlaceholderPage title="Leaderboard" description="Team and global rankings. Building next." icon={icons.leaderboard} userRole={userRole}/>;
-    case"dam":return<PlaceholderPage title="DAM flags" description="Automated disciplinary flags." icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
+    case"dam":return hasRole(userRole,"qa_lead")?<DAMPage token={t} profile={profile}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
     case"plans":return<PlaceholderPage title="Action plans & PIPs" description="Performance improvement plans." icon={icons.plan} minRole="qa_lead" userRole={userRole}/>;
     case"coaching":return<PlaceholderPage title="Coaching sessions" description="Session logging and email generator." icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
     case"hr":return<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>;
