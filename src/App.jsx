@@ -123,14 +123,19 @@ function ScoreEntryPage({token,profile}){
 
   useEffect(()=>{if(!selTeam||kpis.length===0)return;(async()=>{try{const tm=await sb.query("team_members",{select:"profile_id,profiles(id,display_name,email,domain,status)",filters:`team_id=eq.${selTeam}`,token});const m=tm.map(t=>t.profiles).filter(p=>p&&p.status==="active").sort((a,b)=>(a.display_name||"").localeCompare(b.display_name||""));setMembers(m);const init={};m.forEach(u=>{kpis.forEach(k=>{init[`${u.id}_${k.id}`]="";});});setEntries(init);}catch(e){console.error(e);}})();},[selTeam,kpis,token]);
 
+  // Load existing scores when team or week changes
+  useEffect(()=>{if(!selTeam||kpis.length===0||members.length===0)return;const effectiveWs=period==="weekly"?weekStart:monthVal+"-01";(async()=>{try{const existing=await sb.query("scores",{select:"profile_id,kpi_id,score_value",filters:`team_id=eq.${selTeam}&week_start=eq.${effectiveWs}`,token});if(existing.length>0){const filled={};members.forEach(u=>{kpis.forEach(k=>{const found=existing.find(s=>s.profile_id===u.id&&s.kpi_id===k.id);filled[`${u.id}_${k.id}`]=found?String(found.score_value):"";});});setEntries(filled);}}catch(e){console.error(e);}})();},[selTeam,kpis,members,weekStart,monthVal,period,token]);
+
   const ws=period==="weekly"?weekStart:monthVal+"-01";const team=teams.find(t=>t.id===selTeam);
 
   const saveScores=async()=>{setSaving(true);try{const rows=[];members.forEach(u=>{kpis.forEach(k=>{const v=entries[`${u.id}_${k.id}`];if(v!==""&&v!==undefined)rows.push({profile_id:u.id,kpi_id:k.id,score_value:Number(v),target_value:k.target_value,week_start:ws,domain:u.domain,team_id:selTeam,entered_by:profile.id,source:"manual"});});});
     if(rows.length===0){show("error","No scores entered");setSaving(false);return;}
+    // Delete existing scores for this team+week first, then insert fresh
+    const profileIds=members.map(m=>m.id);
+    for(const pid of profileIds){await sb.query("scores",{token,method:"DELETE",filters:`profile_id=eq.${pid}&week_start=eq.${ws}&team_id=eq.${selTeam}`}).catch(()=>{});}
     await sb.query("scores",{token,method:"POST",body:rows});
     try{await sb.rpc("calculate_composite_scores",{p_week_start:ws},token);}catch(e){console.warn("Composite:",e);}
     show("success",`${rows.length} scores saved`);
-    const init={};members.forEach(u=>{kpis.forEach(k=>{init[`${u.id}_${k.id}`]="";});});setEntries(init);
   }catch(e){show("error",e.message);}setSaving(false);};
 
   const handleFile=(e)=>{const f=e.target.files[0];if(!f)return;const reader=new FileReader();reader.onload=(ev)=>{const lines=ev.target.result.split(/\r?\n/).filter(l=>l.trim());if(lines.length<2){show("error","Empty file");return;}const hdrs=lines[0].split(",").map(h=>h.trim().replace(/^"|"$/g,""));const rows=lines.slice(1).map(l=>{const vals=l.split(",").map(v=>v.trim().replace(/^"|"$/g,""));const obj={};hdrs.forEach((h,i)=>{obj[h]=vals[i]||"";});return obj;});setCsvHeaders(hdrs);setCsvData(rows);setCsvPreview(rows.slice(0,5));setCsvMapping({});};reader.readAsText(f);};
