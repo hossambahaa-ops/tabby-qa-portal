@@ -1639,6 +1639,19 @@ function CoachingPage({token, profile}) {
     })();
   }, [token]);
 
+  // Listen for prefill from AP/PIP page
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.detail?.email) {
+        setToEmail(e.detail.email);
+        setTab("compose");
+        if (e.detail.type) setMeetingType(e.detail.type);
+      }
+    };
+    window.addEventListener("prefill-coaching", handler);
+    return () => window.removeEventListener("prefill-coaching", handler);
+  }, []);
+
   // Get previous sessions for selected member
   const memberHistory = sessions.filter(s => s.member_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
 
@@ -3338,6 +3351,19 @@ function ActionPlanPage({ token, profile }) {
 
                     {/* Actions */}
                     <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+                      {/* Send coaching review email */}
+                      <button className="btn btn-outline btn-sm" style={{ color: "var(--accent-text)" }} onClick={() => {
+                        window.dispatchEvent(new CustomEvent("navigate", { detail: "coaching" }));
+                        setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent("prefill-coaching", { detail: {
+                            email: plan.qa_email,
+                            type: plan.type === "pip" ? "PIP Review" : "Action Plan Review",
+                          }}));
+                        }, 300);
+                      }}>
+                        <Icon d={icons.coaching} size={14} />Send Review Email
+                      </button>
+
                       {/* Pull all remaining weeks */}
                       {prog.planWeeks.some(w => !w.actual_data) && <button className="btn btn-outline btn-sm" onClick={async () => {
                         for (const w of prog.planWeeks.filter(w => !w.actual_data)) {
