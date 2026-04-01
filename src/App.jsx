@@ -69,68 +69,150 @@ const GoogleLogo=()=>(<svg width="20" height="20" viewBox="0 0 48 48"><path fill
 /* ═══ PAGES ═══ */
 
 function DashboardPage({profile,token}){
-  const[scores,setScores]=useState([]);const[composite,setComposite]=useState([]);const[loading,setLoading]=useState(true);
-  const[teamStats,setTeamStats]=useState(null);const[damCount,setDamCount]=useState(0);
+  const[mtd,setMtd]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);
+  const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
   const isLead=hasRole(profile?.role,"qa_lead");
 
+  const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
+  const fmt=(val)=>{if(val===null||val===undefined||val==="")return"—";if(typeof val==="string"&&val.includes("%"))return val;if(typeof val==="number"&&val>0&&val<1)return(val*100).toFixed(1)+"%";if(typeof val==="number"&&!Number.isInteger(val))return val.toFixed(2);return String(val);};
+  const fpColor=(v)=>v>=0.4?"var(--green)":v>=0.25?"var(--amber)":"var(--red)";
+  const fpBg=(v)=>v>=0.4?"var(--green-bg)":v>=0.25?"var(--amber-bg)":"var(--red-bg)";
+
   useEffect(()=>{(async()=>{try{
-    // Personal scores and composites
-    const[s,c]=await Promise.all([
-      sb.query("scores",{select:"id,score_value,target_value,week_start,kpi_id,kpi_definitions(name,slug,unit)",filters:`profile_id=eq.${profile.id}&order=week_start.desc&limit=20`,token}).catch(()=>[]),
-      sb.query("composite_scores",{select:"*",filters:`profile_id=eq.${profile.id}&order=week_start.desc&limit=12`,token}).catch(()=>[]),
+    const[mtdRows,rosterRows,flags,profs]=await Promise.all([
+      sb.query("mtd_scores",{select:"*",filters:"order=month.desc,final_performance.desc",token}).catch(()=>[]),
+      sb.query("qa_roster",{select:"*",token}).catch(()=>[]),
+      sb.query("dam_flags",{select:"id,status",filters:"status=eq.pending",token}).catch(()=>[]),
+      sb.query("profiles",{select:"id,role,status",filters:"status=eq.active",token}).catch(()=>[]),
     ]);
-    setScores(s);setComposite(c);
+    setMtd(mtdRows);setRoster(rosterRows);setDamCount(flags.length);
+    setProfileCount({qas:profs.filter(p=>p.role==="qa").length,leads:profs.filter(p=>p.role==="qa_lead").length,active:profs.length});
+  }catch(e){console.error("Dashboard:",e);}setLoading(false);})();},[token]);
 
-    // For leads+, also load team overview
-    if(isLead){
-      const[flags,allProfiles]=await Promise.all([
-        sb.query("dam_flags",{select:"id,status",filters:"status=eq.pending",token}).catch(()=>[]),
-        sb.query("profiles",{select:"id,role,status",filters:"status=eq.active",token}).catch(()=>[]),
-      ]);
-      setDamCount(flags.length);
-      setTeamStats({totalQAs:allProfiles.filter(p=>p.role==="qa").length,totalLeads:allProfiles.filter(p=>p.role==="qa_lead").length,totalActive:allProfiles.filter(p=>p.status==="active").length});
-    }
-  }catch(e){console.error("Dashboard error:",e);}setLoading(false);})();},[profile.id,token,isLead]);
+  // Get unique months sorted desc
+  const months=[...new Set(mtd.map(r=>r.month))];
+  const latestMonth=months[0]||"—";
+  const prevMonth=months[1]||null;
 
-  const lc=composite[0],pc=composite[1];const trend=lc&&pc?(lc.composite_value-pc.composite_value).toFixed(1):null;
-  const spark=composite.slice(0,8).reverse();const sMax=Math.max(...spark.map(d=>d.composite_value),1);const sMin=Math.min(...spark.map(d=>d.composite_value),0);const sR=sMax-sMin||1;
+  // Current month data
+  const current=mtd.filter(r=>r.month===latestMonth);
+  const previous=prevMonth?mtd.filter(r=>r.month===prevMonth):[];
+
+  // Find this user's own data
+  const myEmail=profile?.email?.toLowerCase();
+  const myData=current.find(r=>r.qa_email.toLowerCase()===myEmail);
+  const myPrevData=previous.find(r=>r.qa_email.toLowerCase()===myEmail);
+
+  // My rank
+  const ranked=[...current].sort((a,b)=>(b.final_performance||0)-(a.final_performance||0));
+  const myRank=ranked.findIndex(r=>r.qa_email.toLowerCase()===myEmail)+1;
+
+  // My roster info
+  const myRoster=roster.find(r=>r.email.toLowerCase()===myEmail);
+
+  // For leads: find team members (people whose manager_email matches this user)
+  const myTeamEmails=roster.filter(r=>r.manager_email&&r.manager_email.toLowerCase()===myEmail).map(r=>r.email.toLowerCase());
+  // Also check mtd qa_tl field
+  const myTlEmails=current.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===myEmail).map(r=>r.qa_email.toLowerCase());
+  const allTeamEmails=[...new Set([...myTeamEmails,...myTlEmails])];
+  const teamCurrent=current.filter(r=>allTeamEmails.includes(r.qa_email.toLowerCase()));
+  const teamPrevious=previous.filter(r=>allTeamEmails.includes(r.qa_email.toLowerCase()));
+  const teamSorted=[...teamCurrent].sort((a,b)=>(b.final_performance||0)-(a.final_performance||0));
+
+  // Team averages
+  const teamAvgFP=teamCurrent.length?(teamCurrent.reduce((a,r)=>a+(r.final_performance||0),0)/teamCurrent.length):0;
+  const teamAvgFPPrev=teamPrevious.length?(teamPrevious.reduce((a,r)=>a+(r.final_performance||0),0)/teamPrevious.length):0;
+  const teamTrend=teamPrevious.length?((teamAvgFP-teamAvgFPPrev)*100).toFixed(1):null;
+  const teamDsat=teamCurrent.reduce((a,r)=>a+(r.dsat||0),0);
+
+  // Performance trend for sparkline (my data across months)
+  const myHistory=months.slice(0,6).reverse().map(m=>{const row=mtd.find(r=>r.month===m&&r.qa_email.toLowerCase()===myEmail);return{month:m,fp:row?row.final_performance||0:null};}).filter(d=>d.fp!==null);
+
+  const nav=(page)=>window.dispatchEvent(new CustomEvent("navigate",{detail:page}));
 
   return(<div className="page">
-    <div className="welcome-banner"><h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2><p>{isLead?"Here's your team overview.":"Here's your performance overview."}</p><div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}</div></div>
+    <div className="welcome-banner"><h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2><p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p><div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div></div>
     {loading?<div className="loading-spinner"><div className="spinner"/></div>:<>
 
-    {/* Lead+ overview stats */}
-    {isLead&&teamStats&&<div className="stats-grid">
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>👥</div><div className="stat-label">Active QAs</div><div className="stat-value">{teamStats.totalQAs}</div></div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>👔</div><div className="stat-label">QA Leads</div><div className="stat-value">{teamStats.totalLeads}</div></div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Pending DAM flags</div><div className="stat-value">{damCount}</div></div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>✅</div><div className="stat-label">Total active staff</div><div className="stat-value">{teamStats.totalActive}</div></div>
-    </div>}
+    {/* ── Lead+ team overview ── */}
+    {isLead&&<>
+      <div className="stats-grid">
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>👥</div><div className="stat-label">My team</div><div className="stat-value">{allTeamEmails.length}</div></div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Team avg performance</div><div className="stat-value" style={{color:fpColor(teamAvgFP)}}>{(teamAvgFP*100).toFixed(1)}%</div>{teamTrend&&<div style={{fontSize:12,marginTop:4,color:Number(teamTrend)>=0?"var(--green)":"var(--red)"}}>{Number(teamTrend)>=0?"↑":"↓"} {Math.abs(teamTrend)}% vs {prevMonth}</div>}</div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Team DSAT</div><div className="stat-value" style={{color:teamDsat>30?"var(--red)":"var(--tx)"}}>{teamDsat}</div></div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🚩</div><div className="stat-label">Pending DAM flags</div><div className="stat-value">{damCount}</div></div>
+      </div>
 
-    {/* Personal stats (for QAs or anyone with scores) */}
-    {(!isLead||composite.length>0)&&<div className="stats-grid">
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>📊</div><div className="stat-label">Composite score</div><div className="stat-value">{lc?lc.composite_value:"—"}</div>{trend&&<div className={`stat-change ${Number(trend)>=0?"up":"down"}`}>{Number(trend)>=0?"↑":"↓"} {Math.abs(trend)} vs last week</div>}</div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Team rank</div><div className="stat-value">{lc?.rank_in_team?`#${lc.rank_in_team}`:"—"}</div></div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>🌐</div><div className="stat-label">Domain rank</div><div className="stat-value">{lc?.rank_in_domain?`#${lc.rank_in_domain}`:"—"}</div></div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--teal-bg)",color:"var(--teal)",fontSize:18}}>📅</div><div className="stat-label">Weeks tracked</div><div className="stat-value">{composite.length}</div></div>
-    </div>}
+      {/* Team members table */}
+      {teamSorted.length>0&&<div className="card" style={{marginBottom:20}}>
+        <div className="card-header"><span className="card-title">My team — {latestMonth}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{teamSorted.length} specialists</span></div>
+        <div className="table-wrap"><table><thead><tr><th>#</th><th>Specialist</th><th style={{textAlign:"right"}}>Performance</th><th style={{textAlign:"right"}}>Tickets/d</th><th style={{textAlign:"right"}}>DSAT</th><th style={{textAlign:"right"}}>Occupancy</th><th style={{textAlign:"right"}}>RTR</th><th style={{textAlign:"center"}}>JKQ</th></tr></thead><tbody>
+          {teamSorted.map((r,i)=>(<tr key={r.id}>
+            <td style={{fontWeight:500,color:i<3?"var(--amber)":"var(--tx3)"}}>{i+1}</td>
+            <td style={{fontWeight:500}}>{nameFromEmail(r.qa_email)}</td>
+            <td style={{textAlign:"right"}}><span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>{((r.final_performance||0)*100).toFixed(1)}%</span></td>
+            <td style={{textAlign:"right",color:"var(--teal)",fontWeight:500}}>{r.ticket_per_day??0}</td>
+            <td style={{textAlign:"right",color:(r.dsat||0)>20?"var(--red)":"inherit",fontWeight:(r.dsat||0)>20?600:400}}>{r.dsat??0}</td>
+            <td style={{textAlign:"right"}}>{fmt(r.occupancy_pct)}</td>
+            <td style={{textAlign:"right"}}>{fmt(r.avg_rtr_score)}</td>
+            <td style={{textAlign:"center"}}>{r.jkq_result&&r.jkq_result!=="N/A"?<span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}</span>:<span style={{color:"var(--tx3)"}}>—</span>}</td>
+          </tr>))}
+        </tbody></table></div>
+      </div>}
+    </>}
 
-    {spark.length>1&&<div className="card" style={{marginBottom:20}}><div className="card-header"><span className="card-title">Composite trend</span></div>
-      <svg width="100%" height="80" viewBox={`0 0 ${spark.length*60} 80`} style={{overflow:"visible"}}><polyline fill="none" stroke="var(--accent-text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={spark.map((d,i)=>`${i*60+30},${70-((d.composite_value-sMin)/sR)*60}`).join(" ")}/>{spark.map((d,i)=>(<g key={i}><circle cx={i*60+30} cy={70-((d.composite_value-sMin)/sR)*60} r="4" fill="var(--accent-text)"/><text x={i*60+30} y={70-((d.composite_value-sMin)/sR)*60-10} textAnchor="middle" fontSize="11" fill="var(--tx2)" fontFamily="var(--font)">{d.composite_value}</text></g>))}</svg>
-    </div>}
+    {/* ── Personal stats (everyone) ── */}
+    {myData?<>
+      <div className="stats-grid">
+        <div className="stat-card"><div className="stat-icon" style={{background:fpBg(myData.final_performance),color:fpColor(myData.final_performance),fontSize:18}}>📊</div><div className="stat-label">My performance</div><div className="stat-value" style={{color:fpColor(myData.final_performance)}}>{((myData.final_performance||0)*100).toFixed(1)}%</div>{myPrevData&&<div style={{fontSize:12,marginTop:4,color:((myData.final_performance||0)-(myPrevData.final_performance||0))>=0?"var(--green)":"var(--red)"}}>{((myData.final_performance||0)-(myPrevData.final_performance||0))>=0?"↑":"↓"} {(Math.abs((myData.final_performance||0)-(myPrevData.final_performance||0))*100).toFixed(1)}% vs {prevMonth}</div>}</div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Rank</div><div className="stat-value">{myRank>0?"#"+myRank:"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {ranked.length}</span></div></div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--teal-bg)",color:"var(--teal)",fontSize:18}}>🎫</div><div className="stat-label">Tickets/day</div><div className="stat-value">{myData.ticket_per_day??0}</div></div>
+        <div className="stat-card"><div className="stat-icon" style={{background:(myData.dsat||0)>20?"var(--red-bg)":"var(--green-bg)",color:(myData.dsat||0)>20?"var(--red)":"var(--green)",fontSize:18}}>📋</div><div className="stat-label">DSAT</div><div className="stat-value">{myData.dsat??0}</div></div>
+      </div>
 
-    <div className="card"><div className="card-header"><span className="card-title">{isLead&&scores.length===0?"Quick actions":"Recent scores"}</span></div>
-      {scores.length===0?<div className="placeholder" style={{padding:"30px 20px"}}>
+      {/* My KPI detail */}
+      <div className="card" style={{marginBottom:20}}>
+        <div className="card-header"><span className="card-title">My KPIs — {latestMonth}</span></div>
+        <div className="table-wrap"><table><thead><tr><th>Metric</th><th style={{textAlign:"right"}}>Value</th></tr></thead><tbody>
+          {[
+            {label:"Occupancy",value:fmt(myData.occupancy_pct)},
+            {label:"Coaching on-time",value:fmt(myData.coaching_ontime_score)},
+            {label:"Calibration",value:fmt(myData.calibration_score)},
+            {label:"Coaching observation",value:fmt(myData.coaching_observation_score)},
+            {label:"RTR score",value:fmt(myData.avg_rtr_score)},
+            {label:"Coaching completion",value:fmt(myData.coaching_completion_pct)},
+            {label:"Tickets/day",value:myData.ticket_per_day??0},
+            {label:"Working days",value:(myData.working_days||0)+(myData.ramadan_wds?" ("+myData.ramadan_wds+" Ramadan)":"")},
+            {label:"JKQ",value:myData.jkq_result&&myData.jkq_result!=="N/A"?myData.jkq_result+(myData.jkq_score>0?" ("+myData.jkq_score+")":""):"—"},
+          ].map(row=>(<tr key={row.label}><td style={{color:"var(--tx2)"}}>{row.label}</td><td style={{textAlign:"right",fontWeight:500}}>{row.value}</td></tr>))}
+        </tbody></table></div>
+      </div>
+
+      {/* Sparkline trend */}
+      {myHistory.length>1&&<div className="card" style={{marginBottom:20}}><div className="card-header"><span className="card-title">Performance trend</span></div>
+        <svg width="100%" height="100" viewBox={`0 0 ${myHistory.length*100} 100`} style={{overflow:"visible"}}><polyline fill="none" stroke="var(--accent-text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={myHistory.map((d,i)=>{const y=90-(d.fp/0.6)*70;return`${i*100+50},${Math.max(10,Math.min(90,y))}`;}).join(" ")}/>{myHistory.map((d,i)=>{const y=90-(d.fp/0.6)*70;const cy=Math.max(10,Math.min(90,y));return(<g key={i}><circle cx={i*100+50} cy={cy} r="4" fill="var(--accent-text)"/><text x={i*100+50} y={cy-12} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--tx)" fontFamily="var(--font)">{(d.fp*100).toFixed(0)}%</text><text x={i*100+50} y={cy+18} textAnchor="middle" fontSize="10" fill="var(--tx3)" fontFamily="var(--font)">{d.month}</text></g>);})}</svg>
+      </div>}
+    </>:
+    /* No personal MTD data — show quick actions */
+    <div className="card" style={{marginBottom:20}}><div className="card-header"><span className="card-title">Quick actions</span></div>
+      <div className="placeholder" style={{padding:"30px 20px"}}>
         {isLead?<div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
-          <button className="btn btn-primary" onClick={()=>window.dispatchEvent(new CustomEvent("navigate",{detail:"scores"}))} style={{cursor:"pointer"}}>Go to Score Entry</button>
-          <button className="btn btn-outline" onClick={()=>window.dispatchEvent(new CustomEvent("navigate",{detail:"dam"}))} style={{cursor:"pointer"}}>View DAM Flags</button>
-          <button className="btn btn-outline" onClick={()=>window.dispatchEvent(new CustomEvent("navigate",{detail:"admin"}))} style={{cursor:"pointer"}}>Admin Panel</button>
-        </div>:<p style={{color:"var(--tx3)"}}>Your lead will enter scores at the end of each month. Check back then.</p>}
-      </div>:
-      <div className="table-wrap"><table><thead><tr><th>Week</th><th>KPI</th><th>Score</th><th>Target</th><th>Status</th></tr></thead><tbody>
-        {scores.slice(0,10).map(s=>{const pass=s.target_value?s.score_value>=s.target_value:null;return(<tr key={s.id}><td>{fmtWeek(s.week_start)}</td><td style={{fontWeight:500}}>{s.kpi_definitions?.name||"—"}</td><td style={{fontWeight:600}}>{s.score_value}{s.kpi_definitions?.unit==="%"?"%":""}</td><td style={{color:"var(--tx2)"}}>{s.target_value||"—"}{s.target_value&&s.kpi_definitions?.unit==="%"?"%":""}</td><td>{pass!==null&&<span className={`status-badge ${pass?"status-active":"status-on_leave"}`} style={!pass?{background:"var(--red-bg)",color:"var(--red)"}:{}}>{pass?"Pass":"Below"}</span>}</td></tr>);})}
-      </tbody></table></div>}
-    </div></>}
+          <button className="btn btn-primary" onClick={()=>nav("scores")} style={{cursor:"pointer"}}>View Scores</button>
+          <button className="btn btn-outline" onClick={()=>nav("leaderboard")} style={{cursor:"pointer"}}>Leaderboard</button>
+          <button className="btn btn-outline" onClick={()=>nav("dam")} style={{cursor:"pointer"}}>DAM Flags</button>
+        </div>:<p style={{color:"var(--tx3)"}}>No performance data found for your email ({profile?.email}). Data syncs from Metabase hourly.</p>}
+      </div>
+    </div>}
+
+    {/* ── Global stats (for admins/supervisors) ── */}
+    {hasRole(profile?.role,"qa_supervisor")&&<div className="stats-grid">
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>👥</div><div className="stat-label">Total QAs (roster)</div><div className="stat-value">{roster.length}</div></div>
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>👔</div><div className="stat-label">Team leads</div><div className="stat-value">{[...new Set(roster.map(r=>r.manager_email).filter(Boolean))].length}</div></div>
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Avg performance ({latestMonth})</div><div className="stat-value" style={{color:fpColor(ranked.length?ranked.reduce((a,r)=>a+(r.final_performance||0),0)/ranked.length:0)}}>{ranked.length?((ranked.reduce((a,r)=>a+(r.final_performance||0),0)/ranked.length)*100).toFixed(1)+"%":"—"}</div></div>
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Total DSAT ({latestMonth})</div><div className="stat-value">{current.reduce((a,r)=>a+(r.dsat||0),0)}</div></div>
+    </div>}
+
+    </>}
   </div>);
 }
 
@@ -748,6 +830,552 @@ function LeaderboardPage({token, profile}) {
   );
 }
 
+/* ═══ COACHING MODULE ═══ */
+function CoachingPage({token, profile}) {
+  const [tab, setTab] = useState("compose"); // compose | history
+  const [loading, setLoading] = useState(false);
+  const [sessions, setSessions] = useState([]);
+  const [roster, setRoster] = useState([]);
+  const {show, el} = useToast();
+
+  // Form state
+  const [toEmail, setToEmail] = useState("");
+  const [ccEmail, setCcEmail] = useState("");
+  const [sessionDate, setSessionDate] = useState(new Date().toISOString().split("T")[0]);
+  const [meetingType, setMeetingType] = useState("1:1 Meeting");
+  const [topics, setTopics] = useState("");
+  const [strengths, setStrengths] = useState("");
+  const [weaknesses, setWeaknesses] = useState("");
+  const [goals, setGoals] = useState("");
+  const [actions, setActions] = useState("");
+  const [perfRating, setPerfRating] = useState("");
+  const [sigName, setSigName] = useState(profile?.display_name || "");
+  const [sigTitle, setSigTitle] = useState("QA Lead");
+
+  // Target table state (for AP/PIP reviews)
+  const [targetRows, setTargetRows] = useState([{metric:"",start:"",w1:"",w2:"",w3:"",w4:"",a1:"",a2:"",a3:"",a4:""}]);
+
+  // Conclusion state
+  const [outcome, setOutcome] = useState("");
+  const [nextSteps, setNextSteps] = useState("");
+
+  // Preview state
+  const [showPreview, setShowPreview] = useState(false);
+  const [expandedSession, setExpandedSession] = useState(null);
+
+  const MEETING_TYPES = ["1:1 Meeting","Appraisal Review","Coaching Session","Weekly Check-in","Action Plan Review","PIP Review"];
+  const TARGET_TYPES = ["Action Plan Review","PIP Review"];
+  const isTargetType = TARGET_TYPES.includes(meetingType);
+
+  const PERF_OPTIONS = [
+    {val:"Needs Attention",emoji:"⚠️",bg:"var(--red-bg)",color:"var(--red)"},
+    {val:"Below Expectations",emoji:"📉",bg:"var(--amber-bg)",color:"var(--amber)"},
+    {val:"Meets Expectations",emoji:"✅",bg:"var(--green-bg)",color:"var(--green)"},
+    {val:"Exceeds Expectations",emoji:"⭐",bg:"var(--accent-light)",color:"var(--accent-text)"},
+    {val:"Outstanding",emoji:"🏆",bg:"var(--accent-light)",color:"var(--accent-text)"},
+  ];
+
+  const PERF_MESSAGES = {
+    "Outstanding":"Your dedication and quality of work have set a commendable standard for the team. This level of performance is highly valued and acknowledged.",
+    "Exceeds Expectations":"You have consistently gone beyond the required scope of your responsibilities, demonstrating strong professional commitment.",
+    "Meets Expectations":"You are fulfilling your responsibilities in a satisfactory manner and are encouraged to continue building on this foundation.",
+    "Below Expectations":"There are areas that require immediate attention and improvement. I am confident in your ability to address these with focus and commitment.",
+    "Needs Attention":"I would like us to work closely together to identify the root causes and establish a clear action plan."
+  };
+
+  const INTRO_MAP = {
+    "1:1 Meeting":"This is a formal summary of our weekly 1:1 meeting.",
+    "Appraisal Review":"This is a formal summary of your Appraisal Review session.",
+    "Coaching Session":"This is a formal summary of your Coaching Session.",
+    "Weekly Check-in":"This is a formal summary of our Weekly Check-in.",
+    "Action Plan Review":"This is a formal summary of your Action Plan Review. Please review your weekly targets and progress carefully.",
+    "PIP Review":"This is a formal summary of your Performance Improvement Plan (PIP) Review. Please review your weekly targets and progress carefully."
+  };
+
+  const TEMPLATES = {
+    "1:1 Meeting":{topics:"Weekly performance update\nTeam challenges and support needed\nCareer development discussion",strengths:"Consistent quality of work\nStrong communication with team members",weaknesses:"Time management on complex cases\nEscalation handling",goals:"Improve first response resolution rate\nComplete pending training module",actions:"Share weekly self-assessment by Thursday\nSchedule shadowing session with senior agent"},
+    "Coaching Session":{topics:"Calibration score review\nSpecific case analysis\nScoring accuracy discussion",strengths:"Improvement noted in handling complex cases\nGood alignment with quality standards",weaknesses:"Soft skills in resolution communication\nAttribute scoring consistency",goals:"Reach calibration alignment score above 85%\nReduce scoring deviation",actions:"Review 5 calibration cases before next session\nComplete RTR self-practice twice this week"},
+    "Weekly Check-in":{topics:"Weekly scorecard review\nCurrent challenges and blockers\nPriorities for the coming week",strengths:"Maintained consistent quality scores\nProactive communication",weaknesses:"Areas needing attention this week",goals:"Hit weekly targets across all KPIs",actions:"Focus on identified weak areas\nFlag any support needs by Wednesday"},
+    "Action Plan Review":{topics:"Weekly target progress review\nCalibration score performance\nRTR session completion\nQuality consistency",strengths:"Commitment to improvement plan\nAttendance and engagement in sessions",weaknesses:"Areas where targets were not fully met\nSpecific attribute scoring gaps",goals:"Achieve agreed weekly targets\nImprove calibration alignment score",actions:"Complete weekly RTR sessions as agreed\nAttend all calibration sessions\nSubmit weekly self-review"},
+    "PIP Review":{topics:"PIP target progress review\nDetailed performance metrics discussion\nSupport and resources assessment",strengths:"Positive steps taken during PIP period\nEngagement with coaching sessions",weaknesses:"Areas where PIP targets were not met\nRoot causes identified",goals:"Meet all PIP performance targets\nDemonstrate sustained improvement",actions:"Complete all agreed PIP actions\nMeet with HR for formal review\nSubmit weekly progress log"},
+    "Appraisal Review":{topics:"Overall performance review for the period\nKey achievements and highlights\nAreas requiring development",strengths:"Demonstrated ownership of quality metrics\nPositive attitude and team collaboration",weaknesses:"Consistency across all ticket categories\nDocumentation quality",goals:"Achieve target KPI scores for next quarter\nComplete mandatory compliance training",actions:"Submit self-appraisal form by end of week\nAgree on development plan for next period"},
+  };
+
+  const nameFromEmail = (email) => {
+    if (!email) return "—";
+    return email.split("@")[0].split(".").map(p => {
+      const clean = p.replace(/[\d]+$/, "");
+      return clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : "";
+    }).filter(Boolean).join(" ");
+  };
+
+  const firstNameFromEmail = (email) => {
+    if (!email) return "Team Member";
+    const f = email.split("@")[0].split(/[.\-_]/)[0];
+    return f.charAt(0).toUpperCase() + f.slice(1).toLowerCase();
+  };
+
+  const fmtDate = (s) => {
+    if (!s) return "";
+    try { return new Date(s+"T00:00:00").toLocaleDateString("en-GB",{weekday:"long",year:"numeric",month:"long",day:"numeric"}); }
+    catch { return s; }
+  };
+
+  // Load roster + history
+  useEffect(() => {
+    (async () => {
+      try {
+        const [r, s] = await Promise.all([
+          sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch(()=>[]),
+          sb.query("coaching_sessions", {select:"*",filters:"order=created_at.desc&limit=100",token}).catch(()=>[]),
+        ]);
+        setRoster(r);
+        setSessions(s);
+      } catch (e) { console.error("Coaching load:", e); }
+    })();
+  }, [token]);
+
+  // Get previous sessions for selected member
+  const memberHistory = sessions.filter(s => s.member_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
+
+  // Apply template
+  const applyTemplate = () => {
+    const t = TEMPLATES[meetingType];
+    if (!t) return;
+    if (!topics) setTopics(t.topics || "");
+    if (!strengths) setStrengths(t.strengths || "");
+    if (!weaknesses) setWeaknesses(t.weaknesses || "");
+    if (!goals) setGoals(t.goals || "");
+    if (!actions) setActions(t.actions || "");
+    show("success", "Template applied");
+  };
+
+  // Target row helpers
+  const addTargetRow = () => setTargetRows([...targetRows, {metric:"",start:"",w1:"",w2:"",w3:"",w4:"",a1:"",a2:"",a3:"",a4:""}]);
+  const removeTargetRow = (i) => setTargetRows(targetRows.filter((_,idx) => idx !== i));
+  const updateTarget = (i, key, val) => {
+    const rows = [...targetRows];
+    rows[i] = {...rows[i], [key]: val};
+    setTargetRows(rows);
+  };
+
+  const calcEom = (vals) => {
+    const nums = vals.map(v => parseFloat(v)).filter(v => !isNaN(v) && v > 0);
+    return nums.length ? Math.round(nums.reduce((a,b) => a+b, 0) / nums.length) : null;
+  };
+
+  const calcDiff = (target, actual) => {
+    const t = parseFloat(target), a = parseFloat(actual);
+    if (isNaN(t) || isNaN(a) || !actual) return null;
+    return Math.round((a - t) * 10) / 10;
+  };
+
+  // Serialize target rows
+  const serializeTargets = () => targetRows.filter(r => r.metric.trim()).map(r => [r.metric,r.start,r.w1,r.w2,r.w3,r.w4,r.a1,r.a2,r.a3,r.a4].join("|")).join(";;");
+
+  // Build email HTML
+  const buildEmailBody = () => {
+    const fn = firstNameFromEmail(toEmail);
+    const isConclusion = isTargetType && outcome;
+    const planName = meetingType === "PIP Review" ? "Performance Improvement Plan" : "Action Plan";
+    let html = "";
+
+    // Greeting
+    html += `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.8;color:#1a1a1a;max-width:680px;">`;
+    html += `<p style="margin:0 0 16px;"><span style="background:#E8F5E8;color:#1A3D2B;padding:5px 16px;border-radius:20px;font-weight:700;font-size:12px;letter-spacing:.03em;">${meetingType}</span></p>`;
+    html += `<p style="margin:0 0 16px;">Dear ${fn},</p>`;
+
+    // Conclusion or intro
+    if (isConclusion && outcome === "pass") {
+      html += `<p style="margin:0 0 20px;">I am pleased to formally confirm that you have successfully completed your ${planName}. Your commitment, consistency, and improvement throughout this period have been genuinely noted and are greatly appreciated. This concludes the formal ${planName} process, and your performance will continue to be monitored through our regular 1:1 sessions.</p>`;
+    } else if (isConclusion && outcome === "fail") {
+      html += `<p style="margin:0 0 12px;">Following a full review of your ${planName}, I regret to formally notify you that the required performance targets were not met within the agreed timeframe. This outcome has been documented and will be shared with the relevant stakeholders, including Human Resources.</p>`;
+      if (nextSteps) html += `<p style="margin:0 0 6px;font-weight:700;">Agreed Next Steps:</p><p style="margin:0 0 20px;">${nextSteps.replace(/\n/g,"<br>")}</p>`;
+    } else {
+      html += `<p style="margin:0 0 20px;">${INTRO_MAP[meetingType] || "This is a formal summary of our session."}</p>`;
+    }
+
+    const mkList = (text) => {
+      if (!text?.trim()) return "";
+      return `<ul style="margin:8px 0;padding-left:22px;">${text.split("\n").filter(l=>l.trim()).map(l => `<li style="margin-bottom:6px;">${l.replace(/^[-•]\s*/,"").trim()}</li>`).join("")}</ul>`;
+    };
+    const mkSection = (title, body) => `<div style="margin-top:24px;"><p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#1A3D2B;border-bottom:1px solid #E8F5E8;padding-bottom:4px;">${title}</p>${body}</div>`;
+
+    if (topics?.trim()) html += mkSection("Topics Discussed", mkList(topics));
+
+    if (perfRating) {
+      const pillStyles = {"Outstanding":"background:#C5F5C5;color:#1A3D2B;","Exceeds Expectations":"background:#A0E8A0;color:#1A3D2B;","Meets Expectations":"background:#E8F5E8;color:#2A5A2A;","Below Expectations":"background:#FEF9F0;color:#854F0B;","Needs Attention":"background:#FCEBEB;color:#A32D2D;"};
+      html += mkSection("Overall Performance Rating", `<p style="margin:8px 0 6px;"><span style="${pillStyles[perfRating]||""}padding:4px 16px;border-radius:20px;font-weight:700;font-size:13px;">${perfRating}</span></p><p style="margin:0 0 4px;">${PERF_MESSAGES[perfRating]||""}</p>`);
+    }
+
+    if (strengths?.trim()) html += mkSection("Strengths & Recognized Contributions", mkList(strengths));
+    if (weaknesses?.trim()) html += mkSection("Areas for Development", mkList(weaknesses));
+    if (goals?.trim()) html += mkSection("Goals & Progress Update", mkList(goals));
+    if (actions?.trim()) html += mkSection("Action Items & Agreed Next Steps", mkList(actions));
+
+    // Target table
+    if (isTargetType && targetRows.some(r => r.metric.trim())) {
+      const s = "padding:9px 11px;font-size:13px;text-align:center;border:1px solid #C8E8C8;";
+      html += `<div style="margin-top:24px;"><p style="margin:0 0 10px;font-size:14px;font-weight:700;color:#1A3D2B;">Weekly QA Review — Score Tracking</p>`;
+      html += `<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;">`;
+      html += `<tr>${["Metric","Row","Start","W1","W2","W3","W4","EOM"].map((c,i) => `<th style="${s}font-weight:700;color:#C5F5C5;background:#1A3D2B;${i<=1?"text-align:left;":""}">${c}</th>`).join("")}</tr>`;
+
+      targetRows.filter(r => r.metric.trim()).forEach((r, ri) => {
+        const bg = ri % 2 === 0 ? "#fff" : "#F0FCF0";
+        const tEom = calcEom([r.w1,r.w2,r.w3,r.w4]);
+        const aEom = calcEom([r.a1,r.a2,r.a3,r.a4]);
+        // Target row
+        html += `<tr style="background:${bg}"><td style="${s}text-align:left;font-weight:700;" rowspan="3">${r.metric}</td>`;
+        html += `<td style="${s}text-align:left;font-weight:600;background:#E8F5E8;color:#1A3D2B;font-size:10px;">Target</td>`;
+        html += `<td style="${s}">${r.start ? r.start+"%" : "--"}</td>`;
+        ["w1","w2","w3","w4"].forEach(k => { html += `<td style="${s}">${r[k] ? r[k]+"%" : "--"}</td>`; });
+        html += `<td style="${s}background:#C5F5C5;color:#1A3D2B;font-weight:700;">${tEom !== null ? tEom+"%" : "--"}</td></tr>`;
+        // Actual row
+        html += `<tr style="background:${bg}"><td style="${s}text-align:left;font-weight:600;background:#FEF9F0;color:#854F0B;font-size:10px;">Actual</td>`;
+        html += `<td style="${s}color:#aaa;">--</td>`;
+        ["a1","a2","a3","a4"].forEach(k => { html += `<td style="${s}">${r[k] ? r[k]+"%" : "--"}</td>`; });
+        const eAbg = aEom !== null && tEom !== null ? (aEom >= tEom ? "#E0F8E0" : "#FCEBEB") : "#FEF9F0";
+        const eAc = aEom !== null && tEom !== null ? (aEom >= tEom ? "#1A6B2A" : "#A32D2D") : "#854F0B";
+        html += `<td style="${s}background:${eAbg};color:${eAc};font-weight:700;">${aEom !== null ? aEom+"%" : "--"}</td></tr>`;
+        // Diff row
+        html += `<tr style="background:${bg}"><td style="${s}text-align:left;font-weight:600;background:#F5F5F5;color:#555;font-size:10px;">Difference</td>`;
+        html += `<td style="${s}color:#aaa;">--</td>`;
+        ["w1","w2","w3","w4"].forEach((wk,i) => {
+          const d = calcDiff(r[wk], r["a"+(i+1)]);
+          if (d !== null) {
+            const dc = d > 0 ? "#1A6B2A" : d < 0 ? "#A32D2D" : "#555";
+            const dbg = d > 0 ? "#E0F8E0" : d < 0 ? "#FCEBEB" : "#F5F5F5";
+            html += `<td style="${s}background:${dbg};color:${dc};font-weight:700;">${d > 0 ? "+" : ""}${d}%</td>`;
+          } else html += `<td style="${s}color:#ccc;">--</td>`;
+        });
+        // EOM diff
+        if (aEom !== null && tEom !== null) {
+          const ed = Math.round((aEom - tEom) * 10) / 10;
+          const ec = ed > 0 ? "#1A6B2A" : ed < 0 ? "#A32D2D" : "#555";
+          const eb = ed > 0 ? "#E0F8E0" : ed < 0 ? "#FCEBEB" : "#F5F5F5";
+          html += `<td style="${s}background:${eb};color:${ec};font-weight:700;">${ed > 0 ? "+" : ""}${ed}%</td></tr>`;
+        } else html += `<td style="${s}color:#ccc;">--</td></tr>`;
+      });
+      html += `</table></div>`;
+    }
+
+    // Closing
+    html += `<div style="margin-top:28px;padding-top:16px;border-top:1px solid #E8F5E8;">`;
+    html += `<p style="margin:0 0 10px;">Should you have any questions, please do not hesitate to reach out.</p>`;
+    html += `<p style="margin:0 0 16px;">I appreciate your continued commitment and professionalism.</p>`;
+    html += `<p style="margin:0;">Best regards,<br><strong>${sigName || "QA Leader"}</strong><br>${sigTitle || "QA Lead"} | Tabby</p>`;
+    html += `</div></div>`;
+    return html;
+  };
+
+  const emailSubject = `Session Summary: ${meetingType} - ${fmtDate(sessionDate)}`;
+
+  // Save session and open Gmail
+  const generateAndSend = async () => {
+    if (!toEmail) { show("error", "Enter the team member's email"); return; }
+    setLoading(true);
+    try {
+      // Save to Supabase
+      await sb.query("coaching_sessions", {
+        token, method: "POST",
+        body: {
+          sender_email: profile?.email || "",
+          member_email: toEmail,
+          cc_email: ccEmail,
+          session_date: sessionDate,
+          meeting_type: meetingType,
+          topics, strengths, weaknesses, goals,
+          action_items: actions,
+          performance_rating: perfRating,
+          target_data: isTargetType ? serializeTargets() : null,
+          follow_up: false,
+          outcome: outcome || null,
+          next_steps: nextSteps || null,
+          sig_name: sigName,
+          sig_title: sigTitle,
+          email_subject: emailSubject,
+        }
+      });
+
+      // Open Gmail compose
+      const body = buildEmailBody();
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(toEmail)}&cc=${encodeURIComponent(ccEmail)}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(body)}`;
+      window.open(gmailUrl, "_blank");
+
+      // Refresh history
+      const s = await sb.query("coaching_sessions", {select:"*",filters:"order=created_at.desc&limit=100",token}).catch(()=>[]);
+      setSessions(s);
+      show("success", "Session logged — Gmail opened in new tab");
+    } catch (e) {
+      show("error", e.message);
+    }
+    setLoading(false);
+  };
+
+  // Clear form
+  const clearForm = () => {
+    setToEmail("");setCcEmail("");setSessionDate(new Date().toISOString().split("T")[0]);
+    setMeetingType("1:1 Meeting");setTopics("");setStrengths("");setWeaknesses("");
+    setGoals("");setActions("");setPerfRating("");setOutcome("");setNextSteps("");
+    setTargetRows([{metric:"",start:"",w1:"",w2:"",w3:"",w4:"",a1:"",a2:"",a3:"",a4:""}]);
+    setShowPreview(false);
+  };
+
+  return (
+    <div className="page">
+      <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+        <div><div className="page-title">Coaching sessions</div><div className="page-subtitle">1:1 coaching email generator — {sessions.length} sessions logged</div></div>
+      </div>
+
+      <div className="tab-bar" style={{marginBottom:16}}>
+        <button className={`tab-btn ${tab==="compose"?"active":""}`} onClick={()=>setTab("compose")}><Icon d={icons.coaching} size={16}/>Compose</button>
+        <button className={`tab-btn ${tab==="history"?"active":""}`} onClick={()=>setTab("history")}><Icon d={icons.scores} size={16}/>History ({sessions.length})</button>
+      </div>
+
+      {/* ═══ COMPOSE TAB ═══ */}
+      {tab==="compose" && <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+
+        {/* LEFT — Form */}
+        <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+          {/* Signature block */}
+          <div className="card">
+            <div className="card-header"><span className="card-title">Your signature</span></div>
+            <div className="form-grid">
+              <div className="form-group"><label className="form-label">Full name</label><input className="form-input" value={sigName} onChange={e=>setSigName(e.target.value)}/></div>
+              <div className="form-group"><label className="form-label">Title</label><input className="form-input" value={sigTitle} onChange={e=>setSigTitle(e.target.value)}/></div>
+            </div>
+          </div>
+
+          {/* Session details */}
+          <div className="card">
+            <div className="card-header"><span className="card-title">Session details</span></div>
+            <div className="form-grid">
+              <div className="form-group"><label className="form-label">Team member email (To)</label>
+                <select className="select form-input" value={toEmail} onChange={e=>setToEmail(e.target.value)}>
+                  <option value="">— Select —</option>
+                  {roster.map(r => <option key={r.email} value={r.email}>{r.display_name || nameFromEmail(r.email)} ({r.email})</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label className="form-label">Manager email (CC)</label>
+                {toEmail && roster.find(r=>r.email===toEmail)?.manager_email ? (
+                  <input className="form-input" value={ccEmail || roster.find(r=>r.email===toEmail)?.manager_email || ""} onChange={e=>setCcEmail(e.target.value)} onFocus={()=>{if(!ccEmail){const m=roster.find(r=>r.email===toEmail)?.manager_email;if(m)setCcEmail(m);}}}/>
+                ) : <input className="form-input" value={ccEmail} onChange={e=>setCcEmail(e.target.value)} placeholder="manager@tabby.ai"/>}
+              </div>
+              <div className="form-group"><label className="form-label">Session date</label><input type="date" className="form-input" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></div>
+              <div className="form-group"><label className="form-label">Meeting type</label>
+                <select className="select form-input" value={meetingType} onChange={e=>setMeetingType(e.target.value)}>
+                  {MEETING_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Previous sessions for this member */}
+            {toEmail && memberHistory.length > 0 && <div style={{marginTop:16,padding:"12px 14px",background:"var(--bg)",borderRadius:8}}>
+              <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)",marginBottom:8}}>Previous sessions ({memberHistory.length})</div>
+              {memberHistory.map(s => (
+                <div key={s.id} style={{fontSize:12,padding:"4px 0",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between"}}>
+                  <span>{new Date(s.session_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"})}</span>
+                  <span style={{padding:"1px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:TARGET_TYPES.includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:TARGET_TYPES.includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{s.meeting_type}</span>
+                  {s.performance_rating && <span style={{color:"var(--tx2)"}}>{s.performance_rating}</span>}
+                </div>
+              ))}
+            </div>}
+          </div>
+
+          {/* Template bar */}
+          {TEMPLATES[meetingType] && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"var(--accent-light)",borderRadius:8,fontSize:13}}>
+            <span style={{color:"var(--accent-text)",fontWeight:500}}>Template available for {meetingType}</span>
+            <button className="btn btn-outline btn-sm" onClick={applyTemplate}>Apply template</button>
+          </div>}
+
+          {/* Content fields */}
+          <div className="card">
+            <div className="card-header"><span className="card-title">Session content</span></div>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {[["topics","Topics discussed",topics,setTopics],["strengths","Strengths observed",strengths,setStrengths],["weaknesses","Areas for improvement",weaknesses,setWeaknesses],["goals","Goals & progress update",goals,setGoals],["actions","Action items / next steps",actions,setActions]].map(([id,label,val,setter]) => (
+                <div className="form-group" key={id}><label className="form-label">{label}</label>
+                  <textarea className="form-input" rows={3} value={val} onChange={e=>setter(e.target.value)} placeholder="One point per line" style={{resize:"vertical"}}/>
+                  <div style={{fontSize:10,color:val.length>1800?"var(--red)":"var(--tx3)",textAlign:"right"}}>{val.length} / 2000</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Performance rating */}
+          <div className="card">
+            <div className="card-header"><span className="card-title">Performance rating</span></div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5, 1fr)",gap:6}}>
+              {PERF_OPTIONS.map(p => (
+                <button key={p.val} onClick={()=>setPerfRating(perfRating===p.val?"":p.val)} style={{
+                  padding:"12px 4px",border:perfRating===p.val?`2px solid ${p.color}`:"1.5px solid var(--bd)",
+                  borderRadius:8,background:perfRating===p.val?p.bg:"var(--bg)",cursor:"pointer",textAlign:"center",
+                  fontSize:11,fontWeight:perfRating===p.val?700:500,color:perfRating===p.val?p.color:"var(--tx2)",
+                  fontFamily:"var(--font)",transition:"all .15s",lineHeight:1.3
+                }}>
+                  <div style={{fontSize:18,marginBottom:4}}>{p.emoji}</div>{p.val}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Target table (AP/PIP only) */}
+          {isTargetType && <div className="card" style={{border:"1.5px solid var(--red)",borderColor:"var(--red)"}}>
+            <div className="card-header"><span className="card-title" style={{color:"var(--red)"}}>Weekly QA Review — Score Tracking</span>
+              <button className="btn btn-outline btn-sm" onClick={addTargetRow}><Icon d={icons.plus} size={14}/>Add metric</button>
+            </div>
+            <div className="table-wrap">
+              <table style={{fontSize:12}}>
+                <thead><tr>
+                  <th>Metric</th><th>Row</th><th>Start</th><th>W1</th><th>W2</th><th>W3</th><th>W4</th><th>EOM</th><th style={{width:30}}></th>
+                </tr></thead>
+                <tbody>
+                  {targetRows.map((r, ri) => {
+                    const tEom = calcEom([r.w1,r.w2,r.w3,r.w4]);
+                    const aEom = calcEom([r.a1,r.a2,r.a3,r.a4]);
+                    return (<React.Fragment key={ri}>
+                      {/* Target row */}
+                      <tr style={{background:ri%2===0?"#fff":"var(--bg)"}}>
+                        <td rowSpan={3} style={{fontWeight:600,fontSize:12,verticalAlign:"middle",minWidth:100}}>
+                          <input className="form-input" value={r.metric} onChange={e=>updateTarget(ri,"metric",e.target.value)} placeholder="Metric name" style={{padding:"4px 6px",fontSize:12,fontWeight:600,border:"none",background:"transparent"}}/>
+                        </td>
+                        <td style={{fontSize:10,fontWeight:600,background:"var(--green-bg)",color:"var(--green)",padding:"2px 6px"}}>Target</td>
+                        <td><input className="form-input" type="number" value={r.start} onChange={e=>updateTarget(ri,"start",e.target.value)} style={{padding:"3px 4px",fontSize:12,textAlign:"center",width:50,border:"none",background:"transparent"}}/></td>
+                        {["w1","w2","w3","w4"].map(k => <td key={k}><input className="form-input" type="number" value={r[k]} onChange={e=>updateTarget(ri,k,e.target.value)} style={{padding:"3px 4px",fontSize:12,textAlign:"center",width:50,border:"none",background:"transparent"}}/></td>)}
+                        <td style={{fontWeight:700,textAlign:"center",background:"var(--green-bg)",color:"var(--green)",fontSize:12}}>{tEom !== null ? tEom+"%" : "—"}</td>
+                        <td rowSpan={3} style={{textAlign:"center",verticalAlign:"middle"}}>
+                          <button onClick={()=>removeTargetRow(ri)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,padding:2}}>✕</button>
+                        </td>
+                      </tr>
+                      {/* Actual row */}
+                      <tr style={{background:ri%2===0?"#fff":"var(--bg)"}}>
+                        <td style={{fontSize:10,fontWeight:600,background:"var(--amber-bg)",color:"var(--amber)",padding:"2px 6px"}}>Actual</td>
+                        <td style={{color:"var(--tx3)",textAlign:"center",fontSize:11}}>—</td>
+                        {["a1","a2","a3","a4"].map(k => <td key={k}><input className="form-input" type="number" value={r[k]} onChange={e=>updateTarget(ri,k,e.target.value)} style={{padding:"3px 4px",fontSize:12,textAlign:"center",width:50,border:"none",background:"transparent"}}/></td>)}
+                        <td style={{fontWeight:700,textAlign:"center",fontSize:12,
+                          background:aEom!==null&&tEom!==null?(aEom>=tEom?"var(--green-bg)":"var(--red-bg)"):"var(--amber-bg)",
+                          color:aEom!==null&&tEom!==null?(aEom>=tEom?"var(--green)":"var(--red)"):"var(--amber)"
+                        }}>{aEom !== null ? aEom+"%" : "—"}</td>
+                      </tr>
+                      {/* Diff row */}
+                      <tr style={{background:ri%2===0?"#fff":"var(--bg)"}}>
+                        <td style={{fontSize:10,fontWeight:600,background:"var(--bg2)",color:"var(--tx3)",padding:"2px 6px"}}>Diff</td>
+                        <td style={{color:"var(--tx3)",textAlign:"center",fontSize:11}}>—</td>
+                        {["w1","w2","w3","w4"].map((wk,wi) => {
+                          const d = calcDiff(r[wk], r["a"+(wi+1)]);
+                          return <td key={wk} style={{textAlign:"center",fontSize:12,fontWeight:d!==null?700:400,
+                            color:d!==null?(d>0?"var(--green)":d<0?"var(--red)":"var(--tx3)"):"var(--tx3)",
+                            background:d!==null?(d>0?"var(--green-bg)":d<0?"var(--red-bg)":"var(--bg2)"):"transparent"
+                          }}>{d !== null ? (d>0?"+":"")+d+"%" : "—"}</td>;
+                        })}
+                        {(() => {
+                          if (aEom !== null && tEom !== null) {
+                            const ed = Math.round((aEom - tEom) * 10) / 10;
+                            return <td style={{textAlign:"center",fontSize:12,fontWeight:700,
+                              color:ed>0?"var(--green)":ed<0?"var(--red)":"var(--tx3)",
+                              background:ed>0?"var(--green-bg)":ed<0?"var(--red-bg)":"var(--bg2)"
+                            }}>{ed>0?"+":""}{ed}%</td>;
+                          }
+                          return <td style={{textAlign:"center",color:"var(--tx3)"}}>—</td>;
+                        })()}
+                      </tr>
+                    </React.Fragment>);
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div style={{fontSize:10,color:"var(--red)",marginTop:6,fontStyle:"italic"}}>EOM = average of filled weekly values. Difference = Actual minus Target.</div>
+
+            {/* Conclusion */}
+            <div style={{marginTop:16,padding:"14px",background:"var(--bg)",borderRadius:8,border:"1px solid var(--bd2)"}}>
+              <div style={{fontSize:13,fontWeight:600,color:"var(--tx2)",marginBottom:10}}>Conclude {meetingType === "PIP Review" ? "PIP" : "Action Plan"}</div>
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                <button onClick={()=>setOutcome(outcome==="pass"?"":"pass")} className={`btn ${outcome==="pass"?"btn-primary":"btn-outline"}`} style={outcome==="pass"?{background:"var(--green)",color:"#fff"}:{}}>✅ Passed</button>
+                <button onClick={()=>setOutcome(outcome==="fail"?"":"fail")} className={`btn ${outcome==="fail"?"btn-primary":"btn-outline"}`} style={outcome==="fail"?{background:"var(--red)",color:"#fff"}:{}}>❌ Did Not Pass</button>
+              </div>
+              {outcome==="fail" && <div className="form-group" style={{marginTop:8}}>
+                <label className="form-label">Agreed next steps / consequence</label>
+                <textarea className="form-input" rows={2} value={nextSteps} onChange={e=>setNextSteps(e.target.value)} placeholder="Describe the formal next steps..." style={{resize:"vertical"}}/>
+                <div style={{marginTop:8,padding:"8px 12px",background:"var(--red-bg)",borderRadius:6,fontSize:12,color:"var(--red)",fontWeight:500}}>⚠️ Please add HR to the CC field before sending.</div>
+              </div>}
+            </div>
+          </div>}
+
+          {/* Action buttons */}
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn btn-primary" onClick={()=>setShowPreview(true)} style={{flex:1}}><Icon d={icons.check} size={16}/>Preview email</button>
+            <button className="btn btn-outline" onClick={clearForm}>Clear all</button>
+          </div>
+        </div>
+
+        {/* RIGHT — Preview */}
+        <div>
+          <div className="card" style={{position:"sticky",top:20}}>
+            <div className="card-header"><span className="card-title">Email preview</span>
+              <span style={{fontSize:12,color:"var(--tx3)"}}>{showPreview ? "Ready to send" : "Waiting for input"}</span>
+            </div>
+            {!showPreview ? (
+              <div className="placeholder" style={{padding:"60px 20px"}}>
+                <div className="placeholder-icon"><Icon d={icons.coaching} size={28}/></div>
+                <p style={{color:"var(--tx3)"}}>Fill in the session details, then click<br/><strong>Preview Email</strong></p>
+              </div>
+            ) : (<div>
+              <div style={{fontSize:13,marginBottom:4}}><span style={{color:"var(--tx3)",fontWeight:600,fontSize:11}}>TO:</span> {toEmail}</div>
+              {ccEmail && <div style={{fontSize:13,marginBottom:4}}><span style={{color:"var(--tx3)",fontWeight:600,fontSize:11}}>CC:</span> {ccEmail}</div>}
+              <div style={{fontSize:13,marginBottom:4}}><span style={{color:"var(--tx3)",fontWeight:600,fontSize:11}}>FROM:</span> {profile?.email}</div>
+              <div style={{fontWeight:700,fontSize:15,padding:"12px 0",borderTop:"1px solid var(--bd2)",borderBottom:"1px solid var(--bd2)",margin:"10px 0 14px"}}>{emailSubject}</div>
+              <div style={{fontSize:13,lineHeight:1.85,maxHeight:500,overflowY:"auto"}} dangerouslySetInnerHTML={{__html: buildEmailBody()}}/>
+
+              <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--bd2)"}}>
+                <button className="btn btn-primary" onClick={generateAndSend} disabled={loading} style={{width:"100%",justifyContent:"center",padding:"12px"}}>
+                  {loading ? "Logging..." : <><Icon d={icons.coaching} size={16}/>Log session & open Gmail</>}
+                </button>
+                <div style={{display:"flex",gap:8,marginTop:8}}>
+                  <button className="btn btn-outline btn-sm" style={{flex:1}} onClick={()=>{
+                    const body = buildEmailBody();
+                    navigator.clipboard.writeText("Subject: "+emailSubject+"\n\n"+document.createElement("div").innerHTML);
+                    show("success","Copied to clipboard");
+                  }}>Copy text</button>
+                  <button className="btn btn-outline btn-sm" style={{flex:1}} onClick={()=>setShowPreview(false)}>Edit</button>
+                </div>
+              </div>
+            </div>)}
+          </div>
+        </div>
+      </div>}
+
+      {/* ═══ HISTORY TAB ═══ */}
+      {tab==="history" && <div className="card">
+        {sessions.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No coaching sessions logged yet.</p></div> :
+        <div className="table-wrap"><table>
+          <thead><tr><th>Date</th><th>Type</th><th>Member</th><th>Sent by</th><th>Performance</th><th>Outcome</th></tr></thead>
+          <tbody>
+            {sessions.map(s => (
+              <tr key={s.id} onClick={()=>setExpandedSession(expandedSession===s.id?null:s.id)} style={{cursor:"pointer"}}>
+                <td style={{fontSize:13,whiteSpace:"nowrap"}}>{new Date(s.session_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"})}</td>
+                <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:TARGET_TYPES.includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:TARGET_TYPES.includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{s.meeting_type}</span></td>
+                <td style={{fontWeight:500}}>{nameFromEmail(s.member_email)}</td>
+                <td style={{fontSize:13,color:"var(--tx2)"}}>{nameFromEmail(s.sender_email)}</td>
+                <td>{s.performance_rating ? <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,
+                  background:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green-bg)":s.performance_rating==="Meets Expectations"?"var(--accent-light)":"var(--amber-bg)",
+                  color:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green)":s.performance_rating==="Meets Expectations"?"var(--accent-text)":"var(--amber)"
+                }}>{s.performance_rating}</span> : "—"}</td>
+                <td>{s.outcome ? <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:600,
+                  background:s.outcome==="pass"?"var(--green-bg)":"var(--red-bg)",
+                  color:s.outcome==="pass"?"var(--green)":"var(--red)"
+                }}>{s.outcome==="pass"?"Passed":"Failed"}</span> : "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table></div>}
+      </div>}
+
+      {el}
+    </div>
+  );
+}
+
+
 function PlaceholderPage({title,description,icon,minRole,userRole}){const locked=minRole&&!hasRole(userRole,minRole);
   return(<div className="page"><div className="page-header"><div className="page-title">{title}</div></div><div className="card"><div className="placeholder"><div className="placeholder-icon"><Icon d={icon} size={28}/></div><h3>{title}</h3><p>{locked?`Requires ${ROLE_LABELS[minRole]} access or above.`:description}</p><div className="placeholder-badge">{locked?"Access restricted":"Coming soon"}</div></div></div></div>);}
 
@@ -778,7 +1406,7 @@ export default function App(){
     case"leaderboard":return<LeaderboardPage token={t} profile={profile}/>;
     case"dam":return hasRole(userRole,"qa_lead")?<DAMPage token={t} profile={profile}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
     case"plans":return<PlaceholderPage title="Action plans & PIPs" description="Performance improvement plans." icon={icons.plan} minRole="qa_lead" userRole={userRole}/>;
-    case"coaching":return<PlaceholderPage title="Coaching sessions" description="Session logging and email generator." icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
+    case"coaching":return hasRole(userRole,"qa_lead")?<CoachingPage token={t} profile={profile}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
     case"hr":return<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>;
     case"escalations":return<PlaceholderPage title="Escalations" description="Flag concerns about leadership." icon={icons.escalation} userRole={userRole}/>;
     default:return<DashboardPage profile={profile} token={t}/>;
