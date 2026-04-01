@@ -57,10 +57,10 @@ const icons={
   trash:"M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
 };
 const TabbyLogo = ({size=24, color="#3CFFA5"}) => (
-  <svg width={size * 3.2} height={size} viewBox="0 0 320 100" fill="none">
-    <rect width="320" height="100" rx="16" fill="#1A1A1A"/>
+  <svg width={size * 4.5} height={size} viewBox="0 0 450 100" fill="none">
+    <rect width="450" height="100" rx="16" fill="#1A1A1A"/>
     <text x="28" y="68" fontFamily="'DM Sans', sans-serif" fontSize="52" fontWeight="700" fill={color} letterSpacing="-1">tabby</text>
-    <text x="222" y="68" fontFamily="'DM Sans', sans-serif" fontSize="52" fontWeight="700" fill="#FFF" letterSpacing="-1">QA</text>
+    <text x="222" y="68" fontFamily="'DM Sans', sans-serif" fontSize="52" fontWeight="700" fill="#FFF" letterSpacing="-1">RADAR</text>
   </svg>
 );
 
@@ -75,12 +75,19 @@ function DashboardPage({profile,token}){
 
   const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
   const fmt=(val)=>{if(val===null||val===undefined||val==="")return"—";const s=String(val).trim();if(s.includes("%"))return s;const n=parseFloat(s.replace(",","."));if(isNaN(n))return s;if(n>=0&&n<=2)return(n*100).toFixed(1)+"%";if(n>2&&!Number.isInteger(n))return n.toFixed(1)+"%";return String(val);};
-  const fpColor=(v)=>v>=0.4?"var(--green)":v>=0.25?"var(--amber)":"var(--red)";
-  const fpBg=(v)=>v>=0.4?"var(--green-bg)":v>=0.25?"var(--amber-bg)":"var(--red-bg)";
+
+  // Slab engine for dashboard
+  const parseRawD=(val)=>{if(!val&&val!==0)return null;const s=String(val).trim().replace(",",".");if(s.includes("%"))return parseFloat(s.replace("%",""));const n=parseFloat(s);if(isNaN(n))return null;if(n>=0&&n<=2)return n*100;return n;};
+  const KPI_SLABS_D={occupancy:{weight:15,thresholds:[95,98,100],rawKey:"occupancy_pct"},coaching:{weight:10,thresholds:[90,93,95],rawKey:"ontime_coaching_pct"},calibration:{weight:10,thresholds:[85,90,95],rawKey:"avg_calibration_match_rate"},observation:{weight:10,thresholds:[82,85,88],rawKey:"avg_observation_score_pct"},rtr:{weight:10,thresholds:[80,85,90],rawKey:"avg_rtr_score"}};
+  const calcSlabD=(rawPct,th)=>{if(rawPct===null)return 0;if(rawPct>=th[2])return 100;if(rawPct>=th[1])return 75;if(rawPct>=th[0])return 50;return 0;};
+  const getScore=(row)=>{return Object.values(KPI_SLABS_D).reduce((sum,def)=>{const raw=parseRawD(row[def.rawKey]);return sum+(def.weight*calcSlabD(raw,def.thresholds))/100;},0);};
+  const maxScore=55;
+  const scoreColor=(v)=>v>=maxScore*0.7?"var(--green)":v>=maxScore*0.4?"var(--amber)":"var(--red)";
+  const scoreBg=(v)=>v>=maxScore*0.7?"var(--green-bg)":v>=maxScore*0.4?"var(--amber-bg)":"var(--red-bg)";
 
   useEffect(()=>{(async()=>{try{
     const[mtdRows,rosterRows,flags,profs]=await Promise.all([
-      sb.query("mtd_scores",{select:"*",filters:"order=month.desc,final_performance.desc",token}).catch(()=>[]),
+      sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[]),
       sb.query("qa_roster",{select:"*",token}).catch(()=>[]),
       sb.query("dam_flags",{select:"id,status",filters:"status=eq.pending",token}).catch(()=>[]),
       sb.query("profiles",{select:"id,role,status",filters:"status=eq.active",token}).catch(()=>[]),
@@ -89,44 +96,39 @@ function DashboardPage({profile,token}){
     setProfileCount({qas:profs.filter(p=>p.role==="qa").length,leads:profs.filter(p=>p.role==="qa_lead").length,active:profs.length});
   }catch(e){console.error("Dashboard:",e);}setLoading(false);})();},[token]);
 
-  // Get unique months sorted desc
   const months=[...new Set(mtd.map(r=>r.month))];
   const latestMonth=months[0]||"—";
   const prevMonth=months[1]||null;
 
-  // Current month data
   const current=mtd.filter(r=>r.month===latestMonth);
   const previous=prevMonth?mtd.filter(r=>r.month===prevMonth):[];
 
-  // Find this user's own data
   const myEmail=profile?.email?.toLowerCase();
   const myData=current.find(r=>r.qa_email.toLowerCase()===myEmail);
   const myPrevData=previous.find(r=>r.qa_email.toLowerCase()===myEmail);
 
-  // My rank
-  const ranked=[...current].sort((a,b)=>(b.final_performance||0)-(a.final_performance||0));
+  // Rank by calculated score
+  const ranked=[...current].sort((a,b)=>getScore(b)-getScore(a));
   const myRank=ranked.findIndex(r=>r.qa_email.toLowerCase()===myEmail)+1;
 
-  // My roster info
   const myRoster=roster.find(r=>r.email.toLowerCase()===myEmail);
 
-  // For leads: find team members (people whose manager_email matches this user)
+  // Team members
   const myTeamEmails=roster.filter(r=>r.manager_email&&r.manager_email.toLowerCase()===myEmail).map(r=>r.email.toLowerCase());
-  // Also check mtd qa_tl field
   const myTlEmails=current.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===myEmail).map(r=>r.qa_email.toLowerCase());
   const allTeamEmails=[...new Set([...myTeamEmails,...myTlEmails])];
   const teamCurrent=current.filter(r=>allTeamEmails.includes(r.qa_email.toLowerCase()));
   const teamPrevious=previous.filter(r=>allTeamEmails.includes(r.qa_email.toLowerCase()));
-  const teamSorted=[...teamCurrent].sort((a,b)=>(b.final_performance||0)-(a.final_performance||0));
+  const teamSorted=[...teamCurrent].sort((a,b)=>getScore(b)-getScore(a));
 
-  // Team averages
-  const teamAvgFP=teamCurrent.length?(teamCurrent.reduce((a,r)=>a+(r.final_performance||0),0)/teamCurrent.length):0;
-  const teamAvgFPPrev=teamPrevious.length?(teamPrevious.reduce((a,r)=>a+(r.final_performance||0),0)/teamPrevious.length):0;
-  const teamTrend=teamPrevious.length?((teamAvgFP-teamAvgFPPrev)*100).toFixed(1):null;
+  // Team averages using calculated scores
+  const teamAvgScore=teamCurrent.length?(teamCurrent.reduce((a,r)=>a+getScore(r),0)/teamCurrent.length):0;
+  const teamAvgScorePrev=teamPrevious.length?(teamPrevious.reduce((a,r)=>a+getScore(r),0)/teamPrevious.length):0;
+  const teamTrend=teamPrevious.length?(teamAvgScore-teamAvgScorePrev).toFixed(1):null;
   const teamDsat=teamCurrent.reduce((a,r)=>a+(r.dsat||0),0);
 
-  // Performance trend for sparkline (my data across months)
-  const myHistory=months.slice(0,6).reverse().map(m=>{const row=mtd.find(r=>r.month===m&&r.qa_email.toLowerCase()===myEmail);return{month:m,fp:row?row.final_performance||0:null};}).filter(d=>d.fp!==null);
+  // Performance trend sparkline using calculated scores
+  const myHistory=months.slice(0,6).reverse().map(m=>{const row=mtd.find(r=>r.month===m&&r.qa_email.toLowerCase()===myEmail);return{month:m,score:row?getScore(row):null};}).filter(d=>d.score!==null);
 
   const nav=(page)=>window.dispatchEvent(new CustomEvent("navigate",{detail:page}));
 
@@ -138,7 +140,7 @@ function DashboardPage({profile,token}){
     {isLead&&<>
       <div className="stats-grid">
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>👥</div><div className="stat-label">My team</div><div className="stat-value">{allTeamEmails.length}</div></div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Team avg performance</div><div className="stat-value" style={{color:fpColor(teamAvgFP)}}>{(teamAvgFP*100).toFixed(1)}%</div>{teamTrend&&<div style={{fontSize:12,marginTop:4,color:Number(teamTrend)>=0?"var(--green)":"var(--red)"}}>{Number(teamTrend)>=0?"↑":"↓"} {Math.abs(teamTrend)}% vs {prevMonth}</div>}</div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Team avg score</div><div className="stat-value" style={{color:scoreColor(teamAvgScore)}}>{teamAvgScore.toFixed(1)}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div>{teamTrend&&<div style={{fontSize:12,marginTop:4,color:Number(teamTrend)>=0?"var(--green)":"var(--red)"}}>{Number(teamTrend)>=0?"↑":"↓"} {Math.abs(teamTrend)} pts vs {prevMonth}</div>}</div>
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Team DSAT</div><div className="stat-value" style={{color:"var(--tx)"}}>{teamDsat}</div></div>
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🚩</div><div className="stat-label">Pending DAM flags</div><div className="stat-value">{damCount}</div></div>
       </div>
@@ -146,11 +148,11 @@ function DashboardPage({profile,token}){
       {/* Team members table */}
       {teamSorted.length>0&&<div className="card" style={{marginBottom:20}}>
         <div className="card-header"><span className="card-title">My team — {latestMonth}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{teamSorted.length} specialists</span></div>
-        <div className="table-wrap"><table><thead><tr><th>#</th><th>Specialist</th><th style={{textAlign:"right"}}>Performance</th><th style={{textAlign:"right"}}>Tickets/d</th><th style={{textAlign:"right"}}>DSAT</th><th style={{textAlign:"right"}}>Occupancy</th><th style={{textAlign:"right"}}>RTR</th><th style={{textAlign:"center"}}>JKQ</th></tr></thead><tbody>
+        <div className="table-wrap"><table><thead><tr><th>#</th><th>Specialist</th><th style={{textAlign:"right"}}>Score</th><th style={{textAlign:"right"}}>Tickets/d</th><th style={{textAlign:"right"}}>DSAT</th><th style={{textAlign:"right"}}>Occupancy</th><th style={{textAlign:"right"}}>RTR</th><th style={{textAlign:"center"}}>JKQ</th></tr></thead><tbody>
           {teamSorted.map((r,i)=>(<tr key={r.id}>
             <td style={{fontWeight:500,color:i<3?"var(--amber)":"var(--tx3)"}}>{i+1}</td>
             <td style={{fontWeight:500}}>{nameFromEmail(r.qa_email)}</td>
-            <td style={{textAlign:"right"}}><span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>{((r.final_performance||0)*100).toFixed(1)}%</span></td>
+            <td style={{textAlign:"right"}}><span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:scoreBg(getScore(r)),color:scoreColor(getScore(r))}}>{getScore(r).toFixed(1)} / {maxScore}</span></td>
             <td style={{textAlign:"right",color:"var(--teal)",fontWeight:500}}>{r.ticket_per_day??0}</td>
             <td style={{textAlign:"right"}}>{r.dsat??0}</td>
             <td style={{textAlign:"right"}}>{fmtPct(r.occupancy_pct)}</td>
@@ -164,7 +166,7 @@ function DashboardPage({profile,token}){
     {/* ── Personal stats (everyone) ── */}
     {myData?<>
       <div className="stats-grid">
-        <div className="stat-card"><div className="stat-icon" style={{background:fpBg(myData.final_performance),color:fpColor(myData.final_performance),fontSize:18}}>📊</div><div className="stat-label">My performance</div><div className="stat-value" style={{color:fpColor(myData.final_performance)}}>{((myData.final_performance||0)*100).toFixed(1)}%</div>{myPrevData&&<div style={{fontSize:12,marginTop:4,color:((myData.final_performance||0)-(myPrevData.final_performance||0))>=0?"var(--green)":"var(--red)"}}>{((myData.final_performance||0)-(myPrevData.final_performance||0))>=0?"↑":"↓"} {(Math.abs((myData.final_performance||0)-(myPrevData.final_performance||0))*100).toFixed(1)}% vs {prevMonth}</div>}</div>
+        <div className="stat-card"><div className="stat-icon" style={{background:scoreBg(myData?getScore(myData):0),color:scoreColor(myData?getScore(myData):0),fontSize:18}}>📊</div><div className="stat-label">My score</div><div className="stat-value" style={{color:scoreColor(myData?getScore(myData):0)}}>{myData?getScore(myData).toFixed(1):0}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div>{myPrevData&&<div style={{fontSize:12,marginTop:4,color:(getScore(myData)-getScore(myPrevData))>=0?"var(--green)":"var(--red)"}}>{(getScore(myData)-getScore(myPrevData))>=0?"↑":"↓"} {Math.abs(getScore(myData)-getScore(myPrevData)).toFixed(1)} pts vs {prevMonth}</div>}</div>
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Rank</div><div className="stat-value">{myRank>0?"#"+myRank:"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {ranked.length}</span></div></div>
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--teal-bg)",color:"var(--teal)",fontSize:18}}>🎫</div><div className="stat-label">Tickets/day</div><div className="stat-value">{myData.ticket_per_day??0}</div></div>
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--teal-bg)",color:"var(--teal)",fontSize:18}}>📋</div><div className="stat-label">DSAT</div><div className="stat-value">{myData.dsat??0}</div></div>
@@ -241,8 +243,8 @@ function DashboardPage({profile,token}){
       </div>
 
       {/* Sparkline trend */}
-      {myHistory.length>1&&<div className="card" style={{marginBottom:20}}><div className="card-header"><span className="card-title">Performance trend</span></div>
-        <svg width="100%" height="100" viewBox={`0 0 ${myHistory.length*100} 100`} style={{overflow:"visible"}}><polyline fill="none" stroke="var(--accent-text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={myHistory.map((d,i)=>{const y=90-(d.fp/0.6)*70;return`${i*100+50},${Math.max(10,Math.min(90,y))}`;}).join(" ")}/>{myHistory.map((d,i)=>{const y=90-(d.fp/0.6)*70;const cy=Math.max(10,Math.min(90,y));return(<g key={i}><circle cx={i*100+50} cy={cy} r="4" fill="var(--accent-text)"/><text x={i*100+50} y={cy-12} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--tx)" fontFamily="var(--font)">{(d.fp*100).toFixed(0)}%</text><text x={i*100+50} y={cy+18} textAnchor="middle" fontSize="10" fill="var(--tx3)" fontFamily="var(--font)">{d.month}</text></g>);})}</svg>
+      {myHistory.length>1&&<div className="card" style={{marginBottom:20}}><div className="card-header"><span className="card-title">Score trend</span></div>
+        <svg width="100%" height="100" viewBox={`0 0 ${myHistory.length*100} 100`} style={{overflow:"visible"}}><polyline fill="none" stroke="var(--accent-text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={myHistory.map((d,i)=>{const y=90-(d.score/maxScore)*70;return`${i*100+50},${Math.max(10,Math.min(90,y))}`;}).join(" ")}/>{myHistory.map((d,i)=>{const y=90-(d.score/maxScore)*70;const cy=Math.max(10,Math.min(90,y));return(<g key={i}><circle cx={i*100+50} cy={cy} r="4" fill="var(--accent-text)"/><text x={i*100+50} y={cy-12} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--tx)" fontFamily="var(--font)">{d.score.toFixed(1)}</text><text x={i*100+50} y={cy+18} textAnchor="middle" fontSize="10" fill="var(--tx3)" fontFamily="var(--font)">{d.month}</text></g>);})}</svg>
       </div>}
     </>:
     /* No personal MTD data — show quick actions */
@@ -260,7 +262,7 @@ function DashboardPage({profile,token}){
     {hasRole(profile?.role,"qa_supervisor")&&<div className="stats-grid">
       <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>👥</div><div className="stat-label">Total QAs (roster)</div><div className="stat-value">{roster.length}</div></div>
       <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>👔</div><div className="stat-label">Team leads</div><div className="stat-value">{[...new Set(roster.map(r=>r.manager_email).filter(Boolean))].length}</div></div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Avg performance ({latestMonth})</div><div className="stat-value" style={{color:fpColor(ranked.length?ranked.reduce((a,r)=>a+(r.final_performance||0),0)/ranked.length:0)}}>{ranked.length?((ranked.reduce((a,r)=>a+(r.final_performance||0),0)/ranked.length)*100).toFixed(1)+"%":"—"}</div></div>
+      <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Avg score ({latestMonth})</div><div className="stat-value" style={{color:scoreColor(ranked.length?ranked.reduce((a,r)=>a+getScore(r),0)/ranked.length:0)}}>{ranked.length?(ranked.reduce((a,r)=>a+getScore(r),0)/ranked.length).toFixed(1):"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div></div>
       <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Total DSAT ({latestMonth})</div><div className="stat-value">{current.reduce((a,r)=>a+(r.dsat||0),0)}</div></div>
     </div>}
 
@@ -1686,7 +1688,7 @@ export default function App(){
   useEffect(()=>{const handler=(e)=>setPage(e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[]);
   useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{const p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,team_id,status",filters:`id=eq.${s.user?.id}`,token:s.access_token});if(p.length>0)setProfile(p[0]);}catch(e){console.error("Profile:",e);}}setLoading(false);})();},[]);
   if(loading)return<div className="loading-fullscreen"><div className="spinner"/><p style={{marginTop:16,color:"var(--tx2)",fontSize:14}}>Loading portal...</p></div>;
-  if(!session)return(<div className="login-page"><div className="login-card"><div style={{marginBottom:8}}><TabbyLogo size={28}/></div><div className="login-subtitle">Quality Assurance Performance Portal<br/>Sign in with your Tabby Google account.</div><button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}><GoogleLogo/>Sign in with Google</button><div className="login-divider">Supported domains</div><div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div><div className="login-footer">Internal tool &middot; Tabby QA Assurance</div></div></div>);
+  if(!session)return(<div className="login-page"><div className="login-card"><div style={{marginBottom:8}}><TabbyLogo size={28}/></div><div className="login-subtitle">QA Performance & Analytics Dashboard<br/>Sign in with your Tabby Google account.</div><button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}><GoogleLogo/>Sign in with Google</button><div className="login-divider">Supported domains</div><div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div><div className="login-footer">Internal tool &middot; Tabby RADAR</div></div></div>);
   const userRole=profile?.role||"qa";const visibleNav=NAV_ITEMS.filter(n=>!n.minRole||hasRole(userRole,n.minRole)||n.key==="escalations");let curSec=null;
   const renderPage=()=>{const t=session.access_token;switch(page){
     case"dashboard":return<DashboardPage profile={profile} token={t}/>;
@@ -1703,7 +1705,7 @@ export default function App(){
   return(<div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""}`}>
-      <div className="sidebar-header"><div className="sidebar-brand">tabby<span>QA</span> <span className="sidebar-tag">PORTAL</span></div></div>
+      <div className="sidebar-header"><div className="sidebar-brand">tabby<span>RADAR</span></div></div>
       <nav className="sidebar-nav">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}}><Icon d={item.icon} size={18}/>{item.label}</button></div>);})}</nav>
       <div className="sidebar-profile"><div className="sidebar-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" referrerPolicy="no-referrer"/>:(profile?.display_name||"?")[0].toUpperCase()}</div><div className="sidebar-user"><div className="sidebar-user-name">{profile?.display_name||profile?.email}</div><div className="sidebar-user-role">{ROLE_LABELS[userRole]} &middot; {profile?.domain}</div></div><button className="sidebar-logout" onClick={sb.auth.signOut} title="Sign out"><Icon d={icons.logout} size={16}/></button></div>
     </aside>
