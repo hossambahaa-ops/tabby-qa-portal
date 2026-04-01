@@ -1732,6 +1732,138 @@ function CoachingPage({token, profile}) {
   );
 }
 
+-- ╔═══════════════════════════════════════════════════════════════════╗
+-- ║  Tabby RADAR — AP/PIP Module Migration (v4 — clean slate)     ║
+-- ║  Run this in the Supabase SQL Editor                           ║
+-- ║  Project: shuenqmzbrthiiokfzio                                 ║
+-- ║                                                                 ║
+-- ║  NOTE: This drops and recreates both tables. Only safe because  ║
+-- ║  the module is brand new and has no production data yet.        ║
+-- ╚═══════════════════════════════════════════════════════════════════╝
+
+-- ── 0. Clean slate — drop previous broken attempts ──
+DROP TABLE IF EXISTS action_plan_weeks CASCADE;
+DROP TABLE IF EXISTS action_plans CASCADE;
+
+
+-- ── 1. action_plans table ──
+CREATE TABLE action_plans (
+  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  qa_email      TEXT NOT NULL,
+  type          TEXT NOT NULL CHECK (type IN ('ap', 'pip')),
+  status        TEXT NOT NULL DEFAULT 'active'
+                CHECK (status IN ('active', 'pending_review', 'completed_pass', 'completed_fail', 'cancelled')),
+  reason        TEXT,
+  targets       JSONB,
+  start_date    DATE NOT NULL,
+  end_date      DATE NOT NULL,
+  duration_weeks INTEGER NOT NULL DEFAULT 4,
+
+  -- Ownership & team
+  created_by    TEXT,
+  tl_email      TEXT,
+  team          TEXT,
+
+  -- Conclusion
+  conclusion        TEXT CHECK (conclusion IS NULL OR conclusion IN ('pass', 'fail')),
+  conclusion_notes  TEXT,
+  concluded_by      TEXT,
+  concluded_at      TIMESTAMPTZ,
+
+  -- Timestamps
+  created_at    TIMESTAMPTZ DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_action_plans_status   ON action_plans (status);
+CREATE INDEX idx_action_plans_qa       ON action_plans (qa_email);
+CREATE INDEX idx_action_plans_tl       ON action_plans (tl_email);
+CREATE INDEX idx_action_plans_created  ON action_plans (created_at DESC);
+CREATE INDEX idx_action_plans_type     ON action_plans (type);
+
+
+-- ── 2. action_plan_weeks table ──
+CREATE TABLE action_plan_weeks (
+  id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  plan_id             UUID NOT NULL REFERENCES action_plans(id) ON DELETE CASCADE,
+  week_number         INTEGER NOT NULL,
+  week_start          DATE,
+  target_data         JSONB,
+  actual_data         JSONB,
+  met_targets         BOOLEAN,
+  coaching_session_id UUID,
+  notes               TEXT,
+  created_at          TIMESTAMPTZ DEFAULT NOW(),
+  updated_at          TIMESTAMPTZ DEFAULT NOW(),
+
+  UNIQUE (plan_id, week_number)
+);
+
+-- Conditionally add FK to coaching_sessions if that table exists
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'coaching_sessions') THEN
+    ALTER TABLE action_plan_weeks
+      ADD CONSTRAINT fk_apw_coaching
+      FOREIGN KEY (coaching_session_id)
+      REFERENCES coaching_sessions(id)
+      ON DELETE SET NULL;
+  END IF;
+EXCEPTION WHEN duplicate_object THEN
+  NULL;
+END $$;
+
+CREATE INDEX idx_apw_plan     ON action_plan_weeks (plan_id);
+CREATE INDEX idx_apw_coaching ON action_plan_weeks (coaching_session_id);
+
+
+-- ── 3. Row-Level Security (RLS) ──
+ALTER TABLE action_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE action_plan_weeks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Authenticated users can view action_plans"
+  ON action_plans FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Authenticated users can insert action_plans"
+  ON action_plans FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Authenticated users can update action_plans"
+  ON action_plans FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated users can delete action_plans"
+  ON action_plans FOR DELETE TO authenticated USING (true);
+
+CREATE POLICY "Authenticated users can view action_plan_weeks"
+  ON action_plan_weeks FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Authenticated users can insert action_plan_weeks"
+  ON action_plan_weeks FOR INSERT TO authenticated WITH CHECK (true);
+CREATE POLICY "Authenticated users can update action_plan_weeks"
+  ON action_plan_weeks FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
+CREATE POLICY "Authenticated users can delete action_plan_weeks"
+  ON action_plan_weeks FOR DELETE TO authenticated USING (true);
+
+
+-- ── 4. Auto-update updated_at ──
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_action_plans_updated
+  BEFORE UPDATE ON action_plans
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER trg_action_plan_weeks_updated
+  BEFORE UPDATE ON action_plan_weeks
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+
+-- ╔═══════════════════════════════════════════════════════════════════╗
+-- ║  Done. Both tables created fresh:                               ║
+-- ║    - action_plans                                               ║
+-- ║    - action_plan_weeks                                          ║
+-- ╚═══════════════════════════════════════════════════════════════════╝
 
 function PlaceholderPage({title,description,icon,minRole,userRole}){const locked=minRole&&!hasRole(userRole,minRole);
   return(<div className="page"><div className="page-header"><div className="page-title">{title}</div></div><div className="card"><div className="placeholder"><div className="placeholder-icon"><Icon d={icon} size={28}/></div><h3>{title}</h3><p>{locked?`Requires ${ROLE_LABELS[minRole]} access or above.`:description}</p><div className="placeholder-badge">{locked?"Access restricted":"Coming soon"}</div></div></div></div>);}
@@ -1762,7 +1894,7 @@ export default function App(){
     case"admin":return hasRole(userRole,"admin")?<AdminPage token={t} profile={profile}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>;
     case"leaderboard":return<LeaderboardPage token={t} profile={profile}/>;
     case"dam":return hasRole(userRole,"qa_lead")?<DAMPage token={t} profile={profile}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
-    case"plans":return<PlaceholderPage title="Action plans & PIPs" description="Performance improvement plans." icon={icons.plan} minRole="qa_lead" userRole={userRole}/>;
+    case"plans":return hasRole(userRole,"qa_lead")?<ActionPlanPage token={t} profile={profile}/>:<PlaceholderPage title="Action plans & PIPs" icon={icons.plan} minRole="qa_lead" userRole={userRole}/>;
     case"coaching":return hasRole(userRole,"qa_lead")?<CoachingPage token={t} profile={profile}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
     case"hr":return<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>;
     case"escalations":return<PlaceholderPage title="Escalations" description="Flag concerns about leadership." icon={icons.escalation} userRole={userRole}/>;
