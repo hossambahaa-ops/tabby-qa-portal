@@ -88,50 +88,51 @@ function DashboardPage({profile,token}){
   const scoreBg=(v)=>v>=maxScore*0.7?"var(--green-bg)":v>=maxScore*0.4?"var(--amber-bg)":"var(--red-bg)";
 
   useEffect(()=>{(async()=>{try{
-    const[mtdRows,rosterRows,flags,profs,plans,planWeeks,dismissals]=await Promise.all([
+    const[mtdRows,rosterRows,damFlagsRaw,profs,plans,planWeeks,dismissals,damStepsRaw]=await Promise.all([
       sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[]),
       sb.query("qa_roster",{select:"*",token}).catch(()=>[]),
-      sb.query("dam_flags",{select:"id,status",filters:"status=eq.pending",token}).catch(()=>[]),
+      sb.query("dam_flags",{select:"id,profile_id,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
       sb.query("profiles",{select:"id,role,status",filters:"status=eq.active",token}).catch(()=>[]),
       sb.query("action_plans",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
       sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
       sb.query("ap_dismissals",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
+      sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action",token}).catch(()=>[]),
     ]);
-    setMtd(mtdRows);setRoster(rosterRows);setDamCount(flags.length);
+    setMtd(mtdRows);setRoster(rosterRows);setDamCount(damFlagsRaw.filter(f=>f.status==="pending").length);
     setProfileCount({qas:profs.filter(p=>p.role==="qa").length,leads:profs.filter(p=>p.role==="qa_lead"||p.role==="senior_qa").length,active:profs.length});
     setApPlans(plans);setApWeeks(planWeeks);setApDismissals(dismissals);
 
-    // Auto-detection for TL dashboard alert
+    // Auto-detection for TL dashboard alert — DAM-driven
     if(hasRole(profile?.role,"qa_lead")){
-      const mnths=[...new Set(mtdRows.map(r=>r.month))].sort().reverse();
       const dismissedEmails=new Set(dismissals.map(d=>d.qa_email?.toLowerCase()));
-      if(mnths.length>=2){
-        const latest=mtdRows.filter(r=>r.month===mnths[0]);
-        const prev=mtdRows.filter(r=>r.month===mnths[1]);
-        const activePlanEmails=plans.filter(p=>p.status==="active"||p.status==="pending_review").map(p=>p.qa_email?.toLowerCase());
-        // Only show TL's own team members
-        const myTeam=rosterRows.filter(r=>r.manager_email&&r.manager_email.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.email.toLowerCase());
-        const myTlRows=latest.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.qa_email.toLowerCase());
-        const teamEmails=[...new Set([...myTeam,...myTlRows])];
-        const flagged=[];
-        latest.forEach(row=>{
-          const email=row.qa_email?.toLowerCase();
-          if(activePlanEmails.includes(email))return;
-          if(dismissedEmails.has(email))return;
-          if(teamEmails.length>0&&!teamEmails.includes(email))return;
-          const kpiDefs=Object.values({occupancy:{weight:15,thresholds:[95,98,100],rawKey:"occupancy_pct"},coaching:{weight:10,thresholds:[90,93,95],rawKey:"ontime_coaching_pct"},calibration:{weight:10,thresholds:[85,90,95],rawKey:"avg_calibration_match_rate"},observation:{weight:10,thresholds:[82,85,88],rawKey:"avg_observation_score_pct"},rtr:{weight:10,thresholds:[80,85,90],rawKey:"avg_rtr_score"}});
-          const slab0Count=kpiDefs.filter(def=>{const raw=parseRawD(row[def.rawKey]);return raw!==null&&raw<def.thresholds[0];}).length;
-          const totalScore=getScore(row);
-          const prevRow=prev.find(r=>r.qa_email?.toLowerCase()===email);
-          const prevScore=prevRow?getScore(prevRow):null;
-          let reason=null;
-          if(slab0Count>=2)reason=`${slab0Count} KPIs at Slab 0`;
-          if(totalScore<20&&prevScore!==null&&prevScore<20)reason=(reason?reason+" + ":"")+"Score <20 for 2 months";
-          if(reason)flagged.push({email:row.qa_email,name:nameFromEmail(row.qa_email),score:totalScore,reason,slab0Count});
-        });
-        flagged.sort((a,b)=>a.score-b.score);
-        setApDetections(flagged);
-      }
+      const activePlanEmails=plans.filter(p=>p.status==="active"||p.status==="pending_review").map(p=>p.qa_email?.toLowerCase());
+      const myTeam=rosterRows.filter(r=>r.manager_email&&r.manager_email.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.email.toLowerCase());
+      const mnths=[...new Set(mtdRows.map(r=>r.month))].sort().reverse();
+      const latestMtd=mtdRows.filter(r=>r.month===mnths[0]);
+      const myTlRows=latestMtd.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.qa_email.toLowerCase());
+      const teamEmails=[...new Set([...myTeam,...myTlRows])];
+
+      const activeFlags=(damFlagsRaw||[]).filter(f=>f.status==="pending"||f.status==="acknowledged");
+      const flagged=[];
+      activeFlags.forEach(flag=>{
+        const email=flag.profiles?.email?.toLowerCase();
+        if(!email)return;
+        if(activePlanEmails.includes(email))return;
+        if(dismissedEmails.has(email))return;
+        if(teamEmails.length>0&&!teamEmails.includes(email))return;
+        if(flagged.find(f=>f.email?.toLowerCase()===email))return;
+
+        const step=(damStepsRaw||[]).find(s=>s.rule_id===flag.rule_id&&s.occurrence===flag.occurrence_number);
+        if(!step||!step.includes_pip)return;
+
+        const row=latestMtd.find(r=>r.qa_email?.toLowerCase()===email);
+        const score=row?getScore(row):0;
+        const ruleName=flag.dam_rules?.name||"Unknown";
+        const pipAction=step.pip_action||step.action||"AP required";
+        flagged.push({email:flag.profiles?.email||email,name:flag.profiles?.display_name||nameFromEmail(email),score,reason:`DAM: ${ruleName} — #${flag.occurrence_number}: ${pipAction}`,slab0Count:0});
+      });
+      flagged.sort((a,b)=>a.score-b.score);
+      setApDetections(flagged);
     }
   }catch(e){console.error("Dashboard:",e);}setLoading(false);})();},[token]);
 
@@ -195,7 +196,10 @@ function DashboardPage({profile,token}){
           </div>
           <div style={{display:"flex",gap:6}}>
             <button className="btn btn-primary btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={(e)=>{e.stopPropagation();nav("plans");}}>Create AP</button>
-            <button className="btn btn-outline btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={(e)=>{e.stopPropagation();setDismissModal(d);}}>Dismiss</button>
+            {hasRole(profile?.role,"super_admin") ?
+              <button className="btn btn-outline btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={async(e)=>{e.stopPropagation();try{await sb.query("ap_dismissals",{token,method:"POST",body:{qa_email:d.email,dismissed_by:profile?.email,reason:"Dismissed by super admin",month:months[0]||"",detection_info:d.reason}});setApDetections(prev=>prev.filter(x=>x.email!==d.email));}catch(err){console.error(err);}}}>Dismiss</button> :
+              <button className="btn btn-outline btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={(e)=>{e.stopPropagation();setDismissModal(d);}}>Dismiss</button>
+            }
           </div>
         </div>
       ))}
@@ -2263,13 +2267,15 @@ function ActionPlanPage({ token, profile }) {
   // ── Data loading ──
   const load = useCallback(async () => {
     try {
-      const [planRows, weekRows, mtdRows, rosterRows, profRows, dismissalRows] = await Promise.all([
+      const [planRows, weekRows, mtdRows, rosterRows, profRows, dismissalRows, damFlags, damSteps] = await Promise.all([
         sb.query("action_plans", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
         sb.query("action_plan_weeks", { select: "*", filters: "order=plan_id.asc,week_number.asc", token }).catch(() => []),
         sb.query("mtd_scores", { select: "*", filters: "order=month.desc", token }).catch(() => []),
         sb.query("qa_roster", { select: "email,display_name,queue,manager_email", token }).catch(() => []),
         sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => []),
         sb.query("ap_dismissals", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
+        sb.query("dam_flags", { select: "id,profile_id,rule_id,occurrence_number,status,notes,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)", filters: "order=triggered_at.desc", token }).catch(() => []),
+        sb.query("dam_escalation_steps", { select: "id,rule_id,occurrence,action,includes_pip,pip_action", token }).catch(() => []),
       ]);
       setPlans(planRows);
       setWeeks(weekRows);
@@ -2277,86 +2283,53 @@ function ActionPlanPage({ token, profile }) {
       setRoster(rosterRows);
       setProfiles(profRows);
 
-      // ── Auto-detection engine ──
-      runDetection(mtdRows, planRows, dismissalRows);
+      // ── Auto-detection engine (DAM-driven) ──
+      runDetection(mtdRows, planRows, dismissalRows, damFlags, damSteps);
     } catch (e) { console.error("AP/PIP load:", e); }
     setLoading(false);
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
 
-  // ── Auto-detection: find QAs who qualify for AP ──
-  const runDetection = (mtdRows, existingPlans, dismissalRows) => {
-    const months = [...new Set(mtdRows.map(r => r.month))].sort().reverse();
-    if (months.length < 2) { setDetections([]); return; }
-
-    const latestMonth = months[0];
-    const prevMonth = months[1];
-    const latestData = mtdRows.filter(r => r.month === latestMonth);
-    const prevData = mtdRows.filter(r => r.month === prevMonth);
-
-    // Emails with active plans already
+  // ── Auto-detection: DAM-driven — only flag QAs with DAM escalation that includes AP/PIP ──
+  const runDetection = (mtdRows, existingPlans, dismissalRows, damFlagRows, damStepRows) => {
     const activePlanEmails = existingPlans
       .filter(p => p.status === "active" || p.status === "pending_review")
       .map(p => p.qa_email?.toLowerCase());
-
-    // Emails already dismissed
     const dismissedEmails = new Set((dismissalRows || []).map(d => d.qa_email?.toLowerCase()));
-
+    const months = [...new Set(mtdRows.map(r => r.month))].sort().reverse();
+    const latestMonth = months[0] || "—";
+    const activeFlags = (damFlagRows || []).filter(f => f.status === "pending" || f.status === "acknowledged");
     const flagged = [];
 
-    latestData.forEach(row => {
-      const email = row.qa_email?.toLowerCase();
+    activeFlags.forEach(flag => {
+      const email = flag.profiles?.email?.toLowerCase();
+      if (!email) return;
       if (activePlanEmails.includes(email)) return;
-      if (dismissedEmails.has(email)) return; // already on a plan
+      if (dismissedEmails.has(email)) return;
+      if (flagged.find(f => f.email?.toLowerCase() === email)) return;
 
-      const kpis = getKpiScores(row);
-      const totalScore = getTotalScore(row);
-      const slab0Count = kpis.filter(k => k.slab.slab === 0 && k.rawPct !== null).length;
+      const step = (damStepRows || []).find(s => s.rule_id === flag.rule_id && s.occurrence === flag.occurrence_number);
+      if (!step || !step.includes_pip) return;
 
-      // Check previous month too
-      const prevRow = prevData.find(r => r.qa_email?.toLowerCase() === email);
-      const prevScore = prevRow ? getTotalScore(prevRow) : null;
-      const prevSlab0 = prevRow ? getKpiScores(prevRow).filter(k => k.slab.slab === 0 && k.rawPct !== null).length : 0;
+      const row = mtdRows.find(r => r.qa_email?.toLowerCase() === email && r.month === latestMonth);
+      const totalScore = row ? getTotalScore(row) : 0;
+      const kpis = row ? getKpiScores(row) : [];
+      const ruleName = flag.dam_rules?.name || "Unknown";
+      const behaviorType = flag.dam_rules?.behavior_type?.replace(/_/g, " ") || "";
+      const pipAction = step.pip_action || step.action || "Action Plan required";
 
-      let reason = null;
-      let severity = "medium";
-
-      // Condition 1: Slab 0 on 2+ KPIs in latest month
-      if (slab0Count >= 2) {
-        reason = `${slab0Count} KPIs at Slab 0 in ${latestMonth}`;
-        severity = slab0Count >= 3 ? "high" : "medium";
-      }
-
-      // Condition 2: Total score < 20/55 for 2 consecutive months
-      if (totalScore < 20 && prevScore !== null && prevScore < 20) {
-        reason = (reason ? reason + " + " : "") + `Score below 20 for 2 consecutive months (${prevMonth}: ${prevScore.toFixed(1)}, ${latestMonth}: ${totalScore.toFixed(1)})`;
-        severity = "high";
-      }
-
-      // Condition 3: Slab 0 on 2+ KPIs in both months
-      if (slab0Count >= 2 && prevSlab0 >= 2) {
-        severity = "critical";
-      }
-
-      if (reason) {
-        flagged.push({
-          email: row.qa_email,
-          name: nameFromEmail(row.qa_email),
-          reason,
-          severity,
-          totalScore,
-          prevScore,
-          slab0Count,
-          kpis,
-          latestMonth,
-          prevMonth,
-          tl: row.qa_tl,
-        });
-      }
+      flagged.push({
+        email: flag.profiles?.email || email,
+        name: flag.profiles?.display_name || nameFromEmail(email),
+        reason: `DAM: ${ruleName} (${behaviorType}) — Occurrence #${flag.occurrence_number}: ${pipAction}`,
+        severity: flag.occurrence_number >= 3 ? "critical" : flag.occurrence_number >= 2 ? "high" : "medium",
+        totalScore, kpis, latestMonth,
+        tl: row?.qa_tl,
+        damFlagId: flag.id,
+      });
     });
 
-    // Sort by severity then score
     const sevOrder = { critical: 0, high: 1, medium: 2 };
     flagged.sort((a, b) => (sevOrder[a.severity] ?? 9) - (sevOrder[b.severity] ?? 9) || a.totalScore - b.totalScore);
     setDetections(flagged);
