@@ -1072,6 +1072,58 @@ function CoachingPage({token, profile}) {
 
   const emailSubject = `Session Summary: ${meetingType} - ${fmtDate(sessionDate)}`;
 
+  // Build plain text version for Gmail compose URL
+  const buildPlainText = () => {
+    const fn = firstNameFromEmail(toEmail);
+    const isConclusion = isTargetType && outcome;
+    const planName = meetingType === "PIP Review" ? "Performance Improvement Plan" : "Action Plan";
+    const bullet = (text) => text ? text.split("\n").filter(l=>l.trim()).map(l => " - " + l.replace(/^[-•]\s*/,"").trim()).join("\n") : "";
+    let lines = [];
+
+    lines.push(`[${meetingType}]`);
+    lines.push("");
+    lines.push(`Dear ${fn},`);
+    lines.push("");
+
+    if (isConclusion && outcome === "pass") {
+      lines.push(`I am pleased to formally confirm that you have successfully completed your ${planName}. Your commitment, consistency, and improvement throughout this period have been genuinely noted and are greatly appreciated. This concludes the formal ${planName} process.`);
+    } else if (isConclusion && outcome === "fail") {
+      lines.push(`Following a full review of your ${planName}, I regret to formally notify you that the required performance targets were not met within the agreed timeframe. This outcome has been documented and will be shared with the relevant stakeholders, including Human Resources.`);
+      if (nextSteps) { lines.push(""); lines.push("Agreed Next Steps:"); lines.push(nextSteps); }
+    } else {
+      lines.push(INTRO_MAP[meetingType] || "This is a formal summary of our session.");
+    }
+    lines.push("");
+
+    if (topics?.trim()) { lines.push("TOPICS DISCUSSED"); lines.push(bullet(topics)); lines.push(""); }
+    if (perfRating) { lines.push("OVERALL PERFORMANCE RATING"); lines.push(` - ${perfRating}`); lines.push(` ${PERF_MESSAGES[perfRating]||""}`); lines.push(""); }
+    if (strengths?.trim()) { lines.push("STRENGTHS & RECOGNIZED CONTRIBUTIONS"); lines.push(bullet(strengths)); lines.push(""); }
+    if (weaknesses?.trim()) { lines.push("AREAS FOR DEVELOPMENT"); lines.push(bullet(weaknesses)); lines.push(""); }
+    if (goals?.trim()) { lines.push("GOALS & PROGRESS UPDATE"); lines.push(bullet(goals)); lines.push(""); }
+    if (actions?.trim()) { lines.push("ACTION ITEMS & AGREED NEXT STEPS"); lines.push(bullet(actions)); lines.push(""); }
+
+    if (isTargetType && targetRows.some(r => r.metric.trim())) {
+      lines.push("WEEKLY QA REVIEW — SCORE TRACKING");
+      lines.push("");
+      targetRows.filter(r => r.metric.trim()).forEach(r => {
+        lines.push(`  ${r.metric}`);
+        lines.push(`  Target: Start=${r.start||"--"}% W1=${r.w1||"--"}% W2=${r.w2||"--"}% W3=${r.w3||"--"}% W4=${r.w4||"--"}%`);
+        lines.push(`  Actual: W1=${r.a1||"--"} W2=${r.a2||"--"} W3=${r.a3||"--"} W4=${r.a4||"--"}`);
+        lines.push("");
+      });
+    }
+
+    lines.push("---");
+    lines.push("Should you have any questions, please do not hesitate to reach out.");
+    lines.push("I appreciate your continued commitment and professionalism.");
+    lines.push("");
+    lines.push("Best regards,");
+    lines.push(`${sigName || "QA Leader"}`);
+    lines.push(`${sigTitle || "QA Lead"} | Tabby`);
+
+    return lines.join("\n");
+  };
+
   // Save session and open Gmail
   const generateAndSend = async () => {
     if (!toEmail) { show("error", "Enter the team member's email"); return; }
@@ -1099,9 +1151,9 @@ function CoachingPage({token, profile}) {
         }
       });
 
-      // Open Gmail compose
-      const body = buildEmailBody();
-      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(toEmail)}&cc=${encodeURIComponent(ccEmail)}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(body)}`;
+      // Build plain text for Gmail (HTML is too long for URL)
+      const plain = buildPlainText();
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(toEmail)}&cc=${encodeURIComponent(ccEmail)}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(plain)}`;
       window.open(gmailUrl, "_blank");
 
       // Refresh history
