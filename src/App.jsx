@@ -468,22 +468,24 @@ function TeamManagementPage({token}){
     sb.query("qa_roster",{select:"email,display_name,queue,manager_email",token}).catch(()=>[]),
   ]);setTeams(t);setUsers(u);setRoster(r);
 
-  // Auto-create teams from roster queues that don't exist yet
-  const existingNames=t.map(x=>x.name.toLowerCase());
+  // Auto-create teams: one DB entry per queue+domain combination
+  const existingKeys=new Set(t.map(x=>(x.name+"|"+x.domain).toLowerCase()));
   const rosterQueues=[...new Set(r.map(x=>x.queue).filter(Boolean))];
-  const missing=rosterQueues.filter(q=>!existingNames.includes(q.toLowerCase()));
-  if(missing.length>0){
-    for(const q of missing){
-      // Detect domain: if majority of members are @tabby.sa, set sa, else ai
-      const members=r.filter(x=>x.queue===q);
-      const saCount=members.filter(x=>x.email?.endsWith("@tabby.sa")).length;
-      const domain=saCount>members.length/2?"tabby.sa":"tabby.ai";
-      try{await sb.query("teams",{token,method:"POST",body:{name:q,domain}});}catch(e){console.log("Auto-create team:",q,e);}
+  let created=0;
+  for(const q of rosterQueues){
+    const hasAi=r.some(x=>x.queue===q&&x.email?.endsWith("@tabby.ai"));
+    const hasSa=r.some(x=>x.queue===q&&x.email?.endsWith("@tabby.sa"));
+    if(hasAi&&!existingKeys.has((q+"|tabby.ai").toLowerCase())){
+      try{await sb.query("teams",{token,method:"POST",body:{name:q,domain:"tabby.ai"}});created++;}catch(e){console.log("Auto-create:",q,"ai",e);}
     }
-    // Reload teams after auto-creation
+    if(hasSa&&!existingKeys.has((q+"|tabby.sa").toLowerCase())){
+      try{await sb.query("teams",{token,method:"POST",body:{name:q,domain:"tabby.sa"}});created++;}catch(e){console.log("Auto-create:",q,"sa",e);}
+    }
+  }
+  if(created>0){
     const t2=await sb.query("teams",{select:"id,name,domain,lead_id,supervisor_id,profiles!fk_teams_lead(display_name,email),sup:profiles!fk_teams_supervisor(display_name,email)",token});
     setTeams(t2);
-    show("success",`Auto-created ${missing.length} team(s) from roster`);
+    show("success",`Auto-created ${created} team(s) from roster`);
   }
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
@@ -527,13 +529,13 @@ function TeamManagementPage({token}){
         queues.forEach(queue=>{
           const aiMembers=roster.filter(r=>r.queue===queue&&r.email?.endsWith("@tabby.ai"));
           const saMembers=roster.filter(r=>r.queue===queue&&r.email?.endsWith("@tabby.sa"));
-          // Find the DB team for lead/supervisor info
-          const dbTeam=teams.find(t=>t.name===queue);
+          const dbTeamAi=teams.find(t=>t.name===queue&&t.domain==="tabby.ai");
+          const dbTeamSa=teams.find(t=>t.name===queue&&t.domain==="tabby.sa");
           if(aiMembers.length>0&&(!filterDomain||filterDomain==="tabby.ai")){
-            virtualTeams.push({key:queue+"-ai",name:queue,domain:"tabby.ai",members:aiMembers,dbTeam,count:aiMembers.length});
+            virtualTeams.push({key:queue+"-ai",name:queue,domain:"tabby.ai",members:aiMembers,dbTeam:dbTeamAi,count:aiMembers.length});
           }
           if(saMembers.length>0&&(!filterDomain||filterDomain==="tabby.sa")){
-            virtualTeams.push({key:queue+"-sa",name:queue,domain:"tabby.sa",members:saMembers,dbTeam,count:saMembers.length});
+            virtualTeams.push({key:queue+"-sa",name:queue,domain:"tabby.sa",members:saMembers,dbTeam:dbTeamSa,count:saMembers.length});
           }
         });
         return <div className="table-wrap"><table><thead><tr><th>Team</th><th>Domain</th><th>Members</th><th>Lead</th><th>Supervisor</th><th></th></tr></thead><tbody>
