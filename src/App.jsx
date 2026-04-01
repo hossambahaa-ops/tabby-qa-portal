@@ -1290,9 +1290,18 @@ function LeaderboardPage({token, profile}) {
           visibleQas = visibleQas.filter(qa => { const e = qa.email?.toLowerCase(); if (seen.has(e)) return false; seen.add(e); return true; });
         }
 
-        // Apply email dropdown filter
+        // Apply search/email filter
         if (selQaQuarterly) {
-          visibleQas = visibleQas.filter(qa => qa.email?.toLowerCase() === selQaQuarterly.toLowerCase());
+          const isExactEmail = allQas.some(qa => qa.email?.toLowerCase() === selQaQuarterly.toLowerCase());
+          if (isExactEmail) {
+            visibleQas = visibleQas.filter(qa => qa.email?.toLowerCase() === selQaQuarterly.toLowerCase());
+          } else {
+            const q = selQaQuarterly.toLowerCase();
+            visibleQas = visibleQas.filter(qa => {
+              const name = qa.email?.split("@")[0]?.split(".").map(p=>p.replace(/[\d]+$/,"")).filter(Boolean).join(" ").toLowerCase() || "";
+              return name.includes(q) || qa.email.toLowerCase().includes(q);
+            });
+          }
         }
 
         const qMaxScore = 55;
@@ -1302,10 +1311,24 @@ function LeaderboardPage({token, profile}) {
             <select className="select" value={activeQ} onChange={e=>{setSelQuarter(e.target.value);setSelQaQuarterly("");}}>
               {quarters.map(q => <option key={q.label} value={q.label}>{q.label} ({q.months.length} month{q.months.length!==1?"s":""})</option>)}
             </select>
-            <select className="select" value={selQaQuarterly} onChange={e=>setSelQaQuarterly(e.target.value)}>
-              <option value="">All specialists ({allQas.length})</option>
-              {allQas.map(qa => <option key={qa.email} value={qa.email}>{nameFromEmail(qa.email)}</option>)}
-            </select>
+            <div style={{position:"relative",minWidth:220,flex:1,maxWidth:320}}>
+              <input className="form-input" value={selQaQuarterly} onChange={e=>setSelQaQuarterly(e.target.value)} placeholder={`Search specialists (${allQas.length})...`} autoComplete="off" style={{fontSize:13}}/>
+              {selQaQuarterly && !allQas.find(qa=>qa.email===selQaQuarterly) && (()=>{
+                const q=selQaQuarterly.toLowerCase();
+                const matches=allQas.filter(qa=>{
+                  const name=qa.email?.split("@")[0]?.split(".").map(p=>p.replace(/[\d]+$/,"")).filter(Boolean).join(" ").toLowerCase()||"";
+                  return name.includes(q)||qa.email.toLowerCase().includes(q);
+                }).slice(0,8);
+                if(!matches.length)return null;
+                return <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:"0 0 var(--radius) var(--radius)",boxShadow:"var(--shadow-lg)",maxHeight:220,overflowY:"auto"}}>
+                  {matches.map(qa=><div key={qa.email} onClick={()=>setSelQaQuarterly(qa.email)} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <span style={{fontWeight:500}}>{nameFromEmail(qa.email)}</span>
+                    <span style={{fontSize:12,fontWeight:600,color:scoreColor(qa.totalScore)}}>{qa.totalScore.toFixed(1)}</span>
+                  </div>)}
+                </div>;
+              })()}
+              {selQaQuarterly && <button onClick={()=>setSelQaQuarterly("")} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:16,lineHeight:1}}>×</button>}
+            </div>
             {qData && <span style={{fontSize:12,color:"var(--tx3)"}}>Months: {qMonths.join(", ")}</span>}
           </div>
 
