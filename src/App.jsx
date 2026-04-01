@@ -985,9 +985,9 @@ function LeaderboardPage({token, profile}) {
         setData(rows);
         setRoster(rosterRows);
         // Build set of non-QA emails to exclude from rankings
-        const nonQaEmails = new Set(profRows.filter(p => p.role !== "qa").map(p => p.email?.toLowerCase()));
-        // Filter out non-QA roles from mtd data
-        const qaOnlyRows = rows.filter(r => !nonQaEmails.has(r.qa_email?.toLowerCase()));
+        const qaEmails = new Set(profRows.filter(p => p.role === "qa").map(p => p.email?.toLowerCase()));
+        // Only include QA role in leaderboard — anyone not in profiles or with non-QA role is excluded
+        const qaOnlyRows = rows.filter(r => qaEmails.has(r.qa_email?.toLowerCase()));
         setData(qaOnlyRows);
         const uniqueMonths = [...new Set(qaOnlyRows.map(r => r.month))];
         setMonths(uniqueMonths);
