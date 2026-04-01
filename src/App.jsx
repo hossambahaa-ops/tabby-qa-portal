@@ -71,6 +71,7 @@ const GoogleLogo=()=>(<svg width="20" height="20" viewBox="0 0 48 48"><path fill
 function DashboardPage({profile,token}){
   const[mtd,setMtd]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);
   const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
+  const[apPlans,setApPlans]=useState([]);const[apWeeks,setApWeeks]=useState([]);const[apDetectionCount,setApDetectionCount]=useState(0);
   const isLead=hasRole(profile?.role,"qa_lead");
 
   const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
@@ -86,14 +87,39 @@ function DashboardPage({profile,token}){
   const scoreBg=(v)=>v>=maxScore*0.7?"var(--green-bg)":v>=maxScore*0.4?"var(--amber-bg)":"var(--red-bg)";
 
   useEffect(()=>{(async()=>{try{
-    const[mtdRows,rosterRows,flags,profs]=await Promise.all([
+    const[mtdRows,rosterRows,flags,profs,plans,planWeeks]=await Promise.all([
       sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[]),
       sb.query("qa_roster",{select:"*",token}).catch(()=>[]),
       sb.query("dam_flags",{select:"id,status",filters:"status=eq.pending",token}).catch(()=>[]),
       sb.query("profiles",{select:"id,role,status",filters:"status=eq.active",token}).catch(()=>[]),
+      sb.query("action_plans",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
+      sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
     ]);
     setMtd(mtdRows);setRoster(rosterRows);setDamCount(flags.length);
     setProfileCount({qas:profs.filter(p=>p.role==="qa").length,leads:profs.filter(p=>p.role==="qa_lead").length,active:profs.length});
+    setApPlans(plans);setApWeeks(planWeeks);
+
+    // Auto-detection count for TL dashboard alert
+    if(hasRole(profile?.role,"qa_lead")){
+      const mnths=[...new Set(mtdRows.map(r=>r.month))].sort().reverse();
+      if(mnths.length>=2){
+        const latest=mtdRows.filter(r=>r.month===mnths[0]);
+        const prev=mtdRows.filter(r=>r.month===mnths[1]);
+        const activePlanEmails=plans.filter(p=>p.status==="active"||p.status==="pending_review").map(p=>p.qa_email?.toLowerCase());
+        let detCount=0;
+        latest.forEach(row=>{
+          const email=row.qa_email?.toLowerCase();
+          if(activePlanEmails.includes(email))return;
+          const kpis=Object.values({occupancy:{weight:15,thresholds:[95,98,100],rawKey:"occupancy_pct"},coaching:{weight:10,thresholds:[90,93,95],rawKey:"ontime_coaching_pct"},calibration:{weight:10,thresholds:[85,90,95],rawKey:"avg_calibration_match_rate"},observation:{weight:10,thresholds:[82,85,88],rawKey:"avg_observation_score_pct"},rtr:{weight:10,thresholds:[80,85,90],rawKey:"avg_rtr_score"}});
+          const slab0Count=kpis.filter(def=>{const raw=parseRawD(row[def.rawKey]);return raw!==null&&raw<def.thresholds[0];}).length;
+          const totalScore=getScore(row);
+          const prevRow=prev.find(r=>r.qa_email?.toLowerCase()===email);
+          const prevScore=prevRow?getScore(prevRow):null;
+          if(slab0Count>=2||(totalScore<20&&prevScore!==null&&prevScore<20))detCount++;
+        });
+        setApDetectionCount(detCount);
+      }
+    }
   }catch(e){console.error("Dashboard:",e);}setLoading(false);})();},[token]);
 
   const months=[...new Set(mtd.map(r=>r.month))];
@@ -135,6 +161,65 @@ function DashboardPage({profile,token}){
   return(<div className="page">
     <div className="welcome-banner"><h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2><p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p><div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div></div>
     {loading?<div className="loading-spinner"><div className="spinner"/></div>:<>
+
+    {/* ── AP/PIP Alert for TLs ── */}
+    {isLead&&apDetectionCount>0&&<div onClick={()=>nav("plans")} style={{padding:"12px 16px",background:"var(--amber-bg)",borderRadius:8,marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",border:"1px solid var(--amber)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <span style={{fontSize:20}}>⚠️</span>
+        <div><div style={{fontSize:14,fontWeight:600,color:"var(--amber)"}}>{apDetectionCount} QA{apDetectionCount!==1?"s":""} flagged for Action Plan</div><div style={{fontSize:12,color:"var(--tx2)"}}>Low KPI scores detected — review and take action</div></div>
+      </div>
+      <span style={{fontSize:12,fontWeight:600,color:"var(--amber)",whiteSpace:"nowrap"}}>View →</span>
+    </div>}
+
+    {/* ── QA Self-View: My Active Plan (visible only after first coaching meeting) ── */}
+    {!isLead&&(()=>{
+      const myPlan=apPlans.find(p=>(p.qa_email?.toLowerCase()===myEmail)&&(p.status==="active"||p.status==="pending_review"));
+      if(!myPlan)return null;
+      const myPlanWeeks=apWeeks.filter(w=>w.plan_id===myPlan.id).sort((a,b)=>a.week_number-b.week_number);
+      const hasCoachingSession=myPlanWeeks.some(w=>w.coaching_session_id)||myPlanWeeks.some(w=>w.actual_data);
+      if(!hasCoachingSession)return null; // Only show after first meeting/review
+      const filledWeeks=myPlanWeeks.filter(w=>w.actual_data);
+      const metWeeks=myPlanWeeks.filter(w=>w.met_targets===true);
+      const totalW=myPlan.duration_weeks||myPlanWeeks.length;
+      const elapsed=filledWeeks.length;
+      const successRate=filledWeeks.length?(metWeeks.length/filledWeeks.length*100):0;
+      const daysLeft=myPlan.end_date?Math.max(0,Math.ceil((new Date(myPlan.end_date)-Date.now())/(1000*60*60*24))):null;
+      const targets=(() => { try { return JSON.parse(myPlan.targets||"[]"); } catch { return []; } })();
+      const progressPct=totalW?(elapsed/totalW)*100:0;
+      return <div className="card" style={{marginBottom:20,borderLeft:`4px solid ${myPlan.type==="pip"?"var(--red)":"var(--amber)"}`}}>
+        <div className="card-header"><span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{padding:"2px 10px",borderRadius:10,fontSize:11,fontWeight:700,background:myPlan.type==="pip"?"var(--red-bg)":"var(--amber-bg)",color:myPlan.type==="pip"?"var(--red)":"var(--amber)"}}>{myPlan.type.toUpperCase()}</span>
+          My {myPlan.type==="pip"?"Performance Improvement Plan":"Action Plan"}
+        </span>
+        {daysLeft!==null&&<span style={{fontSize:13,fontWeight:600,color:daysLeft<=7?"var(--red)":"var(--tx2)"}}>{daysLeft} days remaining</span>}
+        </div>
+        {/* Progress bar */}
+        <div style={{height:6,background:"var(--bd2)",borderRadius:3,overflow:"hidden",marginBottom:8}}>
+          <div style={{width:`${progressPct}%`,height:"100%",borderRadius:3,background:successRate>=60?"var(--green)":"var(--amber)",transition:"width .4s"}}/>
+        </div>
+        <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--tx3)",marginBottom:14}}>
+          <span>Week {elapsed} of {totalW}</span>
+          <span>{metWeeks.length}/{elapsed} weeks met targets ({successRate.toFixed(0)}%)</span>
+        </div>
+        {/* Weekly breakdown */}
+        {myPlanWeeks.length>0&&<div className="table-wrap"><table style={{fontSize:12}}><thead><tr><th>Week</th>{targets.map(t=><th key={t.kpi_key} style={{textAlign:"center"}}>{t.label}</th>)}<th style={{textAlign:"center"}}>Met?</th></tr></thead><tbody>
+          {myPlanWeeks.map(week=>{
+            const td=(()=>{try{return JSON.parse(week.target_data||"{}");}catch{return{};}})();
+            const ad=(()=>{try{return JSON.parse(week.actual_data||"{}");}catch{return{};}})();
+            const hasA=week.actual_data&&Object.keys(ad).length>0;
+            return <tr key={week.id} style={{background:hasA?(week.met_targets?"var(--green-bg)":"var(--red-bg)"):"transparent"}}>
+              <td style={{fontWeight:600}}>W{week.week_number}</td>
+              {targets.map(t=>{const target=td[t.kpi_key];const actual=ad?.[t.kpi_key];const met=actual!==null&&actual!==undefined&&target!==undefined&&actual>=target;return <td key={t.kpi_key} style={{textAlign:"center"}}>
+                <div style={{fontSize:11,color:"var(--tx3)"}}>T: {target!==undefined?target+"%":"—"}</div>
+                {hasA&&<div style={{fontSize:12,fontWeight:600,color:met?"var(--green)":"var(--red)"}}>A: {actual!==null&&actual!==undefined?actual.toFixed(1)+"%":"—"}</div>}
+              </td>;})}
+              <td style={{textAlign:"center"}}>{hasA?(week.met_targets?<span style={{color:"var(--green)",fontWeight:700}}>✅</span>:<span style={{color:"var(--red)",fontWeight:700}}>❌</span>):<span style={{color:"var(--tx3)"}}>—</span>}</td>
+            </tr>;
+          })}
+        </tbody></table></div>}
+        <div style={{marginTop:10,fontSize:11,color:"var(--tx3)"}}>Started {myPlan.start_date?new Date(myPlan.start_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"}):"—"} · Ends {myPlan.end_date?new Date(myPlan.end_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"}):"—"}</div>
+      </div>;
+    })()}
 
     {/* ── Lead+ team overview ── */}
     {isLead&&<>
@@ -2142,9 +2227,54 @@ function ActionPlanPage({ token, profile }) {
         } catch (e) { console.error("DAM flag creation:", e); }
       }
 
-      // If AP failed → suggest PIP
+      // If AP failed → auto-create PIP with same targets
       if (concludingPlan.type === "ap" && conclusionOutcome === "fail") {
-        show("success", "AP concluded as failed — PIP recommended. Create one from the Active tab.");
+        try {
+          const oldTargets = safeJsonArr(concludingPlan.targets);
+          const pipDuration = 8;
+          const startDate = new Date().toISOString().split("T")[0];
+          const endDate = new Date(Date.now() + pipDuration * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+          // Recalculate weekly targets for PIP duration
+          const pipTargets = oldTargets.map(t => ({
+            ...t,
+            weekly_targets: Array.from({ length: pipDuration }, (_, w) => {
+              const current = t.current_value || 0;
+              const target = t.target_value;
+              const progress = (w + 1) / pipDuration;
+              return Math.round(Math.min(current + (target - current) * progress, target) * 10) / 10;
+            }),
+          }));
+          const [pipResult] = await sb.query("action_plans", {
+            token, method: "POST",
+            body: {
+              qa_email: concludingPlan.qa_email,
+              type: "pip",
+              status: "active",
+              reason: `Auto-escalated from failed AP (Plan ID: ${concludingPlan.id}). ${conclusionNotes}`,
+              targets: JSON.stringify(pipTargets),
+              start_date: startDate,
+              end_date: endDate,
+              duration_weeks: pipDuration,
+              created_by: profile?.email,
+              tl_email: concludingPlan.tl_email,
+              team: concludingPlan.team,
+            }
+          });
+          if (pipResult?.id) {
+            const weekBodies = [];
+            for (let w = 1; w <= pipDuration; w++) {
+              const weekStart = new Date(Date.now() + (w - 1) * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+              const targetData = {};
+              pipTargets.forEach(t => { targetData[t.kpi_key] = t.weekly_targets[w - 1] ?? t.target_value; });
+              weekBodies.push({ plan_id: pipResult.id, week_number: w, week_start: weekStart, target_data: JSON.stringify(targetData), actual_data: null, met_targets: null, coaching_session_id: null, notes: null });
+            }
+            await sb.query("action_plan_weeks", { token, method: "POST", body: weekBodies });
+          }
+          show("success", `AP failed — PIP auto-created for ${nameFromEmail(concludingPlan.qa_email)} (8 weeks)`);
+        } catch (e) {
+          console.error("Auto PIP creation:", e);
+          show("error", "AP concluded as failed. Could not auto-create PIP: " + e.message);
+        }
       } else {
         show("success", `${concludingPlan.type.toUpperCase()} concluded as ${conclusionOutcome === "pass" ? "PASSED" : "FAILED"}`);
       }
@@ -2170,11 +2300,15 @@ function ActionPlanPage({ token, profile }) {
   // ── Filtered plans ──
   const isLead = hasRole(profile?.role, "qa_lead");
   const isSupervisor = hasRole(profile?.role, "qa_supervisor");
+  const isAdmin = hasRole(profile?.role, "admin");
   const myEmail = profile?.email?.toLowerCase();
+  const myDomain = profile?.operational_domain || profile?.domain || "tabby.ai";
 
-  // Leads see their team's plans; supervisors+ see all
+  // Leads see their team's plans; supervisors see their domain; admins see all
   const myTeamEmails = roster.filter(r => r.manager_email?.toLowerCase() === myEmail).map(r => r.email?.toLowerCase());
-  const visiblePlans = isSupervisor ? plans : plans.filter(p =>
+  const visiblePlans = isAdmin ? plans : isSupervisor ? plans.filter(p =>
+    p.qa_email?.endsWith("@" + myDomain)
+  ) : plans.filter(p =>
     p.created_by?.toLowerCase() === myEmail ||
     p.tl_email?.toLowerCase() === myEmail ||
     myTeamEmails.includes(p.qa_email?.toLowerCase())
@@ -2754,7 +2888,7 @@ const NAV_ITEMS=[
 export default function App(){
   const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);const[page,setPage]=useState("dashboard");const[sidebarOpen,setSidebarOpen]=useState(false);
   useEffect(()=>{const handler=(e)=>setPage(e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[]);
-  useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{const p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,team_id,status",filters:`id=eq.${s.user?.id}`,token:s.access_token});if(p.length>0)setProfile(p[0]);}catch(e){console.error("Profile:",e);}}setLoading(false);})();},[]);
+  useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{const p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user?.id}`,token:s.access_token});if(p.length>0)setProfile(p[0]);}catch(e){console.error("Profile:",e);}}setLoading(false);})();},[]);
   if(loading)return<div className="loading-fullscreen"><div className="spinner"/><p style={{marginTop:16,color:"var(--tx2)",fontSize:14}}>Loading portal...</p></div>;
   if(!session)return(<div className="login-page"><div className="login-card"><div style={{marginBottom:8}}><TabbyLogo size={28}/></div><div className="login-subtitle">QA Performance & Analytics Dashboard<br/>Sign in with your Tabby Google account.</div><button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}><GoogleLogo/>Sign in with Google</button><div className="login-divider">Supported domains</div><div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div><div className="login-footer">Internal tool &middot; Tabby RADAR</div></div></div>);
   const userRole=profile?.role||"qa";const visibleNav=NAV_ITEMS.filter(n=>!n.minRole||hasRole(userRole,n.minRole)||n.key==="escalations");let curSec=null;
