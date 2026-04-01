@@ -864,6 +864,8 @@ function CoachingPage({token, profile}) {
   const [expandedSession, setExpandedSession] = useState(null);
 
   const MEETING_TYPES = ["1:1 Meeting","Appraisal Review","Coaching Session","Weekly Check-in","Action Plan Review","PIP Review"];
+  const MEETING_TYPE_ENUM = {"1:1 Meeting":"weekly_1on1","Appraisal Review":"performance_review","Coaching Session":"ad_hoc","Weekly Check-in":"weekly_1on1","Action Plan Review":"ap_checkin","PIP Review":"pip_checkin"};
+  const ENUM_TO_LABEL = {"weekly_1on1":"1:1 Meeting","performance_review":"Appraisal Review","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
   const TARGET_TYPES = ["Action Plan Review","PIP Review"];
   const isTargetType = TARGET_TYPES.includes(meetingType);
 
@@ -1083,7 +1085,7 @@ function CoachingPage({token, profile}) {
           member_email: toEmail,
           cc_email: ccEmail,
           session_date: sessionDate,
-          meeting_type: meetingType,
+          meeting_type: MEETING_TYPE_ENUM[meetingType] || "ad_hoc",
           topics, strengths, weaknesses, goals,
           action_items: actions,
           performance_rating: perfRating,
@@ -1176,7 +1178,7 @@ function CoachingPage({token, profile}) {
               {memberHistory.map(s => (
                 <div key={s.id} style={{fontSize:12,padding:"4px 0",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between"}}>
                   <span>{new Date(s.session_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"})}</span>
-                  <span style={{padding:"1px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:TARGET_TYPES.includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:TARGET_TYPES.includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{s.meeting_type}</span>
+                  <span style={{padding:"1px 8px",borderRadius:10,fontSize:10,fontWeight:600,background:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{ENUM_TO_LABEL[s.meeting_type]||s.meeting_type}</span>
                   {s.performance_rating && <span style={{color:"var(--tx2)"}}>{s.performance_rating}</span>}
                 </div>
               ))}
@@ -1353,7 +1355,7 @@ function CoachingPage({token, profile}) {
             {sessions.map(s => (
               <tr key={s.id} onClick={()=>setExpandedSession(expandedSession===s.id?null:s.id)} style={{cursor:"pointer"}}>
                 <td style={{fontSize:13,whiteSpace:"nowrap"}}>{new Date(s.session_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"})}</td>
-                <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:TARGET_TYPES.includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:TARGET_TYPES.includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{s.meeting_type}</span></td>
+                <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{ENUM_TO_LABEL[s.meeting_type]||s.meeting_type}</span></td>
                 <td style={{fontWeight:500}}>{nameFromEmail(s.member_email)}</td>
                 <td style={{fontSize:13,color:"var(--tx2)"}}>{nameFromEmail(s.sender_email)}</td>
                 <td>{s.performance_rating ? <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,
