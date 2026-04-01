@@ -901,18 +901,25 @@ function LeaderboardPage({token, profile}) {
   const [search, setSearch] = useState("");
   const [selQuarter, setSelQuarter] = useState("");
   const [selYear, setSelYear] = useState("");
+  const [selQaQuarterly, setSelQaQuarterly] = useState("");
   const {show, el} = useToast();
 
   useEffect(() => {
     (async () => {
       try {
-        const [rows, rosterRows] = await Promise.all([
+        const [rows, rosterRows, profRows] = await Promise.all([
           sb.query("mtd_scores", {select:"*",filters:"order=month.desc,final_performance.desc",token}),
           sb.query("qa_roster", {select:"email,queue",token}).catch(()=>[]),
+          sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[]),
         ]);
         setData(rows);
         setRoster(rosterRows);
-        const uniqueMonths = [...new Set(rows.map(r => r.month))];
+        // Build set of non-QA emails to exclude from rankings
+        const nonQaEmails = new Set(profRows.filter(p => p.role !== "qa").map(p => p.email?.toLowerCase()));
+        // Filter out non-QA roles from mtd data
+        const qaOnlyRows = rows.filter(r => !nonQaEmails.has(r.qa_email?.toLowerCase()));
+        setData(qaOnlyRows);
+        const uniqueMonths = [...new Set(qaOnlyRows.map(r => r.month))];
         setMonths(uniqueMonths);
         if (uniqueMonths.length > 0 && !selMonth) setSelMonth(uniqueMonths[0]);
       } catch (e) {
@@ -1283,12 +1290,21 @@ function LeaderboardPage({token, profile}) {
           visibleQas = visibleQas.filter(qa => { const e = qa.email?.toLowerCase(); if (seen.has(e)) return false; seen.add(e); return true; });
         }
 
+        // Apply email dropdown filter
+        if (selQaQuarterly) {
+          visibleQas = visibleQas.filter(qa => qa.email?.toLowerCase() === selQaQuarterly.toLowerCase());
+        }
+
         const qMaxScore = 55;
 
         return <div>
           <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
-            <select className="select" value={activeQ} onChange={e=>setSelQuarter(e.target.value)}>
+            <select className="select" value={activeQ} onChange={e=>{setSelQuarter(e.target.value);setSelQaQuarterly("");}}>
               {quarters.map(q => <option key={q.label} value={q.label}>{q.label} ({q.months.length} month{q.months.length!==1?"s":""})</option>)}
+            </select>
+            <select className="select" value={selQaQuarterly} onChange={e=>setSelQaQuarterly(e.target.value)}>
+              <option value="">All specialists ({allQas.length})</option>
+              {allQas.map(qa => <option key={qa.email} value={qa.email}>{nameFromEmail(qa.email)}</option>)}
             </select>
             {qData && <span style={{fontSize:12,color:"var(--tx3)"}}>Months: {qMonths.join(", ")}</span>}
           </div>
@@ -1352,29 +1368,6 @@ function LeaderboardPage({token, profile}) {
             </tbody></table></div>}
           </div>
 
-          {activeQ && visibleQas.length > 0 && <div className="card" style={{marginTop:16}}>
-            <div className="card-header"><span className="card-title">Month-by-month detail — {activeQ}</span></div>
-            <div className="table-wrap"><table style={{fontSize:12}}><thead><tr>
-              <th>Specialist</th>
-              {qMonths.map(m => <th key={m} colSpan={Object.keys(KPI_SLABS).length} style={{textAlign:"center",borderBottom:"2px solid var(--bd)"}}>{m}</th>)}
-            </tr><tr>
-              <th></th>
-              {qMonths.map(m => Object.values(KPI_SLABS).map(k => <th key={m+k.label} style={{textAlign:"center",fontSize:10,color:"var(--tx3)",fontWeight:500}}>{k.label.split(" ")[0]}</th>))}
-            </tr></thead><tbody>
-              {visibleQas.slice(0, 20).map(qa => (
-                <tr key={qa.email}>
-                  <td style={{fontWeight:500,fontSize:12,whiteSpace:"nowrap"}}>{nameFromEmail(qa.email)}</td>
-                  {qMonths.map(m => {
-                    const row = data.find(r => r.month === m && r.qa_email?.toLowerCase() === qa.email?.toLowerCase());
-                    return Object.entries(KPI_SLABS).map(([key, def]) => {
-                      const raw = row ? parseRaw(row[def.rawKey]) : null;
-                      return <td key={m+key} style={{textAlign:"center",fontSize:11,color:raw===null?"var(--tx3)":raw<def.thresholds[0]?"var(--red)":raw>=def.thresholds[2]?"var(--green)":"var(--tx)"}}>{raw !== null ? raw.toFixed(1)+"%" : "—"}</td>;
-                    });
-                  })}
-                </tr>
-              ))}
-            </tbody></table></div>
-          </div>}
         </div>;
       })()}
 
