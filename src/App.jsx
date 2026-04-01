@@ -337,8 +337,8 @@ function DashboardPage({profile,token}){
             <td style={{textAlign:"right"}}><span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:scoreBg(getScore(r)),color:scoreColor(getScore(r))}}>{getScore(r).toFixed(1)} / {maxScore}</span></td>
             <td style={{textAlign:"right",color:"var(--teal)",fontWeight:500}}>{r.ticket_per_day??0}</td>
             <td style={{textAlign:"right"}}>{r.dsat??0}</td>
-            <td style={{textAlign:"right"}}>{fmtPct(r.occupancy_pct)}</td>
-            <td style={{textAlign:"right"}}>{fmtPct(r.avg_rtr_score)}</td>
+            <td style={{textAlign:"right"}}>{fmt(r.occupancy_pct)}</td>
+            <td style={{textAlign:"right"}}>{fmt(r.avg_rtr_score)}</td>
             <td style={{textAlign:"center"}}>{r.jkq_result&&r.jkq_result!=="N/A"?<span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}</span>:<span style={{color:"var(--tx3)"}}>—</span>}</td>
           </tr>))}
         </tbody></table></div>
