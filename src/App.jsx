@@ -29,8 +29,8 @@ const sb = {
   },
 };
 
-const ROLE_LEVEL={qa:1,qa_lead:2,qa_supervisor:3,admin:4,super_admin:5};
-const ROLE_LABELS={qa:"QA",qa_lead:"QA Lead",qa_supervisor:"QA Supervisor",admin:"Admin",super_admin:"Super Admin"};
+const ROLE_LEVEL={qa:1,senior_qa:2,qa_lead:3,qa_supervisor:4,admin:5,super_admin:6};
+const ROLE_LABELS={qa:"QA",senior_qa:"Senior QA",qa_lead:"QA Lead",qa_supervisor:"QA Supervisor",admin:"Admin",super_admin:"Super Admin"};
 const hasRole=(r,min)=>(ROLE_LEVEL[r]||0)>=(ROLE_LEVEL[min]||99);
 const monday=(d)=>{const dt=new Date(d);const day=dt.getDay();const diff=dt.getDate()-day+(day===0?-6:1);dt.setDate(diff);return dt.toISOString().split("T")[0];};
 const fmtWeek=(d)=>{if(!d)return"—";const dt=new Date(d+"T00:00:00");return`Week of ${dt.toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;};
@@ -96,7 +96,7 @@ function DashboardPage({profile,token}){
       sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
     ]);
     setMtd(mtdRows);setRoster(rosterRows);setDamCount(flags.length);
-    setProfileCount({qas:profs.filter(p=>p.role==="qa").length,leads:profs.filter(p=>p.role==="qa_lead").length,active:profs.length});
+    setProfileCount({qas:profs.filter(p=>p.role==="qa"||p.role==="senior_qa").length,leads:profs.filter(p=>p.role==="qa_lead").length,active:profs.length});
     setApPlans(plans);setApWeeks(planWeeks);
 
     // Auto-detection for TL dashboard alert
@@ -804,7 +804,7 @@ function DAMPage({token,profile}){
         <div className="form-group"><label className="form-label">Person</label>
           <select className="select form-input" value={selProfile} onChange={e=>setSelProfile(e.target.value)}>
             <option value="">— Select person —</option>
-            {profiles.filter(p=>p.role==="qa"||p.role==="qa_lead").map(p=><option key={p.id} value={p.id}>{p.display_name||p.email} ({ROLE_LABELS[p.role]})</option>)}
+            {profiles.filter(p=>p.role==="qa"||p.role==="senior_qa"||p.role==="qa_lead").map(p=><option key={p.id} value={p.id}>{p.display_name||p.email} ({ROLE_LABELS[p.role]})</option>)}
           </select>
         </div>
         <div className="form-group"><label className="form-label">Behavior</label>
@@ -915,7 +915,7 @@ function LeaderboardPage({token, profile}) {
         setData(rows);
         setRoster(rosterRows);
         // Build set of non-QA emails to exclude from rankings
-        const nonQaEmails = new Set(profRows.filter(p => p.role !== "qa").map(p => p.email?.toLowerCase()));
+        const nonQaEmails = new Set(profRows.filter(p => p.role !== "qa" && p.role !== "senior_qa").map(p => p.email?.toLowerCase()));
         // Filter out non-QA roles from mtd data
         const qaOnlyRows = rows.filter(r => !nonQaEmails.has(r.qa_email?.toLowerCase()));
         setData(qaOnlyRows);
@@ -1248,7 +1248,7 @@ function LeaderboardPage({token, profile}) {
 
         // Visibility
         const myEmailQ = profile?.email?.toLowerCase();
-        const isQaQ = profile?.role === "qa";
+        const isQaQ = profile?.role === "qa" || profile?.role === "senior_qa";
         const isLeadQ = hasRole(profile?.role, "qa_lead");
         const isSupervisorQ = hasRole(profile?.role, "qa_supervisor");
         const isAdminQ = hasRole(profile?.role, "admin");
