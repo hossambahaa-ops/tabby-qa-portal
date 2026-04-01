@@ -469,17 +469,17 @@ function TeamManagementPage({token}){
   ]);setTeams(t);setUsers(u);setRoster(r);
 
   // Auto-create teams: one DB entry per queue+domain combination
-  const existingKeys=new Set(t.map(x=>(x.name+"|"+x.domain).toLowerCase()));
+  const existingKeys=new Set(t.map(x=>(x.name.toLowerCase()+"|"+x.domain.toLowerCase())));
   const rosterQueues=[...new Set(r.map(x=>x.queue).filter(Boolean))];
   let created=0;
   for(const q of rosterQueues){
     const hasAi=r.some(x=>x.queue===q&&x.email?.endsWith("@tabby.ai"));
     const hasSa=r.some(x=>x.queue===q&&x.email?.endsWith("@tabby.sa"));
-    if(hasAi&&!existingKeys.has((q+"|tabby.ai").toLowerCase())){
-      try{await sb.query("teams",{token,method:"POST",body:{name:q,domain:"tabby.ai"}});created++;}catch(e){console.log("Auto-create:",q,"ai",e);}
+    if(hasAi&&!existingKeys.has(q.toLowerCase()+"|tabby.ai")){
+      try{await sb.query("teams",{token,method:"POST",body:{name:q,domain:"tabby.ai"}});created++;existingKeys.add(q.toLowerCase()+"|tabby.ai");}catch(e){console.log("Auto-create:",q,"ai",e);}
     }
-    if(hasSa&&!existingKeys.has((q+"|tabby.sa").toLowerCase())){
-      try{await sb.query("teams",{token,method:"POST",body:{name:q,domain:"tabby.sa"}});created++;}catch(e){console.log("Auto-create:",q,"sa",e);}
+    if(hasSa&&!existingKeys.has(q.toLowerCase()+"|tabby.sa")){
+      try{await sb.query("teams",{token,method:"POST",body:{name:q,domain:"tabby.sa"}});created++;existingKeys.add(q.toLowerCase()+"|tabby.sa");}catch(e){console.log("Auto-create:",q,"sa",e);}
     }
   }
   if(created>0){
@@ -2238,10 +2238,12 @@ function CoachingPage({token, profile}) {
       {tab==="history" && <div className="card">
         {sessions.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No coaching sessions logged yet.</p></div> :
         <div className="table-wrap"><table>
-          <thead><tr><th>Date</th><th>Type</th><th>Member</th><th>Sent by</th><th>Performance</th><th>Outcome</th>{hasRole(profile?.role,"super_admin")&&<th></th>}</tr></thead>
+          <thead><tr><th>Date</th><th>Type</th><th>Member</th><th>Sent by</th><th>Performance</th><th>Outcome</th>{hasRole(profile?.role,"super_admin")&&<th></th>}<th style={{width:30}}></th></tr></thead>
           <tbody>
-            {sessions.map(s => (
-              <tr key={s.id}>
+            {sessions.map(s => {
+              const isExp=expandedSession===s.id;
+              return(<React.Fragment key={s.id}>
+                <tr onClick={()=>setExpandedSession(isExp?null:s.id)} style={{cursor:"pointer"}}>
                 <td style={{fontSize:13,whiteSpace:"nowrap"}}>{new Date(s.session_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"})}</td>
                 <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{ENUM_TO_LABEL[s.meeting_type]||s.meeting_type}</span></td>
                 <td style={{fontWeight:500}}>{nameFromEmail(s.member_email)}</td>
@@ -2265,8 +2267,39 @@ function CoachingPage({token, profile}) {
                     }catch(err){show("error",err.message);}
                   }}><Icon d={icons.trash} size={14}/></button>
                 </td>}
+                <td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
               </tr>
-            ))}
+
+              {/* Expanded session details */}
+              {isExp&&<tr><td colSpan={hasRole(profile?.role,"super_admin")?8:7} style={{padding:0,background:"var(--bg)"}}><div style={{padding:"16px 20px"}}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+                  <div><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>To</div><div style={{fontSize:13}}>{s.member_email||"—"}</div></div>
+                  <div><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>CC</div><div style={{fontSize:13}}>{s.cc_email||"—"}</div></div>
+                  <div><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>From</div><div style={{fontSize:13}}>{s.sender_email||"—"}</div></div>
+                  <div><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>Subject</div><div style={{fontSize:13}}>{s.email_subject||"—"}</div></div>
+                </div>
+
+                {s.topics&&<div style={{marginBottom:12}}><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>Topics discussed</div><div style={{fontSize:13,color:"var(--tx2)",whiteSpace:"pre-line"}}>{s.topics}</div></div>}
+
+                {s.strengths&&<div style={{marginBottom:12}}><div style={{fontSize:11,fontWeight:600,color:"var(--green)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>Strengths</div><div style={{fontSize:13,color:"var(--tx2)",whiteSpace:"pre-line"}}>{s.strengths}</div></div>}
+
+                {s.weaknesses&&<div style={{marginBottom:12}}><div style={{fontSize:11,fontWeight:600,color:"var(--red)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>Areas for improvement</div><div style={{fontSize:13,color:"var(--tx2)",whiteSpace:"pre-line"}}>{s.weaknesses}</div></div>}
+
+                {s.goals&&<div style={{marginBottom:12}}><div style={{fontSize:11,fontWeight:600,color:"var(--amber)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>Goals</div><div style={{fontSize:13,color:"var(--tx2)",whiteSpace:"pre-line"}}>{s.goals}</div></div>}
+
+                {s.action_items&&<div style={{marginBottom:12}}><div style={{fontSize:11,fontWeight:600,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>Action items</div><div style={{fontSize:13,color:"var(--tx2)",whiteSpace:"pre-line"}}>{s.action_items}</div></div>}
+
+                {s.next_steps&&<div style={{marginBottom:12}}><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>Next steps</div><div style={{fontSize:13,color:"var(--tx2)",whiteSpace:"pre-line"}}>{s.next_steps}</div></div>}
+
+                {s.target_data&&<div style={{marginBottom:12}}><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>Target data</div><div style={{fontSize:12,color:"var(--tx2)",fontFamily:"monospace",background:"var(--bg3)",padding:"8px 10px",borderRadius:6,overflowX:"auto"}}>{s.target_data}</div></div>}
+
+                <div style={{display:"flex",gap:16,flexWrap:"wrap",paddingTop:12,borderTop:"1px solid var(--bd2)",fontSize:12,color:"var(--tx3)"}}>
+                  {s.sig_name&&<span>Signed by: <strong style={{color:"var(--tx)"}}>{s.sig_name}</strong>{s.sig_title?" — "+s.sig_title:""}</span>}
+                  {s.created_at&&<span>Logged: {new Date(s.created_at).toLocaleString("en-GB",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>}
+                </div>
+              </div></td></tr>}
+              </React.Fragment>);
+            })}
           </tbody>
         </table></div>}
       </div>}
