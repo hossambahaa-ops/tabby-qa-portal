@@ -72,6 +72,7 @@ function DashboardPage({profile,token}){
   const[mtd,setMtd]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);
   const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
   const[apPlans,setApPlans]=useState([]);const[apWeeks,setApWeeks]=useState([]);const[apDetections,setApDetections]=useState([]);
+  const[apDismissals,setApDismissals]=useState([]);const[dismissModal,setDismissModal]=useState(null);const[dismissReason,setDismissReason]=useState("");
   const isLead=hasRole(profile?.role,"qa_lead");
 
   const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
@@ -87,21 +88,23 @@ function DashboardPage({profile,token}){
   const scoreBg=(v)=>v>=maxScore*0.7?"var(--green-bg)":v>=maxScore*0.4?"var(--amber-bg)":"var(--red-bg)";
 
   useEffect(()=>{(async()=>{try{
-    const[mtdRows,rosterRows,flags,profs,plans,planWeeks]=await Promise.all([
+    const[mtdRows,rosterRows,flags,profs,plans,planWeeks,dismissals]=await Promise.all([
       sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[]),
       sb.query("qa_roster",{select:"*",token}).catch(()=>[]),
       sb.query("dam_flags",{select:"id,status",filters:"status=eq.pending",token}).catch(()=>[]),
       sb.query("profiles",{select:"id,role,status",filters:"status=eq.active",token}).catch(()=>[]),
       sb.query("action_plans",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
       sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
+      sb.query("ap_dismissals",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
     ]);
     setMtd(mtdRows);setRoster(rosterRows);setDamCount(flags.length);
     setProfileCount({qas:profs.filter(p=>p.role==="qa").length,leads:profs.filter(p=>p.role==="qa_lead"||p.role==="senior_qa").length,active:profs.length});
-    setApPlans(plans);setApWeeks(planWeeks);
+    setApPlans(plans);setApWeeks(planWeeks);setApDismissals(dismissals);
 
     // Auto-detection for TL dashboard alert
     if(hasRole(profile?.role,"qa_lead")){
       const mnths=[...new Set(mtdRows.map(r=>r.month))].sort().reverse();
+      const dismissedEmails=new Set(dismissals.map(d=>d.qa_email?.toLowerCase()));
       if(mnths.length>=2){
         const latest=mtdRows.filter(r=>r.month===mnths[0]);
         const prev=mtdRows.filter(r=>r.month===mnths[1]);
@@ -114,6 +117,7 @@ function DashboardPage({profile,token}){
         latest.forEach(row=>{
           const email=row.qa_email?.toLowerCase();
           if(activePlanEmails.includes(email))return;
+          if(dismissedEmails.has(email))return;
           if(teamEmails.length>0&&!teamEmails.includes(email))return;
           const kpiDefs=Object.values({occupancy:{weight:15,thresholds:[95,98,100],rawKey:"occupancy_pct"},coaching:{weight:10,thresholds:[90,93,95],rawKey:"ontime_coaching_pct"},calibration:{weight:10,thresholds:[85,90,95],rawKey:"avg_calibration_match_rate"},observation:{weight:10,thresholds:[82,85,88],rawKey:"avg_observation_score_pct"},rtr:{weight:10,thresholds:[80,85,90],rawKey:"avg_rtr_score"}});
           const slab0Count=kpiDefs.filter(def=>{const raw=parseRawD(row[def.rawKey]);return raw!==null&&raw<def.thresholds[0];}).length;
@@ -191,11 +195,58 @@ function DashboardPage({profile,token}){
           </div>
           <div style={{display:"flex",gap:6}}>
             <button className="btn btn-primary btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={(e)=>{e.stopPropagation();nav("plans");}}>Create AP</button>
-            <button className="btn btn-outline btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={(e)=>{e.stopPropagation();setApDetections(prev=>prev.filter(x=>x.email!==d.email));}}>Dismiss</button>
+            <button className="btn btn-outline btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={(e)=>{e.stopPropagation();setDismissModal(d);}}>Dismiss</button>
           </div>
         </div>
       ))}
       {apDetections.length>5&&<div style={{fontSize:12,color:"var(--tx3)",marginTop:8}}>+{apDetections.length-5} more — view all in AP/PIP page</div>}
+    </div>}
+
+    {/* ── Dismiss Modal ── */}
+    {dismissModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget){setDismissModal(null);setDismissReason("");}}}>
+      <div className="card" style={{width:"100%",maxWidth:480,margin:20}}>
+        <div className="card-header"><span className="card-title">Dismiss AP Detection — {dismissModal.name}</span></div>
+        <div style={{fontSize:13,color:"var(--tx2)",marginBottom:12}}>{dismissModal.reason} · Score: {dismissModal.score.toFixed(1)}/55</div>
+        <div className="form-group">
+          <label className="form-label">Reason for dismissal (required)</label>
+          <textarea className="form-input" rows={3} value={dismissReason} onChange={e=>setDismissReason(e.target.value)} placeholder="Explain why this detection is being dismissed — this will be visible to your supervisor..." style={{resize:"vertical"}}/>
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:12}}>
+          <button className="btn btn-primary" disabled={!dismissReason.trim()} onClick={async()=>{
+            try{
+              await sb.query("ap_dismissals",{token,method:"POST",body:{
+                qa_email:dismissModal.email,
+                dismissed_by:profile?.email,
+                reason:dismissReason.trim(),
+                month:months[0]||"",
+                detection_info:dismissModal.reason+" · Score: "+dismissModal.score.toFixed(1),
+              }});
+              setApDetections(prev=>prev.filter(x=>x.email!==dismissModal.email));
+              setApDismissals(prev=>[{qa_email:dismissModal.email,dismissed_by:profile?.email,reason:dismissReason.trim(),month:months[0],detection_info:dismissModal.reason,created_at:new Date().toISOString()},...prev]);
+              setDismissModal(null);setDismissReason("");
+            }catch(err){console.error(err);}
+          }}>Confirm dismissal</button>
+          <button className="btn btn-outline" onClick={()=>{setDismissModal(null);setDismissReason("");}}>Cancel</button>
+        </div>
+      </div>
+    </div>}
+
+    {/* ── Supervisor: Recent dismissals by TLs ── */}
+    {hasRole(profile?.role,"qa_supervisor")&&apDismissals.length>0&&<div className="card" style={{marginBottom:16}}>
+      <div className="card-header"><span className="card-title">Recent AP dismissals by leads</span><span style={{fontSize:12,color:"var(--tx3)"}}>{apDismissals.length} total</span></div>
+      {apDismissals.slice(0,10).map((d,i)=>(
+        <div key={i} style={{padding:"8px 0",borderBottom:"1px solid var(--bd2)",fontSize:13}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+            <div>
+              <span style={{fontWeight:600}}>{nameFromEmail(d.qa_email)}</span>
+              <span style={{color:"var(--tx3)",marginLeft:8}}>dismissed by <span style={{fontWeight:500,color:"var(--tx2)"}}>{nameFromEmail(d.dismissed_by)}</span></span>
+            </div>
+            <span style={{fontSize:11,color:"var(--tx3)",whiteSpace:"nowrap"}}>{d.created_at?new Date(d.created_at).toLocaleDateString("en-GB",{month:"short",day:"numeric"}):"—"}</span>
+          </div>
+          <div style={{marginTop:4,padding:"6px 10px",background:"var(--bg)",borderRadius:6,fontSize:12,color:"var(--tx2)"}}>{d.reason}</div>
+          {d.detection_info&&<div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>Detection: {d.detection_info}</div>}
+        </div>
+      ))}
     </div>}
 
     {/* ── QA Self-View: My Active Plan (visible only after first coaching meeting) ── */}
@@ -2137,6 +2188,8 @@ function ActionPlanPage({ token, profile }) {
   const [profiles, setProfiles] = useState([]);
   const [detections, setDetections] = useState([]);
   const [expandedPlan, setExpandedPlan] = useState(null);
+  const [dismissModalAP, setDismissModalAP] = useState(null);
+  const [dismissReasonAP, setDismissReasonAP] = useState("");
   const { show, el } = useToast();
 
   // ── Create form state ──
@@ -2210,12 +2263,13 @@ function ActionPlanPage({ token, profile }) {
   // ── Data loading ──
   const load = useCallback(async () => {
     try {
-      const [planRows, weekRows, mtdRows, rosterRows, profRows] = await Promise.all([
+      const [planRows, weekRows, mtdRows, rosterRows, profRows, dismissalRows] = await Promise.all([
         sb.query("action_plans", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
         sb.query("action_plan_weeks", { select: "*", filters: "order=plan_id.asc,week_number.asc", token }).catch(() => []),
         sb.query("mtd_scores", { select: "*", filters: "order=month.desc", token }).catch(() => []),
         sb.query("qa_roster", { select: "email,display_name,queue,manager_email", token }).catch(() => []),
         sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => []),
+        sb.query("ap_dismissals", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
       ]);
       setPlans(planRows);
       setWeeks(weekRows);
@@ -2224,7 +2278,7 @@ function ActionPlanPage({ token, profile }) {
       setProfiles(profRows);
 
       // ── Auto-detection engine ──
-      runDetection(mtdRows, planRows);
+      runDetection(mtdRows, planRows, dismissalRows);
     } catch (e) { console.error("AP/PIP load:", e); }
     setLoading(false);
   }, [token]);
@@ -2232,7 +2286,7 @@ function ActionPlanPage({ token, profile }) {
   useEffect(() => { load(); }, [load]);
 
   // ── Auto-detection: find QAs who qualify for AP ──
-  const runDetection = (mtdRows, existingPlans) => {
+  const runDetection = (mtdRows, existingPlans, dismissalRows) => {
     const months = [...new Set(mtdRows.map(r => r.month))].sort().reverse();
     if (months.length < 2) { setDetections([]); return; }
 
@@ -2246,11 +2300,15 @@ function ActionPlanPage({ token, profile }) {
       .filter(p => p.status === "active" || p.status === "pending_review")
       .map(p => p.qa_email?.toLowerCase());
 
+    // Emails already dismissed
+    const dismissedEmails = new Set((dismissalRows || []).map(d => d.qa_email?.toLowerCase()));
+
     const flagged = [];
 
     latestData.forEach(row => {
       const email = row.qa_email?.toLowerCase();
-      if (activePlanEmails.includes(email)) return; // already on a plan
+      if (activePlanEmails.includes(email)) return;
+      if (dismissedEmails.has(email)) return; // already on a plan
 
       const kpis = getKpiScores(row);
       const totalScore = getTotalScore(row);
@@ -2598,10 +2656,19 @@ function ActionPlanPage({ token, profile }) {
     setLoading(false);
   };
 
-  // ── Dismiss detection ──
-  const dismissDetection = (email) => {
-    setDetections(prev => prev.filter(d => d.email !== email));
-    show("success", "Detection dismissed for " + nameFromEmail(email));
+  // ── Dismiss detection (persisted to DB) ──
+  const dismissDetectionDB = async (email, reason) => {
+    try {
+      await sb.query("ap_dismissals", { token, method: "POST", body: {
+        qa_email: email,
+        dismissed_by: profile?.email,
+        reason: reason || "Dismissed by super admin",
+        month: mtd.length ? [...new Set(mtd.map(r => r.month))].sort().reverse()[0] : "",
+        detection_info: detections.find(d => d.email === email)?.reason || "",
+      }});
+      setDetections(prev => prev.filter(d => d.email !== email));
+      show("success", "Detection dismissed for " + nameFromEmail(email));
+    } catch (e) { show("error", e.message); }
   };
 
   // ── Helper: parse JSON safely ──
@@ -2748,12 +2815,34 @@ function ActionPlanPage({ token, profile }) {
                       <Icon d={icons.dam} size={14} />Create PIP
                     </button>
                   )}
-                  <button className="btn btn-outline btn-sm" onClick={() => dismissDetection(d.email)}>Dismiss</button>
+                  {hasRole(profile?.role, "super_admin") ?
+                    <button className="btn btn-outline btn-sm" onClick={() => dismissDetectionDB(d.email, "")}>Dismiss</button> :
+                    <button className="btn btn-outline btn-sm" onClick={() => { setDismissModalAP(d); setDismissReasonAP(""); }}>Dismiss</button>
+                  }
                 </div>
               </div>
             ))}
           </div>
         )}
+
+        {/* Dismiss reason modal for non-super-admins */}
+        {dismissModalAP && <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget){setDismissModalAP(null);setDismissReasonAP("");}}}>
+          <div className="card" style={{width:"100%",maxWidth:480,margin:20}}>
+            <div className="card-header"><span className="card-title">Dismiss Detection — {nameFromEmail(dismissModalAP.email)}</span></div>
+            <div style={{fontSize:13,color:"var(--tx2)",marginBottom:12}}>{dismissModalAP.reason}</div>
+            <div className="form-group">
+              <label className="form-label">Reason for dismissal (required — visible to your supervisor)</label>
+              <textarea className="form-input" rows={3} value={dismissReasonAP} onChange={e=>setDismissReasonAP(e.target.value)} placeholder="Why is this detection being dismissed?" style={{resize:"vertical"}}/>
+            </div>
+            <div style={{display:"flex",gap:8,marginTop:12}}>
+              <button className="btn btn-primary" disabled={!dismissReasonAP.trim()} onClick={async()=>{
+                await dismissDetectionDB(dismissModalAP.email, dismissReasonAP.trim());
+                setDismissModalAP(null);setDismissReasonAP("");
+              }}>Confirm dismissal</button>
+              <button className="btn btn-outline" onClick={()=>{setDismissModalAP(null);setDismissReasonAP("");}}>Cancel</button>
+            </div>
+          </div>
+        </div>}
       </div>}
 
       {/* ═══ CREATE TAB ═══ */}
