@@ -1004,7 +1004,14 @@ function DAMPage({token,profile}){
 
     {tab==="history"&&<div className="card">
       {flags.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No flags in history yet.</p></div>:
-      <div className="table-wrap"><table><thead><tr><th>Person</th><th>Behavior</th><th>Occ.</th><th>Status</th><th>Date</th><th>Notes</th></tr></thead><tbody>
+      <>
+      {hasRole(profile?.role,"super_admin")&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+        <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{
+          if(!confirm(`Permanently delete ALL ${flags.length} DAM flag records? This cannot be undone.`))return;
+          try{for(const f of flags){await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});}show("success","All DAM flags deleted");load();}catch(e){show("error",e.message);}
+        }}><Icon d={icons.trash} size={14}/>Clear all history</button>
+      </div>}
+      <div className="table-wrap"><table><thead><tr><th>Person</th><th>Behavior</th><th>Occ.</th><th>Status</th><th>Date</th><th>Notes</th>{hasRole(profile?.role,"super_admin")&&<th></th>}</tr></thead><tbody>
         {flags.map(f=>(<tr key={f.id}>
           <td style={{fontWeight:500}}>{f.profiles?.display_name||"—"}</td>
           <td style={{fontSize:13}}>{f.dam_rules?.name||"—"}</td>
@@ -1012,8 +1019,15 @@ function DAMPage({token,profile}){
           <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:f.status==="resolved"?"var(--green-bg)":f.status==="dismissed"?"var(--bg2)":"var(--amber-bg)",color:statusColors[f.status]||"var(--tx3)"}}>{f.status}</span></td>
           <td style={{fontSize:12,color:"var(--tx2)"}}>{new Date(f.triggered_at).toLocaleDateString()}</td>
           <td style={{fontSize:12,color:"var(--tx2)",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.notes||"—"}</td>
+          {hasRole(profile?.role,"super_admin")&&<td>
+            <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{
+              if(!confirm("Delete this flag permanently?"))return;
+              try{await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});show("success","Flag deleted");load();}catch(e){show("error",e.message);}
+            }}><Icon d={icons.trash} size={14}/></button>
+          </td>}
         </tr>))}
-      </tbody></table></div>}
+      </tbody></table></div>
+      </>}
     </div>}
     {el}
   </div>);
