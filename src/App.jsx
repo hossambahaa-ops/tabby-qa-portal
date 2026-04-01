@@ -3092,9 +3092,13 @@ function ActionPlanPage({ token, profile }) {
                 {Array.from({ length: planDuration }, (_, i) => (
                   <th key={i} style={{ textAlign: "center" }}>{followUpMode === "monthly" ? `M${i + 1}` : `W${i + 1}`} target</th>
                 ))}
+                <th style={{ textAlign: "center" }}>Avg</th>
               </tr></thead>
               <tbody>
-                {planTargets.map((t, ti) => (
+                {planTargets.map((t, ti) => {
+                  const filled = t.weekly_targets.filter(w => w !== "" && w !== null && w !== undefined);
+                  const avg = filled.length > 0 ? filled.reduce((a, b) => a + Number(b), 0) / filled.length : null;
+                  return (
                   <tr key={t.kpi_key}>
                     <td style={{ fontWeight: 600, fontSize: 12 }}>
                       {t.label}
@@ -3114,9 +3118,16 @@ function ActionPlanPage({ token, profile }) {
                         }} placeholder="%" style={{ width: 60, textAlign: "center", padding: "4px 6px", fontSize: 12 }} />
                       </td>
                     ))}
-                  </tr>
-                ))}
-                {customMetrics.map((cm, ci) => (
+                    <td style={{ textAlign: "center", fontWeight: 600, fontSize: 12, color: avg !== null ? "var(--accent-text)" : "var(--tx3)" }}>
+                      {avg !== null ? avg.toFixed(1) + "%" : "—"}
+                    </td>
+                  </tr>);
+                })}
+                {customMetrics.map((cm, ci) => {
+                  const filledC = cm.targets.filter(t => t !== "" && t !== null && t !== undefined);
+                  const nums = filledC.map(Number).filter(n => !isNaN(n));
+                  const avgC = nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+                  return (
                   <tr key={"custom_" + ci} style={{ background: "var(--bg)" }}>
                     <td style={{ fontWeight: 600, fontSize: 12 }}>
                       {cm.name || <span style={{ color: "var(--tx3)", fontStyle: "italic" }}>Custom metric</span>}
@@ -3134,8 +3145,11 @@ function ActionPlanPage({ token, profile }) {
                         }} placeholder="target" style={{ width: 60, textAlign: "center", padding: "4px 6px", fontSize: 12 }} />
                       </td>
                     ))}
-                  </tr>
-                ))}
+                    <td style={{ textAlign: "center", fontWeight: 600, fontSize: 12, color: avgC !== null ? "var(--accent-text)" : "var(--tx3)" }}>
+                      {avgC !== null ? avgC.toFixed(1) : "—"}
+                    </td>
+                  </tr>);
+                })}
               </tbody>
             </table>
           </div>
