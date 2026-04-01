@@ -2330,6 +2330,7 @@ function ActionPlanPage({ token, profile }) {
   const [planDuration, setPlanDuration] = useState(4);
   const [planReason, setPlanReason] = useState("");
   const [planTargets, setPlanTargets] = useState([]);
+  const [selectedKpis, setSelectedKpis] = useState([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   // ── Conclusion modal state ──
@@ -2464,33 +2465,17 @@ function ActionPlanPage({ token, profile }) {
   };
 
   // ── Generate suggested targets based on current scores ──
-  const generateTargets = (qaEmail) => {
+  const generateTargets = (qaEmail, kpiKeys) => {
     const months = [...new Set(mtd.map(r => r.month))].sort().reverse();
     const latestMonth = months[0];
     const row = mtd.find(r => r.month === latestMonth && r.qa_email?.toLowerCase() === qaEmail.toLowerCase());
-    if (!row) return [];
 
-    return Object.entries(KPI_SLABS).map(([key, def]) => {
-      const rawPct = parseRaw(row[def.rawKey]);
-      const slab = calcSlab(rawPct, def.thresholds);
-
-      // Suggest target: if at Slab 0, target Slab 1 threshold.
-      // If at Slab 1, target Slab 2 threshold. etc.
-      let targetPct;
-      if (slab.slab === 0) targetPct = def.thresholds[0]; // aim for Slab 1
-      else if (slab.slab === 1) targetPct = def.thresholds[1]; // aim for Slab 2
-      else if (slab.slab === 2) targetPct = def.thresholds[2]; // aim for Slab 3
-      else targetPct = def.thresholds[2]; // maintain Slab 3
-
-      // Generate weekly progression targets (linear ramp from current to target)
-      const current = rawPct !== null ? rawPct : 0;
-      const weeklyTargets = [];
+    return (kpiKeys || []).map(key => {
+      const def = KPI_SLABS[key];
+      if (!def) return null;
+      const rawPct = row ? parseRaw(row[def.rawKey]) : null;
+      const slab = rawPct !== null ? calcSlab(rawPct, def.thresholds) : { slab: 0, label: "No data" };
       const duration = planType === "pip" ? planDuration : 4;
-      for (let w = 1; w <= duration; w++) {
-        const progress = w / duration;
-        const weekTarget = Math.round((current + (targetPct - current) * progress) * 10) / 10;
-        weeklyTargets.push(Math.min(weekTarget, targetPct));
-      }
 
       return {
         kpi_key: key,
@@ -2498,14 +2483,12 @@ function ActionPlanPage({ token, profile }) {
         raw_key: def.rawKey,
         current_value: rawPct,
         current_slab: slab.label,
-        target_value: targetPct,
-        target_slab: slab.slab < 3 ? `Slab ${slab.slab + 1}` : "Slab 3",
-        weekly_targets: weeklyTargets,
+        target_value: "",
+        weekly_targets: Array(duration).fill(""),
         weight: def.weight,
         thresholds: def.thresholds,
-        needs_improvement: slab.slab <= 1,
       };
-    });
+    }).filter(Boolean);
   };
 
   // ── Start creating a plan (from detection or manually) ──
@@ -2514,12 +2497,8 @@ function ActionPlanPage({ token, profile }) {
     setPlanType(type || "ap");
     setPlanDuration(type === "pip" ? 8 : 4);
     setPlanReason("");
-    if (qaEmail) {
-      const targets = generateTargets(qaEmail);
-      setPlanTargets(targets);
-    } else {
-      setPlanTargets([]);
-    }
+    setSelectedKpis([]);
+    setPlanTargets([]);
     setShowCreateForm(true);
     setTab("create");
   };
@@ -2527,8 +2506,23 @@ function ActionPlanPage({ token, profile }) {
   // When QA email changes in create form, regenerate targets
   const handleQaEmailChange = (email) => {
     setSelQaEmail(email);
-    if (email && roster.find(r => r.email?.toLowerCase() === email.toLowerCase())) {
-      setPlanTargets(generateTargets(email));
+    if (email && roster.find(r => r.email?.toLowerCase() === email.toLowerCase()) && selectedKpis.length > 0) {
+      setPlanTargets(generateTargets(email, selectedKpis));
+    }
+  };
+
+  // Toggle KPI selection
+  const toggleKpi = (key) => {
+    const newSel = selectedKpis.includes(key) ? selectedKpis.filter(k => k !== key) : [...selectedKpis, key];
+    setSelectedKpis(newSel);
+    if (selQaEmail && roster.find(r => r.email?.toLowerCase() === selQaEmail.toLowerCase())) {
+      setPlanTargets(generateTargets(selQaEmail, newSel));
+    } else {
+      // No QA selected yet — still build empty targets
+      setPlanTargets(newSel.map(k => {
+        const def = KPI_SLABS[k]; if (!def) return null;
+        return { kpi_key: k, label: def.label, raw_key: def.rawKey, current_value: null, current_slab: "—", target_value: "", weekly_targets: Array(planDuration).fill(""), weight: def.weight, thresholds: def.thresholds };
+      }).filter(Boolean));
     }
   };
 
@@ -2536,6 +2530,10 @@ function ActionPlanPage({ token, profile }) {
   const savePlan = async () => {
     if (!selQaEmail) { show("error", "Select a QA specialist"); return; }
     if (!planReason.trim()) { show("error", "Provide a reason for this plan"); return; }
+    if (planTargets.length === 0) { show("error", "Select at least one KPI to track"); return; }
+    // Validate that all weekly targets are filled
+    const missingTargets = planTargets.some(t => t.weekly_targets.some(w => w === "" || w === null || w === undefined));
+    if (missingTargets) { show("error", "Fill in all weekly targets for each selected KPI"); return; }
 
     // Check for existing active plan
     const existing = plans.find(p =>
@@ -3001,76 +2999,82 @@ function ActionPlanPage({ token, profile }) {
         </div>
 
         {/* Target configuration */}
+        {/* Step 2: KPI selection */}
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header">
+            <span className="card-title">Select KPIs to track</span>
+            <span style={{ fontSize: 12, color: "var(--tx3)" }}>Choose which metrics to include in the plan</span>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", padding: "4px 0" }}>
+            {Object.entries(KPI_SLABS).map(([key, def]) => {
+              const isOn = selectedKpis.includes(key);
+              // Get current value for this QA
+              const months2 = [...new Set(mtd.map(r => r.month))].sort().reverse();
+              const row2 = selQaEmail ? mtd.find(r => r.month === months2[0] && r.qa_email?.toLowerCase() === selQaEmail.toLowerCase()) : null;
+              const curVal = row2 ? parseRaw(row2[def.rawKey]) : null;
+              return (
+                <div key={key} onClick={() => toggleKpi(key)} style={{
+                  padding: "10px 16px", borderRadius: 10, cursor: "pointer", minWidth: 140,
+                  border: isOn ? "2px solid var(--accent)" : "2px solid var(--bd2)",
+                  background: isOn ? "var(--accent-light)" : "var(--bg)",
+                  transition: "all .15s",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <div style={{ width: 18, height: 18, borderRadius: 4, border: isOn ? "none" : "2px solid var(--bd)", background: isOn ? "var(--accent)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {isOn && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>}
+                    </div>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>{def.label}</span>
+                  </div>
+                  {curVal !== null && <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 4 }}>Current: {curVal.toFixed(1)}%</div>}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Step 3: Weekly targets (manual entry) */}
         {planTargets.length > 0 && <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-header">
-            <span className="card-title">Weekly targets</span>
-            <span style={{ fontSize: 12, color: "var(--tx3)" }}>Auto-populated from current scores — adjust as needed</span>
+            <span className="card-title">Set weekly targets</span>
+            <span style={{ fontSize: 12, color: "var(--tx3)" }}>Enter target % for each KPI per week</span>
           </div>
           <div className="table-wrap">
             <table style={{ fontSize: 12 }}>
               <thead><tr>
                 <th>KPI</th>
                 <th style={{ textAlign: "center" }}>Current</th>
-                <th style={{ textAlign: "center" }}>Current slab</th>
-                <th style={{ textAlign: "center" }}>Target</th>
-                <th style={{ textAlign: "center" }}>Target slab</th>
                 {Array.from({ length: planDuration }, (_, i) => (
-                  <th key={i} style={{ textAlign: "center" }}>W{i + 1}</th>
+                  <th key={i} style={{ textAlign: "center" }}>W{i + 1} target</th>
                 ))}
-                <th style={{ textAlign: "center" }}>Needs work</th>
               </tr></thead>
               <tbody>
                 {planTargets.map((t, ti) => (
-                  <tr key={t.kpi_key} style={{ background: t.needs_improvement ? "var(--red-bg)" : "transparent" }}>
-                    <td style={{ fontWeight: 600, fontSize: 12 }}>{t.label}</td>
-                    <td style={{ textAlign: "center", fontWeight: 500, color: t.needs_improvement ? "var(--red)" : "var(--green)" }}>
+                  <tr key={t.kpi_key}>
+                    <td style={{ fontWeight: 600, fontSize: 12 }}>
+                      {t.label}
+                      {t.current_slab && t.current_slab !== "—" && <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 400 }}>{t.current_slab}</div>}
+                    </td>
+                    <td style={{ textAlign: "center", fontWeight: 500, color: t.current_value !== null ? (t.current_value >= t.thresholds?.[0] ? "var(--green)" : "var(--red)") : "var(--tx3)" }}>
                       {t.current_value !== null ? t.current_value.toFixed(1) + "%" : "—"}
                     </td>
-                    <td style={{ textAlign: "center" }}>
-                      <span style={{
-                        padding: "1px 6px", borderRadius: 8, fontSize: 10, fontWeight: 600,
-                        background: t.current_slab === "Slab 0" ? "var(--red-bg)" : t.current_slab === "Slab 1" ? "var(--amber-bg)" : "var(--green-bg)",
-                        color: t.current_slab === "Slab 0" ? "var(--red)" : t.current_slab === "Slab 1" ? "var(--amber)" : "var(--green)",
-                      }}>{t.current_slab}</span>
-                    </td>
-                    <td style={{ textAlign: "center" }}>
-                      <input type="number" className="form-input" value={t.target_value} onChange={e => {
-                        const newTargets = [...planTargets];
-                        newTargets[ti] = { ...newTargets[ti], target_value: Number(e.target.value) };
-                        // Recalculate weekly progression
-                        const current = t.current_value || 0;
-                        const target = Number(e.target.value);
-                        newTargets[ti].weekly_targets = Array.from({ length: planDuration }, (_, w) => {
-                          const progress = (w + 1) / planDuration;
-                          return Math.round(Math.min(current + (target - current) * progress, target) * 10) / 10;
-                        });
-                        setPlanTargets(newTargets);
-                      }} style={{ width: 60, textAlign: "center", padding: "2px 4px", fontSize: 12 }} />
-                    </td>
-                    <td style={{ textAlign: "center" }}>
-                      <span style={{ padding: "1px 6px", borderRadius: 8, fontSize: 10, fontWeight: 600, background: "var(--green-bg)", color: "var(--green)" }}>{t.target_slab}</span>
-                    </td>
-                    {t.weekly_targets.slice(0, planDuration).map((wt, wi) => (
+                    {Array.from({ length: planDuration }, (_, wi) => (
                       <td key={wi} style={{ textAlign: "center" }}>
-                        <input type="number" className="form-input" value={wt} onChange={e => {
+                        <input type="number" step="0.1" className="form-input" value={t.weekly_targets[wi] ?? ""} onChange={e => {
                           const newTargets = [...planTargets];
                           const newWeekly = [...newTargets[ti].weekly_targets];
-                          newWeekly[wi] = Number(e.target.value);
+                          newWeekly[wi] = e.target.value === "" ? "" : Number(e.target.value);
                           newTargets[ti] = { ...newTargets[ti], weekly_targets: newWeekly };
                           setPlanTargets(newTargets);
-                        }} style={{ width: 50, textAlign: "center", padding: "2px 4px", fontSize: 12 }} />
+                        }} placeholder="%" style={{ width: 60, textAlign: "center", padding: "4px 6px", fontSize: 12 }} />
                       </td>
                     ))}
-                    <td style={{ textAlign: "center" }}>
-                      {t.needs_improvement ? <span style={{ color: "var(--red)", fontWeight: 700 }}>⚠️</span> : <span style={{ color: "var(--green)" }}>✓</span>}
-                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
           <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 8, fontStyle: "italic" }}>
-            Weekly targets are linearly interpolated from current value to target. Adjust individual weeks as needed.
+            Enter the target percentage for each KPI per week. Actuals will be pulled from MTD data during weekly reviews.
           </div>
         </div>}
 
