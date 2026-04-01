@@ -513,39 +513,53 @@ function TeamManagementPage({token}){
       <div style={{display:"flex",gap:8,marginTop:16}}><button className="btn btn-primary" onClick={save}><Icon d={icons.check} size={16}/>{editId?"Update":"Create"}</button><button className="btn btn-outline" onClick={()=>{setShowForm(false);setEditId(null);}}>Cancel</button></div>
     </div>}
     <div className="card">{loading?<div className="loading-spinner"><div className="spinner"/></div>:teams.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No teams yet. Teams are auto-created from the roster.</p></div>:
-      <div className="table-wrap"><table><thead><tr><th>Team</th><th>Domain</th><th>Members</th><th>Lead</th><th>Supervisor</th><th></th></tr></thead><tbody>
-        {teams.filter(t=>{
-          if(!filterDomain)return true;
-          // Show team if it has any members with the filtered domain
-          return roster.some(r=>r.queue===t.name&&r.email?.endsWith("@"+filterDomain));
-        }).sort((a,b)=>a.name.localeCompare(b.name)).map(t=>{
-          const count=getMemberCount(t.name);
-          const isExp=expandedTeam===t.id;
-          const members=getTeamMembers(t.name);
-          return(<React.Fragment key={t.id}>
-            <tr onClick={()=>setExpandedTeam(isExp?null:t.id)} style={{cursor:"pointer"}}>
-              <td style={{fontWeight:500}}>{t.name}</td>
-              <td><span className={`domain-badge domain-${t.domain==="tabby.ai"?"ai":"sa"}`}>{t.domain}</span></td>
-              <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:12,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600}}>{count}</span></td>
-              <td style={{fontSize:13}}>{t.profiles?.display_name||<span style={{color:"var(--tx3)"}}>Not assigned</span>}</td>
-              <td style={{fontSize:13}}>{t.sup?.display_name||<span style={{color:"var(--tx3)"}}>Not assigned</span>}</td>
-              <td><div style={{display:"flex",gap:4}}><button className="btn btn-outline btn-sm" onClick={(e)=>{e.stopPropagation();startEdit(t);}}><Icon d={icons.edit} size={14}/></button><button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={(e)=>{e.stopPropagation();del(t.id);}}><Icon d={icons.trash} size={14}/></button></div></td>
-            </tr>
-            {isExp&&members.length>0&&<tr><td colSpan={6} style={{padding:0,background:"var(--bg)"}}><div style={{padding:"12px 20px"}}>
-              <div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Team members ({members.length})</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",gap:6}}>
-                {members.sort((a,b)=>(a.display_name||a.email).localeCompare(b.display_name||b.email)).map(m=>(
-                  <div key={m.email} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",background:"var(--bg3)",borderRadius:6,fontSize:12}}>
-                    <div style={{width:22,height:22,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,flexShrink:0}}>{nameFromEmail(m.email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}</div>
-                    <div style={{overflow:"hidden"}}><div style={{fontWeight:500,fontSize:12,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.display_name||nameFromEmail(m.email)}</div><div style={{fontSize:10,color:"var(--tx3)"}}>{m.email}</div></div>
-                  </div>
-                ))}
-              </div>
-              {members.length>0&&<div style={{fontSize:11,color:"var(--tx3)",marginTop:8}}>Manager: {members[0].manager_email?nameFromEmail(members[0].manager_email):"—"}</div>}
-            </div></td></tr>}
-          </React.Fragment>);
-        })}
-      </tbody></table></div>}</div>{el}
+      (()=>{
+        // Build virtual teams: split each queue by email domain
+        const virtualTeams=[];
+        const queues=[...new Set(roster.map(r=>r.queue).filter(Boolean))].sort();
+        queues.forEach(queue=>{
+          const aiMembers=roster.filter(r=>r.queue===queue&&r.email?.endsWith("@tabby.ai"));
+          const saMembers=roster.filter(r=>r.queue===queue&&r.email?.endsWith("@tabby.sa"));
+          // Find the DB team for lead/supervisor info
+          const dbTeam=teams.find(t=>t.name===queue);
+          if(aiMembers.length>0&&(!filterDomain||filterDomain==="tabby.ai")){
+            virtualTeams.push({key:queue+"-ai",name:queue,domain:"tabby.ai",members:aiMembers,dbTeam,count:aiMembers.length});
+          }
+          if(saMembers.length>0&&(!filterDomain||filterDomain==="tabby.sa")){
+            virtualTeams.push({key:queue+"-sa",name:queue,domain:"tabby.sa",members:saMembers,dbTeam,count:saMembers.length});
+          }
+        });
+        return <div className="table-wrap"><table><thead><tr><th>Team</th><th>Domain</th><th>Members</th><th>Lead</th><th>Supervisor</th><th></th></tr></thead><tbody>
+          {virtualTeams.map(vt=>{
+            const isExp=expandedTeam===vt.key;
+            return(<React.Fragment key={vt.key}>
+              <tr onClick={()=>setExpandedTeam(isExp?null:vt.key)} style={{cursor:"pointer"}}>
+                <td style={{fontWeight:500}}>{vt.name}</td>
+                <td><span className={`domain-badge domain-${vt.domain==="tabby.ai"?"ai":"sa"}`}>{vt.domain}</span></td>
+                <td><span style={{fontSize:12,padding:"2px 8px",borderRadius:12,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600}}>{vt.count}</span></td>
+                <td style={{fontSize:13}}>{vt.dbTeam?.profiles?.display_name||<span style={{color:"var(--tx3)"}}>Not assigned</span>}</td>
+                <td style={{fontSize:13}}>{vt.dbTeam?.sup?.display_name||<span style={{color:"var(--tx3)"}}>Not assigned</span>}</td>
+                <td><div style={{display:"flex",gap:4}}>
+                  {vt.dbTeam&&<button className="btn btn-outline btn-sm" onClick={(e)=>{e.stopPropagation();startEdit(vt.dbTeam);}}><Icon d={icons.edit} size={14}/></button>}
+                  {vt.dbTeam&&<button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={(e)=>{e.stopPropagation();del(vt.dbTeam.id);}}><Icon d={icons.trash} size={14}/></button>}
+                </div></td>
+              </tr>
+              {isExp&&vt.members.length>0&&<tr><td colSpan={6} style={{padding:0,background:"var(--bg)"}}><div style={{padding:"12px 20px"}}>
+                <div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Team members — {vt.domain} ({vt.members.length})</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",gap:6}}>
+                  {vt.members.sort((a,b)=>(a.display_name||a.email).localeCompare(b.display_name||b.email)).map(m=>(
+                    <div key={m.email} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 8px",background:"var(--bg3)",borderRadius:6,fontSize:12}}>
+                      <div style={{width:22,height:22,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,flexShrink:0}}>{nameFromEmail(m.email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}</div>
+                      <div style={{overflow:"hidden"}}><div style={{fontWeight:500,fontSize:12,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.display_name||nameFromEmail(m.email)}</div><div style={{fontSize:10,color:"var(--tx3)"}}>{m.email}</div></div>
+                    </div>
+                  ))}
+                </div>
+                {vt.members.length>0&&<div style={{fontSize:11,color:"var(--tx3)",marginTop:8}}>Manager: {vt.members[0].manager_email?nameFromEmail(vt.members[0].manager_email):"—"}</div>}
+              </div></td></tr>}
+            </React.Fragment>);
+          })}
+        </tbody></table></div>;
+      })()}</div>{el}
   </div>);
 }
 
