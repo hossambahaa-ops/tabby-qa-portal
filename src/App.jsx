@@ -1222,28 +1222,28 @@ function LeaderboardPage({token, profile}) {
         const qMonths = qData ? qData.months : [];
         const qRows = data.filter(r => qMonths.includes(r.month));
 
-        // For each QA, calculate their slab score % per month, then sum across the quarter
+        // For each QA, calculate their slab score per month (0-55), then sum across the quarter
+        // Max per month = 55, so max per quarter = 55 × months (165 for 3 months)
         const qaMap = {};
         qRows.forEach(row => {
           const email = row.qa_email?.toLowerCase();
           if (!email) return;
           if (selDomain && !email.endsWith("@" + selDomain)) return;
           if (selTeam && rosterMap[email]?.queue !== selTeam) return;
-          if (!qaMap[email]) qaMap[email] = { email: row.qa_email, months_present: 0, monthlyScorePcts: [], tl: row.qa_tl, totalDsat: 0, totalTickets: 0, totalWorkingDays: 0 };
+          if (!qaMap[email]) qaMap[email] = { email: row.qa_email, months_present: 0, monthlyScores: [], tl: row.qa_tl, totalDsat: 0, totalTickets: 0, totalWorkingDays: 0 };
           qaMap[email].months_present++;
           qaMap[email].totalDsat += (row.dsat || 0);
           qaMap[email].totalTickets += (row.ticket_per_day || 0);
           qaMap[email].totalWorkingDays += (row.working_days || 0);
-          // Calculate this month's slab score (out of 55) → convert to %
-          const monthScore = getTotalScore(row); // uses the existing slab engine, returns 0-55
-          const monthPct = (monthScore / 55) * 100;
-          qaMap[email].monthlyScorePcts.push(monthPct);
+          // Raw slab score for this month (0-55)
+          const monthScore = getTotalScore(row);
+          qaMap[email].monthlyScores.push(monthScore);
         });
 
-        // Quarterly total = sum of monthly score percentages
+        // Quarterly total = sum of monthly raw scores
         const allQas = Object.values(qaMap).map(qa => {
-          const totalPct = qa.monthlyScorePcts.reduce((s, p) => s + p, 0);
-          return { ...qa, totalScore: totalPct };
+          const totalScore = qa.monthlyScores.reduce((s, p) => s + p, 0);
+          return { ...qa, totalScore };
         }).sort((a, b) => b.totalScore - a.totalScore);
 
         // Visibility
@@ -1313,7 +1313,7 @@ function LeaderboardPage({token, profile}) {
           <div className="stats-grid" style={{marginBottom:20}}>
             <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>📅</div><div className="stat-label">Quarter</div><div className="stat-value">{activeQ}</div></div>
             <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>👥</div><div className="stat-label">QAs ranked</div><div className="stat-value">{allQas.length}</div></div>
-            <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>📊</div><div className="stat-label">Avg total</div><div className="stat-value">{allQas.length?(allQas.reduce((a,q)=>a+q.totalScore,0)/allQas.length).toFixed(1)+"%":"—"}</div></div>
+            <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>📊</div><div className="stat-label">Avg score</div><div className="stat-value">{allQas.length?(allQas.reduce((a,q)=>a+q.totalScore,0)/allQas.length).toFixed(1)+"%":"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {55*qMonths.length}%</span></div></div>
             {allQas[0] && <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Top performer</div><div className="stat-value" style={{fontSize:16}}>{nameFromEmail(allQas[0].email)}</div></div>}
           </div>
 
@@ -1326,7 +1326,7 @@ function LeaderboardPage({token, profile}) {
                 <div style={{width:isGold?52:40,height:isGold?52:40,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:600,fontSize:isGold?16:13,margin:"0 auto 8px"}}>{initialsFromEmail(qa.email)}</div>
                 <div style={{fontWeight:600,fontSize:isGold?15:14}}>{nameFromEmail(qa.email)}</div>
                 <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8}}>{activeQ}</div>
-                <div style={{fontSize:isGold?26:20,fontWeight:700,color:"var(--accent-text)"}}>{qa.totalScore.toFixed(1)}%</div>
+                <div style={{fontSize:isGold?26:20,fontWeight:700,color:"var(--accent-text)"}}>{qa.totalScore.toFixed(1)}%<span style={{fontSize:12,fontWeight:400,color:"var(--tx3)"}}> / {55*qMonths.length}%</span></div>
               </div>);
             })}
           </div>}
@@ -1342,7 +1342,7 @@ function LeaderboardPage({token, profile}) {
               <th style={{width:50}}>#</th>
               <th>Specialist</th>
               {qMonths.map(m => <th key={m} style={{textAlign:"center",minWidth:80}}>{m}</th>)}
-              <th style={{textAlign:"center",minWidth:80}}>Total</th>
+              <th style={{textAlign:"center",minWidth:80}}>Total<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{55*qMonths.length}%</span></th>
             </tr></thead><tbody>
               {visibleQas.map((qa, i) => {
                 const actualRank = qa._myRank || (allQas.findIndex(q => q.email === qa.email) + 1);
@@ -1356,9 +1356,8 @@ function LeaderboardPage({token, profile}) {
                     {qMonths.map(m => {
                       const row = data.find(r => r.month === m && r.qa_email?.toLowerCase() === qa.email?.toLowerCase());
                       const monthScore = row ? getTotalScore(row) : null;
-                      const monthPct = monthScore !== null ? (monthScore / 55) * 100 : null;
                       return <td key={m} style={{textAlign:"center",padding:"8px 6px"}}>
-                        <div style={{fontSize:13,fontWeight:600,color:monthPct===null?"var(--tx3)":monthPct>=70?"var(--green)":monthPct>=40?"var(--amber)":"var(--red)"}}>{monthPct !== null ? monthPct.toFixed(1)+"%" : "—"}</div>
+                        <div style={{fontSize:13,fontWeight:600,color:monthScore===null?"var(--tx3)":monthScore>=55*0.7?"var(--green)":monthScore>=55*0.4?"var(--amber)":"var(--red)"}}>{monthScore !== null ? monthScore.toFixed(1)+"%" : "—"}</div>
                       </td>;
                     })}
                     <td style={{textAlign:"center"}}><span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:13,fontWeight:700,background:"var(--accent-light)",color:"var(--accent-text)"}}>{qa.totalScore.toFixed(1)}%</span></td>
