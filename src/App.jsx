@@ -514,7 +514,11 @@ function TeamManagementPage({token}){
     </div>}
     <div className="card">{loading?<div className="loading-spinner"><div className="spinner"/></div>:teams.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No teams yet. Teams are auto-created from the roster.</p></div>:
       <div className="table-wrap"><table><thead><tr><th>Team</th><th>Domain</th><th>Members</th><th>Lead</th><th>Supervisor</th><th></th></tr></thead><tbody>
-        {teams.filter(t=>!filterDomain||t.domain===filterDomain).sort((a,b)=>a.name.localeCompare(b.name)).map(t=>{
+        {teams.filter(t=>{
+          if(!filterDomain)return true;
+          // Show team if it has any members with the filtered domain
+          return roster.some(r=>r.queue===t.name&&r.email?.endsWith("@"+filterDomain));
+        }).sort((a,b)=>a.name.localeCompare(b.name)).map(t=>{
           const count=getMemberCount(t.name);
           const isExp=expandedTeam===t.id;
           const members=getTeamMembers(t.name);
