@@ -1237,11 +1237,19 @@ function CoachingPage({token, profile}) {
           <div className="card">
             <div className="card-header"><span className="card-title">Session details</span></div>
             <div className="form-grid">
-              <div className="form-group"><label className="form-label">Team member email (To)</label>
-                <select className="select form-input" value={toEmail} onChange={e=>setToEmail(e.target.value)}>
-                  <option value="">— Select —</option>
-                  {roster.map(r => <option key={r.email} value={r.email}>{r.display_name || nameFromEmail(r.email)} ({r.email})</option>)}
-                </select>
+              <div className="form-group" style={{position:"relative"}}><label className="form-label">Team member email (To)</label>
+                <input className="form-input" value={toEmail} onChange={e=>{setToEmail(e.target.value);}} placeholder="Type name or email..." autoComplete="off"/>
+                {toEmail && !roster.find(r=>r.email===toEmail) && (() => {
+                  const q = toEmail.toLowerCase();
+                  const matches = roster.filter(r => (r.email||"").toLowerCase().includes(q) || (r.display_name||"").toLowerCase().includes(q)).slice(0, 8);
+                  if (!matches.length) return null;
+                  return <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:"0 0 var(--radius) var(--radius)",boxShadow:"var(--shadow-lg)",maxHeight:200,overflowY:"auto"}}>
+                    {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email);const mgr=r.manager_email;if(mgr)setCcEmail(mgr);}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <span style={{fontWeight:500}}>{r.display_name || nameFromEmail(r.email)}</span>
+                      <span style={{color:"var(--tx3)",fontSize:12}}>{r.email}</span>
+                    </div>)}
+                  </div>;
+                })()}
               </div>
               <div className="form-group"><label className="form-label">Manager email (CC)</label>
                 {toEmail && roster.find(r=>r.email===toEmail)?.manager_email ? (
@@ -1434,10 +1442,10 @@ function CoachingPage({token, profile}) {
       {tab==="history" && <div className="card">
         {sessions.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No coaching sessions logged yet.</p></div> :
         <div className="table-wrap"><table>
-          <thead><tr><th>Date</th><th>Type</th><th>Member</th><th>Sent by</th><th>Performance</th><th>Outcome</th></tr></thead>
+          <thead><tr><th>Date</th><th>Type</th><th>Member</th><th>Sent by</th><th>Performance</th><th>Outcome</th>{hasRole(profile?.role,"super_admin")&&<th></th>}</tr></thead>
           <tbody>
             {sessions.map(s => (
-              <tr key={s.id} onClick={()=>setExpandedSession(expandedSession===s.id?null:s.id)} style={{cursor:"pointer"}}>
+              <tr key={s.id}>
                 <td style={{fontSize:13,whiteSpace:"nowrap"}}>{new Date(s.session_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"})}</td>
                 <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{ENUM_TO_LABEL[s.meeting_type]||s.meeting_type}</span></td>
                 <td style={{fontWeight:500}}>{nameFromEmail(s.member_email)}</td>
@@ -1450,6 +1458,17 @@ function CoachingPage({token, profile}) {
                   background:s.outcome==="pass"?"var(--green-bg)":"var(--red-bg)",
                   color:s.outcome==="pass"?"var(--green)":"var(--red)"
                 }}>{s.outcome==="pass"?"Passed":"Failed"}</span> : "—"}</td>
+                {hasRole(profile?.role,"super_admin")&&<td>
+                  <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async(e)=>{
+                    e.stopPropagation();
+                    if(!confirm("Delete this coaching session log?"))return;
+                    try{
+                      await sb.query("coaching_sessions",{token,method:"DELETE",filters:`id=eq.${s.id}`});
+                      setSessions(sessions.filter(x=>x.id!==s.id));
+                      show("success","Session deleted");
+                    }catch(err){show("error",err.message);}
+                  }}><Icon d={icons.trash} size={14}/></button>
+                </td>}
               </tr>
             ))}
           </tbody>
