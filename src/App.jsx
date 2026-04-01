@@ -235,23 +235,38 @@ function DashboardPage({profile,token}){
       </div>
     </div>}
 
-    {/* ── Supervisor: Recent dismissals by TLs ── */}
-    {hasRole(profile?.role,"qa_supervisor")&&apDismissals.length>0&&<div className="card" style={{marginBottom:16}}>
-      <div className="card-header"><span className="card-title">Recent AP dismissals by leads</span><span style={{fontSize:12,color:"var(--tx3)"}}>{apDismissals.length} total</span></div>
-      {apDismissals.slice(0,10).map((d,i)=>(
-        <div key={i} style={{padding:"8px 0",borderBottom:"1px solid var(--bd2)",fontSize:13}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
-            <div>
-              <span style={{fontWeight:600}}>{nameFromEmail(d.qa_email)}</span>
-              <span style={{color:"var(--tx3)",marginLeft:8}}>dismissed by <span style={{fontWeight:500,color:"var(--tx2)"}}>{nameFromEmail(d.dismissed_by)}</span></span>
-            </div>
-            <span style={{fontSize:11,color:"var(--tx3)",whiteSpace:"nowrap"}}>{d.created_at?new Date(d.created_at).toLocaleDateString("en-GB",{month:"short",day:"numeric"}):"—"}</span>
+    {/* ── Supervisor: Recent dismissals by TLs (exclude super admin auto-dismissals) ── */}
+    {hasRole(profile?.role,"qa_supervisor")&&(()=>{
+      const leadDismissals=apDismissals.filter(d=>d.reason!=="Dismissed by super admin");
+      if(leadDismissals.length===0)return null;
+      return <div className="card" style={{marginBottom:16}}>
+        <div className="card-header">
+          <span className="card-title">Recent AP dismissals by leads</span>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{fontSize:12,color:"var(--tx3)"}}>{leadDismissals.length} total</span>
+            {hasRole(profile?.role,"super_admin")&&<button className="btn btn-outline btn-sm" style={{color:"var(--red)",fontSize:10}} onClick={async()=>{
+              if(!confirm("Clear ALL dismissal records? This will allow dismissed QAs to be re-detected."))return;
+              try{
+                for(const d of apDismissals){await sb.query("ap_dismissals",{token,method:"DELETE",filters:`id=eq.${d.id}`});}
+                setApDismissals([]);
+              }catch(e){console.error(e);}
+            }}>Clear all</button>}
           </div>
-          <div style={{marginTop:4,padding:"6px 10px",background:"var(--bg)",borderRadius:6,fontSize:12,color:"var(--tx2)"}}>{d.reason}</div>
-          {d.detection_info&&<div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>Detection: {d.detection_info}</div>}
         </div>
-      ))}
-    </div>}
+        {leadDismissals.slice(0,10).map((d,i)=>(
+          <div key={i} style={{padding:"8px 0",borderBottom:"1px solid var(--bd2)",fontSize:13}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+              <div>
+                <span style={{fontWeight:600}}>{nameFromEmail(d.qa_email)}</span>
+                <span style={{color:"var(--tx3)",marginLeft:8}}>dismissed by <span style={{fontWeight:500,color:"var(--tx2)"}}>{nameFromEmail(d.dismissed_by)}</span></span>
+              </div>
+              <span style={{fontSize:11,color:"var(--tx3)",whiteSpace:"nowrap"}}>{d.created_at?new Date(d.created_at).toLocaleDateString("en-GB",{month:"short",day:"numeric"}):"—"}</span>
+            </div>
+            <div style={{marginTop:4,padding:"6px 10px",background:"var(--bg)",borderRadius:6,fontSize:12,color:"var(--tx2)"}}>{d.reason}</div>
+          </div>
+        ))}
+      </div>;
+    })()}
 
     {/* ── QA Self-View: My Active Plan (visible only after first coaching meeting) ── */}
     {!isLead&&(()=>{
@@ -2729,7 +2744,7 @@ function ActionPlanPage({ token, profile }) {
           <div className="card"><div className="placeholder" style={{ padding: "40px" }}>
             <div className="placeholder-icon"><Icon d={icons.check} size={28} /></div>
             <h3>No auto-detections</h3>
-            <p>No QAs currently meet the criteria for AP recommendation.<br />Detection runs on: Slab 0 on 2+ KPIs, or score &lt; 20/55 for 2 consecutive months.</p>
+            <p>No QAs currently need an Action Plan.<br />AP/PIP detection is triggered by DAM escalation steps with "includes PIP" enabled.</p>
           </div></div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
