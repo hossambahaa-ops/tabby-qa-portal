@@ -2331,6 +2331,8 @@ function ActionPlanPage({ token, profile }) {
   const [planReason, setPlanReason] = useState("");
   const [planTargets, setPlanTargets] = useState([]);
   const [selectedKpis, setSelectedKpis] = useState([]);
+  const [followUpMode, setFollowUpMode] = useState("weekly"); // weekly | monthly
+  const [customMetrics, setCustomMetrics] = useState([]); // [{name:"",targets:[]}]
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   // ── Conclusion modal state ──
@@ -2469,13 +2471,13 @@ function ActionPlanPage({ token, profile }) {
     const months = [...new Set(mtd.map(r => r.month))].sort().reverse();
     const latestMonth = months[0];
     const row = mtd.find(r => r.month === latestMonth && r.qa_email?.toLowerCase() === qaEmail.toLowerCase());
+    const periods = followUpMode === "monthly" ? planDuration : planDuration;
 
     return (kpiKeys || []).map(key => {
       const def = KPI_SLABS[key];
       if (!def) return null;
       const rawPct = row ? parseRaw(row[def.rawKey]) : null;
       const slab = rawPct !== null ? calcSlab(rawPct, def.thresholds) : { slab: 0, label: "No data" };
-      const duration = planType === "pip" ? planDuration : 4;
 
       return {
         kpi_key: key,
@@ -2484,7 +2486,7 @@ function ActionPlanPage({ token, profile }) {
         current_value: rawPct,
         current_slab: slab.label,
         target_value: "",
-        weekly_targets: Array(duration).fill(""),
+        weekly_targets: Array(periods).fill(""),
         weight: def.weight,
         thresholds: def.thresholds,
       };
@@ -2499,6 +2501,8 @@ function ActionPlanPage({ token, profile }) {
     setPlanReason("");
     setSelectedKpis([]);
     setPlanTargets([]);
+    setFollowUpMode("weekly");
+    setCustomMetrics([]);
     setShowCreateForm(true);
     setTab("create");
   };
@@ -2518,7 +2522,6 @@ function ActionPlanPage({ token, profile }) {
     if (selQaEmail && roster.find(r => r.email?.toLowerCase() === selQaEmail.toLowerCase())) {
       setPlanTargets(generateTargets(selQaEmail, newSel));
     } else {
-      // No QA selected yet — still build empty targets
       setPlanTargets(newSel.map(k => {
         const def = KPI_SLABS[k]; if (!def) return null;
         return { kpi_key: k, label: def.label, raw_key: def.rawKey, current_value: null, current_slab: "—", target_value: "", weekly_targets: Array(planDuration).fill(""), weight: def.weight, thresholds: def.thresholds };
@@ -2526,16 +2529,22 @@ function ActionPlanPage({ token, profile }) {
     }
   };
 
+  // Custom metrics (free text)
+  const addCustomMetric = () => setCustomMetrics(prev => [...prev, { name: "", targets: Array(planDuration).fill("") }]);
+  const removeCustomMetric = (idx) => setCustomMetrics(prev => prev.filter((_, i) => i !== idx));
+
   // ── Save plan to Supabase ──
   const savePlan = async () => {
     if (!selQaEmail) { show("error", "Select a QA specialist"); return; }
     if (!planReason.trim()) { show("error", "Provide a reason for this plan"); return; }
-    if (planTargets.length === 0) { show("error", "Select at least one KPI to track"); return; }
-    // Validate that all weekly targets are filled
+    if (planTargets.length === 0 && customMetrics.length === 0) { show("error", "Select at least one KPI or add a custom metric"); return; }
+    // Validate KPI targets
     const missingTargets = planTargets.some(t => t.weekly_targets.some(w => w === "" || w === null || w === undefined));
-    if (missingTargets) { show("error", "Fill in all weekly targets for each selected KPI"); return; }
+    if (missingTargets) { show("error", "Fill in all targets for each selected KPI"); return; }
+    // Validate custom metrics
+    const invalidCustom = customMetrics.some(c => !c.name.trim() || c.targets.some(t => t === "" || t === null || t === undefined));
+    if (invalidCustom) { show("error", "Fill in name and all targets for each custom metric"); return; }
 
-    // Check for existing active plan
     const existing = plans.find(p =>
       p.qa_email?.toLowerCase() === selQaEmail.toLowerCase() &&
       (p.status === "active" || p.status === "pending_review")
@@ -2548,21 +2557,23 @@ function ActionPlanPage({ token, profile }) {
     setLoading(true);
     try {
       const startDate = new Date().toISOString().split("T")[0];
-      const endDate = new Date(Date.now() + planDuration * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const periodDays = followUpMode === "monthly" ? planDuration * 30 : planDuration * 7;
+      const endDate = new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
-      // Serialize targets
-      const targetsJson = planTargets.map(t => ({
-        kpi_key: t.kpi_key,
-        label: t.label,
-        raw_key: t.raw_key,
-        current_value: t.current_value,
-        target_value: t.target_value,
-        weekly_targets: t.weekly_targets,
-        weight: t.weight,
-        thresholds: t.thresholds,
-      }));
+      // Serialize all targets (KPIs + custom)
+      const targetsJson = [
+        ...planTargets.map(t => ({
+          kpi_key: t.kpi_key, label: t.label, raw_key: t.raw_key,
+          current_value: t.current_value, target_value: t.target_value,
+          weekly_targets: t.weekly_targets, weight: t.weight, thresholds: t.thresholds,
+        })),
+        ...customMetrics.map((c, i) => ({
+          kpi_key: "custom_" + i, label: c.name, raw_key: null,
+          current_value: null, target_value: null,
+          weekly_targets: c.targets, weight: 0, thresholds: null, is_custom: true,
+        })),
+      ];
 
-      // Find QA's TL
       const qaRoster = roster.find(r => r.email?.toLowerCase() === selQaEmail.toLowerCase());
 
       const [planResult] = await sb.query("action_plans", {
@@ -2572,7 +2583,7 @@ function ActionPlanPage({ token, profile }) {
           type: planType,
           status: "active",
           reason: planReason,
-          targets: JSON.stringify(targetsJson),
+          targets: JSON.stringify({ follow_up_mode: followUpMode, metrics: targetsJson }),
           start_date: startDate,
           end_date: endDate,
           duration_weeks: planDuration,
@@ -2582,27 +2593,24 @@ function ActionPlanPage({ token, profile }) {
         }
       });
 
-      // Create week rows
+      // Create period rows (weeks or months)
       if (planResult?.id) {
-        const weekBodies = [];
-        for (let w = 1; w <= planDuration; w++) {
-          const weekStart = new Date(Date.now() + (w - 1) * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        const periodBodies = [];
+        for (let p = 1; p <= planDuration; p++) {
+          const pDays = followUpMode === "monthly" ? (p - 1) * 30 : (p - 1) * 7;
+          const periodStart = new Date(Date.now() + pDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
           const targetData = {};
-          planTargets.forEach(t => {
-            targetData[t.kpi_key] = t.weekly_targets[w - 1] ?? t.target_value;
-          });
-          weekBodies.push({
+          planTargets.forEach(t => { targetData[t.kpi_key] = t.weekly_targets[p - 1] ?? t.target_value; });
+          customMetrics.forEach((c, i) => { targetData["custom_" + i] = c.targets[p - 1] ?? ""; });
+          periodBodies.push({
             plan_id: planResult.id,
-            week_number: w,
-            week_start: weekStart,
+            week_number: p,
+            week_start: periodStart,
             target_data: JSON.stringify(targetData),
-            actual_data: null,
-            met_targets: null,
-            coaching_session_id: null,
-            notes: null,
+            actual_data: null, met_targets: null, coaching_session_id: null, notes: null,
           });
         }
-        await sb.query("action_plan_weeks", { token, method: "POST", body: weekBodies });
+        await sb.query("action_plan_weeks", { token, method: "POST", body: periodBodies });
       }
 
       show("success", `${planType.toUpperCase()} created for ${nameFromEmail(selQaEmail)}`);
@@ -2978,18 +2986,40 @@ function ActionPlanPage({ token, profile }) {
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Duration (weeks)</label>
-              <select className="select form-input" value={planDuration} onChange={e => setPlanDuration(Number(e.target.value))}>
-                {planType === "ap" ? (
-                  <option value={4}>4 weeks</option>
-                ) : (
-                  <>
+              <label className="form-label">Duration</label>
+              <select className="select form-input" value={planDuration} onChange={e => {
+                const d = Number(e.target.value);
+                setPlanDuration(d);
+                // Resize existing targets
+                setPlanTargets(prev => prev.map(t => ({ ...t, weekly_targets: Array(d).fill("") })));
+                setCustomMetrics(prev => prev.map(c => ({ ...c, targets: Array(d).fill("") })));
+              }}>
+                {followUpMode === "weekly" ? (
+                  planType === "ap" ? <option value={4}>4 weeks</option> : <>
                     <option value={4}>4 weeks</option>
                     <option value={6}>6 weeks</option>
                     <option value={8}>8 weeks</option>
                   </>
+                ) : (
+                  <>
+                    <option value={1}>1 month</option>
+                    <option value={2}>2 months</option>
+                    <option value={3}>3 months</option>
+                    <option value={4}>4 months</option>
+                  </>
                 )}
               </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Follow-up frequency</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => { setFollowUpMode("weekly"); setPlanDuration(4); setPlanTargets(prev => prev.map(t => ({ ...t, weekly_targets: Array(4).fill("") }))); setCustomMetrics(prev => prev.map(c => ({ ...c, targets: Array(4).fill("") }))); }} className={`btn ${followUpMode === "weekly" ? "btn-primary" : "btn-outline"}`} style={{ fontSize: 13 }}>
+                  📅 Weekly
+                </button>
+                <button onClick={() => { setFollowUpMode("monthly"); setPlanDuration(1); setPlanTargets(prev => prev.map(t => ({ ...t, weekly_targets: Array(1).fill("") }))); setCustomMetrics(prev => prev.map(c => ({ ...c, targets: Array(1).fill("") }))); }} className={`btn ${followUpMode === "monthly" ? "btn-primary" : "btn-outline"}`} style={{ fontSize: 13 }}>
+                  📆 Monthly
+                </button>
+              </div>
             </div>
             <div className="form-group" style={{ gridColumn: "1/-1" }}>
               <label className="form-label">Reason / justification</label>
@@ -3030,21 +3060,37 @@ function ActionPlanPage({ token, profile }) {
               );
             })}
           </div>
+
+          {/* Custom metric input */}
+          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--bd2)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx3)" }}>Custom metrics (not in KPI list)</span>
+              <button className="btn btn-outline btn-sm" onClick={addCustomMetric} style={{ fontSize: 11 }}>+ Add custom metric</button>
+            </div>
+            {customMetrics.map((cm, ci) => (
+              <div key={ci} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
+                <input className="form-input" value={cm.name} onChange={e => {
+                  const upd = [...customMetrics]; upd[ci] = { ...upd[ci], name: e.target.value }; setCustomMetrics(upd);
+                }} placeholder="Metric name (e.g. CSAT, Attendance, SBS quality...)" style={{ flex: 1, fontSize: 13, padding: "6px 10px" }} />
+                <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={() => removeCustomMetric(ci)}>✕</button>
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Step 3: Weekly targets (manual entry) */}
-        {planTargets.length > 0 && <div className="card" style={{ marginBottom: 16 }}>
+        {/* Step 3: Targets (manual entry) */}
+        {(planTargets.length > 0 || customMetrics.length > 0) && <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-header">
-            <span className="card-title">Set weekly targets</span>
-            <span style={{ fontSize: 12, color: "var(--tx3)" }}>Enter target % for each KPI per week</span>
+            <span className="card-title">Set {followUpMode === "monthly" ? "monthly" : "weekly"} targets</span>
+            <span style={{ fontSize: 12, color: "var(--tx3)" }}>Enter target % for each metric per {followUpMode === "monthly" ? "month" : "week"}</span>
           </div>
           <div className="table-wrap">
             <table style={{ fontSize: 12 }}>
               <thead><tr>
-                <th>KPI</th>
+                <th>Metric</th>
                 <th style={{ textAlign: "center" }}>Current</th>
                 {Array.from({ length: planDuration }, (_, i) => (
-                  <th key={i} style={{ textAlign: "center" }}>W{i + 1} target</th>
+                  <th key={i} style={{ textAlign: "center" }}>{followUpMode === "monthly" ? `M${i + 1}` : `W${i + 1}`} target</th>
                 ))}
               </tr></thead>
               <tbody>
@@ -3070,11 +3116,31 @@ function ActionPlanPage({ token, profile }) {
                     ))}
                   </tr>
                 ))}
+                {customMetrics.map((cm, ci) => (
+                  <tr key={"custom_" + ci} style={{ background: "var(--bg)" }}>
+                    <td style={{ fontWeight: 600, fontSize: 12 }}>
+                      {cm.name || <span style={{ color: "var(--tx3)", fontStyle: "italic" }}>Custom metric</span>}
+                      <div style={{ fontSize: 10, color: "var(--accent-text)", fontWeight: 400 }}>Custom</div>
+                    </td>
+                    <td style={{ textAlign: "center", color: "var(--tx3)" }}>—</td>
+                    {Array.from({ length: planDuration }, (_, wi) => (
+                      <td key={wi} style={{ textAlign: "center" }}>
+                        <input className="form-input" value={cm.targets[wi] ?? ""} onChange={e => {
+                          const upd = [...customMetrics];
+                          const newT = [...upd[ci].targets];
+                          newT[wi] = e.target.value;
+                          upd[ci] = { ...upd[ci], targets: newT };
+                          setCustomMetrics(upd);
+                        }} placeholder="target" style={{ width: 60, textAlign: "center", padding: "4px 6px", fontSize: 12 }} />
+                      </td>
+                    ))}
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
           <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 8, fontStyle: "italic" }}>
-            Enter the target percentage for each KPI per week. Actuals will be pulled from MTD data during weekly reviews.
+            {followUpMode === "monthly" ? "Targets will be reviewed at the end of each month." : "Targets will be reviewed weekly. Actuals are pulled from MTD data."}{customMetrics.length > 0 ? " Custom metrics are tracked manually." : ""}
           </div>
         </div>}
 
