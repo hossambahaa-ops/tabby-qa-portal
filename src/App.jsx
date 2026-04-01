@@ -247,6 +247,8 @@ function ScoreEntryPage({token,profile}){
   const [months, setMonths] = useState([]);
   const [selMonth, setSelMonth] = useState("");
   const [selQA, setSelQA] = useState("");
+  const [selTL, setSelTL] = useState("");
+  const [selDomain, setSelDomain] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -277,18 +279,19 @@ function ScoreEntryPage({token,profile}){
   // Format values: percentages, decimals, etc.
   const fmt = (val) => {
     if (val === null || val === undefined || val === "") return "—";
-    // Already a string with % sign
     if (typeof val === "string" && val.includes("%")) return val;
-    // Decimal that looks like a percentage (0.886 → 88.6%)
     if (typeof val === "number" && val > 0 && val < 1) return (val * 100).toFixed(1) + "%";
-    // Long decimal number — round it
     if (typeof val === "number" && !Number.isInteger(val)) return val.toFixed(2);
     return String(val);
   };
 
   const monthData = data.filter(r => r.month === selMonth);
   const qaEmails = [...new Set(monthData.map(r => r.qa_email))].sort();
-  const filtered = selQA ? monthData.filter(r => r.qa_email === selQA) : monthData;
+  const tlEmails = [...new Set(monthData.map(r => r.qa_tl).filter(Boolean))].sort();
+  let filtered = monthData;
+  if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
+  if (selTL) filtered = filtered.filter(r => r.qa_tl === selTL);
+  if (selQA) filtered = filtered.filter(r => r.qa_email === selQA);
   const sorted = [...filtered].sort((a, b) => (b.final_performance || 0) - (a.final_performance || 0));
 
   const fpColor = (v) => v >= 0.4 ? "var(--green)" : v >= 0.25 ? "var(--amber)" : "var(--red)";
@@ -306,15 +309,30 @@ function ScoreEntryPage({token,profile}){
       <div className="controls-row">
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">Month</label>
-          <select className="select form-input" value={selMonth} onChange={e=>{setSelMonth(e.target.value);setSelQA("");}}>
+          <select className="select form-input" value={selMonth} onChange={e=>{setSelMonth(e.target.value);setSelQA("");setSelTL("");setSelDomain("");}}>
             {months.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
-        <div className="form-group" style={{flex:2}}>
-          <label className="form-label">Filter by QA</label>
+        <div className="form-group" style={{flex:1}}>
+          <label className="form-label">Domain</label>
+          <select className="select form-input" value={selDomain} onChange={e=>{setSelDomain(e.target.value);setSelQA("");setSelTL("");}}>
+            <option value="">All domains</option>
+            <option value="tabby.ai">tabby.ai</option>
+            <option value="tabby.sa">tabby.sa</option>
+          </select>
+        </div>
+        <div className="form-group" style={{flex:1}}>
+          <label className="form-label">QA Lead</label>
+          <select className="select form-input" value={selTL} onChange={e=>{setSelTL(e.target.value);setSelQA("");}}>
+            <option value="">All leads ({tlEmails.length})</option>
+            {tlEmails.map(e => <option key={e} value={e}>{nameFromEmail(e)}</option>)}
+          </select>
+        </div>
+        <div className="form-group" style={{flex:1}}>
+          <label className="form-label">Specialist</label>
           <select className="select form-input" value={selQA} onChange={e=>setSelQA(e.target.value)}>
-            <option value="">All specialists ({qaEmails.length})</option>
-            {qaEmails.map(e => <option key={e} value={e}>{nameFromEmail(e)} ({e})</option>)}
+            <option value="">All ({(selTL ? monthData.filter(r=>r.qa_tl===selTL) : monthData).length})</option>
+            {(selTL ? [...new Set(monthData.filter(r=>r.qa_tl===selTL).map(r=>r.qa_email))].sort() : qaEmails).map(e => <option key={e} value={e}>{nameFromEmail(e)}</option>)}
           </select>
         </div>
       </div>
