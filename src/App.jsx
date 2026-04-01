@@ -899,6 +899,8 @@ function LeaderboardPage({token, profile}) {
   const [view, setView] = useState("individual");
   const [expandedRow, setExpandedRow] = useState(null);
   const [search, setSearch] = useState("");
+  const [selQuarter, setSelQuarter] = useState("");
+  const [selYear, setSelYear] = useState("");
   const {show, el} = useToast();
 
   useEffect(() => {
@@ -1048,6 +1050,7 @@ function LeaderboardPage({token, profile}) {
         <div className="tabs">
           <button className={`tab ${view==="individual"?"active":""}`} onClick={()=>setView("individual")}>Individual</button>
           <button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>
+          <button className={`tab ${view==="quarterly"?"active":""}`} onClick={()=>setView("quarterly")}>Quarterly</button>
         </div>
         <select className="select" value={selTeam} onChange={e=>setSelTeam(e.target.value)}>
           <option value="">All teams ({teams.length})</option>
@@ -1187,6 +1190,193 @@ function LeaderboardPage({token, profile}) {
           </div>);
         })}
       </div>}
+
+      {/* ═══ QUARTERLY VIEW ═══ */}
+      {view==="quarterly" && (()=>{
+        const parseMonth = (m) => {
+          if (!m) return null;
+          const parts = m.split("-");
+          const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+          const mi = monthNames.indexOf(parts[0]);
+          const yr = parseInt(parts[1]);
+          if (mi === -1 || isNaN(yr)) return null;
+          return { monthIndex: mi, year: yr, quarter: Math.floor(mi / 3) + 1 };
+        };
+        const allParsed = months.map(m => ({ raw: m, ...parseMonth(m) })).filter(p => p.monthIndex !== undefined);
+        const quarterMap = {};
+        allParsed.forEach(p => {
+          const key = `Q${p.quarter}-${p.year}`;
+          if (!quarterMap[key]) quarterMap[key] = { label: key, year: p.year, quarter: p.quarter, months: [] };
+          quarterMap[key].months.push(p.raw);
+        });
+        const quarters = Object.values(quarterMap).sort((a, b) => b.year - a.year || b.quarter - a.quarter);
+        const activeQ = selQuarter && quarters.find(q => q.label === selQuarter) ? selQuarter : (quarters[0]?.label || "");
+        const qData = quarters.find(q => q.label === activeQ);
+        const qMonths = qData ? qData.months : [];
+        const qRows = data.filter(r => qMonths.includes(r.month));
+
+        // Group by QA and SUM raw KPIs
+        const qaMap = {};
+        qRows.forEach(row => {
+          const email = row.qa_email?.toLowerCase();
+          if (!email) return;
+          if (selDomain && !email.endsWith("@" + selDomain)) return;
+          if (selTeam && rosterMap[email]?.queue !== selTeam) return;
+          if (!qaMap[email]) qaMap[email] = { email: row.qa_email, months_present: 0, kpi_sums: {}, tl: row.qa_tl, totalDsat: 0, totalTickets: 0, totalWorkingDays: 0 };
+          qaMap[email].months_present++;
+          qaMap[email].totalDsat += (row.dsat || 0);
+          qaMap[email].totalTickets += (row.ticket_per_day || 0);
+          qaMap[email].totalWorkingDays += (row.working_days || 0);
+          Object.entries(KPI_SLABS).forEach(([key, def]) => {
+            const raw = parseRaw(row[def.rawKey]);
+            if (raw !== null) {
+              if (!qaMap[email].kpi_sums[key]) qaMap[email].kpi_sums[key] = 0;
+              qaMap[email].kpi_sums[key] += raw;
+            }
+          });
+        });
+
+        // Slab on summed values (thresholds scaled by months present)
+        const getQuarterlyKpis = (qa) => {
+          return Object.entries(KPI_SLABS).map(([key, def]) => {
+            const rawSum = qa.kpi_sums[key] || null;
+            const mc = qa.months_present || 1;
+            const scaledTh = def.thresholds.map(t => t * mc);
+            const slab = (() => {
+              if (rawSum === null) return { slab: 0, pct: 0, label: "No data" };
+              if (rawSum >= scaledTh[2]) return { slab: 3, pct: 100, label: "Slab 3" };
+              if (rawSum >= scaledTh[1]) return { slab: 2, pct: 75, label: "Slab 2" };
+              if (rawSum >= scaledTh[0]) return { slab: 1, pct: 50, label: "Slab 1" };
+              return { slab: 0, pct: 0, label: "Slab 0" };
+            })();
+            const score = (def.weight * slab.pct) / 100;
+            return { key, label: def.label, weight: def.weight, rawSum, monthCount: mc, slab, score, scaledTh };
+          });
+        };
+        const getQuarterlyTotal = (qa) => getQuarterlyKpis(qa).reduce((s, k) => s + k.score, 0);
+
+        const allQas = Object.values(qaMap).map(qa => ({
+          ...qa, kpis: getQuarterlyKpis(qa), totalScore: getQuarterlyTotal(qa),
+        })).sort((a, b) => b.totalScore - a.totalScore);
+
+        // Visibility
+        const myEmailQ = profile?.email?.toLowerCase();
+        const isQaQ = profile?.role === "qa";
+        const isLeadQ = hasRole(profile?.role, "qa_lead");
+        const isSupervisorQ = hasRole(profile?.role, "qa_supervisor");
+        const isAdminQ = hasRole(profile?.role, "admin");
+        const myDomainQ = profile?.operational_domain || profile?.domain || "tabby.ai";
+        const rosterTeamQ = roster.filter(r => r.manager_email?.toLowerCase?.() === myEmailQ || qRows.some(row => row.qa_email?.toLowerCase() === r.email?.toLowerCase() && row.qa_tl?.toLowerCase() === myEmailQ)).map(r => r.email?.toLowerCase());
+        const teamEmailsQ = [...new Set(rosterTeamQ)];
+
+        let visibleQas;
+        if (isAdminQ) { visibleQas = allQas; }
+        else if (isSupervisorQ) { visibleQas = allQas.filter(qa => qa.email?.endsWith("@" + myDomainQ)); }
+        else if (isLeadQ) { visibleQas = allQas.filter(qa => teamEmailsQ.includes(qa.email?.toLowerCase()) || qa.email?.toLowerCase() === myEmailQ); }
+        else {
+          const top3 = allQas.slice(0, 3);
+          const myEntry = allQas.find(qa => qa.email?.toLowerCase() === myEmailQ);
+          const myRankIdx = allQas.findIndex(qa => qa.email?.toLowerCase() === myEmailQ);
+          visibleQas = [...top3];
+          if (myEntry && myRankIdx >= 3) visibleQas.push({ ...myEntry, _myRank: myRankIdx + 1 });
+          const seen = new Set();
+          visibleQas = visibleQas.filter(qa => { const e = qa.email?.toLowerCase(); if (seen.has(e)) return false; seen.add(e); return true; });
+        }
+
+        const qMaxScore = 55;
+
+        return <div>
+          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
+            <select className="select" value={activeQ} onChange={e=>setSelQuarter(e.target.value)}>
+              {quarters.map(q => <option key={q.label} value={q.label}>{q.label} ({q.months.length} month{q.months.length!==1?"s":""})</option>)}
+            </select>
+            {qData && <span style={{fontSize:12,color:"var(--tx3)"}}>Months: {qMonths.join(", ")}</span>}
+          </div>
+
+          <div className="stats-grid" style={{marginBottom:20}}>
+            <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>📅</div><div className="stat-label">Quarter</div><div className="stat-value">{activeQ}</div></div>
+            <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>👥</div><div className="stat-label">QAs ranked</div><div className="stat-value">{allQas.length}</div></div>
+            <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>📊</div><div className="stat-label">Avg score</div><div className="stat-value" style={{color:scoreColor(allQas.length?(allQas.reduce((a,q)=>a+q.totalScore,0)/allQas.length):0)}}>{allQas.length?(allQas.reduce((a,q)=>a+q.totalScore,0)/allQas.length).toFixed(1):"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {qMaxScore}</span></div></div>
+            {allQas[0] && <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Top performer</div><div className="stat-value" style={{fontSize:16}}>{nameFromEmail(allQas[0].email)}</div></div>}
+          </div>
+
+          {allQas.length >= 3 && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:16,marginBottom:28,flexWrap:"wrap"}}>
+            {[1,0,2].map(idx => {
+              const qa = allQas[idx]; const rank = idx + 1; const isGold = rank === 1;
+              const medals = ["","🥇","🥈","🥉"];
+              return (<div key={qa.email} className="card" style={{textAlign:"center",padding:isGold?"24px 28px":"18px 22px",minWidth:isGold?180:150,border:isGold?"2px solid var(--amber)":"1px solid var(--bd2)",transform:isGold?"translateY(-8px)":"none"}}>
+                <div style={{fontSize:isGold?28:22,marginBottom:8}}>{medals[rank]}</div>
+                <div style={{width:isGold?52:40,height:isGold?52:40,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:600,fontSize:isGold?16:13,margin:"0 auto 8px"}}>{initialsFromEmail(qa.email)}</div>
+                <div style={{fontWeight:600,fontSize:isGold?15:14}}>{nameFromEmail(qa.email)}</div>
+                <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8}}>{qa.months_present} month{qa.months_present!==1?"s":""}</div>
+                <div style={{fontSize:isGold?26:20,fontWeight:700,color:scoreColor(qa.totalScore)}}>{qa.totalScore.toFixed(1)}<span style={{fontSize:12,fontWeight:400,color:"var(--tx3)"}}> / {qMaxScore}</span></div>
+              </div>);
+            })}
+          </div>}
+
+          {isQaQ && <div style={{padding:"8px 14px",background:"var(--bg)",borderRadius:8,marginBottom:12,fontSize:12,color:"var(--tx3)"}}>
+            Showing top 3 performers and your position. Full rankings are visible to team leads.
+          </div>}
+
+          <div className="card">
+            <div className="card-header"><span className="card-title">Quarterly rankings — {activeQ}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{visibleQas.length} visible · KPIs summed across {qMonths.length} month{qMonths.length!==1?"s":""}</span></div>
+            {visibleQas.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {activeQ}.</p></div> :
+            <div className="table-wrap"><table><thead><tr>
+              <th style={{width:50}}>#</th>
+              <th>Specialist</th>
+              <th>Months</th>
+              {Object.values(KPI_SLABS).map(k => <th key={k.label} style={{textAlign:"center",minWidth:100}}>{k.label}<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>sum /{k.weight}</span></th>)}
+              <th style={{textAlign:"center",minWidth:80}}>Total<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{qMaxScore}</span></th>
+            </tr></thead><tbody>
+              {visibleQas.map((qa, i) => {
+                const actualRank = qa._myRank || (allQas.findIndex(q => q.email === qa.email) + 1);
+                const isMe = qa.email?.toLowerCase() === myEmailQ;
+                const showGap = isQaQ && qa._myRank && qa._myRank > 4;
+                return (<React.Fragment key={qa.email}>
+                  {showGap && <tr><td colSpan={4 + Object.keys(KPI_SLABS).length} style={{textAlign:"center",padding:"6px",color:"var(--tx3)",fontSize:12,background:"var(--bg)"}}>···</td></tr>}
+                  <tr style={{background:isMe?"var(--accent-light)":"transparent"}}>
+                    <td>{actualRank <= 3 ? <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:"50%",fontWeight:600,fontSize:12,background:actualRank===1?"#FEF3C7":actualRank===2?"#F3F4F6":"#FED7AA",color:actualRank===1?"#92400E":actualRank===2?"#374151":"#9A3412"}}>{actualRank}</span> : <span style={{color:"var(--tx3)",fontWeight:500}}>{actualRank}</span>}</td>
+                    <td><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600}}>{initialsFromEmail(qa.email)}</div><div><div style={{fontWeight:500,fontSize:14}}>{nameFromEmail(qa.email)}{isMe?" (You)":""}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{qa.email}</div></div></div></td>
+                    <td style={{fontSize:12,color:"var(--tx2)"}}>{qa.months_present}/3</td>
+                    {qa.kpis.map(k => (
+                      <td key={k.key} style={{textAlign:"center",padding:"8px 6px"}}>
+                        <div style={{fontSize:13,fontWeight:600,color:scoreColor(k.score/k.weight*qMaxScore)}}>{k.score.toFixed(1)}</div>
+                        <div style={{fontSize:10,color:"var(--tx3)"}}>{k.rawSum !== null ? k.rawSum.toFixed(1)+"%" : "—"}</div>
+                        <div style={{height:3,background:"var(--bd2)",borderRadius:2,marginTop:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:2,background:k.slab.pct>=75?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}/></div>
+                      </td>
+                    ))}
+                    <td style={{textAlign:"center"}}><span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:13,fontWeight:600,background:scoreBg(qa.totalScore),color:scoreColor(qa.totalScore)}}>{qa.totalScore.toFixed(1)}</span></td>
+                  </tr>
+                </React.Fragment>);
+              })}
+            </tbody></table></div>}
+          </div>
+
+          {activeQ && visibleQas.length > 0 && <div className="card" style={{marginTop:16}}>
+            <div className="card-header"><span className="card-title">Month-by-month detail — {activeQ}</span></div>
+            <div className="table-wrap"><table style={{fontSize:12}}><thead><tr>
+              <th>Specialist</th>
+              {qMonths.map(m => <th key={m} colSpan={Object.keys(KPI_SLABS).length} style={{textAlign:"center",borderBottom:"2px solid var(--bd)"}}>{m}</th>)}
+            </tr><tr>
+              <th></th>
+              {qMonths.map(m => Object.values(KPI_SLABS).map(k => <th key={m+k.label} style={{textAlign:"center",fontSize:10,color:"var(--tx3)",fontWeight:500}}>{k.label.split(" ")[0]}</th>))}
+            </tr></thead><tbody>
+              {visibleQas.slice(0, 20).map(qa => (
+                <tr key={qa.email}>
+                  <td style={{fontWeight:500,fontSize:12,whiteSpace:"nowrap"}}>{nameFromEmail(qa.email)}</td>
+                  {qMonths.map(m => {
+                    const row = data.find(r => r.month === m && r.qa_email?.toLowerCase() === qa.email?.toLowerCase());
+                    return Object.entries(KPI_SLABS).map(([key, def]) => {
+                      const raw = row ? parseRaw(row[def.rawKey]) : null;
+                      return <td key={m+key} style={{textAlign:"center",fontSize:11,color:raw===null?"var(--tx3)":raw<def.thresholds[0]?"var(--red)":raw>=def.thresholds[2]?"var(--green)":"var(--tx)"}}>{raw !== null ? raw.toFixed(1)+"%" : "—"}</td>;
+                    });
+                  })}
+                </tr>
+              ))}
+            </tbody></table></div>
+          </div>}
+        </div>;
+      })()}
 
       </>}
       {el}
