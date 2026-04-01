@@ -1124,7 +1124,9 @@ function CoachingPage({token, profile}) {
     return lines.join("\n");
   };
 
-  // Save session and open Gmail
+  // Save session and send via Apps Script
+  const APPS_SCRIPT_URL = "https://script.google.com/a/macros/tabby.sa/s/AKfycbwF9PtLxBMtCObQwWDPJg9aTueCCRbSd-jvVLjwMcKvGgoiCyeTJlg9oNkPEsNbhcs/exec";
+
   const generateAndSend = async () => {
     if (!toEmail) { show("error", "Enter the team member's email"); return; }
     setLoading(true);
@@ -1151,15 +1153,45 @@ function CoachingPage({token, profile}) {
         }
       });
 
-      // Build plain text for Gmail (HTML is too long for URL)
-      const plain = buildPlainText();
-      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(toEmail)}&cc=${encodeURIComponent(ccEmail)}&su=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(plain)}`;
-      window.open(gmailUrl, "_blank");
+      // Send formatted HTML email via Apps Script
+      const params = new URLSearchParams({
+        action: "sendAndLog",
+        to: toEmail,
+        cc: ccEmail,
+        replyTo: profile?.email || "",
+        subject: emailSubject,
+        senderEmail: profile?.email || "",
+        memberEmail: toEmail,
+        sessionDate: sessionDate,
+        meetingType: meetingType,
+        topics: topics,
+        strengths: strengths,
+        weaknesses: weaknesses,
+        goals: goals,
+        actions: actions,
+        performance: perfRating,
+        sigName: sigName,
+        sigTitle: sigTitle,
+        targetRows: isTargetType ? serializeTargets() : "",
+        followUp: "false",
+        threadId: "",
+        conclude: outcome ? "true" : "false",
+        outcome: outcome || "",
+        nextSteps: nextSteps || "",
+      });
+
+      const scriptResp = await fetch(APPS_SCRIPT_URL + "?" + params.toString());
+      const scriptData = await scriptResp.json();
+
+      if (scriptData.status !== "success") {
+        throw new Error(scriptData.message || "Apps Script error");
+      }
 
       // Refresh history
       const s = await sb.query("coaching_sessions", {select:"*",filters:"order=created_at.desc&limit=100",token}).catch(()=>[]);
       setSessions(s);
-      show("success", "Session logged — Gmail opened in new tab");
+      show("success", "Email sent and session logged successfully!");
+      setShowPreview(false);
     } catch (e) {
       show("error", e.message);
     }
@@ -1382,7 +1414,7 @@ function CoachingPage({token, profile}) {
 
               <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--bd2)"}}>
                 <button className="btn btn-primary" onClick={generateAndSend} disabled={loading} style={{width:"100%",justifyContent:"center",padding:"12px"}}>
-                  {loading ? "Logging..." : <><Icon d={icons.coaching} size={16}/>Log session & open Gmail</>}
+                  {loading ? "Sending..." : <><Icon d={icons.coaching} size={16}/>Send email & log session</>}
                 </button>
                 <div style={{display:"flex",gap:8,marginTop:8}}>
                   <button className="btn btn-outline btn-sm" style={{flex:1}} onClick={()=>{
