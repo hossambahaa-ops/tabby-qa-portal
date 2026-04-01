@@ -71,7 +71,7 @@ const GoogleLogo=()=>(<svg width="20" height="20" viewBox="0 0 48 48"><path fill
 function DashboardPage({profile,token}){
   const[mtd,setMtd]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);
   const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
-  const[apPlans,setApPlans]=useState([]);const[apWeeks,setApWeeks]=useState([]);const[apDetectionCount,setApDetectionCount]=useState(0);
+  const[apPlans,setApPlans]=useState([]);const[apWeeks,setApWeeks]=useState([]);const[apDetections,setApDetections]=useState([]);
   const isLead=hasRole(profile?.role,"qa_lead");
 
   const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
@@ -99,25 +99,34 @@ function DashboardPage({profile,token}){
     setProfileCount({qas:profs.filter(p=>p.role==="qa").length,leads:profs.filter(p=>p.role==="qa_lead").length,active:profs.length});
     setApPlans(plans);setApWeeks(planWeeks);
 
-    // Auto-detection count for TL dashboard alert
+    // Auto-detection for TL dashboard alert
     if(hasRole(profile?.role,"qa_lead")){
       const mnths=[...new Set(mtdRows.map(r=>r.month))].sort().reverse();
       if(mnths.length>=2){
         const latest=mtdRows.filter(r=>r.month===mnths[0]);
         const prev=mtdRows.filter(r=>r.month===mnths[1]);
         const activePlanEmails=plans.filter(p=>p.status==="active"||p.status==="pending_review").map(p=>p.qa_email?.toLowerCase());
-        let detCount=0;
+        // Only show TL's own team members
+        const myTeam=rosterRows.filter(r=>r.manager_email&&r.manager_email.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.email.toLowerCase());
+        const myTlRows=latest.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.qa_email.toLowerCase());
+        const teamEmails=[...new Set([...myTeam,...myTlRows])];
+        const flagged=[];
         latest.forEach(row=>{
           const email=row.qa_email?.toLowerCase();
           if(activePlanEmails.includes(email))return;
-          const kpis=Object.values({occupancy:{weight:15,thresholds:[95,98,100],rawKey:"occupancy_pct"},coaching:{weight:10,thresholds:[90,93,95],rawKey:"ontime_coaching_pct"},calibration:{weight:10,thresholds:[85,90,95],rawKey:"avg_calibration_match_rate"},observation:{weight:10,thresholds:[82,85,88],rawKey:"avg_observation_score_pct"},rtr:{weight:10,thresholds:[80,85,90],rawKey:"avg_rtr_score"}});
-          const slab0Count=kpis.filter(def=>{const raw=parseRawD(row[def.rawKey]);return raw!==null&&raw<def.thresholds[0];}).length;
+          if(teamEmails.length>0&&!teamEmails.includes(email))return;
+          const kpiDefs=Object.values({occupancy:{weight:15,thresholds:[95,98,100],rawKey:"occupancy_pct"},coaching:{weight:10,thresholds:[90,93,95],rawKey:"ontime_coaching_pct"},calibration:{weight:10,thresholds:[85,90,95],rawKey:"avg_calibration_match_rate"},observation:{weight:10,thresholds:[82,85,88],rawKey:"avg_observation_score_pct"},rtr:{weight:10,thresholds:[80,85,90],rawKey:"avg_rtr_score"}});
+          const slab0Count=kpiDefs.filter(def=>{const raw=parseRawD(row[def.rawKey]);return raw!==null&&raw<def.thresholds[0];}).length;
           const totalScore=getScore(row);
           const prevRow=prev.find(r=>r.qa_email?.toLowerCase()===email);
           const prevScore=prevRow?getScore(prevRow):null;
-          if(slab0Count>=2||(totalScore<20&&prevScore!==null&&prevScore<20))detCount++;
+          let reason=null;
+          if(slab0Count>=2)reason=`${slab0Count} KPIs at Slab 0`;
+          if(totalScore<20&&prevScore!==null&&prevScore<20)reason=(reason?reason+" + ":"")+"Score <20 for 2 months";
+          if(reason)flagged.push({email:row.qa_email,name:nameFromEmail(row.qa_email),score:totalScore,reason,slab0Count});
         });
-        setApDetectionCount(detCount);
+        flagged.sort((a,b)=>a.score-b.score);
+        setApDetections(flagged);
       }
     }
   }catch(e){console.error("Dashboard:",e);}setLoading(false);})();},[token]);
@@ -162,13 +171,31 @@ function DashboardPage({profile,token}){
     <div className="welcome-banner"><h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2><p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p><div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div></div>
     {loading?<div className="loading-spinner"><div className="spinner"/></div>:<>
 
-    {/* ── AP/PIP Alert for TLs ── */}
-    {isLead&&apDetectionCount>0&&<div onClick={()=>nav("plans")} style={{padding:"12px 16px",background:"var(--amber-bg)",borderRadius:8,marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",border:"1px solid var(--amber)"}}>
-      <div style={{display:"flex",alignItems:"center",gap:10}}>
-        <span style={{fontSize:20}}>⚠️</span>
-        <div><div style={{fontSize:14,fontWeight:600,color:"var(--amber)"}}>{apDetectionCount} QA{apDetectionCount!==1?"s":""} flagged for Action Plan</div><div style={{fontSize:12,color:"var(--tx2)"}}>Low KPI scores detected — review and take action</div></div>
+    {/* ── AP/PIP Detection Alerts for TLs ── */}
+    {isLead&&apDetections.length>0&&<div className="card" style={{marginBottom:16,borderLeft:"4px solid var(--amber)"}}>
+      <div className="card-header" style={{cursor:"pointer"}} onClick={()=>nav("plans")}>
+        <span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:18}}>⚠️</span>
+          {apDetections.length} QA{apDetections.length!==1?"s":""} flagged for Action Plan
+        </span>
+        <span style={{fontSize:12,fontWeight:600,color:"var(--amber)"}}>View all →</span>
       </div>
-      <span style={{fontSize:12,fontWeight:600,color:"var(--amber)",whiteSpace:"nowrap"}}>View →</span>
+      {apDetections.slice(0,5).map(d=>(
+        <div key={d.email} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid var(--bd2)",flexWrap:"wrap",gap:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:28,height:28,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600,flexShrink:0}}>{d.name.split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}</div>
+            <div>
+              <div style={{fontSize:13,fontWeight:500}}>{d.name}</div>
+              <div style={{fontSize:11,color:"var(--tx3)"}}>{d.reason} · Score: <span style={{fontWeight:600,color:scoreColor(d.score)}}>{d.score.toFixed(1)}/55</span></div>
+            </div>
+          </div>
+          <div style={{display:"flex",gap:6}}>
+            <button className="btn btn-primary btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={(e)=>{e.stopPropagation();nav("plans");}}>Create AP</button>
+            <button className="btn btn-outline btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={(e)=>{e.stopPropagation();setApDetections(prev=>prev.filter(x=>x.email!==d.email));}}>Dismiss</button>
+          </div>
+        </div>
+      ))}
+      {apDetections.length>5&&<div style={{fontSize:12,color:"var(--tx3)",marginTop:8}}>+{apDetections.length-5} more — view all in AP/PIP page</div>}
     </div>}
 
     {/* ── QA Self-View: My Active Plan (visible only after first coaching meeting) ── */}
@@ -1173,6 +1200,8 @@ function CoachingPage({token, profile}) {
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState([]);
   const [roster, setRoster] = useState([]);
+  const [activePlans, setActivePlans] = useState([]);
+  const [planWeeks, setPlanWeeks] = useState([]);
   const {show, el} = useToast();
 
   // Form state
@@ -1264,18 +1293,54 @@ function CoachingPage({token, profile}) {
   useEffect(() => {
     (async () => {
       try {
-        const [r, s] = await Promise.all([
+        const [r, s, ap, apw] = await Promise.all([
           sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch(()=>[]),
           sb.query("coaching_sessions", {select:"*",filters:"order=created_at.desc&limit=100",token}).catch(()=>[]),
+          sb.query("action_plans", {select:"*",filters:"status=eq.active",token}).catch(()=>[]),
+          sb.query("action_plan_weeks", {select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
         ]);
         setRoster(r);
         setSessions(s);
+        setActivePlans(ap);
+        setPlanWeeks(apw);
       } catch (e) { console.error("Coaching load:", e); }
     })();
   }, [token]);
 
   // Get previous sessions for selected member
   const memberHistory = sessions.filter(s => s.member_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
+
+  // ── AP/PIP Integration: detect active plan for selected member ──
+  const memberActivePlan = activePlans.find(p => p.qa_email?.toLowerCase() === toEmail.toLowerCase());
+  const memberPlanWeeks = memberActivePlan ? planWeeks.filter(w => w.plan_id === memberActivePlan.id).sort((a, b) => a.week_number - b.week_number) : [];
+  const nextUnfilledWeek = memberPlanWeeks.find(w => !w.actual_data);
+
+  // Auto-fill target rows from active plan when meeting type is AP/PIP Review
+  const autoFillFromPlan = () => {
+    if (!memberActivePlan) return;
+    const targets = (() => { try { return JSON.parse(memberActivePlan.targets || "[]"); } catch { return []; } })();
+    if (targets.length === 0) return;
+    const newRows = targets.map(t => {
+      // Find current week's target
+      const weekTargetData = nextUnfilledWeek ? (() => { try { return JSON.parse(nextUnfilledWeek.target_data || "{}"); } catch { return {}; } })() : {};
+      const weekTarget = weekTargetData[t.kpi_key];
+      return {
+        metric: t.label,
+        start: t.current_value !== null ? String(Math.round(t.current_value)) : "",
+        w1: t.weekly_targets?.[0] ? String(t.weekly_targets[0]) : "",
+        w2: t.weekly_targets?.[1] ? String(t.weekly_targets[1]) : "",
+        w3: t.weekly_targets?.[2] ? String(t.weekly_targets[2]) : "",
+        w4: t.weekly_targets?.[3] ? String(t.weekly_targets[3]) : "",
+        a1: "", a2: "", a3: "", a4: "",
+        _kpi_key: t.kpi_key, // internal ref for writing back
+      };
+    });
+    setTargetRows(newRows);
+    // Auto-switch to the right meeting type
+    if (memberActivePlan.type === "pip" && meetingType !== "PIP Review") setMeetingType("PIP Review");
+    else if (memberActivePlan.type === "ap" && meetingType !== "Action Plan Review") setMeetingType("Action Plan Review");
+    show("success", `Targets auto-filled from active ${memberActivePlan.type.toUpperCase()} plan (Week ${nextUnfilledWeek?.week_number || "—"})`);
+  };
 
   // Apply template
   const applyTemplate = () => {
@@ -1527,7 +1592,55 @@ function CoachingPage({token, profile}) {
       // Refresh history
       const s = await sb.query("coaching_sessions", {select:"*",filters:"order=created_at.desc&limit=100",token}).catch(()=>[]);
       setSessions(s);
-      show("success", "Email sent and session logged successfully!");
+
+      // ── AP/PIP Write-back: update action_plan_weeks with actuals from this coaching session ──
+      if (isTargetType && memberActivePlan && nextUnfilledWeek) {
+        try {
+          // Parse actuals from target rows (a1-a4 columns)
+          const KPI_RAW_KEYS = { "Occupancy": "occupancy", "Coaching On-Time": "coaching", "Calibration": "calibration", "Coaching Observation": "observation", "RTR Score": "rtr" };
+          const actualData = {};
+          targetRows.forEach(r => {
+            const kpiKey = r._kpi_key || KPI_RAW_KEYS[r.metric];
+            if (kpiKey) {
+              // Use the latest filled actual value (a4 > a3 > a2 > a1)
+              const val = [r.a4, r.a3, r.a2, r.a1].find(v => v !== "" && v !== undefined);
+              if (val !== undefined && val !== "") actualData[kpiKey] = parseFloat(val);
+            }
+          });
+
+          if (Object.keys(actualData).length > 0) {
+            // Check if targets met
+            const weekTargetData = (() => { try { return JSON.parse(nextUnfilledWeek.target_data || "{}"); } catch { return {}; } })();
+            const metTargets = Object.keys(weekTargetData).every(key => {
+              const actual = actualData[key];
+              const target = weekTargetData[key];
+              return actual !== null && actual !== undefined && target !== undefined && actual >= target;
+            });
+
+            // Get the coaching session ID we just created
+            const latestSession = s.find(sess => sess.member_email?.toLowerCase() === toEmail.toLowerCase() && sess.session_date === sessionDate);
+
+            await sb.query("action_plan_weeks", {
+              token, method: "PATCH",
+              body: {
+                actual_data: JSON.stringify(actualData),
+                met_targets: metTargets,
+                coaching_session_id: latestSession?.id || null,
+                updated_at: new Date().toISOString(),
+              },
+              filters: `id=eq.${nextUnfilledWeek.id}`,
+            });
+            show("success", `Email sent & Week ${nextUnfilledWeek.week_number} actuals written to ${memberActivePlan.type.toUpperCase()} plan${metTargets ? " ✅ Targets met!" : " ❌ Targets not met"}`);
+          } else {
+            show("success", "Email sent and session logged successfully!");
+          }
+        } catch (e) {
+          console.error("AP/PIP write-back:", e);
+          show("success", "Email sent! (Note: could not write back to AP/PIP plan)");
+        }
+      } else {
+        show("success", "Email sent and session logged successfully!");
+      }
       setShowPreview(false);
     } catch (e) {
       show("error", e.message);
@@ -1613,6 +1726,20 @@ function CoachingPage({token, profile}) {
               ))}
             </div>}
           </div>
+
+          {/* Active AP/PIP plan notice */}
+          {toEmail && memberActivePlan && <div style={{padding:"12px 16px",background:memberActivePlan.type==="pip"?"var(--red-bg)":"var(--amber-bg)",borderRadius:8,border:`1px solid ${memberActivePlan.type==="pip"?"var(--red)":"var(--amber)"}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:18}}>{memberActivePlan.type==="pip"?"⚠️":"📋"}</span>
+              <div>
+                <div style={{fontSize:13,fontWeight:600,color:memberActivePlan.type==="pip"?"var(--red)":"var(--amber)"}}>Active {memberActivePlan.type.toUpperCase()} plan</div>
+                <div style={{fontSize:11,color:"var(--tx2)"}}>
+                  Week {memberPlanWeeks.filter(w=>w.actual_data).length + 1} of {memberActivePlan.duration_weeks} · {nextUnfilledWeek ? "Next review due" : "All weeks filled"}
+                </div>
+              </div>
+            </div>
+            <button className="btn btn-outline btn-sm" onClick={autoFillFromPlan} style={{fontWeight:600}}>Auto-fill targets from plan</button>
+          </div>}
 
           {/* Template bar */}
           {TEMPLATES[meetingType] && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"var(--accent-light)",borderRadius:8,fontSize:13}}>
@@ -2227,53 +2354,55 @@ function ActionPlanPage({ token, profile }) {
         } catch (e) { console.error("DAM flag creation:", e); }
       }
 
-      // If AP failed → auto-create PIP with same targets
+      // If AP failed → create DAM flag (performance_management) — DAM handles escalation
       if (concludingPlan.type === "ap" && conclusionOutcome === "fail") {
         try {
-          const oldTargets = safeJsonArr(concludingPlan.targets);
-          const pipDuration = 8;
-          const startDate = new Date().toISOString().split("T")[0];
-          const endDate = new Date(Date.now() + pipDuration * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-          // Recalculate weekly targets for PIP duration
-          const pipTargets = oldTargets.map(t => ({
-            ...t,
-            weekly_targets: Array.from({ length: pipDuration }, (_, w) => {
-              const current = t.current_value || 0;
-              const target = t.target_value;
-              const progress = (w + 1) / pipDuration;
-              return Math.round(Math.min(current + (target - current) * progress, target) * 10) / 10;
-            }),
-          }));
-          const [pipResult] = await sb.query("action_plans", {
-            token, method: "POST",
-            body: {
-              qa_email: concludingPlan.qa_email,
-              type: "pip",
-              status: "active",
-              reason: `Auto-escalated from failed AP (Plan ID: ${concludingPlan.id}). ${conclusionNotes}`,
-              targets: JSON.stringify(pipTargets),
-              start_date: startDate,
-              end_date: endDate,
-              duration_weeks: pipDuration,
-              created_by: profile?.email,
-              tl_email: concludingPlan.tl_email,
-              team: concludingPlan.team,
+          const qaProfile = profiles.find(p => p.email?.toLowerCase() === concludingPlan.qa_email?.toLowerCase());
+          if (qaProfile) {
+            // Find the performance_management rule
+            let pmRule = null;
+            try {
+              const rules = await sb.query("dam_rules", { select: "id,name,behavior_type", filters: "behavior_type=eq.performance_management&is_active=eq.true&limit=1", token });
+              pmRule = rules[0] || null;
+            } catch { }
+
+            // Count existing occurrences for this person + rule
+            let occurrence = 1;
+            if (pmRule) {
+              try {
+                const existing = await sb.query("dam_flags", { select: "id", filters: `profile_id=eq.${qaProfile.id}&rule_id=eq.${pmRule.id}&status=neq.dismissed`, token });
+                occurrence = (existing?.length || 0) + 1;
+              } catch { }
             }
-          });
-          if (pipResult?.id) {
-            const weekBodies = [];
-            for (let w = 1; w <= pipDuration; w++) {
-              const weekStart = new Date(Date.now() + (w - 1) * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-              const targetData = {};
-              pipTargets.forEach(t => { targetData[t.kpi_key] = t.weekly_targets[w - 1] ?? t.target_value; });
-              weekBodies.push({ plan_id: pipResult.id, week_number: w, week_start: weekStart, target_data: JSON.stringify(targetData), actual_data: null, met_targets: null, coaching_session_id: null, notes: null });
+
+            // Get escalation step for this occurrence
+            let step = null;
+            if (pmRule) {
+              try {
+                const steps = await sb.query("dam_escalation_steps", { select: "*", filters: `rule_id=eq.${pmRule.id}&occurrence=eq.${occurrence}`, token });
+                step = steps[0] || null;
+              } catch { }
             }
-            await sb.query("action_plan_weeks", { token, method: "POST", body: weekBodies });
+
+            await sb.query("dam_flags", {
+              token, method: "POST",
+              body: {
+                profile_id: qaProfile.id,
+                rule_id: pmRule?.id || null,
+                severity: "warning",
+                recommended_action: step?.includes_pip ? "pip" : (step?.is_hr_investigation ? "termination_review" : "coaching"),
+                notes: `Action Plan failed. Plan ID: ${concludingPlan.id}. ${conclusionNotes}`,
+                status: "pending",
+                occurrence_number: occurrence,
+                escalation_step_id: step?.id || null,
+                trigger_data: JSON.stringify({ source: "ap_failure", plan_id: concludingPlan.id, step_action: step?.action || "No step defined" }),
+              }
+            });
+            show("success", `AP failed — DAM flag created (occurrence #${occurrence}${step ? ": " + step.action : ""})`);
           }
-          show("success", `AP failed — PIP auto-created for ${nameFromEmail(concludingPlan.qa_email)} (8 weeks)`);
         } catch (e) {
-          console.error("Auto PIP creation:", e);
-          show("error", "AP concluded as failed. Could not auto-create PIP: " + e.message);
+          console.error("DAM flag creation:", e);
+          show("error", "AP concluded as failed. Could not create DAM flag: " + e.message);
         }
       } else {
         show("success", `${concludingPlan.type.toUpperCase()} concluded as ${conclusionOutcome === "pass" ? "PASSED" : "FAILED"}`);
