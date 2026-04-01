@@ -3049,6 +3049,20 @@ function ActionPlanPage({ token, profile }) {
                       {plan.type === "ap" && prog.successRate < 50 && prog.elapsed >= 2 && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={() => startCreate(plan.qa_email, "pip")}>
                         <Icon d={icons.dam} size={14} />Escalate to PIP
                       </button>}
+
+                      {/* Super admin: hard delete */}
+                      {hasRole(profile?.role, "super_admin") && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)", marginLeft: "auto" }} onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`Permanently delete this ${plan.type.toUpperCase()} for ${nameFromEmail(plan.qa_email)}? This cannot be undone and leaves no trace.`)) return;
+                        try {
+                          await sb.query("action_plan_weeks", { token, method: "DELETE", filters: `plan_id=eq.${plan.id}` });
+                          await sb.query("action_plans", { token, method: "DELETE", filters: `id=eq.${plan.id}` });
+                          show("success", "Plan permanently deleted");
+                          load();
+                        } catch (err) { show("error", err.message); }
+                      }}>
+                        <Icon d={icons.trash} size={14} />Delete
+                      </button>}
                     </div>
 
                     {/* Audit trail */}
@@ -3081,6 +3095,7 @@ function ActionPlanPage({ token, profile }) {
               <th>Date range</th>
               <th>Concluded by</th>
               <th>Notes</th>
+              {hasRole(profile?.role, "super_admin") && <th></th>}
             </tr></thead>
             <tbody>
               {historyPlans.map(p => {
@@ -3114,6 +3129,17 @@ function ActionPlanPage({ token, profile }) {
                     <td style={{ fontSize: 12, color: "var(--tx2)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {p.conclusion_notes || "—"}
                     </td>
+                    {hasRole(profile?.role, "super_admin") && <td>
+                      <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async () => {
+                        if (!confirm(`Permanently delete this ${p.type.toUpperCase()} for ${nameFromEmail(p.qa_email)}? No trace will remain.`)) return;
+                        try {
+                          await sb.query("action_plan_weeks", { token, method: "DELETE", filters: `plan_id=eq.${p.id}` });
+                          await sb.query("action_plans", { token, method: "DELETE", filters: `id=eq.${p.id}` });
+                          show("success", "Plan permanently deleted");
+                          load();
+                        } catch (err) { show("error", err.message); }
+                      }}><Icon d={icons.trash} size={14} /></button>
+                    </td>}
                   </tr>
                 );
               })}
