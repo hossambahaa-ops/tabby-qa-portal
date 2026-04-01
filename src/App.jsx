@@ -109,7 +109,7 @@ function DashboardPage({profile,token}){
       const myTeam=rosterRows.filter(r=>r.manager_email&&r.manager_email.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.email.toLowerCase());
       const mnths=[...new Set(mtdRows.map(r=>r.month))].sort().reverse();
       const latestMtd=mtdRows.filter(r=>r.month===mnths[0]);
-      const myTlRows=latestMtd.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.qa_email.toLowerCase());
+      const myTlRows=latestMtd.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.qa_email?.toLowerCase());
       const teamEmails=[...new Set([...myTeam,...myTlRows])];
 
       const activeFlags=(damFlagsRaw||[]).filter(f=>f.status==="pending"||f.status==="acknowledged");
@@ -144,21 +144,21 @@ function DashboardPage({profile,token}){
   const previous=prevMonth?mtd.filter(r=>r.month===prevMonth):[];
 
   const myEmail=profile?.email?.toLowerCase();
-  const myData=current.find(r=>r.qa_email.toLowerCase()===myEmail);
-  const myPrevData=previous.find(r=>r.qa_email.toLowerCase()===myEmail);
+  const myData=current.find(r=>r.qa_email?.toLowerCase()===myEmail);
+  const myPrevData=previous.find(r=>r.qa_email?.toLowerCase()===myEmail);
 
   // Rank by calculated score
   const ranked=[...current].sort((a,b)=>getScore(b)-getScore(a));
-  const myRank=ranked.findIndex(r=>r.qa_email.toLowerCase()===myEmail)+1;
+  const myRank=ranked.findIndex(r=>r.qa_email?.toLowerCase()===myEmail)+1;
 
   const myRoster=roster.find(r=>r.email.toLowerCase()===myEmail);
 
   // Team members
   const myTeamEmails=roster.filter(r=>r.manager_email&&r.manager_email.toLowerCase()===myEmail).map(r=>r.email.toLowerCase());
-  const myTlEmails=current.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===myEmail).map(r=>r.qa_email.toLowerCase());
+  const myTlEmails=current.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===myEmail).map(r=>r.qa_email?.toLowerCase());
   const allTeamEmails=[...new Set([...myTeamEmails,...myTlEmails])];
-  const teamCurrent=current.filter(r=>allTeamEmails.includes(r.qa_email.toLowerCase()));
-  const teamPrevious=previous.filter(r=>allTeamEmails.includes(r.qa_email.toLowerCase()));
+  const teamCurrent=current.filter(r=>allTeamEmails.includes(r.qa_email?.toLowerCase()));
+  const teamPrevious=previous.filter(r=>allTeamEmails.includes(r.qa_email?.toLowerCase()));
   const teamSorted=[...teamCurrent].sort((a,b)=>getScore(b)-getScore(a));
 
   // Team averages using calculated scores
@@ -168,7 +168,7 @@ function DashboardPage({profile,token}){
   const teamDsat=teamCurrent.reduce((a,r)=>a+(r.dsat||0),0);
 
   // Performance trend sparkline using calculated scores
-  const myHistory=months.slice(0,6).reverse().map(m=>{const row=mtd.find(r=>r.month===m&&r.qa_email.toLowerCase()===myEmail);return{month:m,score:row?getScore(row):null};}).filter(d=>d.score!==null);
+  const myHistory=months.slice(0,6).reverse().map(m=>{const row=mtd.find(r=>r.month===m&&r.qa_email?.toLowerCase()===myEmail);return{month:m,score:row?getScore(row):null};}).filter(d=>d.score!==null);
 
   const nav=(page)=>window.dispatchEvent(new CustomEvent("navigate",{detail:page}));
 
@@ -1135,7 +1135,7 @@ function LeaderboardPage({token, profile}) {
   let filtered = monthData;
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
   if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
-  if (search.trim()) filtered = filtered.filter(r => r.qa_email.toLowerCase().includes(search.toLowerCase()));
+  if (search.trim()) filtered = filtered.filter(r => r.qa_email?.toLowerCase().includes(search.toLowerCase()));
   // Rank by calculated total score
   const ranked = [...filtered].sort((a, b) => getTotalScore(b) - getTotalScore(a));
 
