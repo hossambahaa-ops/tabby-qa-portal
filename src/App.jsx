@@ -170,22 +170,74 @@ function DashboardPage({profile,token}){
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--teal-bg)",color:"var(--teal)",fontSize:18}}>📋</div><div className="stat-label">DSAT</div><div className="stat-value">{myData.dsat??0}</div></div>
       </div>
 
-      {/* My KPI detail */}
+      {/* My KPI detail with slab calculation */}
       <div className="card" style={{marginBottom:20}}>
         <div className="card-header"><span className="card-title">My KPIs — {latestMonth}</span></div>
-        <div className="table-wrap"><table><thead><tr><th>Metric</th><th style={{textAlign:"right"}}>Value</th></tr></thead><tbody>
-          {[
-            {label:"Occupancy",value:fmt(myData.occupancy_pct)},
-            {label:"Coaching on-time",value:fmt(myData.coaching_ontime_score)},
-            {label:"Calibration",value:fmt(myData.calibration_score)},
-            {label:"Coaching observation",value:fmt(myData.coaching_observation_score)},
-            {label:"RTR score",value:fmt(myData.avg_rtr_score)},
-            {label:"Coaching completion",value:fmt(myData.coaching_completion_pct)},
-            {label:"Tickets/day",value:myData.ticket_per_day??0},
-            {label:"Working days",value:(myData.working_days||0)+(myData.ramadan_wds?" ("+myData.ramadan_wds+" Ramadan)":"")},
-            {label:"JKQ",value:myData.jkq_result&&myData.jkq_result!=="N/A"?myData.jkq_result+(myData.jkq_score>0?" ("+myData.jkq_score+")":""):"—"},
-          ].map(row=>(<tr key={row.label}><td style={{color:"var(--tx2)"}}>{row.label}</td><td style={{textAlign:"right",fontWeight:500}}>{row.value}</td></tr>))}
-        </tbody></table></div>
+        {(()=>{
+          const KPI_SLABS_DASH = {
+            occupancy:{label:"Occupancy",weight:15,thresholds:[95,98,100],rawKey:"occupancy_pct"},
+            coaching:{label:"Coaching on-time",weight:10,thresholds:[90,93,95],rawKey:"ontime_coaching_pct"},
+            calibration:{label:"Calibration",weight:10,thresholds:[85,90,95],rawKey:"avg_calibration_match_rate"},
+            observation:{label:"Coaching observation",weight:10,thresholds:[82,85,88],rawKey:"avg_observation_score_pct"},
+            rtr:{label:"RTR score",weight:10,thresholds:[80,85,90],rawKey:"avg_rtr_score"},
+          };
+          const parseRawD = (val) => {
+            if (!val && val !== 0) return null;
+            const s = String(val).trim().replace(",",".");
+            if (s.includes("%")) return parseFloat(s.replace("%",""));
+            const n = parseFloat(s);
+            if (isNaN(n)) return null;
+            if (n >= 0 && n <= 2) return n * 100;
+            return n;
+          };
+          const calcSlabD = (rawPct, th) => {
+            if (rawPct === null) return {slab:0,pct:0,label:"No data"};
+            if (rawPct >= th[2]) return {slab:3,pct:100,label:"Slab 3"};
+            if (rawPct >= th[1]) return {slab:2,pct:75,label:"Slab 2"};
+            if (rawPct >= th[0]) return {slab:1,pct:50,label:"Slab 1"};
+            return {slab:0,pct:0,label:"Slab 0"};
+          };
+          const kpis = Object.entries(KPI_SLABS_DASH).map(([key,def])=>{
+            const rawPct = parseRawD(myData[def.rawKey]);
+            const slab = calcSlabD(rawPct, def.thresholds);
+            const score = (def.weight * slab.pct) / 100;
+            return {key,label:def.label,weight:def.weight,rawPct,slab,score,thresholds:def.thresholds};
+          });
+          const total = kpis.reduce((s,k)=>s+k.score,0);
+          const scColor = (v) => v >= 55*0.7 ? "var(--green)" : v >= 55*0.4 ? "var(--amber)" : "var(--red)";
+          return <>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px 20px"}}>
+              {kpis.map(k=>(
+                <div key={k.key} style={{padding:"10px 12px",background:"var(--bg)",borderRadius:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                    <span style={{fontSize:13,fontWeight:600}}>{k.label}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:k.slab.pct>=75?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}>{k.score.toFixed(1)} / {k.weight}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--tx2)",marginBottom:4}}>
+                    <span>Raw: {k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "—"}</span>
+                    <span style={{padding:"1px 6px",borderRadius:8,fontSize:10,fontWeight:600,background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",color:k.slab.pct===100?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}>{k.slab.label}</span>
+                  </div>
+                  <div style={{height:5,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct>=75?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}/></div>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:14,padding:"10px 14px",background:"var(--bg)",borderRadius:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:13,fontWeight:600}}>Total (non-CSAT)</span>
+              <span style={{fontSize:18,fontWeight:700,color:scColor(total)}}>{total.toFixed(1)} / 55</span>
+            </div>
+            <div style={{marginTop:12}}>
+              <div className="table-wrap"><table><thead><tr><th>Other metrics</th><th style={{textAlign:"right"}}>Value</th></tr></thead><tbody>
+                {[
+                  {label:"Coaching completion",value:fmt(myData.coaching_completion_pct)},
+                  {label:"Tickets/day",value:myData.ticket_per_day??0},
+                  {label:"Working days",value:(myData.working_days||0)+(myData.ramadan_wds?" ("+myData.ramadan_wds+" Ramadan)":"")},
+                  {label:"DSAT evaluated",value:myData.dsat??0},
+                  {label:"JKQ",value:myData.jkq_result&&myData.jkq_result!=="N/A"?myData.jkq_result+(myData.jkq_score>0?" ("+myData.jkq_score+")":""):"—"},
+                ].map(row=>(<tr key={row.label}><td style={{color:"var(--tx2)"}}>{row.label}</td><td style={{textAlign:"right",fontWeight:500}}>{row.value}</td></tr>))}
+              </tbody></table></div>
+            </div>
+          </>;
+        })()}
       </div>
 
       {/* Sparkline trend */}
@@ -243,21 +295,24 @@ function TeamManagementPage({token}){
 
 function ScoreEntryPage({token,profile}){
   const [data, setData] = useState([]);
+  const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState([]);
   const [selMonth, setSelMonth] = useState("");
   const [selQA, setSelQA] = useState("");
   const [selTL, setSelTL] = useState("");
   const [selDomain, setSelDomain] = useState("");
+  const [selTeam, setSelTeam] = useState("");
 
   useEffect(() => {
     (async () => {
       try {
-        const rows = await sb.query("mtd_scores", {
-          select: "*",
-          filters: "order=month.desc,qa_email.asc",
-          token
-        });
+        const [rows, rosterRows] = await Promise.all([
+          sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token}),
+          sb.query("qa_roster", {select:"email,queue",token}).catch(()=>[]),
+        ]);
+        setData(rows);
+        setRoster(rosterRows);
         setData(rows);
         const uniqueMonths = [...new Set(rows.map(r => r.month))];
         setMonths(uniqueMonths);
@@ -301,8 +356,12 @@ function ScoreEntryPage({token,profile}){
   const monthData = data.filter(r => r.month === selMonth);
   const qaEmails = [...new Set(monthData.map(r => r.qa_email))].sort();
   const tlEmails = [...new Set(monthData.map(r => r.qa_tl).filter(Boolean))].sort();
+  const rosterMap = {};
+  roster.forEach(r => { rosterMap[r.email?.toLowerCase()] = r; });
+  const scoreTeams = [...new Set(roster.map(r => r.queue).filter(Boolean))].sort();
   let filtered = monthData;
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
+  if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
   if (selTL) filtered = filtered.filter(r => r.qa_tl === selTL);
   if (selQA) filtered = filtered.filter(r => r.qa_email === selQA);
   const sorted = [...filtered].sort((a, b) => (b.final_performance || 0) - (a.final_performance || 0));
@@ -322,16 +381,23 @@ function ScoreEntryPage({token,profile}){
       <div className="controls-row">
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">Month</label>
-          <select className="select form-input" value={selMonth} onChange={e=>{setSelMonth(e.target.value);setSelQA("");setSelTL("");setSelDomain("");}}>
+          <select className="select form-input" value={selMonth} onChange={e=>{setSelMonth(e.target.value);setSelQA("");setSelTL("");setSelDomain("");setSelTeam("");}}>
             {months.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
         </div>
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">Domain</label>
-          <select className="select form-input" value={selDomain} onChange={e=>{setSelDomain(e.target.value);setSelQA("");setSelTL("");}}>
+          <select className="select form-input" value={selDomain} onChange={e=>{setSelDomain(e.target.value);setSelQA("");setSelTL("");setSelTeam("");}}>
             <option value="">All domains</option>
             <option value="tabby.ai">tabby.ai</option>
             <option value="tabby.sa">tabby.sa</option>
+          </select>
+        </div>
+        <div className="form-group" style={{flex:1}}>
+          <label className="form-label">Team</label>
+          <select className="select form-input" value={selTeam} onChange={e=>{setSelTeam(e.target.value);setSelQA("");setSelTL("");}}>
+            <option value="">All teams</option>
+            {scoreTeams.map(t => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
         <div className="form-group" style={{flex:1}}>
@@ -344,8 +410,8 @@ function ScoreEntryPage({token,profile}){
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">Specialist</label>
           <select className="select form-input" value={selQA} onChange={e=>setSelQA(e.target.value)}>
-            <option value="">All ({(selTL ? monthData.filter(r=>r.qa_tl===selTL) : monthData).length})</option>
-            {(selTL ? [...new Set(monthData.filter(r=>r.qa_tl===selTL).map(r=>r.qa_email))].sort() : qaEmails).map(e => <option key={e} value={e}>{nameFromEmail(e)}</option>)}
+            <option value="">All ({filtered.length})</option>
+            {[...new Set(filtered.map(r=>r.qa_email))].sort().map(e => <option key={e} value={e}>{nameFromEmail(e)}</option>)}
           </select>
         </div>
       </div>
@@ -653,9 +719,11 @@ function DAMPage({token,profile}){
 /* ═══ LEADERBOARD ═══ */
 function LeaderboardPage({token, profile}) {
   const [data, setData] = useState([]);
+  const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState([]);
   const [selMonth, setSelMonth] = useState("");
+  const [selTeam, setSelTeam] = useState("");
   const [view, setView] = useState("individual");
   const [expandedRow, setExpandedRow] = useState(null);
   const [search, setSearch] = useState("");
@@ -664,12 +732,12 @@ function LeaderboardPage({token, profile}) {
   useEffect(() => {
     (async () => {
       try {
-        const rows = await sb.query("mtd_scores", {
-          select: "*",
-          filters: "order=month.desc,final_performance.desc",
-          token
-        });
+        const [rows, rosterRows] = await Promise.all([
+          sb.query("mtd_scores", {select:"*",filters:"order=month.desc,final_performance.desc",token}),
+          sb.query("qa_roster", {select:"email,queue",token}).catch(()=>[]),
+        ]);
         setData(rows);
+        setRoster(rosterRows);
         const uniqueMonths = [...new Set(rows.map(r => r.month))];
         setMonths(uniqueMonths);
         if (uniqueMonths.length > 0 && !selMonth) setSelMonth(uniqueMonths[0]);
@@ -733,9 +801,12 @@ function LeaderboardPage({token, profile}) {
   };
 
   const monthData = data.filter(r => r.month === selMonth);
-  const filtered = search.trim()
-    ? monthData.filter(r => r.qa_email.toLowerCase().includes(search.toLowerCase()))
-    : monthData;
+  const rosterMap = {};
+  roster.forEach(r => { rosterMap[r.email?.toLowerCase()] = r; });
+  const teams = [...new Set(roster.map(r => r.queue).filter(Boolean))].sort();
+  let filtered = monthData;
+  if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
+  if (search.trim()) filtered = filtered.filter(r => r.qa_email.toLowerCase().includes(search.toLowerCase()));
   // Rank by calculated total score (not final_performance)
   const ranked = [...filtered].sort((a, b) => getTotalScore(b) - getTotalScore(a));
 
@@ -798,6 +869,10 @@ function LeaderboardPage({token, profile}) {
           <button className={`tab ${view==="individual"?"active":""}`} onClick={()=>setView("individual")}>Individual</button>
           <button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>
         </div>
+        <select className="select" value={selTeam} onChange={e=>setSelTeam(e.target.value)} style={{marginLeft:8}}>
+          <option value="">All teams</option>
+          {teams.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
         {view==="individual" && <input className="input" placeholder="Search by email..." value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:220,marginLeft:"auto"}}/>}
       </div>
 
