@@ -483,17 +483,28 @@ function TeamManagementPage({token}){
 
   const nameFromEmail=(email)=>{if(!email)return"—";return email.split("@")[0].split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
   const leads=users.filter(u=>hasRole(u.role,"qa_lead")),supervisors=users.filter(u=>hasRole(u.role,"qa_supervisor"));
-  const getMemberCount=(teamName)=>roster.filter(r=>r.queue===teamName).length;
-  const getTeamMembers=(teamName)=>roster.filter(r=>r.queue===teamName);
+  const getMemberCount=(teamName)=>roster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain))).length;
+  const getTeamMembers=(teamName)=>roster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain)));
 
   const save=async()=>{try{const b={name:form.name,domain:form.domain,lead_id:form.lead_id||null,supervisor_id:form.supervisor_id||null};if(editId){await sb.query("teams",{token,method:"PATCH",body:b,filters:`id=eq.${editId}`});show("success","Team updated");}else{await sb.query("teams",{token,method:"POST",body:b});show("success","Team created");}setShowForm(false);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});load();}catch(e){show("error",e.message);}};
   const startEdit=(t)=>{setForm({name:t.name,domain:t.domain,lead_id:t.lead_id||"",supervisor_id:t.supervisor_id||""});setEditId(t.id);setShowForm(true);};
   const del=async(id)=>{if(!confirm("Delete this team?"))return;try{await sb.query("teams",{token,method:"DELETE",filters:`id=eq.${id}`});show("success","Deleted");load();}catch(e){show("error",e.message);}};
 
   const [expandedTeam, setExpandedTeam] = useState(null);
+  const [filterDomain, setFilterDomain] = useState("");
 
   return(<div className="page">
     <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}><div><div className="page-title">Team management</div><div className="page-subtitle">{teams.length} teams · {roster.length} roster members</div></div><button className="btn btn-primary" onClick={()=>{setShowForm(!showForm);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});}}><Icon d={icons.plus} size={16}/>New team</button></div>
+
+    {/* Domain filter */}
+    <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center"}}>
+      <select className="select" value={filterDomain} onChange={e=>setFilterDomain(e.target.value)}>
+        <option value="">All domains</option>
+        <option value="tabby.ai">tabby.ai</option>
+        <option value="tabby.sa">tabby.sa</option>
+      </select>
+      {filterDomain && <span style={{fontSize:12,color:"var(--tx3)"}}>Showing {filterDomain} teams only</span>}
+    </div>
     {showForm&&<div className="card" style={{marginBottom:20}}><div className="card-header"><span className="card-title">{editId?"Edit team":"Create team"}</span></div>
       <div className="form-grid"><div className="form-group"><label className="form-label">Team name</label><input className="form-input" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Payments QA"/></div>
       <div className="form-group"><label className="form-label">Domain</label><select className="select form-input" value={form.domain} onChange={e=>setForm({...form,domain:e.target.value})}><option value="tabby.ai">tabby.ai</option><option value="tabby.sa">tabby.sa</option></select></div>
@@ -503,7 +514,7 @@ function TeamManagementPage({token}){
     </div>}
     <div className="card">{loading?<div className="loading-spinner"><div className="spinner"/></div>:teams.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No teams yet. Teams are auto-created from the roster.</p></div>:
       <div className="table-wrap"><table><thead><tr><th>Team</th><th>Domain</th><th>Members</th><th>Lead</th><th>Supervisor</th><th></th></tr></thead><tbody>
-        {teams.sort((a,b)=>a.name.localeCompare(b.name)).map(t=>{
+        {teams.filter(t=>!filterDomain||t.domain===filterDomain).sort((a,b)=>a.name.localeCompare(b.name)).map(t=>{
           const count=getMemberCount(t.name);
           const isExp=expandedTeam===t.id;
           const members=getTeamMembers(t.name);
