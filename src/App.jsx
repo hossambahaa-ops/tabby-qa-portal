@@ -548,14 +548,26 @@ function ScoreEntryPage({token,profile}){
   useEffect(() => {
     (async () => {
       try {
-        const [rows, rosterRows] = await Promise.all([
+        const [rows, rosterRows, profRows] = await Promise.all([
           sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token}),
           sb.query("qa_roster", {select:"email,queue",token}).catch(()=>[]),
+          sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[]),
         ]);
-        setData(rows);
         setRoster(rosterRows);
-        setData(rows);
-        const uniqueMonths = [...new Set(rows.map(r => r.month))];
+        // Build blacklist: exclude both domain variants of non-QA users
+        const nonQaProfiles = profRows.filter(p => p.role !== "qa");
+        const blacklist = new Set();
+        nonQaProfiles.forEach(p => {
+          const email = p.email?.toLowerCase();
+          if (!email) return;
+          blacklist.add(email);
+          const local = email.split("@")[0];
+          if (email.endsWith("@tabby.ai")) blacklist.add(local + "@tabby.sa");
+          if (email.endsWith("@tabby.sa")) blacklist.add(local + "@tabby.ai");
+        });
+        const filtered = rows.filter(r => !blacklist.has(r.qa_email?.toLowerCase()));
+        setData(filtered);
+        const uniqueMonths = [...new Set(filtered.map(r => r.month))];
         setMonths(uniqueMonths);
         if (uniqueMonths.length > 0) setSelMonth(uniqueMonths[0]);
       } catch (e) { console.error("MTD Scores:", e); }
@@ -985,9 +997,19 @@ function LeaderboardPage({token, profile}) {
         setData(rows);
         setRoster(rosterRows);
         // Build set of non-QA emails to exclude from rankings
-        const qaEmails = new Set(profRows.filter(p => p.role === "qa").map(p => p.email?.toLowerCase()));
-        // Only include QA role in leaderboard — anyone not in profiles or with non-QA role is excluded
-        const qaOnlyRows = rows.filter(r => qaEmails.has(r.qa_email?.toLowerCase()));
+        // Build blacklist: for any non-QA user in profiles, block both @tabby.ai and @tabby.sa variants
+        const nonQaProfiles = profRows.filter(p => p.role !== "qa");
+        const blacklist = new Set();
+        nonQaProfiles.forEach(p => {
+          const email = p.email?.toLowerCase();
+          if (!email) return;
+          blacklist.add(email);
+          // Also block the other domain variant
+          const local = email.split("@")[0];
+          if (email.endsWith("@tabby.ai")) blacklist.add(local + "@tabby.sa");
+          if (email.endsWith("@tabby.sa")) blacklist.add(local + "@tabby.ai");
+        });
+        const qaOnlyRows = rows.filter(r => !blacklist.has(r.qa_email?.toLowerCase()));
         setData(qaOnlyRows);
         const uniqueMonths = [...new Set(qaOnlyRows.map(r => r.month))];
         setMonths(uniqueMonths);
