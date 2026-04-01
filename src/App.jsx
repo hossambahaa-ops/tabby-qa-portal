@@ -2625,26 +2625,52 @@ function ActionPlanPage({ token, profile }) {
 
   // ── Update week actuals ──
   const updateWeekActuals = async (weekId, qaEmail) => {
-    // Pull latest MTD data for this QA
+    // Find the plan for this week
+    const week = weeks.find(w => w.id === weekId);
+    if (!week) { show("error", "Week not found"); return; }
+    const plan = plans.find(p => p.id === week.plan_id);
+    if (!plan) { show("error", "Plan not found"); return; }
+
+    // Parse the plan's targets to know which KPIs to pull
+    let targetData = {};
+    try { targetData = JSON.parse(week.target_data || "{}"); } catch { }
+    const targetKeys = Object.keys(targetData);
+
+    // Parse plan targets to get raw_key mapping
+    let planMetrics = [];
+    try {
+      const parsed = JSON.parse(plan.targets || "[]");
+      planMetrics = Array.isArray(parsed) ? parsed : (parsed.metrics || []);
+    } catch { }
+
+    // Pull latest MTD data
     const months = [...new Set(mtd.map(r => r.month))].sort().reverse();
     const latestMonth = months[0];
     const row = mtd.find(r => r.month === latestMonth && r.qa_email?.toLowerCase() === qaEmail.toLowerCase());
-    if (!row) { show("error", "No MTD data found for " + nameFromEmail(qaEmail)); return; }
+    if (!row) { show("error", "No MTD data found for " + nameFromEmail(qaEmail) + " in " + latestMonth); return; }
 
+    // Only pull actuals for KPIs that are in this plan's targets
     const actualData = {};
-    Object.entries(KPI_SLABS).forEach(([key, def]) => {
-      actualData[key] = parseRaw(row[def.rawKey]);
+    targetKeys.forEach(key => {
+      // Find the metric definition (could be from KPI_SLABS or custom)
+      const metric = planMetrics.find(m => m.kpi_key === key);
+      if (metric?.raw_key && KPI_SLABS[key]) {
+        // Standard KPI — pull from MTD
+        actualData[key] = parseRaw(row[KPI_SLABS[key].rawKey]);
+      } else if (metric?.raw_key) {
+        actualData[key] = parseRaw(row[metric.raw_key]);
+      } else {
+        // Custom metric — can't pull from MTD, skip
+      }
     });
 
-    // Check if targets met
-    const week = weeks.find(w => w.id === weekId);
-    let targetData = {};
-    try { targetData = JSON.parse(week?.target_data || "{}"); } catch { }
-
-    const metTargets = Object.keys(targetData).every(key => {
+    // Check if targets met (only for keys that have actuals)
+    const metTargets = targetKeys.every(key => {
       const actual = actualData[key];
       const target = targetData[key];
-      return actual !== null && actual >= target;
+      if (actual === null || actual === undefined) return true; // custom metrics without actuals don't block
+      if (target === null || target === undefined || target === "") return true;
+      return Number(actual) >= Number(target);
     });
 
     try {
@@ -2657,7 +2683,7 @@ function ActionPlanPage({ token, profile }) {
         },
         filters: `id=eq.${weekId}`,
       });
-      show("success", "Week actuals updated from MTD data");
+      show("success", "Actuals updated from MTD (" + latestMonth + ")");
       load();
     } catch (e) { show("error", e.message); }
   };
