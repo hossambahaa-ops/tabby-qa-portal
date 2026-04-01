@@ -1222,49 +1222,29 @@ function LeaderboardPage({token, profile}) {
         const qMonths = qData ? qData.months : [];
         const qRows = data.filter(r => qMonths.includes(r.month));
 
-        // Group by QA and SUM raw KPIs
+        // For each QA, calculate their slab score % per month, then sum across the quarter
         const qaMap = {};
         qRows.forEach(row => {
           const email = row.qa_email?.toLowerCase();
           if (!email) return;
           if (selDomain && !email.endsWith("@" + selDomain)) return;
           if (selTeam && rosterMap[email]?.queue !== selTeam) return;
-          if (!qaMap[email]) qaMap[email] = { email: row.qa_email, months_present: 0, kpi_sums: {}, tl: row.qa_tl, totalDsat: 0, totalTickets: 0, totalWorkingDays: 0 };
+          if (!qaMap[email]) qaMap[email] = { email: row.qa_email, months_present: 0, monthlyScorePcts: [], tl: row.qa_tl, totalDsat: 0, totalTickets: 0, totalWorkingDays: 0 };
           qaMap[email].months_present++;
           qaMap[email].totalDsat += (row.dsat || 0);
           qaMap[email].totalTickets += (row.ticket_per_day || 0);
           qaMap[email].totalWorkingDays += (row.working_days || 0);
-          Object.entries(KPI_SLABS).forEach(([key, def]) => {
-            const raw = parseRaw(row[def.rawKey]);
-            if (raw !== null) {
-              if (!qaMap[email].kpi_sums[key]) qaMap[email].kpi_sums[key] = 0;
-              qaMap[email].kpi_sums[key] += raw;
-            }
-          });
+          // Calculate this month's slab score (out of 55) → convert to %
+          const monthScore = getTotalScore(row); // uses the existing slab engine, returns 0-55
+          const monthPct = (monthScore / 55) * 100;
+          qaMap[email].monthlyScorePcts.push(monthPct);
         });
 
-        // Slab on summed values (thresholds scaled by months present)
-        const getQuarterlyKpis = (qa) => {
-          return Object.entries(KPI_SLABS).map(([key, def]) => {
-            const rawSum = qa.kpi_sums[key] || null;
-            const mc = qa.months_present || 1;
-            const scaledTh = def.thresholds.map(t => t * mc);
-            const slab = (() => {
-              if (rawSum === null) return { slab: 0, pct: 0, label: "No data" };
-              if (rawSum >= scaledTh[2]) return { slab: 3, pct: 100, label: "Slab 3" };
-              if (rawSum >= scaledTh[1]) return { slab: 2, pct: 75, label: "Slab 2" };
-              if (rawSum >= scaledTh[0]) return { slab: 1, pct: 50, label: "Slab 1" };
-              return { slab: 0, pct: 0, label: "Slab 0" };
-            })();
-            const score = (def.weight * slab.pct) / 100;
-            return { key, label: def.label, weight: def.weight, rawSum, monthCount: mc, slab, score, scaledTh };
-          });
-        };
-        const getQuarterlyTotal = (qa) => getQuarterlyKpis(qa).reduce((s, k) => s + k.score, 0);
-
-        const allQas = Object.values(qaMap).map(qa => ({
-          ...qa, kpis: getQuarterlyKpis(qa), totalScore: getQuarterlyTotal(qa),
-        })).sort((a, b) => b.totalScore - a.totalScore);
+        // Quarterly total = sum of monthly score percentages
+        const allQas = Object.values(qaMap).map(qa => {
+          const totalPct = qa.monthlyScorePcts.reduce((s, p) => s + p, 0);
+          return { ...qa, totalScore: totalPct };
+        }).sort((a, b) => b.totalScore - a.totalScore);
 
         // Visibility
         const myEmailQ = profile?.email?.toLowerCase();
@@ -1304,8 +1284,6 @@ function LeaderboardPage({token, profile}) {
           }
         }
 
-        const qMaxScore = 55;
-
         return <div>
           <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap",alignItems:"center"}}>
             <select className="select" value={activeQ} onChange={e=>{setSelQuarter(e.target.value);setSelQaQuarterly("");}}>
@@ -1323,7 +1301,7 @@ function LeaderboardPage({token, profile}) {
                 return <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:"0 0 var(--radius) var(--radius)",boxShadow:"var(--shadow-lg)",maxHeight:220,overflowY:"auto"}}>
                   {matches.map(qa=><div key={qa.email} onClick={()=>setSelQaQuarterly(qa.email)} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <span style={{fontWeight:500}}>{nameFromEmail(qa.email)}</span>
-                    <span style={{fontSize:12,fontWeight:600,color:scoreColor(qa.totalScore)}}>{qa.totalScore.toFixed(1)}</span>
+                    <span style={{fontSize:12,fontWeight:600}}>{qa.totalScore.toFixed(1)}%</span>
                   </div>)}
                 </div>;
               })()}
@@ -1335,7 +1313,7 @@ function LeaderboardPage({token, profile}) {
           <div className="stats-grid" style={{marginBottom:20}}>
             <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>📅</div><div className="stat-label">Quarter</div><div className="stat-value">{activeQ}</div></div>
             <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>👥</div><div className="stat-label">QAs ranked</div><div className="stat-value">{allQas.length}</div></div>
-            <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>📊</div><div className="stat-label">Avg score</div><div className="stat-value" style={{color:scoreColor(allQas.length?(allQas.reduce((a,q)=>a+q.totalScore,0)/allQas.length):0)}}>{allQas.length?(allQas.reduce((a,q)=>a+q.totalScore,0)/allQas.length).toFixed(1):"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {qMaxScore}</span></div></div>
+            <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>📊</div><div className="stat-label">Avg total</div><div className="stat-value">{allQas.length?(allQas.reduce((a,q)=>a+q.totalScore,0)/allQas.length).toFixed(1)+"%":"—"}</div></div>
             {allQas[0] && <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Top performer</div><div className="stat-value" style={{fontSize:16}}>{nameFromEmail(allQas[0].email)}</div></div>}
           </div>
 
@@ -1348,7 +1326,7 @@ function LeaderboardPage({token, profile}) {
                 <div style={{width:isGold?52:40,height:isGold?52:40,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:600,fontSize:isGold?16:13,margin:"0 auto 8px"}}>{initialsFromEmail(qa.email)}</div>
                 <div style={{fontWeight:600,fontSize:isGold?15:14}}>{nameFromEmail(qa.email)}</div>
                 <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8}}>{activeQ}</div>
-                <div style={{fontSize:isGold?26:20,fontWeight:700,color:scoreColor(qa.totalScore)}}>{qa.totalScore.toFixed(1)}<span style={{fontSize:12,fontWeight:400,color:"var(--tx3)"}}> / {qMaxScore}</span></div>
+                <div style={{fontSize:isGold?26:20,fontWeight:700,color:"var(--accent-text)"}}>{qa.totalScore.toFixed(1)}%</div>
               </div>);
             })}
           </div>}
@@ -1363,26 +1341,27 @@ function LeaderboardPage({token, profile}) {
             <div className="table-wrap"><table><thead><tr>
               <th style={{width:50}}>#</th>
               <th>Specialist</th>
-              {Object.values(KPI_SLABS).map(k => <th key={k.label} style={{textAlign:"center",minWidth:100}}>{k.label}<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{k.weight}</span></th>)}
-              <th style={{textAlign:"center",minWidth:80}}>Total<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{qMaxScore}</span></th>
+              {qMonths.map(m => <th key={m} style={{textAlign:"center",minWidth:80}}>{m}</th>)}
+              <th style={{textAlign:"center",minWidth:80}}>Total</th>
             </tr></thead><tbody>
               {visibleQas.map((qa, i) => {
                 const actualRank = qa._myRank || (allQas.findIndex(q => q.email === qa.email) + 1);
                 const isMe = qa.email?.toLowerCase() === myEmailQ;
                 const showGap = isQaQ && qa._myRank && qa._myRank > 4;
                 return (<React.Fragment key={qa.email}>
-                  {showGap && <tr><td colSpan={3 + Object.keys(KPI_SLABS).length} style={{textAlign:"center",padding:"6px",color:"var(--tx3)",fontSize:12,background:"var(--bg)"}}>···</td></tr>}
+                  {showGap && <tr><td colSpan={3 + qMonths.length} style={{textAlign:"center",padding:"6px",color:"var(--tx3)",fontSize:12,background:"var(--bg)"}}>···</td></tr>}
                   <tr style={{background:isMe?"var(--accent-light)":"transparent"}}>
                     <td>{actualRank <= 3 ? <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:"50%",fontWeight:600,fontSize:12,background:actualRank===1?"#FEF3C7":actualRank===2?"#F3F4F6":"#FED7AA",color:actualRank===1?"#92400E":actualRank===2?"#374151":"#9A3412"}}>{actualRank}</span> : <span style={{color:"var(--tx3)",fontWeight:500}}>{actualRank}</span>}</td>
                     <td><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600}}>{initialsFromEmail(qa.email)}</div><div><div style={{fontWeight:500,fontSize:14}}>{nameFromEmail(qa.email)}{isMe?" (You)":""}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{qa.email}</div></div></div></td>
-                    {qa.kpis.map(k => (
-                      <td key={k.key} style={{textAlign:"center",padding:"8px 6px"}}>
-                        <div style={{fontSize:13,fontWeight:600,color:scoreColor(k.score/k.weight*qMaxScore)}}>{k.score.toFixed(1)}</div>
-                        <div style={{fontSize:10,color:"var(--tx3)"}}>{k.rawSum !== null ? k.rawSum.toFixed(1)+"%" : "—"}</div>
-                        <div style={{height:3,background:"var(--bd2)",borderRadius:2,marginTop:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:2,background:k.slab.pct>=75?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}/></div>
-                      </td>
-                    ))}
-                    <td style={{textAlign:"center"}}><span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:13,fontWeight:600,background:scoreBg(qa.totalScore),color:scoreColor(qa.totalScore)}}>{qa.totalScore.toFixed(1)}</span></td>
+                    {qMonths.map(m => {
+                      const row = data.find(r => r.month === m && r.qa_email?.toLowerCase() === qa.email?.toLowerCase());
+                      const monthScore = row ? getTotalScore(row) : null;
+                      const monthPct = monthScore !== null ? (monthScore / 55) * 100 : null;
+                      return <td key={m} style={{textAlign:"center",padding:"8px 6px"}}>
+                        <div style={{fontSize:13,fontWeight:600,color:monthPct===null?"var(--tx3)":monthPct>=70?"var(--green)":monthPct>=40?"var(--amber)":"var(--red)"}}>{monthPct !== null ? monthPct.toFixed(1)+"%" : "—"}</div>
+                      </td>;
+                    })}
+                    <td style={{textAlign:"center"}}><span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:13,fontWeight:700,background:"var(--accent-light)",color:"var(--accent-text)"}}>{qa.totalScore.toFixed(1)}%</span></td>
                   </tr>
                 </React.Fragment>);
               })}
