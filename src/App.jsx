@@ -681,17 +681,63 @@ function LeaderboardPage({token, profile}) {
     })();
   }, [token]);
 
-  const parsePct = (val) => {
-    if (!val) return 0;
-    const n = parseFloat(String(val).replace("%", "").replace(",", "."));
-    return isNaN(n) ? 0 : n;
+  // ── Slab calculation engine ──
+  // Parses raw value to a number (handles "94.46%", 0.944, 1.345, etc.)
+  const parseRaw = (val) => {
+    if (!val && val !== 0) return null;
+    const s = String(val).trim().replace(",", ".");
+    if (s.includes("%")) return parseFloat(s.replace("%", ""));
+    const n = parseFloat(s);
+    if (isNaN(n)) return null;
+    // If between 0 and 2, it's likely a decimal (0.944 = 94.4%)
+    if (n >= 0 && n <= 2) return n * 100;
+    return n;
+  };
+
+  // KPI slab definitions: { thresholds: [slab1, slab2, slab3], weight }
+  // Slab 0 = below slab1 → 0%, Slab 1 = ≥slab1 → 50%, Slab 2 = ≥slab2 → 75%, Slab 3 = ≥slab3 → 100%
+  const KPI_SLABS = {
+    occupancy:    { label: "Occupancy",            weight: 15, thresholds: [95, 98, 100], rawKey: "occupancy_pct" },
+    coaching:     { label: "Coaching on-time",     weight: 10, thresholds: [90, 93, 95],  rawKey: "ontime_coaching_pct" },
+    calibration:  { label: "Calibration",          weight: 10, thresholds: [85, 90, 95],  rawKey: "avg_calibration_match_rate" },
+    observation:  { label: "Coaching observation",  weight: 10, thresholds: [82, 85, 88],  rawKey: "avg_observation_score_pct" },
+    rtr:          { label: "RTR score",            weight: 10, thresholds: [80, 85, 90],  rawKey: "avg_rtr_score" },
+  };
+
+  const calcSlab = (rawPct, thresholds) => {
+    if (rawPct === null || rawPct === undefined) return { slab: 0, pct: 0, label: "No data" };
+    if (rawPct >= thresholds[2]) return { slab: 3, pct: 100, label: "Slab 3" };
+    if (rawPct >= thresholds[1]) return { slab: 2, pct: 75,  label: "Slab 2" };
+    if (rawPct >= thresholds[0]) return { slab: 1, pct: 50,  label: "Slab 1" };
+    return { slab: 0, pct: 0, label: "Slab 0" };
+  };
+
+  const getKpiScores = (row) => {
+    return Object.entries(KPI_SLABS).map(([key, def]) => {
+      const rawPct = parseRaw(row[def.rawKey]);
+      const slab = calcSlab(rawPct, def.thresholds);
+      const score = (def.weight * slab.pct) / 100; // weighted score
+      return { key, label: def.label, weight: def.weight, rawPct, slab, score, thresholds: def.thresholds };
+    });
+  };
+
+  const getTotalScore = (row) => {
+    const kpis = getKpiScores(row);
+    return kpis.reduce((sum, k) => sum + k.score, 0);
+  };
+
+  // Format raw percentage for display
+  const fmtRaw = (val) => {
+    if (val === null || val === undefined) return "—";
+    return val.toFixed(1) + "%";
   };
 
   const monthData = data.filter(r => r.month === selMonth);
   const filtered = search.trim()
     ? monthData.filter(r => r.qa_email.toLowerCase().includes(search.toLowerCase()))
     : monthData;
-  const ranked = [...filtered].sort((a, b) => (b.final_performance || 0) - (a.final_performance || 0));
+  // Rank by calculated total score (not final_performance)
+  const ranked = [...filtered].sort((a, b) => getTotalScore(b) - getTotalScore(a));
 
   const nameFromEmail = (email) => {
     if (!email) return "—";
@@ -708,36 +754,30 @@ function LeaderboardPage({token, profile}) {
     return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
   };
 
-  const kpiBreakdown = (row) => [
-    { label: "Occupancy", raw: row.occupancy_pct, score: parsePct(row.occupancy_score), weight: 15 },
-    { label: "Coaching on-time", raw: row.ontime_coaching_pct, score: parsePct(row.coaching_ontime_score), weight: 10 },
-    { label: "Calibration", raw: row.avg_calibration_match_rate, score: parsePct(row.calibration_score), weight: 10 },
-    { label: "Coaching observation", raw: row.avg_observation_score_pct, score: parsePct(row.coaching_observation_score), weight: 10 },
-    { label: "RTR", raw: row.avg_rtr_score, score: parsePct(row.rtr_score), weight: 10 },
-  ];
-
   const teamData = (() => {
     const tlMap = {};
     ranked.forEach(r => {
       const tl = r.qa_tl || "Unassigned";
-      if (!tlMap[tl]) tlMap[tl] = { tl, members: [], totalFP: 0 };
+      if (!tlMap[tl]) tlMap[tl] = { tl, members: [], totalScore: 0 };
       tlMap[tl].members.push(r);
-      tlMap[tl].totalFP += (r.final_performance || 0);
+      tlMap[tl].totalScore += getTotalScore(r);
     });
     return Object.values(tlMap).map(t => ({
       ...t,
-      avgFP: t.members.length ? (t.totalFP / t.members.length) : 0,
-      highest: t.members.length ? Math.max(...t.members.map(m => m.final_performance || 0)) : 0,
-      lowest: t.members.length ? Math.min(...t.members.map(m => m.final_performance || 0)) : 0,
+      avgScore: t.members.length ? (t.totalScore / t.members.length) : 0,
+      highest: t.members.length ? Math.max(...t.members.map(m => getTotalScore(m))) : 0,
+      lowest: t.members.length ? Math.min(...t.members.map(m => getTotalScore(m))) : 0,
       totalDsat: t.members.reduce((a, m) => a + (m.dsat || 0), 0),
-    })).sort((a, b) => b.avgFP - a.avgFP);
+    })).sort((a, b) => b.avgScore - a.avgScore);
   })();
 
-  const avgFP = ranked.length ? (ranked.reduce((a, r) => a + (r.final_performance || 0), 0) / ranked.length) : 0;
+  const maxScore = 55; // total weight of 5 non-CSAT KPIs
+  const avgScore = ranked.length ? (ranked.reduce((a, r) => a + getTotalScore(r), 0) / ranked.length) : 0;
   const topPerson = ranked[0];
   const totalDsat = ranked.reduce((a, r) => a + (r.dsat || 0), 0);
-  const fpColor = (v) => v >= 0.4 ? "var(--green)" : v >= 0.25 ? "var(--amber)" : "var(--red)";
-  const fpBg = (v) => v >= 0.4 ? "var(--green-bg)" : v >= 0.25 ? "var(--amber-bg)" : "var(--red-bg)";
+  // Color based on score out of 55
+  const scoreColor = (v) => v >= maxScore * 0.7 ? "var(--green)" : v >= maxScore * 0.4 ? "var(--amber)" : "var(--red)";
+  const scoreBg = (v) => v >= maxScore * 0.7 ? "var(--green-bg)" : v >= maxScore * 0.4 ? "var(--amber-bg)" : "var(--red-bg)";
 
   return (
     <div className="page">
@@ -763,53 +803,88 @@ function LeaderboardPage({token, profile}) {
 
       <div className="stats-grid">
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>🏆</div><div className="stat-label">{view==="individual"?"Ranked":"Teams"}</div><div className="stat-value">{view==="individual"?ranked.length:teamData.length}</div></div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Avg performance</div><div className="stat-value" style={{color:fpColor(avgFP)}}>{(avgFP*100).toFixed(1)}%</div></div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Avg score</div><div className="stat-value" style={{color:scoreColor(avgScore)}}>{avgScore.toFixed(1)}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div></div>
         {topPerson && view==="individual" && <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>⭐</div><div className="stat-label">Top performer</div><div className="stat-value" style={{fontSize:16}}>{nameFromEmail(topPerson.qa_email)}</div></div>}
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Total DSAT</div><div className="stat-value">{totalDsat}</div></div>
       </div>
 
       {view==="individual" && <>
+        {/* Podium top 3 */}
         {ranked.length >= 3 && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:16,marginBottom:28,flexWrap:"wrap"}}>
           {[1,0,2].map(idx => {
             const r = ranked[idx]; const rank = idx + 1; const isGold = rank === 1;
             const medals = ["","🥇","🥈","🥉"];
+            const total = getTotalScore(r);
             return (<div key={r.qa_email} className="card" style={{textAlign:"center",padding:isGold?"24px 28px":"18px 22px",minWidth:isGold?180:150,border:isGold?"2px solid var(--amber)":"1px solid var(--bd2)",transform:isGold?"translateY(-8px)":"none",transition:"transform .2s"}}>
               <div style={{fontSize:isGold?28:22,marginBottom:8}}>{medals[rank]}</div>
               <div style={{width:isGold?52:40,height:isGold?52:40,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:600,fontSize:isGold?16:13,margin:"0 auto 8px"}}>{initialsFromEmail(r.qa_email)}</div>
               <div style={{fontWeight:600,fontSize:isGold?15:14}}>{nameFromEmail(r.qa_email)}</div>
               <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8}}>{r.qa_email.split("@")[1]}</div>
-              <div style={{fontSize:isGold?26:20,fontWeight:700,color:fpColor(r.final_performance)}}>{((r.final_performance||0)*100).toFixed(1)}%</div>
+              <div style={{fontSize:isGold?26:20,fontWeight:700,color:scoreColor(total)}}>{total.toFixed(1)}<span style={{fontSize:12,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div>
               <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>JKQ: {r.jkq_result||"—"} · Tickets: {r.ticket_per_day}/day</div>
             </div>);
           })}
         </div>}
 
+        {/* Full ranking table */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Full rankings — {selMonth}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{ranked.length} specialists</span></div>
-          {ranked.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {selMonth}. Check that the sheet sync is running.</p></div> :
-          <div className="table-wrap"><table><thead><tr><th style={{width:50}}>#</th><th>Specialist</th><th>Team lead</th><th>Occupancy</th><th>Coaching</th><th>Calibration</th><th>RTR</th><th>Performance</th><th style={{width:40}}></th></tr></thead><tbody>
+          <div className="card-header"><span className="card-title">Full rankings — {selMonth}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{ranked.length} specialists · Scored out of {maxScore}</span></div>
+          {ranked.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {selMonth}.</p></div> :
+          <div className="table-wrap"><table><thead><tr>
+            <th style={{width:50}}>#</th>
+            <th>Specialist</th>
+            <th>TL</th>
+            {Object.values(KPI_SLABS).map(k => <th key={k.label} style={{textAlign:"center",minWidth:100}}>{k.label}<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{k.weight}</span></th>)}
+            <th style={{textAlign:"center",minWidth:80}}>Total<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{maxScore}</span></th>
+            <th style={{width:40}}></th>
+          </tr></thead><tbody>
             {ranked.map((r, i) => {
               const rank = i + 1; const isExp = expandedRow === r.id;
+              const kpis = getKpiScores(r);
+              const total = kpis.reduce((s, k) => s + k.score, 0);
               return (<React.Fragment key={r.id}>
                 <tr onClick={() => setExpandedRow(isExp ? null : r.id)} style={{cursor:"pointer"}}>
                   <td>{rank <= 3 ? <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:"50%",fontWeight:600,fontSize:12,background:rank===1?"#FEF3C7":rank===2?"#F3F4F6":"#FED7AA",color:rank===1?"#92400E":rank===2?"#374151":"#9A3412"}}>{rank}</span> : <span style={{color:"var(--tx3)",fontWeight:500}}>{rank}</span>}</td>
                   <td><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600}}>{initialsFromEmail(r.qa_email)}</div><div><div style={{fontWeight:500,fontSize:14}}>{nameFromEmail(r.qa_email)}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{r.qa_email}</div></div></div></td>
                   <td style={{fontSize:13,color:"var(--tx2)"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
-                  <td style={{fontSize:13}}>{(()=>{const v=r.occupancy_pct;if(!v)return"—";const s=String(v);if(s.includes("%"))return s;const n=parseFloat(s);if(isNaN(n))return s;return n>=0&&n<=2?(n*100).toFixed(1)+"%":n.toFixed(1)+"%";})()}</td>
-                  <td style={{fontSize:13}}>{(()=>{const v=r.coaching_ontime_score;if(!v)return"—";const s=String(v);if(s.includes("%"))return s;const n=parseFloat(s);if(isNaN(n))return s;return n>=0&&n<=2?(n*100).toFixed(1)+"%":n.toFixed(1)+"%";})()}</td>
-                  <td style={{fontSize:13}}>{(()=>{const v=r.calibration_score;if(!v)return"—";const s=String(v);if(s.includes("%"))return s;const n=parseFloat(s);if(isNaN(n))return s;return n>=0&&n<=2?(n*100).toFixed(1)+"%":n.toFixed(1)+"%";})()}</td>
-                  <td style={{fontSize:13}}>{(()=>{const v=r.rtr_score;if(!v)return"—";const s=String(v);if(s.includes("%"))return s;const n=parseFloat(s);if(isNaN(n))return s;return n>=0&&n<=2?(n*100).toFixed(1)+"%":n.toFixed(1)+"%";})()}</td>
-                  <td><span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:13,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>{((r.final_performance||0)*100).toFixed(1)}%</span></td>
+                  {kpis.map(k => (
+                    <td key={k.key} style={{textAlign:"center",padding:"8px 6px"}}>
+                      <div style={{fontSize:13,fontWeight:600,color:scoreColor(k.score/k.weight*maxScore)}}>{k.score.toFixed(1)}</div>
+                      <div style={{fontSize:10,color:"var(--tx3)"}}>{k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "—"}</div>
+                      <div style={{height:3,background:"var(--bd2)",borderRadius:2,marginTop:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:2,background:k.slab.pct>=75?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .3s"}}/></div>
+                    </td>
+                  ))}
+                  <td style={{textAlign:"center"}}>
+                    <span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:13,fontWeight:600,background:scoreBg(total),color:scoreColor(total)}}>{total.toFixed(1)}</span>
+                  </td>
                   <td><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
                 </tr>
-                {isExp && <tr><td colSpan={9} style={{padding:0,background:"var(--bg)"}}><div style={{padding:"16px 20px 16px 60px"}}>
-                  <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)",marginBottom:12,textTransform:"uppercase",letterSpacing:".5px"}}>KPI breakdown</div>
-                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px 24px"}}>
-                    {kpiBreakdown(r).map(kpi => (<div key={kpi.label}>
-                      <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}><span style={{fontSize:12,color:"var(--tx2)"}}>{kpi.label} ({kpi.weight}%)</span><span style={{fontSize:12,fontWeight:600,color:fpColor(kpi.score/15)}}>{kpi.score.toFixed(1)}%</span></div>
-                      <div style={{height:5,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${Math.min((kpi.score / kpi.weight) * 100, 100)}%`,height:"100%",borderRadius:3,background:kpi.score >= kpi.weight * 0.7 ? "var(--green)" : kpi.score >= kpi.weight * 0.4 ? "var(--amber)" : "var(--red)",transition:"width .4s ease"}}/></div>
-                      {kpi.raw && <div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>Raw: {kpi.raw}</div>}
-                    </div>))}
+
+                {/* Expanded KPI detail */}
+                {isExp && <tr><td colSpan={9+Object.keys(KPI_SLABS).length} style={{padding:0,background:"var(--bg)"}}><div style={{padding:"16px 20px 16px 60px"}}>
+                  <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)",marginBottom:12,textTransform:"uppercase",letterSpacing:".5px"}}>KPI slab breakdown</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px 24px"}}>
+                    {kpis.map(k => (
+                      <div key={k.key} style={{padding:"10px 12px",background:"var(--bg3)",borderRadius:8,border:"1px solid var(--bd2)"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
+                          <span style={{fontSize:13,fontWeight:600}}>{k.label}</span>
+                          <span style={{fontSize:13,fontWeight:700,color:scoreColor(k.score/k.weight*maxScore)}}>{k.score.toFixed(1)} / {k.weight}</span>
+                        </div>
+                        <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--tx2)",marginBottom:6}}>
+                          <span>Raw: {k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "No data"}</span>
+                          <span style={{padding:"1px 8px",borderRadius:10,fontSize:10,fontWeight:600,
+                            background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",
+                            color:k.slab.pct===100?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)"
+                          }}>{k.slab.label} ({k.slab.pct}%)</span>
+                        </div>
+                        <div style={{height:6,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct>=75?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .4s"}}/></div>
+                        <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--tx3)",marginTop:4}}>
+                          <span>Slab 1: ≥{k.thresholds[0]}%</span>
+                          <span>Slab 2: ≥{k.thresholds[1]}%</span>
+                          <span>Slab 3: ≥{k.thresholds[2]}%</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                   <div style={{display:"flex",gap:16,flexWrap:"wrap",marginTop:16,paddingTop:12,borderTop:"1px solid var(--bd2)"}}>
                     <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>Tickets/day: </span><span style={{fontWeight:600}}>{r.ticket_per_day}</span></div>
@@ -817,6 +892,7 @@ function LeaderboardPage({token, profile}) {
                     <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>DSAT: </span><span style={{fontWeight:600,color:(r.dsat||0)>20?"var(--red)":"var(--tx)"}}>{r.dsat||0}</span></div>
                     <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>SBS: </span><span style={{fontWeight:600}}>{r.sbs||0}</span></div>
                     <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>Working days: </span><span style={{fontWeight:600}}>{r.working_days||0}{r.ramadan_wds ? ` (${r.ramadan_wds} Ramadan)` : ""}</span></div>
+                    <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>Total: </span><span style={{fontWeight:700,color:scoreColor(total)}}>{total.toFixed(1)} / {maxScore}</span></div>
                   </div>
                 </div></td></tr>}
               </React.Fragment>);
@@ -835,22 +911,24 @@ function LeaderboardPage({token, profile}) {
                 <div style={{width:40,height:40,borderRadius:"50%",background:isGold?"var(--amber-bg)":"var(--bg2)",color:isGold?"var(--amber)":"var(--tx2)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:16}}>#{rank}</div>
                 <div><div style={{fontWeight:600,fontSize:15}}>{nameFromEmail(team.tl)}</div><div style={{fontSize:12,color:"var(--tx3)"}}>{team.tl} · {team.members.length} member{team.members.length!==1?"s":""}</div></div>
               </div>
-              <div style={{textAlign:"right"}}><div style={{fontSize:24,fontWeight:700,color:fpColor(team.avgFP)}}>{(team.avgFP*100).toFixed(1)}%</div><div style={{fontSize:11,color:"var(--tx3)"}}>avg performance</div></div>
+              <div style={{textAlign:"right"}}><div style={{fontSize:24,fontWeight:700,color:scoreColor(team.avgScore)}}>{team.avgScore.toFixed(1)}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div><div style={{fontSize:11,color:"var(--tx3)"}}>avg score</div></div>
             </div>
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,paddingTop:12,borderTop:"1px solid var(--bd2)",marginBottom:14}}>
-              <div><div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Highest</div><div style={{fontSize:16,fontWeight:600,color:"var(--green)"}}>{(team.highest*100).toFixed(1)}%</div></div>
-              <div><div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Lowest</div><div style={{fontSize:16,fontWeight:600,color:team.lowest<0.25?"var(--red)":"var(--tx)"}}>{(team.lowest*100).toFixed(1)}%</div></div>
+              <div><div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Highest</div><div style={{fontSize:16,fontWeight:600,color:"var(--green)"}}>{team.highest.toFixed(1)} / {maxScore}</div></div>
+              <div><div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Lowest</div><div style={{fontSize:16,fontWeight:600,color:scoreColor(team.lowest)}}>{team.lowest.toFixed(1)} / {maxScore}</div></div>
               <div><div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Total DSAT</div><div style={{fontSize:16,fontWeight:600,color:team.totalDsat>50?"var(--red)":"var(--tx)"}}>{team.totalDsat}</div></div>
             </div>
             <div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Members</div>
-            {team.members.sort((a,b)=>(b.final_performance||0)-(a.final_performance||0)).map((m,mi) => (
+            {team.members.sort((a,b)=>getTotalScore(b)-getTotalScore(a)).map((m,mi) => {
+              const mScore = getTotalScore(m);
+              return (
               <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:mi<team.members.length-1?"1px solid var(--bd2)":"none"}}>
                 <span style={{fontSize:12,color:"var(--tx3)",width:20,textAlign:"right"}}>{mi+1}.</span>
                 <div style={{width:24,height:24,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>{initialsFromEmail(m.qa_email)}</div>
                 <span style={{fontSize:13,flex:1}}>{nameFromEmail(m.qa_email)}</span>
-                <span style={{fontSize:13,fontWeight:600,color:fpColor(m.final_performance)}}>{((m.final_performance||0)*100).toFixed(1)}%</span>
-              </div>
-            ))}
+                <span style={{fontSize:13,fontWeight:600,color:scoreColor(mScore)}}>{mScore.toFixed(1)} / {maxScore}</span>
+              </div>);
+            })}
           </div>);
         })}
       </div>}
