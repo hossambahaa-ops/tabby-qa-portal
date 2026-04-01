@@ -281,7 +281,7 @@ function DashboardPage({profile,token}){
       const elapsed=filledWeeks.length;
       const successRate=filledWeeks.length?(metWeeks.length/filledWeeks.length*100):0;
       const daysLeft=myPlan.end_date?Math.max(0,Math.ceil((new Date(myPlan.end_date)-Date.now())/(1000*60*60*24))):null;
-      const targets=(() => { try { return JSON.parse(myPlan.targets||"[]"); } catch { return []; } })();
+      const targets=(() => { try { const p=JSON.parse(myPlan.targets||"[]"); return Array.isArray(p)?p:p.metrics||[]; } catch { return []; } })();
       const progressPct=totalW?(elapsed/totalW)*100:0;
       return <div className="card" style={{marginBottom:20,borderLeft:`4px solid ${myPlan.type==="pip"?"var(--red)":"var(--amber)"}`}}>
         <div className="card-header"><span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}>
@@ -1650,7 +1650,7 @@ function CoachingPage({token, profile}) {
   // Auto-fill target rows from active plan when meeting type is AP/PIP Review
   const autoFillFromPlan = () => {
     if (!memberActivePlan) return;
-    const targets = (() => { try { return JSON.parse(memberActivePlan.targets || "[]"); } catch { return []; } })();
+    const targets = (() => { try { const p=JSON.parse(memberActivePlan.targets || "[]"); return Array.isArray(p)?p:p.metrics||[]; } catch { return []; } })();
     if (targets.length === 0) return;
     const newRows = targets.map(t => {
       // Find current week's target
@@ -2781,6 +2781,15 @@ function ActionPlanPage({ token, profile }) {
   // ── Helper: parse JSON safely ──
   const safeJson = (str) => { try { return JSON.parse(str || "{}"); } catch { return {}; } };
   const safeJsonArr = (str) => { try { return JSON.parse(str || "[]"); } catch { return []; } };
+  // Parse targets — handles old format (array) and new format ({follow_up_mode, metrics})
+  const parseTargets = (str) => {
+    try {
+      const parsed = JSON.parse(str || "[]");
+      if (Array.isArray(parsed)) return { follow_up_mode: "weekly", metrics: parsed };
+      if (parsed.metrics) return parsed;
+      return { follow_up_mode: "weekly", metrics: [] };
+    } catch { return { follow_up_mode: "weekly", metrics: [] }; }
+  };
 
   // ── Filtered plans ──
   const isLead = hasRole(profile?.role, "qa_lead");
@@ -3179,7 +3188,8 @@ function ActionPlanPage({ token, profile }) {
             {activePlans.map(plan => {
               const prog = getPlanProgress(plan);
               const isExp = expandedPlan === plan.id;
-              const targets = safeJsonArr(plan.targets);
+              const targetsData = parseTargets(plan.targets);
+              const targets = targetsData.metrics;
               const autoRec = getAutoRecommendation(plan);
               const progressPct = prog.totalWeeks ? (prog.elapsed / prog.totalWeeks) * 100 : 0;
               const daysLeft = plan.end_date ? Math.max(0, Math.ceil((new Date(plan.end_date) - Date.now()) / (1000 * 60 * 60 * 24))) : null;
@@ -3245,13 +3255,13 @@ function ActionPlanPage({ token, profile }) {
                     </div>}
 
                     {/* Weekly tracking table */}
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>Weekly tracking</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>{targetsData.follow_up_mode === "monthly" ? "Monthly" : "Weekly"} tracking</div>
                     <div className="table-wrap">
                       <table style={{ fontSize: 12 }}>
                         <thead><tr>
-                          <th>Week</th>
+                          <th>{targetsData.follow_up_mode === "monthly" ? "Month" : "Week"}</th>
                           <th>Date</th>
-                          {targets.map(t => <th key={t.kpi_key} style={{ textAlign: "center" }}>{t.label}</th>)}
+                          {targets.map(t => <th key={t.kpi_key || t.label} style={{ textAlign: "center" }}>{t.label}{t.is_custom ? <div style={{fontSize:9,color:"var(--tx3)",fontWeight:400}}>Custom</div> : ""}</th>)}
                           <th style={{ textAlign: "center" }}>Met?</th>
                           <th style={{ width: 80 }}></th>
                         </tr></thead>
@@ -3263,19 +3273,20 @@ function ActionPlanPage({ token, profile }) {
 
                             return (
                               <tr key={week.id} style={{ background: hasActuals ? (week.met_targets ? "var(--green-bg)" : "var(--red-bg)") : "transparent" }}>
-                                <td style={{ fontWeight: 600 }}>W{week.week_number}</td>
+                                <td style={{ fontWeight: 600 }}>{targetsData.follow_up_mode === "monthly" ? "M" : "W"}{week.week_number}</td>
                                 <td style={{ fontSize: 11, color: "var(--tx3)" }}>
                                   {week.week_start ? new Date(week.week_start + "T00:00:00").toLocaleDateString("en-GB", { month: "short", day: "numeric" }) : "—"}
                                 </td>
                                 {targets.map(t => {
-                                  const target = targetData[t.kpi_key];
-                                  const actual = actualData?.[t.kpi_key];
-                                  const met = actual !== null && actual !== undefined && target !== undefined && actual >= target;
+                                  const tKey = t.kpi_key || t.label;
+                                  const target = targetData[tKey];
+                                  const actual = actualData?.[tKey];
+                                  const met = actual !== null && actual !== undefined && target !== undefined && Number(actual) >= Number(target);
                                   return (
-                                    <td key={t.kpi_key} style={{ textAlign: "center" }}>
-                                      <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target !== undefined ? target + "%" : "—"}</div>
+                                    <td key={tKey} style={{ textAlign: "center" }}>
+                                      <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target !== undefined ? target + (t.is_custom ? "" : "%") : "—"}</div>
                                       {hasActuals && <div style={{ fontSize: 12, fontWeight: 600, color: met ? "var(--green)" : "var(--red)" }}>
-                                        A: {actual !== null && actual !== undefined ? actual.toFixed(1) + "%" : "—"}
+                                        A: {actual !== null && actual !== undefined ? (typeof actual === "number" ? actual.toFixed(1) + "%" : actual) : "—"}
                                       </div>}
                                     </td>
                                   );
