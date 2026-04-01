@@ -139,7 +139,7 @@ function DashboardPage({profile,token}){
       <div className="stats-grid">
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>👥</div><div className="stat-label">My team</div><div className="stat-value">{allTeamEmails.length}</div></div>
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Team avg performance</div><div className="stat-value" style={{color:fpColor(teamAvgFP)}}>{(teamAvgFP*100).toFixed(1)}%</div>{teamTrend&&<div style={{fontSize:12,marginTop:4,color:Number(teamTrend)>=0?"var(--green)":"var(--red)"}}>{Number(teamTrend)>=0?"↑":"↓"} {Math.abs(teamTrend)}% vs {prevMonth}</div>}</div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Team DSAT</div><div className="stat-value" style={{color:teamDsat>30?"var(--red)":"var(--tx)"}}>{teamDsat}</div></div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Team DSAT</div><div className="stat-value" style={{color:"var(--tx)"}}>{teamDsat}</div></div>
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🚩</div><div className="stat-label">Pending DAM flags</div><div className="stat-value">{damCount}</div></div>
       </div>
 
@@ -152,7 +152,7 @@ function DashboardPage({profile,token}){
             <td style={{fontWeight:500}}>{nameFromEmail(r.qa_email)}</td>
             <td style={{textAlign:"right"}}><span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>{((r.final_performance||0)*100).toFixed(1)}%</span></td>
             <td style={{textAlign:"right",color:"var(--teal)",fontWeight:500}}>{r.ticket_per_day??0}</td>
-            <td style={{textAlign:"right",color:(r.dsat||0)>20?"var(--red)":"inherit",fontWeight:(r.dsat||0)>20?600:400}}>{r.dsat??0}</td>
+            <td style={{textAlign:"right"}}>{r.dsat??0}</td>
             <td style={{textAlign:"right"}}>{fmtPct(r.occupancy_pct)}</td>
             <td style={{textAlign:"right"}}>{fmtPct(r.avg_rtr_score)}</td>
             <td style={{textAlign:"center"}}>{r.jkq_result&&r.jkq_result!=="N/A"?<span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}</span>:<span style={{color:"var(--tx3)"}}>—</span>}</td>
@@ -167,7 +167,7 @@ function DashboardPage({profile,token}){
         <div className="stat-card"><div className="stat-icon" style={{background:fpBg(myData.final_performance),color:fpColor(myData.final_performance),fontSize:18}}>📊</div><div className="stat-label">My performance</div><div className="stat-value" style={{color:fpColor(myData.final_performance)}}>{((myData.final_performance||0)*100).toFixed(1)}%</div>{myPrevData&&<div style={{fontSize:12,marginTop:4,color:((myData.final_performance||0)-(myPrevData.final_performance||0))>=0?"var(--green)":"var(--red)"}}>{((myData.final_performance||0)-(myPrevData.final_performance||0))>=0?"↑":"↓"} {(Math.abs((myData.final_performance||0)-(myPrevData.final_performance||0))*100).toFixed(1)}% vs {prevMonth}</div>}</div>
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Rank</div><div className="stat-value">{myRank>0?"#"+myRank:"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {ranked.length}</span></div></div>
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--teal-bg)",color:"var(--teal)",fontSize:18}}>🎫</div><div className="stat-label">Tickets/day</div><div className="stat-value">{myData.ticket_per_day??0}</div></div>
-        <div className="stat-card"><div className="stat-icon" style={{background:(myData.dsat||0)>20?"var(--red-bg)":"var(--green-bg)",color:(myData.dsat||0)>20?"var(--red)":"var(--green)",fontSize:18}}>📋</div><div className="stat-label">DSAT</div><div className="stat-value">{myData.dsat??0}</div></div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--teal-bg)",color:"var(--teal)",fontSize:18}}>📋</div><div className="stat-label">DSAT</div><div className="stat-value">{myData.dsat??0}</div></div>
       </div>
 
       {/* My KPI detail */}
@@ -407,7 +407,7 @@ function ScoreEntryPage({token,profile}){
                   <td style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
                   <td style={{textAlign:"right"}}>{r.sbs ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.non_sbs ?? "—"}</td>
-                  <td style={{textAlign:"right",color:(r.dsat||0)>20?"var(--red)":"inherit",fontWeight:(r.dsat||0)>20?600:400}}>{r.dsat ?? "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.dsat ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.late_count ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.never_count ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.valid_count ?? "—"}</td>
@@ -889,7 +889,7 @@ function LeaderboardPage({token, profile}) {
                   <div style={{display:"flex",gap:16,flexWrap:"wrap",marginTop:16,paddingTop:12,borderTop:"1px solid var(--bd2)"}}>
                     <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>Tickets/day: </span><span style={{fontWeight:600}}>{r.ticket_per_day}</span></div>
                     <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>JKQ: </span><span style={{fontWeight:600,color:r.jkq_result==="Pass"?"var(--green)":r.jkq_result==="Missed"?"var(--red)":"var(--tx2)"}}>{r.jkq_result||"—"} {r.jkq_score>0?`(${r.jkq_score})`:""}</span></div>
-                    <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>DSAT: </span><span style={{fontWeight:600,color:(r.dsat||0)>20?"var(--red)":"var(--tx)"}}>{r.dsat||0}</span></div>
+                    <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>DSAT: </span><span style={{fontWeight:600}}>{r.dsat||0}</span></div>
                     <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>SBS: </span><span style={{fontWeight:600}}>{r.sbs||0}</span></div>
                     <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>Working days: </span><span style={{fontWeight:600}}>{r.working_days||0}{r.ramadan_wds ? ` (${r.ramadan_wds} Ramadan)` : ""}</span></div>
                     <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>Total: </span><span style={{fontWeight:700,color:scoreColor(total)}}>{total.toFixed(1)} / {maxScore}</span></div>
@@ -916,7 +916,7 @@ function LeaderboardPage({token, profile}) {
             <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,paddingTop:12,borderTop:"1px solid var(--bd2)",marginBottom:14}}>
               <div><div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Highest</div><div style={{fontSize:16,fontWeight:600,color:"var(--green)"}}>{team.highest.toFixed(1)} / {maxScore}</div></div>
               <div><div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Lowest</div><div style={{fontSize:16,fontWeight:600,color:scoreColor(team.lowest)}}>{team.lowest.toFixed(1)} / {maxScore}</div></div>
-              <div><div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Total DSAT</div><div style={{fontSize:16,fontWeight:600,color:team.totalDsat>50?"var(--red)":"var(--tx)"}}>{team.totalDsat}</div></div>
+              <div><div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Total DSAT</div><div style={{fontSize:16,fontWeight:600,color:"var(--tx)"}}>{team.totalDsat}</div></div>
             </div>
             <div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Members</div>
             {team.members.sort((a,b)=>getTotalScore(b)-getTotalScore(a)).map((m,mi) => {
