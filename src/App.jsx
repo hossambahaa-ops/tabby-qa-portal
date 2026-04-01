@@ -360,7 +360,7 @@ function ScoreEntryPage({token,profile}){
   const tlEmails = [...new Set(monthData.map(r => r.qa_tl).filter(Boolean))].sort();
   const rosterMap = {};
   roster.forEach(r => { rosterMap[r.email?.toLowerCase()] = r; });
-  const scoreTeams = [...new Set(roster.map(r => r.queue).filter(Boolean))].sort();
+  const scoreTeams = [...new Set(roster.filter(r => r.queue && (!selDomain || r.email?.endsWith("@"+selDomain))).map(r => r.queue))].sort();
   let filtered = monthData;
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
   if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
@@ -726,6 +726,7 @@ function LeaderboardPage({token, profile}) {
   const [months, setMonths] = useState([]);
   const [selMonth, setSelMonth] = useState("");
   const [selTeam, setSelTeam] = useState("");
+  const [selDomain, setSelDomain] = useState("");
   const [view, setView] = useState("individual");
   const [expandedRow, setExpandedRow] = useState(null);
   const [search, setSearch] = useState("");
@@ -805,11 +806,12 @@ function LeaderboardPage({token, profile}) {
   const monthData = data.filter(r => r.month === selMonth);
   const rosterMap = {};
   roster.forEach(r => { rosterMap[r.email?.toLowerCase()] = r; });
-  const teams = [...new Set(roster.map(r => r.queue).filter(Boolean))].sort();
+  const teams = [...new Set(roster.filter(r => r.queue && (!selDomain || r.email?.endsWith("@"+selDomain))).map(r => r.queue))].sort();
   let filtered = monthData;
+  if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
   if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
   if (search.trim()) filtered = filtered.filter(r => r.qa_email.toLowerCase().includes(search.toLowerCase()));
-  // Rank by calculated total score (not final_performance)
+  // Rank by calculated total score
   const ranked = [...filtered].sort((a, b) => getTotalScore(b) - getTotalScore(a));
 
   const nameFromEmail = (email) => {
@@ -859,9 +861,16 @@ function LeaderboardPage({token, profile}) {
           <div className="page-title">Leaderboard</div>
           <div className="page-subtitle">Performance rankings — {selMonth || "All months"}</div>
         </div>
-        <select className="select" value={selMonth} onChange={e => setSelMonth(e.target.value)}>
-          {months.map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+          <select className="select" value={selMonth} onChange={e=>{setSelMonth(e.target.value);setSelDomain("");setSelTeam("");}}>
+            {months.map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <select className="select" value={selDomain} onChange={e=>{setSelDomain(e.target.value);setSelTeam("");}}>
+            <option value="">All domains</option>
+            <option value="tabby.ai">tabby.ai</option>
+            <option value="tabby.sa">tabby.sa</option>
+          </select>
+        </div>
       </div>
 
       {loading ? <div className="loading-spinner"><div className="spinner"/></div> : <>
@@ -871,8 +880,8 @@ function LeaderboardPage({token, profile}) {
           <button className={`tab ${view==="individual"?"active":""}`} onClick={()=>setView("individual")}>Individual</button>
           <button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>
         </div>
-        <select className="select" value={selTeam} onChange={e=>setSelTeam(e.target.value)} style={{marginLeft:8}}>
-          <option value="">All teams</option>
+        <select className="select" value={selTeam} onChange={e=>setSelTeam(e.target.value)}>
+          <option value="">All teams ({teams.length})</option>
           {teams.map(t => <option key={t} value={t}>{t}</option>)}
         </select>
         {view==="individual" && <input className="input" placeholder="Search by email..." value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:220,marginLeft:"auto"}}/>}
