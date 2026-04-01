@@ -441,12 +441,19 @@ function DashboardPage({profile,token}){
     </div>}
 
     {/* ── Global stats (for admins/supervisors) ── */}
-    {hasRole(profile?.role,"qa_supervisor")&&<div className="stats-grid">
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>👥</div><div className="stat-label">Total QAs (roster)</div><div className="stat-value">{roster.length}</div></div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>👔</div><div className="stat-label">Team leads</div><div className="stat-value">{[...new Set(roster.map(r=>r.manager_email).filter(Boolean))].length}</div></div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Avg score ({latestMonth})</div><div className="stat-value" style={{color:scoreColor(ranked.length?ranked.reduce((a,r)=>a+getScore(r),0)/ranked.length:0)}}>{ranked.length?(ranked.reduce((a,r)=>a+getScore(r),0)/ranked.length).toFixed(1):"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div></div>
-      <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Total DSAT ({latestMonth})</div><div className="stat-value">{current.reduce((a,r)=>a+(r.dsat||0),0)}</div></div>
-    </div>}
+    {hasRole(profile?.role,"qa_supervisor")&&(()=>{
+      const svDomain=profile?.operational_domain||profile?.domain||"tabby.ai";
+      const isAdminRole=hasRole(profile?.role,"admin");
+      const svRoster=isAdminRole?roster:roster.filter(r=>r.email?.endsWith("@"+svDomain));
+      const svCurrent=isAdminRole?current:current.filter(r=>r.qa_email?.endsWith("@"+svDomain));
+      const svRanked=isAdminRole?ranked:[...svCurrent].sort((a,b)=>getScore(b)-getScore(a));
+      return <div className="stats-grid">
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>👥</div><div className="stat-label">Total QAs ({isAdminRole?"all":svDomain})</div><div className="stat-value">{svRoster.length}</div></div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>👔</div><div className="stat-label">Team leads</div><div className="stat-value">{[...new Set(svRoster.map(r=>r.manager_email).filter(Boolean))].length}</div></div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Avg score ({latestMonth})</div><div className="stat-value" style={{color:scoreColor(svRanked.length?svRanked.reduce((a,r)=>a+getScore(r),0)/svRanked.length:0)}}>{svRanked.length?(svRanked.reduce((a,r)=>a+getScore(r),0)/svRanked.length).toFixed(1):"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div></div>
+        <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Total DSAT ({latestMonth})</div><div className="stat-value">{svCurrent.reduce((a,r)=>a+(r.dsat||0),0)}</div></div>
+      </div>;
+    })()}
 
     </>}
   </div>);
@@ -599,6 +606,11 @@ function ScoreEntryPage({token,profile}){
         const uniqueMonths = [...new Set(filtered.map(r => r.month))];
         setMonths(uniqueMonths);
         if (uniqueMonths.length > 0) setSelMonth(uniqueMonths[0]);
+        // Auto-scope supervisors to their domain
+        if (hasRole(profile?.role,"qa_supervisor") && !hasRole(profile?.role,"admin") && !selDomain) {
+          const svDomain = profile?.operational_domain || profile?.domain || "";
+          if (svDomain) setSelDomain(svDomain);
+        }
       } catch (e) { console.error("MTD Scores:", e); }
       setLoading(false);
     })();
@@ -669,8 +681,8 @@ function ScoreEntryPage({token,profile}){
         </div>
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">Domain</label>
-          <select className="select form-input" value={selDomain} onChange={e=>{setSelDomain(e.target.value);setSelQA("");setSelTL("");setSelTeam("");}}>
-            <option value="">All domains</option>
+          <select className="select form-input" value={selDomain} onChange={e=>{setSelDomain(e.target.value);setSelQA("");setSelTL("");setSelTeam("");}} disabled={hasRole(profile?.role,"qa_supervisor")&&!hasRole(profile?.role,"admin")}>
+            {(!hasRole(profile?.role,"qa_supervisor")||hasRole(profile?.role,"admin"))&&<option value="">All domains</option>}
             <option value="tabby.ai">tabby.ai</option>
             <option value="tabby.sa">tabby.sa</option>
           </select>
@@ -860,7 +872,14 @@ function DAMPage({token,profile}){
       sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action,deduction_days,is_hr_investigation",filters:"order=rule_id.asc,occurrence.asc",token}),
       sb.query("profiles",{select:"id,display_name,email,role",filters:"status=eq.active",token}),
     ]);
-    setRules(r);setFlags(f);setSteps(s);setProfiles(p);
+    setRules(r);
+    // Scope flags and profiles by domain for supervisors
+    const svDomain=profile?.operational_domain||profile?.domain||"tabby.ai";
+    const isAdminDAM=hasRole(profile?.role,"admin");
+    const isSvDAM=hasRole(profile?.role,"qa_supervisor")&&!isAdminDAM;
+    const scopedFlags=isSvDAM?f.filter(fl=>fl.profiles?.email?.endsWith("@"+svDomain)):f;
+    const scopedProfiles=isSvDAM?p.filter(pr=>pr.email?.endsWith("@"+svDomain)):p;
+    setFlags(scopedFlags);setSteps(s);setProfiles(scopedProfiles);
   }catch(e){console.error(e);}setLoading(false);},[token]);
 
   useEffect(()=>{load();},[load]);
@@ -1043,6 +1062,11 @@ function LeaderboardPage({token, profile}) {
         const uniqueMonths = [...new Set(qaOnlyRows.map(r => r.month))];
         setMonths(uniqueMonths);
         if (uniqueMonths.length > 0 && !selMonth) setSelMonth(uniqueMonths[0]);
+        // Auto-scope supervisors to their domain
+        if (hasRole(profile?.role,"qa_supervisor") && !hasRole(profile?.role,"admin") && !selDomain) {
+          const svDomain = profile?.operational_domain || profile?.domain || "";
+          if (svDomain) setSelDomain(svDomain);
+        }
       } catch (e) {
         console.error("Leaderboard:", e);
         show("error", "Failed to load leaderboard data");
@@ -1164,8 +1188,8 @@ function LeaderboardPage({token, profile}) {
           <select className="select" value={selMonth} onChange={e=>{setSelMonth(e.target.value);setSelDomain("");setSelTeam("");}}>
             {months.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
-          <select className="select" value={selDomain} onChange={e=>{setSelDomain(e.target.value);setSelTeam("");}}>
-            <option value="">All domains</option>
+          <select className="select" value={selDomain} onChange={e=>{setSelDomain(e.target.value);setSelTeam("");}} disabled={hasRole(profile?.role,"qa_supervisor")&&!hasRole(profile?.role,"admin")}>
+            {(!hasRole(profile?.role,"qa_supervisor")||hasRole(profile?.role,"admin"))&&<option value="">All domains</option>}
             <option value="tabby.ai">tabby.ai</option>
             <option value="tabby.sa">tabby.sa</option>
           </select>
@@ -1602,9 +1626,12 @@ function CoachingPage({token, profile}) {
           sb.query("action_plans", {select:"*",filters:"status=eq.active",token}).catch(()=>[]),
           sb.query("action_plan_weeks", {select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
         ]);
-        setRoster(r);
-        setSessions(s);
-        setActivePlans(ap);
+        const svDomainC=profile?.operational_domain||profile?.domain||"tabby.ai";
+        const isAdminC=hasRole(profile?.role,"admin");
+        const isSvC=hasRole(profile?.role,"qa_supervisor")&&!isAdminC;
+        setRoster(isSvC?r.filter(x=>x.email?.endsWith("@"+svDomainC)):r);
+        setSessions(isSvC?s.filter(x=>x.member_email?.endsWith("@"+svDomainC)):s);
+        setActivePlans(isSvC?ap.filter(x=>x.qa_email?.endsWith("@"+svDomainC)):ap);
         setPlanWeeks(apw);
       } catch (e) { console.error("Coaching load:", e); }
     })();
