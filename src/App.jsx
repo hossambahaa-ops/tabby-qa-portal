@@ -1324,7 +1324,7 @@ function LeaderboardPage({token, profile}) {
                 <div style={{fontSize:isGold?28:22,marginBottom:8}}>{medals[rank]}</div>
                 <div style={{width:isGold?52:40,height:isGold?52:40,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:600,fontSize:isGold?16:13,margin:"0 auto 8px"}}>{initialsFromEmail(qa.email)}</div>
                 <div style={{fontWeight:600,fontSize:isGold?15:14}}>{nameFromEmail(qa.email)}</div>
-                <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8}}>{qa.months_present} month{qa.months_present!==1?"s":""}</div>
+                <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8}}>{activeQ}</div>
                 <div style={{fontSize:isGold?26:20,fontWeight:700,color:scoreColor(qa.totalScore)}}>{qa.totalScore.toFixed(1)}<span style={{fontSize:12,fontWeight:400,color:"var(--tx3)"}}> / {qMaxScore}</span></div>
               </div>);
             })}
@@ -1335,13 +1335,12 @@ function LeaderboardPage({token, profile}) {
           </div>}
 
           <div className="card">
-            <div className="card-header"><span className="card-title">Quarterly rankings — {activeQ}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{visibleQas.length} visible · KPIs summed across {qMonths.length} month{qMonths.length!==1?"s":""}</span></div>
+            <div className="card-header"><span className="card-title">Quarterly rankings — {activeQ}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{visibleQas.length} specialists</span></div>
             {visibleQas.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {activeQ}.</p></div> :
             <div className="table-wrap"><table><thead><tr>
               <th style={{width:50}}>#</th>
               <th>Specialist</th>
-              <th>Months</th>
-              {Object.values(KPI_SLABS).map(k => <th key={k.label} style={{textAlign:"center",minWidth:100}}>{k.label}<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>sum /{k.weight}</span></th>)}
+              {Object.values(KPI_SLABS).map(k => <th key={k.label} style={{textAlign:"center",minWidth:100}}>{k.label}<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{k.weight}</span></th>)}
               <th style={{textAlign:"center",minWidth:80}}>Total<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{qMaxScore}</span></th>
             </tr></thead><tbody>
               {visibleQas.map((qa, i) => {
@@ -1349,11 +1348,10 @@ function LeaderboardPage({token, profile}) {
                 const isMe = qa.email?.toLowerCase() === myEmailQ;
                 const showGap = isQaQ && qa._myRank && qa._myRank > 4;
                 return (<React.Fragment key={qa.email}>
-                  {showGap && <tr><td colSpan={4 + Object.keys(KPI_SLABS).length} style={{textAlign:"center",padding:"6px",color:"var(--tx3)",fontSize:12,background:"var(--bg)"}}>···</td></tr>}
+                  {showGap && <tr><td colSpan={3 + Object.keys(KPI_SLABS).length} style={{textAlign:"center",padding:"6px",color:"var(--tx3)",fontSize:12,background:"var(--bg)"}}>···</td></tr>}
                   <tr style={{background:isMe?"var(--accent-light)":"transparent"}}>
                     <td>{actualRank <= 3 ? <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:"50%",fontWeight:600,fontSize:12,background:actualRank===1?"#FEF3C7":actualRank===2?"#F3F4F6":"#FED7AA",color:actualRank===1?"#92400E":actualRank===2?"#374151":"#9A3412"}}>{actualRank}</span> : <span style={{color:"var(--tx3)",fontWeight:500}}>{actualRank}</span>}</td>
                     <td><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600}}>{initialsFromEmail(qa.email)}</div><div><div style={{fontWeight:500,fontSize:14}}>{nameFromEmail(qa.email)}{isMe?" (You)":""}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{qa.email}</div></div></div></td>
-                    <td style={{fontSize:12,color:"var(--tx2)"}}>{qa.months_present}/3</td>
                     {qa.kpis.map(k => (
                       <td key={k.key} style={{textAlign:"center",padding:"8px 6px"}}>
                         <div style={{fontSize:13,fontWeight:600,color:scoreColor(k.score/k.weight*qMaxScore)}}>{k.score.toFixed(1)}</div>
