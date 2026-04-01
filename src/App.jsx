@@ -74,7 +74,7 @@ function DashboardPage({profile,token}){
   const isLead=hasRole(profile?.role,"qa_lead");
 
   const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
-  const fmt=(val)=>{if(val===null||val===undefined||val==="")return"—";if(typeof val==="string"&&val.includes("%"))return val;if(typeof val==="number"&&val>0&&val<1)return(val*100).toFixed(1)+"%";if(typeof val==="number"&&!Number.isInteger(val))return val.toFixed(2);return String(val);};
+  const fmt=(val)=>{if(val===null||val===undefined||val==="")return"—";const s=String(val).trim();if(s.includes("%"))return s;const n=parseFloat(s.replace(",","."));if(isNaN(n))return s;if(n>=0&&n<=2)return(n*100).toFixed(1)+"%";if(n>2&&!Number.isInteger(n))return n.toFixed(1)+"%";return String(val);};
   const fpColor=(v)=>v>=0.4?"var(--green)":v>=0.25?"var(--amber)":"var(--red)";
   const fpBg=(v)=>v>=0.4?"var(--green-bg)":v>=0.25?"var(--amber-bg)":"var(--red-bg)";
 
@@ -153,8 +153,8 @@ function DashboardPage({profile,token}){
             <td style={{textAlign:"right"}}><span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>{((r.final_performance||0)*100).toFixed(1)}%</span></td>
             <td style={{textAlign:"right",color:"var(--teal)",fontWeight:500}}>{r.ticket_per_day??0}</td>
             <td style={{textAlign:"right",color:(r.dsat||0)>20?"var(--red)":"inherit",fontWeight:(r.dsat||0)>20?600:400}}>{r.dsat??0}</td>
-            <td style={{textAlign:"right"}}>{fmt(r.occupancy_pct)}</td>
-            <td style={{textAlign:"right"}}>{fmt(r.avg_rtr_score)}</td>
+            <td style={{textAlign:"right"}}>{fmtPct(r.occupancy_pct)}</td>
+            <td style={{textAlign:"right"}}>{fmtPct(r.avg_rtr_score)}</td>
             <td style={{textAlign:"center"}}>{r.jkq_result&&r.jkq_result!=="N/A"?<span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}</span>:<span style={{color:"var(--tx3)"}}>—</span>}</td>
           </tr>))}
         </tbody></table></div>
@@ -276,11 +276,24 @@ function ScoreEntryPage({token,profile}){
     }).filter(Boolean).join(" ");
   };
 
-  // Format values: percentages, decimals, etc.
+  // Format percentage values — handles "94.46%", 0.9446, 1.345, "1", etc.
+  const fmtPct = (val) => {
+    if (val === null || val === undefined || val === "") return "—";
+    const s = String(val).trim();
+    if (s.includes("%")) return s; // already formatted
+    const n = parseFloat(s.replace(",", "."));
+    if (isNaN(n)) return s;
+    // If it looks like a 0-1 decimal, multiply by 100
+    // If > 1 and < 2, it's likely a raw decimal like 1.345 meaning 134.5%
+    // If > 2, it's already a percentage value like 94.46
+    if (n >= 0 && n <= 2) return (n * 100).toFixed(1) + "%";
+    return n.toFixed(1) + "%";
+  };
+
+  // Format general values
   const fmt = (val) => {
     if (val === null || val === undefined || val === "") return "—";
     if (typeof val === "string" && val.includes("%")) return val;
-    if (typeof val === "number" && val > 0 && val < 1) return (val * 100).toFixed(1) + "%";
     if (typeof val === "number" && !Number.isInteger(val)) return val.toFixed(2);
     return String(val);
   };
@@ -404,20 +417,20 @@ function ScoreEntryPage({token,profile}){
                   <td style={{textAlign:"right"}}>{r.coaching_eligibility_count ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.not_coached ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.rtr_count ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{fmt(r.avg_rtr_score)}</td>
+                  <td style={{textAlign:"right"}}>{fmtPct(r.avg_rtr_score)}</td>
                   <td style={{textAlign:"right"}}>{r.observed_coaching_count ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{fmt(r.avg_observation_score_pct)}</td>
+                  <td style={{textAlign:"right"}}>{fmtPct(r.avg_observation_score_pct)}</td>
                   <td style={{textAlign:"right"}}>{r.calibration_count ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{fmt(r.avg_calibration_match_rate)}</td>
-                  <td style={{textAlign:"right"}}>{fmt(r.coaching_completion_pct)}</td>
-                  <td style={{textAlign:"right"}}>{fmt(r.ontime_coaching_pct)}</td>
+                  <td style={{textAlign:"right"}}>{fmtPct(r.avg_calibration_match_rate)}</td>
+                  <td style={{textAlign:"right"}}>{fmtPct(r.coaching_completion_pct)}</td>
+                  <td style={{textAlign:"right"}}>{fmtPct(r.ontime_coaching_pct)}</td>
                   <td style={{textAlign:"center"}}>
                     {r.jkq_result && r.jkq_result !== "N/A" ? (
                       <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}{r.jkq_score>0?` (${r.jkq_score})`:""}</span>
                     ) : <span style={{color:"var(--tx3)"}}>—</span>}
                   </td>
                   <td style={{textAlign:"right",color:"var(--teal)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{fmt(r.occupancy_pct)}</td>
+                  <td style={{textAlign:"right"}}>{fmtPct(r.occupancy_pct)}</td>
                   <td style={{textAlign:"right"}}>{r.working_days||"—"}{r.ramadan_wds?<span style={{fontSize:10,color:"var(--tx3)"}}> ({r.ramadan_wds}R)</span>:""}</td>
                   <td style={{textAlign:"right"}}>
                     <span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>
@@ -782,10 +795,10 @@ function LeaderboardPage({token, profile}) {
                   <td>{rank <= 3 ? <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:"50%",fontWeight:600,fontSize:12,background:rank===1?"#FEF3C7":rank===2?"#F3F4F6":"#FED7AA",color:rank===1?"#92400E":rank===2?"#374151":"#9A3412"}}>{rank}</span> : <span style={{color:"var(--tx3)",fontWeight:500}}>{rank}</span>}</td>
                   <td><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600}}>{initialsFromEmail(r.qa_email)}</div><div><div style={{fontWeight:500,fontSize:14}}>{nameFromEmail(r.qa_email)}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{r.qa_email}</div></div></div></td>
                   <td style={{fontSize:13,color:"var(--tx2)"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
-                  <td style={{fontSize:13}}>{r.occupancy_pct || "—"}</td>
-                  <td style={{fontSize:13}}>{r.coaching_ontime_score || "—"}</td>
-                  <td style={{fontSize:13}}>{r.calibration_score || "—"}</td>
-                  <td style={{fontSize:13}}>{r.rtr_score || "—"}</td>
+                  <td style={{fontSize:13}}>{(()=>{const v=r.occupancy_pct;if(!v)return"—";const s=String(v);if(s.includes("%"))return s;const n=parseFloat(s);if(isNaN(n))return s;return n>=0&&n<=2?(n*100).toFixed(1)+"%":n.toFixed(1)+"%";})()}</td>
+                  <td style={{fontSize:13}}>{(()=>{const v=r.coaching_ontime_score;if(!v)return"—";const s=String(v);if(s.includes("%"))return s;const n=parseFloat(s);if(isNaN(n))return s;return n>=0&&n<=2?(n*100).toFixed(1)+"%":n.toFixed(1)+"%";})()}</td>
+                  <td style={{fontSize:13}}>{(()=>{const v=r.calibration_score;if(!v)return"—";const s=String(v);if(s.includes("%"))return s;const n=parseFloat(s);if(isNaN(n))return s;return n>=0&&n<=2?(n*100).toFixed(1)+"%":n.toFixed(1)+"%";})()}</td>
+                  <td style={{fontSize:13}}>{(()=>{const v=r.rtr_score;if(!v)return"—";const s=String(v);if(s.includes("%"))return s;const n=parseFloat(s);if(isNaN(n))return s;return n>=0&&n<=2?(n*100).toFixed(1)+"%":n.toFixed(1)+"%";})()}</td>
                   <td><span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:13,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>{((r.final_performance||0)*100).toFixed(1)}%</span></td>
                   <td><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
                 </tr>
