@@ -1732,138 +1732,1008 @@ function CoachingPage({token, profile}) {
   );
 }
 
--- ╔═══════════════════════════════════════════════════════════════════╗
--- ║  Tabby RADAR — AP/PIP Module Migration (v4 — clean slate)     ║
--- ║  Run this in the Supabase SQL Editor                           ║
--- ║  Project: shuenqmzbrthiiokfzio                                 ║
--- ║                                                                 ║
--- ║  NOTE: This drops and recreates both tables. Only safe because  ║
--- ║  the module is brand new and has no production data yet.        ║
--- ╚═══════════════════════════════════════════════════════════════════╝
 
--- ── 0. Clean slate — drop previous broken attempts ──
-DROP TABLE IF EXISTS action_plan_weeks CASCADE;
-DROP TABLE IF EXISTS action_plans CASCADE;
+function ActionPlanPage({ token, profile }) {
+  const [tab, setTab] = useState("active"); // active | create | detection | history
+  const [loading, setLoading] = useState(true);
+  const [plans, setPlans] = useState([]);
+  const [weeks, setWeeks] = useState([]);
+  const [mtd, setMtd] = useState([]);
+  const [roster, setRoster] = useState([]);
+  const [profiles, setProfiles] = useState([]);
+  const [detections, setDetections] = useState([]);
+  const [expandedPlan, setExpandedPlan] = useState(null);
+  const { show, el } = useToast();
 
+  // ── Create form state ──
+  const [selQaEmail, setSelQaEmail] = useState("");
+  const [planType, setPlanType] = useState("ap"); // ap | pip
+  const [planDuration, setPlanDuration] = useState(4);
+  const [planReason, setPlanReason] = useState("");
+  const [planTargets, setPlanTargets] = useState([]);
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
--- ── 1. action_plans table ──
-CREATE TABLE action_plans (
-  id            UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  qa_email      TEXT NOT NULL,
-  type          TEXT NOT NULL CHECK (type IN ('ap', 'pip')),
-  status        TEXT NOT NULL DEFAULT 'active'
-                CHECK (status IN ('active', 'pending_review', 'completed_pass', 'completed_fail', 'cancelled')),
-  reason        TEXT,
-  targets       JSONB,
-  start_date    DATE NOT NULL,
-  end_date      DATE NOT NULL,
-  duration_weeks INTEGER NOT NULL DEFAULT 4,
+  // ── Conclusion modal state ──
+  const [concludingPlan, setConcludingPlan] = useState(null);
+  const [conclusionOutcome, setConclusionOutcome] = useState("");
+  const [conclusionNotes, setConclusionNotes] = useState("");
 
-  -- Ownership & team
-  created_by    TEXT,
-  tl_email      TEXT,
-  team          TEXT,
+  // ── Slab engine (same as dashboard/leaderboard) ──
+  const KPI_SLABS = {
+    occupancy:   { label: "Occupancy",           weight: 15, thresholds: [95, 98, 100], rawKey: "occupancy_pct" },
+    coaching:    { label: "Coaching On-Time",     weight: 10, thresholds: [90, 93, 95],  rawKey: "ontime_coaching_pct" },
+    calibration: { label: "Calibration",          weight: 10, thresholds: [85, 90, 95],  rawKey: "avg_calibration_match_rate" },
+    observation: { label: "Coaching Observation",  weight: 10, thresholds: [82, 85, 88],  rawKey: "avg_observation_score_pct" },
+    rtr:         { label: "RTR Score",            weight: 10, thresholds: [80, 85, 90],  rawKey: "avg_rtr_score" },
+  };
 
-  -- Conclusion
-  conclusion        TEXT CHECK (conclusion IS NULL OR conclusion IN ('pass', 'fail')),
-  conclusion_notes  TEXT,
-  concluded_by      TEXT,
-  concluded_at      TIMESTAMPTZ,
+  const parseRaw = (val) => {
+    if (!val && val !== 0) return null;
+    const s = String(val).trim().replace(",", ".");
+    if (s.includes("%")) return parseFloat(s.replace("%", ""));
+    const n = parseFloat(s);
+    if (isNaN(n)) return null;
+    if (n >= 0 && n <= 2) return n * 100;
+    return n;
+  };
 
-  -- Timestamps
-  created_at    TIMESTAMPTZ DEFAULT NOW(),
-  updated_at    TIMESTAMPTZ DEFAULT NOW()
-);
+  const calcSlab = (rawPct, th) => {
+    if (rawPct === null) return { slab: 0, pct: 0, label: "Slab 0" };
+    if (rawPct >= th[2]) return { slab: 3, pct: 100, label: "Slab 3" };
+    if (rawPct >= th[1]) return { slab: 2, pct: 75, label: "Slab 2" };
+    if (rawPct >= th[0]) return { slab: 1, pct: 50, label: "Slab 1" };
+    return { slab: 0, pct: 0, label: "Slab 0" };
+  };
 
--- Indexes
-CREATE INDEX idx_action_plans_status   ON action_plans (status);
-CREATE INDEX idx_action_plans_qa       ON action_plans (qa_email);
-CREATE INDEX idx_action_plans_tl       ON action_plans (tl_email);
-CREATE INDEX idx_action_plans_created  ON action_plans (created_at DESC);
-CREATE INDEX idx_action_plans_type     ON action_plans (type);
+  const getKpiScores = (row) => {
+    return Object.entries(KPI_SLABS).map(([key, def]) => {
+      const rawPct = parseRaw(row[def.rawKey]);
+      const slab = calcSlab(rawPct, def.thresholds);
+      const score = (def.weight * slab.pct) / 100;
+      return { key, label: def.label, weight: def.weight, rawPct, slab, score, thresholds: def.thresholds, rawKey: def.rawKey };
+    });
+  };
 
+  const getTotalScore = (row) => getKpiScores(row).reduce((s, k) => s + k.score, 0);
 
--- ── 2. action_plan_weeks table ──
-CREATE TABLE action_plan_weeks (
-  id                  UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  plan_id             UUID NOT NULL REFERENCES action_plans(id) ON DELETE CASCADE,
-  week_number         INTEGER NOT NULL,
-  week_start          DATE,
-  target_data         JSONB,
-  actual_data         JSONB,
-  met_targets         BOOLEAN,
-  coaching_session_id UUID,
-  notes               TEXT,
-  created_at          TIMESTAMPTZ DEFAULT NOW(),
-  updated_at          TIMESTAMPTZ DEFAULT NOW(),
+  const nameFromEmail = (email) => {
+    if (!email) return "—";
+    return email.split("@")[0].split(".").map(p => {
+      const c = p.replace(/[\d]+$/, "");
+      return c ? c.charAt(0).toUpperCase() + c.slice(1) : "";
+    }).filter(Boolean).join(" ");
+  };
 
-  UNIQUE (plan_id, week_number)
-);
+  const initialsFromEmail = (email) => {
+    const name = nameFromEmail(email);
+    const parts = name.split(" ");
+    return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
+  };
 
--- Conditionally add FK to coaching_sessions if that table exists
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'coaching_sessions') THEN
-    ALTER TABLE action_plan_weeks
-      ADD CONSTRAINT fk_apw_coaching
-      FOREIGN KEY (coaching_session_id)
-      REFERENCES coaching_sessions(id)
-      ON DELETE SET NULL;
-  END IF;
-EXCEPTION WHEN duplicate_object THEN
-  NULL;
-END $$;
+  const scoreColor = (v) => v >= 55 * 0.7 ? "var(--green)" : v >= 55 * 0.4 ? "var(--amber)" : "var(--red)";
+  const scoreBg = (v) => v >= 55 * 0.7 ? "var(--green-bg)" : v >= 55 * 0.4 ? "var(--amber-bg)" : "var(--red-bg)";
 
-CREATE INDEX idx_apw_plan     ON action_plan_weeks (plan_id);
-CREATE INDEX idx_apw_coaching ON action_plan_weeks (coaching_session_id);
+  // ── Data loading ──
+  const load = useCallback(async () => {
+    try {
+      const [planRows, weekRows, mtdRows, rosterRows, profRows] = await Promise.all([
+        sb.query("action_plans", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
+        sb.query("action_plan_weeks", { select: "*", filters: "order=plan_id.asc,week_number.asc", token }).catch(() => []),
+        sb.query("mtd_scores", { select: "*", filters: "order=month.desc", token }).catch(() => []),
+        sb.query("qa_roster", { select: "email,display_name,queue,manager_email", token }).catch(() => []),
+        sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => []),
+      ]);
+      setPlans(planRows);
+      setWeeks(weekRows);
+      setMtd(mtdRows);
+      setRoster(rosterRows);
+      setProfiles(profRows);
 
+      // ── Auto-detection engine ──
+      runDetection(mtdRows, planRows);
+    } catch (e) { console.error("AP/PIP load:", e); }
+    setLoading(false);
+  }, [token]);
 
--- ── 3. Row-Level Security (RLS) ──
-ALTER TABLE action_plans ENABLE ROW LEVEL SECURITY;
-ALTER TABLE action_plan_weeks ENABLE ROW LEVEL SECURITY;
+  useEffect(() => { load(); }, [load]);
 
-CREATE POLICY "Authenticated users can view action_plans"
-  ON action_plans FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Authenticated users can insert action_plans"
-  ON action_plans FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "Authenticated users can update action_plans"
-  ON action_plans FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated users can delete action_plans"
-  ON action_plans FOR DELETE TO authenticated USING (true);
+  // ── Auto-detection: find QAs who qualify for AP ──
+  const runDetection = (mtdRows, existingPlans) => {
+    const months = [...new Set(mtdRows.map(r => r.month))].sort().reverse();
+    if (months.length < 2) { setDetections([]); return; }
 
-CREATE POLICY "Authenticated users can view action_plan_weeks"
-  ON action_plan_weeks FOR SELECT TO authenticated USING (true);
-CREATE POLICY "Authenticated users can insert action_plan_weeks"
-  ON action_plan_weeks FOR INSERT TO authenticated WITH CHECK (true);
-CREATE POLICY "Authenticated users can update action_plan_weeks"
-  ON action_plan_weeks FOR UPDATE TO authenticated USING (true) WITH CHECK (true);
-CREATE POLICY "Authenticated users can delete action_plan_weeks"
-  ON action_plan_weeks FOR DELETE TO authenticated USING (true);
+    const latestMonth = months[0];
+    const prevMonth = months[1];
+    const latestData = mtdRows.filter(r => r.month === latestMonth);
+    const prevData = mtdRows.filter(r => r.month === prevMonth);
 
+    // Emails with active plans already
+    const activePlanEmails = existingPlans
+      .filter(p => p.status === "active" || p.status === "pending_review")
+      .map(p => p.qa_email?.toLowerCase());
 
--- ── 4. Auto-update updated_at ──
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-  NEW.updated_at = NOW();
-  RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
+    const flagged = [];
 
-CREATE TRIGGER trg_action_plans_updated
-  BEFORE UPDATE ON action_plans
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+    latestData.forEach(row => {
+      const email = row.qa_email?.toLowerCase();
+      if (activePlanEmails.includes(email)) return; // already on a plan
 
-CREATE TRIGGER trg_action_plan_weeks_updated
-  BEFORE UPDATE ON action_plan_weeks
-  FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+      const kpis = getKpiScores(row);
+      const totalScore = getTotalScore(row);
+      const slab0Count = kpis.filter(k => k.slab.slab === 0 && k.rawPct !== null).length;
 
+      // Check previous month too
+      const prevRow = prevData.find(r => r.qa_email?.toLowerCase() === email);
+      const prevScore = prevRow ? getTotalScore(prevRow) : null;
+      const prevSlab0 = prevRow ? getKpiScores(prevRow).filter(k => k.slab.slab === 0 && k.rawPct !== null).length : 0;
 
--- ╔═══════════════════════════════════════════════════════════════════╗
--- ║  Done. Both tables created fresh:                               ║
--- ║    - action_plans                                               ║
--- ║    - action_plan_weeks                                          ║
--- ╚═══════════════════════════════════════════════════════════════════╝
+      let reason = null;
+      let severity = "medium";
+
+      // Condition 1: Slab 0 on 2+ KPIs in latest month
+      if (slab0Count >= 2) {
+        reason = `${slab0Count} KPIs at Slab 0 in ${latestMonth}`;
+        severity = slab0Count >= 3 ? "high" : "medium";
+      }
+
+      // Condition 2: Total score < 20/55 for 2 consecutive months
+      if (totalScore < 20 && prevScore !== null && prevScore < 20) {
+        reason = (reason ? reason + " + " : "") + `Score below 20 for 2 consecutive months (${prevMonth}: ${prevScore.toFixed(1)}, ${latestMonth}: ${totalScore.toFixed(1)})`;
+        severity = "high";
+      }
+
+      // Condition 3: Slab 0 on 2+ KPIs in both months
+      if (slab0Count >= 2 && prevSlab0 >= 2) {
+        severity = "critical";
+      }
+
+      if (reason) {
+        flagged.push({
+          email: row.qa_email,
+          name: nameFromEmail(row.qa_email),
+          reason,
+          severity,
+          totalScore,
+          prevScore,
+          slab0Count,
+          kpis,
+          latestMonth,
+          prevMonth,
+          tl: row.qa_tl,
+        });
+      }
+    });
+
+    // Sort by severity then score
+    const sevOrder = { critical: 0, high: 1, medium: 2 };
+    flagged.sort((a, b) => (sevOrder[a.severity] ?? 9) - (sevOrder[b.severity] ?? 9) || a.totalScore - b.totalScore);
+    setDetections(flagged);
+  };
+
+  // ── Generate suggested targets based on current scores ──
+  const generateTargets = (qaEmail) => {
+    const months = [...new Set(mtd.map(r => r.month))].sort().reverse();
+    const latestMonth = months[0];
+    const row = mtd.find(r => r.month === latestMonth && r.qa_email?.toLowerCase() === qaEmail.toLowerCase());
+    if (!row) return [];
+
+    return Object.entries(KPI_SLABS).map(([key, def]) => {
+      const rawPct = parseRaw(row[def.rawKey]);
+      const slab = calcSlab(rawPct, def.thresholds);
+
+      // Suggest target: if at Slab 0, target Slab 1 threshold.
+      // If at Slab 1, target Slab 2 threshold. etc.
+      let targetPct;
+      if (slab.slab === 0) targetPct = def.thresholds[0]; // aim for Slab 1
+      else if (slab.slab === 1) targetPct = def.thresholds[1]; // aim for Slab 2
+      else if (slab.slab === 2) targetPct = def.thresholds[2]; // aim for Slab 3
+      else targetPct = def.thresholds[2]; // maintain Slab 3
+
+      // Generate weekly progression targets (linear ramp from current to target)
+      const current = rawPct !== null ? rawPct : 0;
+      const weeklyTargets = [];
+      const duration = planType === "pip" ? planDuration : 4;
+      for (let w = 1; w <= duration; w++) {
+        const progress = w / duration;
+        const weekTarget = Math.round((current + (targetPct - current) * progress) * 10) / 10;
+        weeklyTargets.push(Math.min(weekTarget, targetPct));
+      }
+
+      return {
+        kpi_key: key,
+        label: def.label,
+        raw_key: def.rawKey,
+        current_value: rawPct,
+        current_slab: slab.label,
+        target_value: targetPct,
+        target_slab: slab.slab < 3 ? `Slab ${slab.slab + 1}` : "Slab 3",
+        weekly_targets: weeklyTargets,
+        weight: def.weight,
+        thresholds: def.thresholds,
+        needs_improvement: slab.slab <= 1,
+      };
+    });
+  };
+
+  // ── Start creating a plan (from detection or manually) ──
+  const startCreate = (qaEmail, type) => {
+    setSelQaEmail(qaEmail || "");
+    setPlanType(type || "ap");
+    setPlanDuration(type === "pip" ? 8 : 4);
+    setPlanReason("");
+    if (qaEmail) {
+      const targets = generateTargets(qaEmail);
+      setPlanTargets(targets);
+    } else {
+      setPlanTargets([]);
+    }
+    setShowCreateForm(true);
+    setTab("create");
+  };
+
+  // When QA email changes in create form, regenerate targets
+  const handleQaEmailChange = (email) => {
+    setSelQaEmail(email);
+    if (email && roster.find(r => r.email?.toLowerCase() === email.toLowerCase())) {
+      setPlanTargets(generateTargets(email));
+    }
+  };
+
+  // ── Save plan to Supabase ──
+  const savePlan = async () => {
+    if (!selQaEmail) { show("error", "Select a QA specialist"); return; }
+    if (!planReason.trim()) { show("error", "Provide a reason for this plan"); return; }
+
+    // Check for existing active plan
+    const existing = plans.find(p =>
+      p.qa_email?.toLowerCase() === selQaEmail.toLowerCase() &&
+      (p.status === "active" || p.status === "pending_review")
+    );
+    if (existing) {
+      show("error", `${nameFromEmail(selQaEmail)} already has an active ${existing.type.toUpperCase()} plan`);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const startDate = new Date().toISOString().split("T")[0];
+      const endDate = new Date(Date.now() + planDuration * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+      // Serialize targets
+      const targetsJson = planTargets.map(t => ({
+        kpi_key: t.kpi_key,
+        label: t.label,
+        raw_key: t.raw_key,
+        current_value: t.current_value,
+        target_value: t.target_value,
+        weekly_targets: t.weekly_targets,
+        weight: t.weight,
+        thresholds: t.thresholds,
+      }));
+
+      // Find QA's TL
+      const qaRoster = roster.find(r => r.email?.toLowerCase() === selQaEmail.toLowerCase());
+
+      const [planResult] = await sb.query("action_plans", {
+        token, method: "POST",
+        body: {
+          qa_email: selQaEmail,
+          type: planType,
+          status: "active",
+          reason: planReason,
+          targets: JSON.stringify(targetsJson),
+          start_date: startDate,
+          end_date: endDate,
+          duration_weeks: planDuration,
+          created_by: profile?.email,
+          tl_email: qaRoster?.manager_email || profile?.email,
+          team: qaRoster?.queue || null,
+        }
+      });
+
+      // Create week rows
+      if (planResult?.id) {
+        const weekBodies = [];
+        for (let w = 1; w <= planDuration; w++) {
+          const weekStart = new Date(Date.now() + (w - 1) * 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+          const targetData = {};
+          planTargets.forEach(t => {
+            targetData[t.kpi_key] = t.weekly_targets[w - 1] ?? t.target_value;
+          });
+          weekBodies.push({
+            plan_id: planResult.id,
+            week_number: w,
+            week_start: weekStart,
+            target_data: JSON.stringify(targetData),
+            actual_data: null,
+            met_targets: null,
+            coaching_session_id: null,
+            notes: null,
+          });
+        }
+        await sb.query("action_plan_weeks", { token, method: "POST", body: weekBodies });
+      }
+
+      show("success", `${planType.toUpperCase()} created for ${nameFromEmail(selQaEmail)}`);
+      setShowCreateForm(false);
+      setTab("active");
+      load();
+    } catch (e) {
+      show("error", e.message);
+    }
+    setLoading(false);
+  };
+
+  // ── Update week actuals ──
+  const updateWeekActuals = async (weekId, qaEmail) => {
+    // Pull latest MTD data for this QA
+    const months = [...new Set(mtd.map(r => r.month))].sort().reverse();
+    const latestMonth = months[0];
+    const row = mtd.find(r => r.month === latestMonth && r.qa_email?.toLowerCase() === qaEmail.toLowerCase());
+    if (!row) { show("error", "No MTD data found for " + nameFromEmail(qaEmail)); return; }
+
+    const actualData = {};
+    Object.entries(KPI_SLABS).forEach(([key, def]) => {
+      actualData[key] = parseRaw(row[def.rawKey]);
+    });
+
+    // Check if targets met
+    const week = weeks.find(w => w.id === weekId);
+    let targetData = {};
+    try { targetData = JSON.parse(week?.target_data || "{}"); } catch { }
+
+    const metTargets = Object.keys(targetData).every(key => {
+      const actual = actualData[key];
+      const target = targetData[key];
+      return actual !== null && actual >= target;
+    });
+
+    try {
+      await sb.query("action_plan_weeks", {
+        token, method: "PATCH",
+        body: {
+          actual_data: JSON.stringify(actualData),
+          met_targets: metTargets,
+          updated_at: new Date().toISOString(),
+        },
+        filters: `id=eq.${weekId}`,
+      });
+      show("success", "Week actuals updated from MTD data");
+      load();
+    } catch (e) { show("error", e.message); }
+  };
+
+  // ── Conclude plan ──
+  const concludePlan = async () => {
+    if (!concludingPlan || !conclusionOutcome) return;
+    setLoading(true);
+    try {
+      await sb.query("action_plans", {
+        token, method: "PATCH",
+        body: {
+          status: conclusionOutcome === "pass" ? "completed_pass" : "completed_fail",
+          conclusion: conclusionOutcome,
+          conclusion_notes: conclusionNotes,
+          concluded_by: profile?.email,
+          concluded_at: new Date().toISOString(),
+        },
+        filters: `id=eq.${concludingPlan.id}`,
+      });
+
+      // If PIP failed → auto-create DAM flag
+      if (concludingPlan.type === "pip" && conclusionOutcome === "fail") {
+        try {
+          const qaProfile = profiles.find(p => p.email?.toLowerCase() === concludingPlan.qa_email?.toLowerCase());
+          if (qaProfile) {
+            await sb.query("dam_flags", {
+              token, method: "POST",
+              body: {
+                profile_id: qaProfile.id,
+                severity: "critical",
+                recommended_action: "termination_review",
+                notes: `PIP failed. Plan ID: ${concludingPlan.id}. ${conclusionNotes}`,
+                status: "pending",
+                occurrence_number: 1,
+                trigger_data: JSON.stringify({ source: "pip_failure", plan_id: concludingPlan.id }),
+              }
+            });
+            show("success", "PIP failed — DAM flag created for HR investigation");
+          }
+        } catch (e) { console.error("DAM flag creation:", e); }
+      }
+
+      // If AP failed → suggest PIP
+      if (concludingPlan.type === "ap" && conclusionOutcome === "fail") {
+        show("success", "AP concluded as failed — PIP recommended. Create one from the Active tab.");
+      } else {
+        show("success", `${concludingPlan.type.toUpperCase()} concluded as ${conclusionOutcome === "pass" ? "PASSED" : "FAILED"}`);
+      }
+
+      setConcludingPlan(null);
+      setConclusionOutcome("");
+      setConclusionNotes("");
+      load();
+    } catch (e) { show("error", e.message); }
+    setLoading(false);
+  };
+
+  // ── Dismiss detection ──
+  const dismissDetection = (email) => {
+    setDetections(prev => prev.filter(d => d.email !== email));
+    show("success", "Detection dismissed for " + nameFromEmail(email));
+  };
+
+  // ── Helper: parse JSON safely ──
+  const safeJson = (str) => { try { return JSON.parse(str || "{}"); } catch { return {}; } };
+  const safeJsonArr = (str) => { try { return JSON.parse(str || "[]"); } catch { return []; } };
+
+  // ── Filtered plans ──
+  const isLead = hasRole(profile?.role, "qa_lead");
+  const isSupervisor = hasRole(profile?.role, "qa_supervisor");
+  const myEmail = profile?.email?.toLowerCase();
+
+  // Leads see their team's plans; supervisors+ see all
+  const myTeamEmails = roster.filter(r => r.manager_email?.toLowerCase() === myEmail).map(r => r.email?.toLowerCase());
+  const visiblePlans = isSupervisor ? plans : plans.filter(p =>
+    p.created_by?.toLowerCase() === myEmail ||
+    p.tl_email?.toLowerCase() === myEmail ||
+    myTeamEmails.includes(p.qa_email?.toLowerCase())
+  );
+
+  const activePlans = visiblePlans.filter(p => p.status === "active" || p.status === "pending_review");
+  const historyPlans = visiblePlans.filter(p => p.status !== "active" && p.status !== "pending_review");
+
+  const getWeeksForPlan = (planId) => weeks.filter(w => w.plan_id === planId).sort((a, b) => a.week_number - b.week_number);
+
+  // ── Calculate plan progress ──
+  const getPlanProgress = (plan) => {
+    const planWeeks = getWeeksForPlan(plan.id);
+    const filledWeeks = planWeeks.filter(w => w.actual_data);
+    const metWeeks = planWeeks.filter(w => w.met_targets === true);
+    const totalWeeks = plan.duration_weeks || planWeeks.length;
+    const elapsed = filledWeeks.length;
+    const remaining = totalWeeks - elapsed;
+    const successRate = filledWeeks.length ? (metWeeks.length / filledWeeks.length * 100) : 0;
+    return { totalWeeks, elapsed, remaining, metWeeks: metWeeks.length, successRate, planWeeks, filledWeeks };
+  };
+
+  // ── Auto-calculate pass recommendation ──
+  const getAutoRecommendation = (plan) => {
+    const { planWeeks, metWeeks, filledWeeks } = getPlanProgress(plan);
+    if (filledWeeks.length === 0) return null;
+    // Pass if >= 60% of filled weeks met targets
+    const rate = metWeeks / filledWeeks.length;
+    if (rate >= 0.6) return "pass";
+    return "fail";
+  };
+
+  if (loading && plans.length === 0) return <div className="page"><div className="loading-spinner"><div className="spinner" /></div></div>;
+
+  return (
+    <div className="page">
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div className="page-title">Action Plans & PIPs</div>
+          <div className="page-subtitle">
+            {activePlans.length} active plan{activePlans.length !== 1 ? "s" : ""} · {detections.length} detected
+          </div>
+        </div>
+        <button className="btn btn-primary" onClick={() => startCreate("", "ap")}>
+          <Icon d={icons.plus} size={16} />New plan
+        </button>
+      </div>
+
+      <div className="tab-bar" style={{ marginBottom: 16 }}>
+        <button className={`tab-btn ${tab === "active" ? "active" : ""}`} onClick={() => setTab("active")}>
+          Active ({activePlans.length})
+        </button>
+        <button className={`tab-btn ${tab === "detection" ? "active" : ""}`} onClick={() => setTab("detection")}>
+          Detection {detections.length > 0 && <span style={{ marginLeft: 4, padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 700, background: "var(--red-bg)", color: "var(--red)" }}>{detections.length}</span>}
+        </button>
+        {showCreateForm && <button className={`tab-btn ${tab === "create" ? "active" : ""}`} onClick={() => setTab("create")}>
+          Create plan
+        </button>}
+        <button className={`tab-btn ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")}>
+          History ({historyPlans.length})
+        </button>
+      </div>
+
+      {/* ═══ DETECTION TAB ═══ */}
+      {tab === "detection" && <div>
+        {detections.length === 0 ? (
+          <div className="card"><div className="placeholder" style={{ padding: "40px" }}>
+            <div className="placeholder-icon"><Icon d={icons.check} size={28} /></div>
+            <h3>No auto-detections</h3>
+            <p>No QAs currently meet the criteria for AP recommendation.<br />Detection runs on: Slab 0 on 2+ KPIs, or score &lt; 20/55 for 2 consecutive months.</p>
+          </div></div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            <div style={{ padding: "10px 14px", background: "var(--amber-bg)", borderRadius: 8, fontSize: 13, color: "var(--amber)", fontWeight: 500 }}>
+              ⚠️ {detections.length} QA specialist{detections.length !== 1 ? "s" : ""} flagged for potential Action Plan. Review and confirm below.
+            </div>
+            {detections.map(d => (
+              <div key={d.email} className="card" style={{
+                borderLeft: `4px solid ${d.severity === "critical" ? "var(--red)" : d.severity === "high" ? "var(--amber)" : "var(--teal)"}`,
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--accent-light)", color: "var(--accent-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600 }}>
+                      {initialsFromEmail(d.email)}
+                    </div>
+                    <div>
+                      <div style={{ fontWeight: 600, fontSize: 15 }}>{d.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--tx3)" }}>{d.email} · TL: {d.tl ? nameFromEmail(d.tl) : "—"}</div>
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{
+                      padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600,
+                      background: d.severity === "critical" ? "var(--red-bg)" : d.severity === "high" ? "var(--amber-bg)" : "var(--green-bg)",
+                      color: d.severity === "critical" ? "var(--red)" : d.severity === "high" ? "var(--amber)" : "var(--green)",
+                    }}>{d.severity.toUpperCase()}</span>
+                    <span style={{ fontSize: 18, fontWeight: 700, color: scoreColor(d.totalScore) }}>
+                      {d.totalScore.toFixed(1)}<span style={{ fontSize: 12, fontWeight: 400, color: "var(--tx3)" }}> / 55</span>
+                    </span>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: 12, padding: "8px 12px", background: "var(--bg)", borderRadius: 6, fontSize: 13, color: "var(--tx2)" }}>
+                  {d.reason}
+                </div>
+
+                {/* KPI breakdown mini */}
+                <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                  {d.kpis.map(k => (
+                    <div key={k.key} style={{
+                      padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 500,
+                      background: k.slab.slab === 0 ? "var(--red-bg)" : k.slab.slab === 1 ? "var(--amber-bg)" : "var(--green-bg)",
+                      color: k.slab.slab === 0 ? "var(--red)" : k.slab.slab === 1 ? "var(--amber)" : "var(--green)",
+                    }}>
+                      {k.label}: {k.rawPct !== null ? k.rawPct.toFixed(1) + "%" : "—"} ({k.slab.label})
+                    </div>
+                  ))}
+                </div>
+
+                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => startCreate(d.email, "ap")}>
+                    <Icon d={icons.plan} size={14} />Create AP
+                  </button>
+                  {d.severity === "critical" && (
+                    <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={() => startCreate(d.email, "pip")}>
+                      <Icon d={icons.dam} size={14} />Create PIP
+                    </button>
+                  )}
+                  <button className="btn btn-outline btn-sm" onClick={() => dismissDetection(d.email)}>Dismiss</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>}
+
+      {/* ═══ CREATE TAB ═══ */}
+      {tab === "create" && showCreateForm && <div>
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header">
+            <span className="card-title">Create {planType === "pip" ? "Performance Improvement Plan" : "Action Plan"}</span>
+          </div>
+          <div className="form-grid">
+            <div className="form-group" style={{ position: "relative" }}>
+              <label className="form-label">QA Specialist</label>
+              <input className="form-input" value={selQaEmail} onChange={e => handleQaEmailChange(e.target.value)} placeholder="Type name or email..." autoComplete="off" />
+              {selQaEmail && !roster.find(r => r.email === selQaEmail) && (() => {
+                const q = selQaEmail.toLowerCase();
+                const matches = roster.filter(r => (r.email || "").toLowerCase().includes(q) || (r.display_name || "").toLowerCase().includes(q)).slice(0, 8);
+                if (!matches.length) return null;
+                return <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, background: "var(--bg3)", border: "1px solid var(--bd)", borderRadius: "0 0 var(--radius) var(--radius)", boxShadow: "var(--shadow-lg)", maxHeight: 200, overflowY: "auto" }}>
+                  {matches.map(r => <div key={r.email} onClick={() => handleQaEmailChange(r.email)} style={{ padding: "8px 12px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid var(--bd2)", display: "flex", justifyContent: "space-between" }} onMouseEnter={e => e.currentTarget.style.background = "var(--bg)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <span style={{ fontWeight: 500 }}>{r.display_name || nameFromEmail(r.email)}</span>
+                    <span style={{ color: "var(--tx3)", fontSize: 12 }}>{r.email}</span>
+                  </div>)}
+                </div>;
+              })()}
+            </div>
+            <div className="form-group">
+              <label className="form-label">Plan type</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={() => { setPlanType("ap"); setPlanDuration(4); }} className={`btn ${planType === "ap" ? "btn-primary" : "btn-outline"}`} style={planType === "ap" ? { background: "var(--amber)" } : {}}>
+                  📋 Action Plan
+                </button>
+                <button onClick={() => { setPlanType("pip"); setPlanDuration(8); }} className={`btn ${planType === "pip" ? "btn-primary" : "btn-outline"}`} style={planType === "pip" ? { background: "var(--red)", color: "#fff" } : {}}>
+                  ⚠️ PIP
+                </button>
+              </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Duration (weeks)</label>
+              <select className="select form-input" value={planDuration} onChange={e => setPlanDuration(Number(e.target.value))}>
+                {planType === "ap" ? (
+                  <option value={4}>4 weeks</option>
+                ) : (
+                  <>
+                    <option value={4}>4 weeks</option>
+                    <option value={6}>6 weeks</option>
+                    <option value={8}>8 weeks</option>
+                  </>
+                )}
+              </select>
+            </div>
+            <div className="form-group" style={{ gridColumn: "1/-1" }}>
+              <label className="form-label">Reason / justification</label>
+              <textarea className="form-input" rows={2} value={planReason} onChange={e => setPlanReason(e.target.value)} placeholder="Why is this plan being created? Reference specific KPIs, months, patterns..." style={{ resize: "vertical" }} />
+            </div>
+          </div>
+        </div>
+
+        {/* Target configuration */}
+        {planTargets.length > 0 && <div className="card" style={{ marginBottom: 16 }}>
+          <div className="card-header">
+            <span className="card-title">Weekly targets</span>
+            <span style={{ fontSize: 12, color: "var(--tx3)" }}>Auto-populated from current scores — adjust as needed</span>
+          </div>
+          <div className="table-wrap">
+            <table style={{ fontSize: 12 }}>
+              <thead><tr>
+                <th>KPI</th>
+                <th style={{ textAlign: "center" }}>Current</th>
+                <th style={{ textAlign: "center" }}>Current slab</th>
+                <th style={{ textAlign: "center" }}>Target</th>
+                <th style={{ textAlign: "center" }}>Target slab</th>
+                {Array.from({ length: planDuration }, (_, i) => (
+                  <th key={i} style={{ textAlign: "center" }}>W{i + 1}</th>
+                ))}
+                <th style={{ textAlign: "center" }}>Needs work</th>
+              </tr></thead>
+              <tbody>
+                {planTargets.map((t, ti) => (
+                  <tr key={t.kpi_key} style={{ background: t.needs_improvement ? "var(--red-bg)" : "transparent" }}>
+                    <td style={{ fontWeight: 600, fontSize: 12 }}>{t.label}</td>
+                    <td style={{ textAlign: "center", fontWeight: 500, color: t.needs_improvement ? "var(--red)" : "var(--green)" }}>
+                      {t.current_value !== null ? t.current_value.toFixed(1) + "%" : "—"}
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <span style={{
+                        padding: "1px 6px", borderRadius: 8, fontSize: 10, fontWeight: 600,
+                        background: t.current_slab === "Slab 0" ? "var(--red-bg)" : t.current_slab === "Slab 1" ? "var(--amber-bg)" : "var(--green-bg)",
+                        color: t.current_slab === "Slab 0" ? "var(--red)" : t.current_slab === "Slab 1" ? "var(--amber)" : "var(--green)",
+                      }}>{t.current_slab}</span>
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <input type="number" className="form-input" value={t.target_value} onChange={e => {
+                        const newTargets = [...planTargets];
+                        newTargets[ti] = { ...newTargets[ti], target_value: Number(e.target.value) };
+                        // Recalculate weekly progression
+                        const current = t.current_value || 0;
+                        const target = Number(e.target.value);
+                        newTargets[ti].weekly_targets = Array.from({ length: planDuration }, (_, w) => {
+                          const progress = (w + 1) / planDuration;
+                          return Math.round(Math.min(current + (target - current) * progress, target) * 10) / 10;
+                        });
+                        setPlanTargets(newTargets);
+                      }} style={{ width: 60, textAlign: "center", padding: "2px 4px", fontSize: 12 }} />
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      <span style={{ padding: "1px 6px", borderRadius: 8, fontSize: 10, fontWeight: 600, background: "var(--green-bg)", color: "var(--green)" }}>{t.target_slab}</span>
+                    </td>
+                    {t.weekly_targets.slice(0, planDuration).map((wt, wi) => (
+                      <td key={wi} style={{ textAlign: "center" }}>
+                        <input type="number" className="form-input" value={wt} onChange={e => {
+                          const newTargets = [...planTargets];
+                          const newWeekly = [...newTargets[ti].weekly_targets];
+                          newWeekly[wi] = Number(e.target.value);
+                          newTargets[ti] = { ...newTargets[ti], weekly_targets: newWeekly };
+                          setPlanTargets(newTargets);
+                        }} style={{ width: 50, textAlign: "center", padding: "2px 4px", fontSize: 12 }} />
+                      </td>
+                    ))}
+                    <td style={{ textAlign: "center" }}>
+                      {t.needs_improvement ? <span style={{ color: "var(--red)", fontWeight: 700 }}>⚠️</span> : <span style={{ color: "var(--green)" }}>✓</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 8, fontStyle: "italic" }}>
+            Weekly targets are linearly interpolated from current value to target. Adjust individual weeks as needed.
+          </div>
+        </div>}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn btn-primary" onClick={savePlan} disabled={loading}>
+            {loading ? "Creating..." : <><Icon d={icons.check} size={16} />Create {planType === "pip" ? "PIP" : "Action Plan"}</>}
+          </button>
+          <button className="btn btn-outline" onClick={() => { setShowCreateForm(false); setTab("active"); }}>Cancel</button>
+        </div>
+      </div>}
+
+      {/* ═══ ACTIVE PLANS TAB ═══ */}
+      {tab === "active" && <div>
+        {activePlans.length === 0 ? (
+          <div className="card"><div className="placeholder" style={{ padding: "40px" }}>
+            <div className="placeholder-icon"><Icon d={icons.plan} size={28} /></div>
+            <h3>No active plans</h3>
+            <p>Create a new Action Plan or PIP from the Detection tab or the button above.</p>
+          </div></div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {activePlans.map(plan => {
+              const prog = getPlanProgress(plan);
+              const isExp = expandedPlan === plan.id;
+              const targets = safeJsonArr(plan.targets);
+              const autoRec = getAutoRecommendation(plan);
+              const progressPct = prog.totalWeeks ? (prog.elapsed / prog.totalWeeks) * 100 : 0;
+              const daysLeft = plan.end_date ? Math.max(0, Math.ceil((new Date(plan.end_date) - Date.now()) / (1000 * 60 * 60 * 24))) : null;
+
+              return (
+                <div key={plan.id} className="card" style={{
+                  borderLeft: `4px solid ${plan.type === "pip" ? "var(--red)" : "var(--amber)"}`,
+                }}>
+                  {/* Header */}
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, cursor: "pointer" }} onClick={() => setExpandedPlan(isExp ? null : plan.id)}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{
+                        width: 44, height: 44, borderRadius: "50%",
+                        background: plan.type === "pip" ? "var(--red-bg)" : "var(--amber-bg)",
+                        color: plan.type === "pip" ? "var(--red)" : "var(--amber)",
+                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700,
+                      }}>
+                        {plan.type === "pip" ? "⚠️" : "📋"}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 15 }}>{nameFromEmail(plan.qa_email)}</div>
+                        <div style={{ fontSize: 12, color: "var(--tx3)" }}>
+                          <span style={{
+                            padding: "1px 8px", borderRadius: 10, fontSize: 10, fontWeight: 700,
+                            background: plan.type === "pip" ? "var(--red-bg)" : "var(--amber-bg)",
+                            color: plan.type === "pip" ? "var(--red)" : "var(--amber)",
+                            marginRight: 6,
+                          }}>{plan.type.toUpperCase()}</span>
+                          {plan.team || "—"} · Created by {nameFromEmail(plan.created_by)} · {new Date(plan.start_date).toLocaleDateString("en-GB", { month: "short", day: "numeric" })} — {new Date(plan.end_date).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" })}
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+                      <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 11, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Progress</div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: prog.successRate >= 60 ? "var(--green)" : "var(--red)" }}>
+                          {prog.metWeeks}/{prog.elapsed} weeks met
+                        </div>
+                      </div>
+                      {daysLeft !== null && <div style={{ textAlign: "right" }}>
+                        <div style={{ fontSize: 11, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Remaining</div>
+                        <div style={{ fontSize: 16, fontWeight: 700, color: daysLeft <= 7 ? "var(--red)" : "var(--tx)" }}>{daysLeft}d</div>
+                      </div>}
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{ transition: "transform .2s", transform: isExp ? "rotate(180deg)" : "none" }}><path d="M6 9l6 6 6-6" /></svg>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div style={{ marginTop: 12, height: 6, background: "var(--bd2)", borderRadius: 3, overflow: "hidden" }}>
+                    <div style={{ width: `${progressPct}%`, height: "100%", borderRadius: 3, background: prog.successRate >= 60 ? "var(--green)" : "var(--amber)", transition: "width .4s" }} />
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--tx3)", marginTop: 4 }}>
+                    <span>Week {prog.elapsed} of {prog.totalWeeks}</span>
+                    <span>Success rate: {prog.successRate.toFixed(0)}%</span>
+                  </div>
+
+                  {/* Expanded detail */}
+                  {isExp && <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--bd2)" }}>
+
+                    {/* Reason */}
+                    {plan.reason && <div style={{ marginBottom: 14, padding: "8px 12px", background: "var(--bg)", borderRadius: 6, fontSize: 13, color: "var(--tx2)" }}>
+                      <span style={{ fontWeight: 600, color: "var(--tx)" }}>Reason: </span>{plan.reason}
+                    </div>}
+
+                    {/* Weekly tracking table */}
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>Weekly tracking</div>
+                    <div className="table-wrap">
+                      <table style={{ fontSize: 12 }}>
+                        <thead><tr>
+                          <th>Week</th>
+                          <th>Date</th>
+                          {targets.map(t => <th key={t.kpi_key} style={{ textAlign: "center" }}>{t.label}</th>)}
+                          <th style={{ textAlign: "center" }}>Met?</th>
+                          <th style={{ width: 80 }}></th>
+                        </tr></thead>
+                        <tbody>
+                          {prog.planWeeks.map(week => {
+                            const targetData = safeJson(week.target_data);
+                            const actualData = safeJson(week.actual_data);
+                            const hasActuals = week.actual_data && Object.keys(actualData).length > 0;
+
+                            return (
+                              <tr key={week.id} style={{ background: hasActuals ? (week.met_targets ? "var(--green-bg)" : "var(--red-bg)") : "transparent" }}>
+                                <td style={{ fontWeight: 600 }}>W{week.week_number}</td>
+                                <td style={{ fontSize: 11, color: "var(--tx3)" }}>
+                                  {week.week_start ? new Date(week.week_start + "T00:00:00").toLocaleDateString("en-GB", { month: "short", day: "numeric" }) : "—"}
+                                </td>
+                                {targets.map(t => {
+                                  const target = targetData[t.kpi_key];
+                                  const actual = actualData?.[t.kpi_key];
+                                  const met = actual !== null && actual !== undefined && target !== undefined && actual >= target;
+                                  return (
+                                    <td key={t.kpi_key} style={{ textAlign: "center" }}>
+                                      <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target !== undefined ? target + "%" : "—"}</div>
+                                      {hasActuals && <div style={{ fontSize: 12, fontWeight: 600, color: met ? "var(--green)" : "var(--red)" }}>
+                                        A: {actual !== null && actual !== undefined ? actual.toFixed(1) + "%" : "—"}
+                                      </div>}
+                                    </td>
+                                  );
+                                })}
+                                <td style={{ textAlign: "center" }}>
+                                  {hasActuals ? (
+                                    week.met_targets ?
+                                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>✅</span> :
+                                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--red)" }}>❌</span>
+                                  ) : <span style={{ color: "var(--tx3)" }}>—</span>}
+                                </td>
+                                <td>
+                                  {!hasActuals && <button className="btn btn-outline btn-sm" onClick={() => updateWeekActuals(week.id, plan.qa_email)} style={{ fontSize: 10, padding: "2px 8px" }}>
+                                    Pull MTD
+                                  </button>}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
+                      {/* Pull all remaining weeks */}
+                      {prog.planWeeks.some(w => !w.actual_data) && <button className="btn btn-outline btn-sm" onClick={async () => {
+                        for (const w of prog.planWeeks.filter(w => !w.actual_data)) {
+                          await updateWeekActuals(w.id, plan.qa_email);
+                        }
+                      }}>
+                        <Icon d={icons.upload} size={14} />Pull all actuals from MTD
+                      </button>}
+
+                      {/* Conclude */}
+                      <button className="btn btn-primary btn-sm" onClick={() => {
+                        setConcludingPlan(plan);
+                        const rec = getAutoRecommendation(plan);
+                        setConclusionOutcome(rec || "");
+                      }}>
+                        <Icon d={icons.check} size={14} />Conclude {plan.type.toUpperCase()}
+                      </button>
+
+                      {/* Failed AP → suggest PIP */}
+                      {plan.type === "ap" && prog.successRate < 50 && prog.elapsed >= 2 && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={() => startCreate(plan.qa_email, "pip")}>
+                        <Icon d={icons.dam} size={14} />Escalate to PIP
+                      </button>}
+                    </div>
+
+                    {/* Audit trail */}
+                    <div style={{ marginTop: 14, padding: "8px 12px", background: "var(--bg)", borderRadius: 6, fontSize: 11, color: "var(--tx3)" }}>
+                      Created by {nameFromEmail(plan.created_by)} on {new Date(plan.created_at).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" })}
+                      {plan.tl_email && <span> · TL: {nameFromEmail(plan.tl_email)}</span>}
+                    </div>
+                  </div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>}
+
+      {/* ═══ HISTORY TAB ═══ */}
+      {tab === "history" && <div className="card">
+        {historyPlans.length === 0 ? (
+          <div className="placeholder" style={{ padding: "40px" }}>
+            <p style={{ color: "var(--tx3)" }}>No completed plans in history.</p>
+          </div>
+        ) : (
+          <div className="table-wrap"><table>
+            <thead><tr>
+              <th>QA Specialist</th>
+              <th>Type</th>
+              <th>Duration</th>
+              <th style={{ textAlign: "center" }}>Result</th>
+              <th>Created by</th>
+              <th>Date range</th>
+              <th>Concluded by</th>
+              <th>Notes</th>
+            </tr></thead>
+            <tbody>
+              {historyPlans.map(p => {
+                const prog = getPlanProgress(p);
+                return (
+                  <tr key={p.id}>
+                    <td style={{ fontWeight: 500 }}>{nameFromEmail(p.qa_email)}</td>
+                    <td>
+                      <span style={{
+                        padding: "2px 8px", borderRadius: 10, fontSize: 10, fontWeight: 700,
+                        background: p.type === "pip" ? "var(--red-bg)" : "var(--amber-bg)",
+                        color: p.type === "pip" ? "var(--red)" : "var(--amber)",
+                      }}>{p.type.toUpperCase()}</span>
+                    </td>
+                    <td style={{ fontSize: 12 }}>{p.duration_weeks}w</td>
+                    <td style={{ textAlign: "center" }}>
+                      <span style={{
+                        padding: "3px 12px", borderRadius: 12, fontSize: 11, fontWeight: 700,
+                        background: p.conclusion === "pass" ? "var(--green-bg)" : "var(--red-bg)",
+                        color: p.conclusion === "pass" ? "var(--green)" : "var(--red)",
+                      }}>
+                        {p.conclusion === "pass" ? "✅ Passed" : "❌ Failed"}
+                      </span>
+                      <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{prog.metWeeks}/{prog.elapsed} weeks met</div>
+                    </td>
+                    <td style={{ fontSize: 12, color: "var(--tx2)" }}>{nameFromEmail(p.created_by)}</td>
+                    <td style={{ fontSize: 12, color: "var(--tx2)" }}>
+                      {p.start_date ? new Date(p.start_date).toLocaleDateString("en-GB", { month: "short", day: "numeric" }) : "—"} — {p.end_date ? new Date(p.end_date).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                    </td>
+                    <td style={{ fontSize: 12, color: "var(--tx2)" }}>{nameFromEmail(p.concluded_by)}</td>
+                    <td style={{ fontSize: 12, color: "var(--tx2)", maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {p.conclusion_notes || "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table></div>
+        )}
+      </div>}
+
+      {/* ═══ CONCLUSION MODAL ═══ */}
+      {concludingPlan && <div style={{
+        position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+      }} onClick={(e) => { if (e.target === e.currentTarget) setConcludingPlan(null); }}>
+        <div className="card" style={{ width: "100%", maxWidth: 520, margin: 20 }}>
+          <div className="card-header">
+            <span className="card-title">Conclude {concludingPlan.type.toUpperCase()} — {nameFromEmail(concludingPlan.qa_email)}</span>
+          </div>
+
+          {/* Auto-recommendation */}
+          {(() => {
+            const rec = getAutoRecommendation(concludingPlan);
+            const prog = getPlanProgress(concludingPlan);
+            return rec ? (
+              <div style={{ padding: "10px 14px", background: rec === "pass" ? "var(--green-bg)" : "var(--red-bg)", borderRadius: 8, marginBottom: 14, fontSize: 13 }}>
+                <span style={{ fontWeight: 600, color: rec === "pass" ? "var(--green)" : "var(--red)" }}>
+                  Auto-recommendation: {rec === "pass" ? "✅ PASS" : "❌ FAIL"}
+                </span>
+                <span style={{ color: "var(--tx2)", marginLeft: 8 }}>({prog.metWeeks}/{prog.elapsed} weeks met targets — {prog.successRate.toFixed(0)}%)</span>
+              </div>
+            ) : null;
+          })()}
+
+          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+            <button onClick={() => setConclusionOutcome("pass")} className={`btn ${conclusionOutcome === "pass" ? "btn-primary" : "btn-outline"}`} style={conclusionOutcome === "pass" ? { background: "var(--green)", color: "#fff" } : {}}>✅ Passed</button>
+            <button onClick={() => setConclusionOutcome("fail")} className={`btn ${conclusionOutcome === "fail" ? "btn-primary" : "btn-outline"}`} style={conclusionOutcome === "fail" ? { background: "var(--red)", color: "#fff" } : {}}>❌ Failed</button>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Conclusion notes</label>
+            <textarea className="form-input" rows={3} value={conclusionNotes} onChange={e => setConclusionNotes(e.target.value)} placeholder="Document the final assessment..." style={{ resize: "vertical" }} />
+          </div>
+
+          {conclusionOutcome === "fail" && concludingPlan.type === "ap" && (
+            <div style={{ padding: "8px 12px", background: "var(--amber-bg)", borderRadius: 6, fontSize: 12, color: "var(--amber)", fontWeight: 500, marginTop: 8 }}>
+              ⚠️ Failed AP will recommend escalation to PIP.
+            </div>
+          )}
+          {conclusionOutcome === "fail" && concludingPlan.type === "pip" && (
+            <div style={{ padding: "8px 12px", background: "var(--red-bg)", borderRadius: 6, fontSize: 12, color: "var(--red)", fontWeight: 500, marginTop: 8 }}>
+              ⚠️ Failed PIP will automatically create a DAM flag for HR investigation.
+            </div>
+          )}
+
+          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+            <button className="btn btn-primary" onClick={concludePlan} disabled={!conclusionOutcome || loading}>
+              {loading ? "Processing..." : "Confirm conclusion"}
+            </button>
+            <button className="btn btn-outline" onClick={() => { setConcludingPlan(null); setConclusionOutcome(""); setConclusionNotes(""); }}>Cancel</button>
+          </div>
+        </div>
+      </div>}
+
+      {el}
+    </div>
+  );
+}
 
 function PlaceholderPage({title,description,icon,minRole,userRole}){const locked=minRole&&!hasRole(userRole,minRole);
   return(<div className="page"><div className="page-header"><div className="page-title">{title}</div></div><div className="card"><div className="placeholder"><div className="placeholder-icon"><Icon d={icon} size={28}/></div><h3>{title}</h3><p>{locked?`Requires ${ROLE_LABELS[minRole]} access or above.`:description}</p><div className="placeholder-badge">{locked?"Access restricted":"Coming soon"}</div></div></div></div>);}
