@@ -281,7 +281,7 @@ function DashboardPage({profile,token}){
       <button className="btn btn-outline btn-sm" disabled={syncing} onClick={async()=>{
         setSyncing(true);
         try{
-          const r=await fetch("https://script.google.com/macros/s/AKfycbwkX7VpnQl_S2fR-SQ-_05KNfLMI0nh8VYBzJeGM2-bNoW7nrwmHkXSYOpF7EeWzSLl/exec",{method:"POST",mode:"no-cors"});
+          const r=await fetch("https://script.google.com/macros/s/AKfycbwpQjACvkSQBkbJok5L00-jXNMJm9x8b5-cdd4c5imZXeXCD5eHu8_zCsRNgWIegzvZ/exec",{method:"POST",mode:"no-cors"});
           show("success","Sync triggered — data will update in ~30 seconds");
         }catch(e){
           show("error","Sync request failed: "+e.message);
@@ -2038,7 +2038,7 @@ function CoachingPage({token, profile}) {
   };
 
   // Save session and send via Apps Script
-  const APPS_SCRIPT_URL = "https://script.google.com/a/macros/tabby.sa/s/AKfycbwF9PtLxBMtCObQwWDPJg9aTueCCRbSd-jvVLjwMcKvGgoiCyeTJlg9oNkPEsNbhcs/exec";
+  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwpQjACvkSQBkbJok5L00-jXNMJm9x8b5-cdd4c5imZXeXCD5eHu8_zCsRNgWIegzvZ/exec";
 
   const generateAndSend = async () => {
     if (!toEmail) { show("error", "Enter the team member's email"); return; }
@@ -4620,7 +4620,6 @@ export default function App(){
         </button>
       </div>
       <nav className="sidebar-nav">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} title={sidebarCollapsed?item.label:""}><Icon d={item.icon} size={18}/><span className="nav-item-label">{item.label}</span></button></div>);})}</nav>
-      <div className="sidebar-profile"><div className="sidebar-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" referrerPolicy="no-referrer"/>:(profile?.display_name||"?")[0].toUpperCase()}</div><div className="sidebar-user"><div className="sidebar-user-name">{profile?.display_name||profile?.email}</div><div className="sidebar-user-role">{ROLE_LABELS[realRole]} &middot; {profile?.domain}</div></div><button className="sidebar-logout" onClick={sb.auth.signOut} title="Sign out"><Icon d={icons.logout} size={16}/></button></div>
     </aside>
     <div className="main-content">
       {/* View-as banner for super admin */}
