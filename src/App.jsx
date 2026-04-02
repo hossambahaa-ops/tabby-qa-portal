@@ -1242,7 +1242,34 @@ function LeaderboardPage({token, profile}) {
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Total DSAT</div><div className="stat-value">{totalDsat}</div></div>
       </div>
 
-      {view==="individual" && <>
+      {view==="individual" && (()=>{
+        const myEmailInd = profile?.email?.toLowerCase();
+        const isQaInd = profile?.role === "qa";
+        const isLeadInd = hasRole(profile?.role, "qa_lead") && !hasRole(profile?.role, "qa_supervisor");
+        
+        // For QA leads: filter to their team only
+        const myTeamEmailsInd = roster.filter(r => r.manager_email?.toLowerCase() === myEmailInd).map(r => r.email?.toLowerCase());
+        
+        let visibleRanked = ranked;
+        if (isQaInd) {
+          // QAs: top 3 + their own rank
+          const top3 = ranked.slice(0, 3);
+          const myRankIdx = ranked.findIndex(r => r.qa_email?.toLowerCase() === myEmailInd);
+          const myEntry = myRankIdx >= 0 ? ranked[myRankIdx] : null;
+          visibleRanked = [...top3];
+          if (myEntry && myRankIdx >= 3) visibleRanked.push({ ...myEntry, _myRank: myRankIdx + 1 });
+          const seen = new Set();
+          visibleRanked = visibleRanked.filter(r => { const e = r.qa_email?.toLowerCase(); if (seen.has(e)) return false; seen.add(e); return true; });
+        } else if (isLeadInd && myTeamEmailsInd.length > 0) {
+          // Leads: their team
+          visibleRanked = ranked.filter(r => myTeamEmailsInd.includes(r.qa_email?.toLowerCase()) || r.qa_email?.toLowerCase() === myEmailInd);
+        }
+
+        return <>
+        {isQaInd && <div style={{padding:"8px 14px",background:"var(--bg)",borderRadius:8,marginBottom:12,fontSize:12,color:"var(--tx3)"}}>
+          Showing top 3 performers and your position. Full rankings are visible to team leads.
+        </div>}
+
         {/* Podium top 3 */}
         {ranked.length >= 3 && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:16,marginBottom:28,flexWrap:"wrap"}}>
           {[1,0,2].map(idx => {
@@ -1262,8 +1289,8 @@ function LeaderboardPage({token, profile}) {
 
         {/* Full ranking table */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Full rankings — {selMonth}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{ranked.length} specialists · Scored out of {maxScore}</span></div>
-          {ranked.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {selMonth}.</p></div> :
+          <div className="card-header"><span className="card-title">Full rankings — {selMonth}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{visibleRanked.length} specialists · Scored out of {maxScore}</span></div>
+          {visibleRanked.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {selMonth}.</p></div> :
           <div className="table-wrap"><table><thead><tr>
             <th style={{width:50}}>#</th>
             <th>Specialist</th>
@@ -1272,12 +1299,16 @@ function LeaderboardPage({token, profile}) {
             <th style={{textAlign:"center",minWidth:80}}>Total<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{maxScore}</span></th>
             <th style={{width:40}}></th>
           </tr></thead><tbody>
-            {ranked.map((r, i) => {
-              const rank = i + 1; const isExp = expandedRow === r.id;
+            {visibleRanked.map((r, i) => {
+              const rank = r._myRank || (ranked.findIndex(x => x.qa_email?.toLowerCase() === r.qa_email?.toLowerCase()) + 1);
+              const isExp = expandedRow === r.id;
+              const isMe = r.qa_email?.toLowerCase() === myEmailInd;
+              const showGap = isQaInd && r._myRank && r._myRank > 4;
               const kpis = getKpiScores(r);
               const total = kpis.reduce((s, k) => s + k.score, 0);
-              return (<React.Fragment key={r.id}>
-                <tr onClick={() => setExpandedRow(isExp ? null : r.id)} style={{cursor:"pointer"}}>
+              return (<React.Fragment key={r.id || r.qa_email}>
+                {showGap && <tr><td colSpan={4 + Object.keys(KPI_SLABS).length} style={{textAlign:"center",padding:"6px",color:"var(--tx3)",fontSize:12,background:"var(--bg)"}}>···</td></tr>}
+                <tr onClick={() => setExpandedRow(isExp ? null : r.id)} style={{cursor:"pointer",background:isMe?"var(--accent-light)":"transparent"}}>
                   <td>{rank <= 3 ? <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:"50%",fontWeight:600,fontSize:12,background:rank===1?"#FEF3C7":rank===2?"#F3F4F6":"#FED7AA",color:rank===1?"#92400E":rank===2?"#374151":"#9A3412"}}>{rank}</span> : <span style={{color:"var(--tx3)",fontWeight:500}}>{rank}</span>}</td>
                   <td><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600}}>{initialsFromEmail(r.qa_email)}</div><div><div style={{fontWeight:500,fontSize:14}}>{nameFromEmail(r.qa_email)}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{r.qa_email}</div></div></div></td>
                   <td style={{fontSize:13,color:"var(--tx2)"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
@@ -1333,7 +1364,8 @@ function LeaderboardPage({token, profile}) {
             })}
           </tbody></table></div>}
         </div>
-      </>}
+      </>;
+      })()}
 
       {view==="team" && <div style={{display:"flex",flexDirection:"column",gap:16}}>
         {teamData.length === 0 ? <div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {selMonth}.</p></div></div> :
