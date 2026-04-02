@@ -74,6 +74,7 @@ function DashboardPage({profile,token}){
   const[apPlans,setApPlans]=useState([]);const[apWeeks,setApWeeks]=useState([]);const[apDetections,setApDetections]=useState([]);
   const[apDismissals,setApDismissals]=useState([]);const[dismissModal,setDismissModal]=useState(null);const[dismissReason,setDismissReason]=useState("");
   const isLead=hasRole(profile?.role,"qa_lead");
+  const{show,el:toastEl}=useToast();
 
   const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
   const fmt=(val)=>{if(val===null||val===undefined||val==="")return"—";const s=String(val).trim();if(s.includes("%"))return s;const n=parseFloat(s.replace(",","."));if(isNaN(n))return s;if(n>=0&&n<=2)return(n*100).toFixed(1)+"%";if(n>2&&!Number.isInteger(n))return n.toFixed(1)+"%";return String(val);};
@@ -172,7 +173,24 @@ function DashboardPage({profile,token}){
 
   const nav=(page)=>window.dispatchEvent(new CustomEvent("navigate",{detail:page}));
 
+  const[syncing,setSyncing]=useState(false);
+
   return(<div className="page">
+    {/* Super admin: Sync MTD data button */}
+    {hasRole(profile?.role,"super_admin")&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
+      <button className="btn btn-outline btn-sm" disabled={syncing} onClick={async()=>{
+        setSyncing(true);
+        try{
+          const r=await fetch("https://script.google.com/macros/s/AKfycbwkX7VpnQl_S2fR-SQ-_05KNfLMI0nh8VYBzJeGM2-bNoW7nrwmHkXSYOpF7EeWzSLl/exec",{method:"POST",mode:"no-cors"});
+          show("success","Sync triggered — data will update in ~30 seconds");
+        }catch(e){
+          show("error","Sync request failed: "+e.message);
+        }
+        setSyncing(false);
+      }} style={{fontSize:12}}>
+        {syncing?<><div className="spinner" style={{width:14,height:14,borderWidth:2,marginRight:6}}/>Syncing...</>:<><Icon d={icons.upload} size={14}/>Sync MTD data</>}
+      </button>
+    </div>}
     <div className="welcome-banner"><h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2><p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p><div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div></div>
     {loading?<div className="loading-spinner"><div className="spinner"/></div>:<>
 
@@ -456,6 +474,7 @@ function DashboardPage({profile,token}){
     })()}
 
     </>}
+    {toastEl}
   </div>);
 }
 
