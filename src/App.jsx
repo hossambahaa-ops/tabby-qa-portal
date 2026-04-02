@@ -3803,7 +3803,14 @@ function CoachingViolationsPage({token, profile}) {
                       {v.violation_date ? new Date(v.violation_date + "T00:00:00").toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" }) : "—"}
                     </td>
                     <td style={{ fontSize: 12 }}>
-                      <a href={v.coaching_link} target="_blank" rel="noreferrer" style={{ color: "var(--accent-text)", textDecoration: "underline" }}>View link</a>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <a href={v.coaching_link} target="_blank" rel="noreferrer" style={{ color: "var(--accent-text)", textDecoration: "underline", fontSize: 12 }}>Open</a>
+                        <button className="btn btn-outline btn-sm" style={{ fontSize: 10, padding: "1px 6px" }} onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(v.coaching_link);
+                          show("success", "Link copied!");
+                        }}>Copy</button>
+                      </div>
                     </td>
                     <td>
                       <button className="btn btn-primary btn-sm" onClick={() => openReview(v)}>Review</button>
