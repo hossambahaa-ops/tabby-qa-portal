@@ -2545,7 +2545,7 @@ function ActionPlanPage({ token, profile }) {
         email: flag.profiles?.email || email,
         name: flag.profiles?.display_name || nameFromEmail(email),
         reason: `DAM: ${ruleName} (${behaviorType}) — Occurrence #${flag.occurrence_number}: ${pipAction}`,
-        severity: flag.occurrence_number >= 3 ? "critical" : flag.occurrence_number >= 2 ? "high" : "medium",
+        severity: flag.occurrence_number >= 4 ? "critical" : flag.occurrence_number >= 3 ? "high" : flag.occurrence_number >= 2 ? "medium" : "medium",
         totalScore, kpis, latestMonth,
         tl: row?.qa_tl,
         damFlagId: flag.id,
@@ -3665,8 +3665,8 @@ function CoachingViolationsPage({token, profile}) {
 
   const openReview = (v) => {
     setReviewModal(v);
-    setReviewStatus("");
-    setReviewNotes("");
+    setReviewStatus(v.status === "pending" ? "" : (v.status === "invalid" ? "invalid" : "valid"));
+    setReviewNotes(v.review_notes || "");
     setSelDamRule("");
   };
 
@@ -3715,7 +3715,7 @@ function CoachingViolationsPage({token, profile}) {
               body: {
                 profile_id: qaProfile.id,
                 rule_id: ruleId,
-                severity: occurrence >= 3 ? "critical" : occurrence >= 2 ? "high" : "medium",
+                severity: occurrence >= 4 ? "critical" : occurrence >= 3 ? "high" : occurrence >= 2 ? "medium" : "medium",
                 status: "pending",
                 notes: `Auto-created from coaching violation: ${reviewModal.violation_type}. Link: ${reviewModal.coaching_link}`,
                 occurrence_number: occurrence,
@@ -3798,6 +3798,11 @@ function CoachingViolationsPage({token, profile}) {
                       <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, fontWeight: 600, background: vc.bg, color: vc.color }}>
                         {v.violation_type}
                       </span>
+                      {(()=>{
+                        const flowMap = { "> 4 Uses": "Coaching Observation", "> 3 Uses": "Coaching Observation", "Multiple Days": "Calendar + Occupancy Audit", "Multiple Agents": "Calendar Audit" };
+                        const flow = flowMap[v.violation_type];
+                        return flow ? <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{flow}</div> : null;
+                      })()}
                     </td>
                     <td style={{ fontSize: 12, color: "var(--tx2)" }}>
                       {v.violation_date ? new Date(v.violation_date + "T00:00:00").toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" }) : "—"}
@@ -3837,7 +3842,7 @@ function CoachingViolationsPage({token, profile}) {
               <th>Reviewed by</th>
               <th>Notes</th>
               <th>Date</th>
-              {hasRole(profile?.role, "super_admin") && <th></th>}
+              <th></th>
             </tr></thead>
             <tbody>
               {reviewedV.map(v => {
@@ -3866,16 +3871,19 @@ function CoachingViolationsPage({token, profile}) {
                     <td style={{ fontSize: 12, color: "var(--tx2)" }}>
                       {v.reviewed_at ? new Date(v.reviewed_at).toLocaleDateString("en-GB", { month: "short", day: "numeric" }) : "—"}
                     </td>
-                    {hasRole(profile?.role, "super_admin") && <td>
-                      <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async () => {
-                        if (!confirm("Delete this violation record?")) return;
-                        try {
-                          await sb.query("coaching_violations", { token, method: "DELETE", filters: `id=eq.${v.id}` });
-                          show("success", "Deleted");
-                          load();
-                        } catch (e) { show("error", e.message); }
-                      }}><Icon d={icons.trash} size={14} /></button>
-                    </td>}
+                    <td>
+                      <div style={{ display: "flex", gap: 4 }}>
+                        {hasRole(profile?.role, "qa_lead") && <button className="btn btn-outline btn-sm" onClick={() => openReview(v)}><Icon d={icons.edit} size={14} /></button>}
+                        {hasRole(profile?.role, "super_admin") && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async () => {
+                          if (!confirm("Delete this violation record?")) return;
+                          try {
+                            await sb.query("coaching_violations", { token, method: "DELETE", filters: `id=eq.${v.id}` });
+                            show("success", "Deleted");
+                            load();
+                          } catch (e) { show("error", e.message); }
+                        }}><Icon d={icons.trash} size={14} /></button>}
+                      </div>
+                    </td>
                   </tr>
                 );
               })}
@@ -3885,9 +3893,20 @@ function CoachingViolationsPage({token, profile}) {
       </div>}
 
       {/* Review Modal */}
-      {reviewModal && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
-        <div className="card" style={{ width: "100%", maxWidth: 520, margin: 20 }}>
-          <div className="card-header"><span className="card-title">Review Violation</span></div>
+      {reviewModal && (()=>{
+        // Map violation type to suggested DAM rule and auditing flow
+        const violationMap = {
+          "> 4 Uses": { ruleName: "Coaching Recording: Same link for 3+ tickets", flow: "Coaching Observation" },
+          "> 3 Uses": { ruleName: "Coaching Recording: Same link for 3+ tickets", flow: "Coaching Observation" },
+          "Multiple Days": { ruleName: "Coaching Recording: Same link on different days", flow: "Calendar + Occupancy Audit" },
+          "Multiple Agents": { ruleName: "Coaching Recording: Same link for multiple agents", flow: "Calendar Audit" },
+        };
+        const suggestion = violationMap[reviewModal.violation_type] || null;
+        const suggestedRule = suggestion ? damRules.find(r => r.name === suggestion.ruleName) : null;
+
+        return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
+        <div className="card" style={{ width: "100%", maxWidth: 560, margin: 20 }}>
+          <div className="card-header"><span className="card-title">{reviewModal.status !== "pending" ? "Update Review" : "Review Violation"}</span></div>
 
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13 }}>
@@ -3896,6 +3915,14 @@ function CoachingViolationsPage({token, profile}) {
               <div><span style={{ color: "var(--tx3)" }}>Date: </span>{reviewModal.violation_date || "—"}</div>
               <div><span style={{ color: "var(--tx3)" }}>Lead: </span>{reviewModal.lead_email?.split("\n").map(e => nameFromEmail(e)).join(", ")}</div>
             </div>
+
+            {/* Suggested auditing flow */}
+            {suggestion && <div style={{ marginTop: 10, padding: "8px 12px", background: "var(--amber-bg)", borderRadius: 8, fontSize: 12 }}>
+              <span style={{ fontWeight: 600, color: "var(--amber)" }}>Suggested audit: </span>
+              <span style={{ color: "var(--tx)" }}>{suggestion.flow}</span>
+              {suggestedRule && <span style={{ color: "var(--tx3)" }}> · DAM rule: {suggestedRule.name}</span>}
+            </div>}
+
             <div style={{ marginTop: 8 }}>
               <a href={reviewModal.coaching_link} target="_blank" rel="noreferrer" style={{ color: "var(--accent-text)", fontSize: 13 }}>
                 Open coaching link ↗
@@ -3918,22 +3945,28 @@ function CoachingViolationsPage({token, profile}) {
           {reviewStatus === "valid" && <div className="form-group" style={{ marginBottom: 12 }}>
             <label className="form-label">Link to DAM rule (creates flag automatically)</label>
             <select className="select form-input" value={selDamRule} onChange={e => setSelDamRule(e.target.value)}>
-              <option value="">— Select DAM rule (optional) —</option>
-              {damRules.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              <option value="">— Select DAM rule —</option>
+              {/* Show suggested rule first */}
+              {suggestedRule && <option value={suggestedRule.id} style={{ fontWeight: 600 }}>⭐ {suggestedRule.name} (suggested)</option>}
+              {damRules.filter(r => r.id !== suggestedRule?.id).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </div>}
 
           <div className="form-group" style={{ marginBottom: 16 }}>
-            <label className="form-label">Notes</label>
-            <textarea className="form-input" rows={2} value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} placeholder="Optional notes about this decision..." style={{ resize: "vertical" }} />
+            <label className="form-label">Notes <span style={{ color: "var(--red)" }}>*</span></label>
+            <textarea className="form-input" rows={2} value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} placeholder="Explain your decision (required)..." style={{ resize: "vertical", borderColor: !reviewNotes.trim() && reviewStatus ? "var(--red)" : "" }} />
+            {!reviewNotes.trim() && reviewStatus && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>Notes are required</div>}
           </div>
 
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-primary" onClick={submitReview} disabled={!reviewStatus}>Confirm</button>
+            <button className="btn btn-primary" onClick={submitReview} disabled={!reviewStatus || !reviewNotes.trim()}>
+              {reviewModal.status !== "pending" ? "Update" : "Confirm"}
+            </button>
             <button className="btn btn-outline" onClick={() => setReviewModal(null)}>Cancel</button>
           </div>
         </div>
-      </div>}
+      </div>;
+      })()}
 
       {el}
     </div>
