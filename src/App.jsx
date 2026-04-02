@@ -3686,54 +3686,59 @@ function CoachingViolationsPage({token, profile}) {
         filters: `id=eq.${reviewModal.id}`,
       });
 
-      // If valid → auto-create DAM flag
+      // If valid → auto-create DAM flag (DAM rule is required)
       if (reviewStatus === "valid") {
-        // Find the QA profile(s) from qa_emails
+        if (!selDamRule) { show("error", "Select a DAM rule to create the flag"); setLoading(false); return; }
+
         const qaEmailsList = reviewModal.qa_emails.split("\n").map(e => e.trim()).filter(Boolean);
+        let flagsCreated = 0;
+
         for (const qaEmail of qaEmailsList) {
-          const qaProfile = profiles.find(p => p.email?.toLowerCase() === qaEmail.toLowerCase());
-          if (!qaProfile) continue;
-
-          // Find matching DAM rule (coaching_recording behavior type, or selected rule)
-          const ruleId = selDamRule || null;
-
-          if (ruleId) {
-            // Count existing occurrences
-            let occurrence = 1;
-            try {
-              const existing = await sb.query("dam_flags", {
-                select: "id",
-                filters: `profile_id=eq.${qaProfile.id}&rule_id=eq.${ruleId}&status=neq.dismissed`,
-                token,
-              });
-              occurrence = (existing?.length || 0) + 1;
-            } catch {}
-
-            // Create DAM flag
-            await sb.query("dam_flags", {
-              token, method: "POST",
-              body: {
-                profile_id: qaProfile.id,
-                rule_id: ruleId,
-                severity: occurrence >= 4 ? "critical" : occurrence >= 3 ? "high" : occurrence >= 2 ? "medium" : "medium",
-                status: "pending",
-                notes: `Auto-created from coaching violation: ${reviewModal.violation_type}. Link: ${reviewModal.coaching_link}`,
-                occurrence_number: occurrence,
-              },
-            });
+          // Try to find profile by email (check both domain variants)
+          let qaProfile = profiles.find(p => p.email?.toLowerCase() === qaEmail.toLowerCase());
+          if (!qaProfile) {
+            const local = qaEmail.split("@")[0];
+            qaProfile = profiles.find(p => p.email?.toLowerCase() === (local + "@tabby.ai").toLowerCase() || p.email?.toLowerCase() === (local + "@tabby.sa").toLowerCase());
           }
+          if (!qaProfile) {
+            show("error", `Profile not found for ${qaEmail} — they need to log in first`);
+            continue;
+          }
+
+          // Count existing occurrences
+          let occurrence = 1;
+          try {
+            const existing = await sb.query("dam_flags", {
+              select: "id",
+              filters: `profile_id=eq.${qaProfile.id}&rule_id=eq.${selDamRule}&status=neq.dismissed`,
+              token,
+            });
+            occurrence = (existing?.length || 0) + 1;
+          } catch {}
+
+          // Create DAM flag
+          await sb.query("dam_flags", {
+            token, method: "POST",
+            body: {
+              profile_id: qaProfile.id,
+              rule_id: selDamRule,
+              severity: occurrence >= 4 ? "critical" : occurrence >= 3 ? "high" : occurrence >= 2 ? "medium" : "medium",
+              status: "pending",
+              notes: `Auto-created from coaching violation: ${reviewModal.violation_type}. Link: ${reviewModal.coaching_link}. Review notes: ${reviewNotes.trim()}`,
+              occurrence_number: occurrence,
+            },
+          });
+          flagsCreated++;
         }
 
         // Update violation status to dam_created
-        if (selDamRule) {
-          await sb.query("coaching_violations", {
-            token, method: "PATCH",
-            body: { status: "dam_created" },
-            filters: `id=eq.${reviewModal.id}`,
-          });
-        }
+        await sb.query("coaching_violations", {
+          token, method: "PATCH",
+          body: { status: "dam_created", reviewed_by: profile?.email, reviewed_at: new Date().toISOString(), review_notes: reviewNotes.trim() },
+          filters: `id=eq.${reviewModal.id}`,
+        });
 
-        show("success", "Marked as valid" + (selDamRule ? " — DAM flag created" : ""));
+        show("success", `Marked as valid — ${flagsCreated} DAM flag(s) created`);
       } else {
         show("success", "Marked as invalid");
       }
@@ -3933,7 +3938,7 @@ function CoachingViolationsPage({token, profile}) {
           <div className="form-group" style={{ marginBottom: 12 }}>
             <label className="form-label">Decision</label>
             <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={() => setReviewStatus("valid")} className={`btn ${reviewStatus === "valid" ? "btn-primary" : "btn-outline"}`} style={reviewStatus === "valid" ? { background: "var(--red)" } : {}}>
+              <button onClick={() => { setReviewStatus("valid"); if (suggestedRule) setSelDamRule(suggestedRule.id); }} className={`btn ${reviewStatus === "valid" ? "btn-primary" : "btn-outline"}`} style={reviewStatus === "valid" ? { background: "var(--red)" } : {}}>
                 ⚠️ Valid violation
               </button>
               <button onClick={() => setReviewStatus("invalid")} className={`btn ${reviewStatus === "invalid" ? "btn-primary" : "btn-outline"}`} style={reviewStatus === "invalid" ? { background: "var(--green)" } : {}}>
@@ -3943,13 +3948,15 @@ function CoachingViolationsPage({token, profile}) {
           </div>
 
           {reviewStatus === "valid" && <div className="form-group" style={{ marginBottom: 12 }}>
-            <label className="form-label">Link to DAM rule (creates flag automatically)</label>
+            <label className="form-label">DAM rule <span style={{ color: "var(--red)" }}>*</span> (creates flag automatically)</label>
             <select className="select form-input" value={selDamRule} onChange={e => setSelDamRule(e.target.value)}>
               <option value="">— Select DAM rule —</option>
-              {/* Show suggested rule first */}
-              {suggestedRule && <option value={suggestedRule.id} style={{ fontWeight: 600 }}>⭐ {suggestedRule.name} (suggested)</option>}
-              {damRules.filter(r => r.id !== suggestedRule?.id).map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+              {damRules.filter(r => r.name?.startsWith("Coaching Recording")).map(r => {
+                const isSuggested = r.id === suggestedRule?.id;
+                return <option key={r.id} value={r.id}>{isSuggested ? "⭐ " : ""}{r.name}{isSuggested ? " (suggested)" : ""}</option>;
+              })}
             </select>
+            {!selDamRule && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>DAM rule is required for valid violations</div>}
           </div>}
 
           <div className="form-group" style={{ marginBottom: 16 }}>
@@ -3959,7 +3966,7 @@ function CoachingViolationsPage({token, profile}) {
           </div>
 
           <div style={{ display: "flex", gap: 8 }}>
-            <button className="btn btn-primary" onClick={submitReview} disabled={!reviewStatus || !reviewNotes.trim()}>
+            <button className="btn btn-primary" onClick={submitReview} disabled={!reviewStatus || !reviewNotes.trim() || (reviewStatus === "valid" && !selDamRule)}>
               {reviewModal.status !== "pending" ? "Update" : "Confirm"}
             </button>
             <button className="btn btn-outline" onClick={() => setReviewModal(null)}>Cancel</button>
