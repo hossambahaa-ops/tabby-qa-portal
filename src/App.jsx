@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import "./index.css";
 
+// Style overrides — topbar always visible
+const styleOverride = document.createElement("style");
+styleOverride.textContent = `
+  .topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(8px); background: rgba(255,255,255,.85) !important; }
+  @media (min-width: 769px) {
+    .topbar-menu { display: none !important; }
+  }
+  .role-senior_qa{background:var(--teal-bg);color:var(--teal)}
+`;
+document.head.appendChild(styleOverride);
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://shuenqmzbrthiiokfzio.supabase.co";
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNodWVucW16YnJ0aGlpb2tmemlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Mzc4MjAsImV4cCI6MjA5MDUxMzgyMH0.WjbpCt33uJ_hGXucKEHn0q5_daaRnGzwRDVbTxs7lG4";
 
