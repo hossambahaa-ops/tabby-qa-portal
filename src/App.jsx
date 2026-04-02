@@ -1314,7 +1314,7 @@ function LeaderboardPage({token, profile}) {
           <div className="page-title">Leaderboard</div>
           <div className="page-subtitle">Performance rankings — {selMonth || "All months"}</div>
         </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+        {hasRole(profile?.role,"qa_lead")&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
           <select className="select" value={selMonth} onChange={e=>{setSelMonth(e.target.value);setSelDomain("");setSelTeam("");}}>
             {months.map(m => <option key={m} value={m}>{m}</option>)}
           </select>
@@ -1323,7 +1323,7 @@ function LeaderboardPage({token, profile}) {
             <option value="tabby.ai">tabby.ai</option>
             <option value="tabby.sa">tabby.sa</option>
           </select>
-        </div>
+        </div>}
       </div>
 
       {loading ? <div className="loading-spinner"><div className="spinner"/></div> : <>
@@ -1331,22 +1331,22 @@ function LeaderboardPage({token, profile}) {
       <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:20}}>
         <div className="tabs">
           <button className={`tab ${view==="individual"?"active":""}`} onClick={()=>setView("individual")}>Individual</button>
-          <button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>
-          <button className={`tab ${view==="quarterly"?"active":""}`} onClick={()=>setView("quarterly")}>Quarterly</button>
+          {hasRole(profile?.role,"qa_lead")&&<button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>}
+          {hasRole(profile?.role,"qa_lead")&&<button className={`tab ${view==="quarterly"?"active":""}`} onClick={()=>setView("quarterly")}>Quarterly</button>}
         </div>
-        <select className="select" value={selTeam} onChange={e=>setSelTeam(e.target.value)}>
+        {hasRole(profile?.role,"qa_lead")&&<select className="select" value={selTeam} onChange={e=>setSelTeam(e.target.value)}>
           <option value="">All teams ({teams.length})</option>
           {teams.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        {view==="individual" && <input className="input" placeholder="Search by email..." value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:220,marginLeft:"auto"}}/>}
+        </select>}
+        {view==="individual" && hasRole(profile?.role,"qa_lead") && <input className="input" placeholder="Search by email..." value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:220,marginLeft:"auto"}}/>}
       </div>
 
-      <div className="stats-grid">
+      {hasRole(profile?.role,"qa_lead")&&<div className="stats-grid">
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>🏆</div><div className="stat-label">{view==="individual"?"Ranked":"Teams"}</div><div className="stat-value">{view==="individual"?ranked.length:teamData.length}</div></div>
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Avg score</div><div className="stat-value" style={{color:scoreColor(avgScore)}}>{avgScore.toFixed(1)}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div></div>
         {topPerson && view==="individual" && <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>⭐</div><div className="stat-label">Top performer</div><div className="stat-value" style={{fontSize:16}}>{nameFromEmail(topPerson.qa_email)}</div></div>}
         <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Total DSAT</div><div className="stat-value">{totalDsat}</div></div>
-      </div>
+      </div>}
 
       {view==="individual" && (()=>{
         const myEmailInd = profile?.email?.toLowerCase();
