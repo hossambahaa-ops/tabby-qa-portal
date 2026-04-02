@@ -9,8 +9,9 @@ styleOverride.textContent = `
     .topbar-menu { display: none !important; }
   }
   .role-senior_qa{background:var(--teal-bg);color:var(--teal)}
-  .sidebar { transition: width .25s ease, transform .25s ease; overflow: hidden; }
-  .sidebar.collapsed { width: 64px !important; }
+  .sidebar { transition: width .25s ease, transform .25s ease; }
+  .sidebar.collapsed { width: 64px !important; overflow: visible !important; }
+  .sidebar.collapsed .sidebar-nav { overflow: visible !important; }
   .sidebar.collapsed .sidebar-brand span,
   .sidebar.collapsed .sidebar-tag,
   .sidebar.collapsed .sidebar-section,
@@ -31,7 +32,7 @@ styleOverride.textContent = `
     font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
-    z-index: 100;
+    z-index: 9999;
     box-shadow: 0 4px 12px rgba(0,0,0,.3);
     pointer-events: none;
   }
@@ -43,7 +44,7 @@ styleOverride.textContent = `
     transform: translateY(-50%);
     border: 5px solid transparent;
     border-right-color: #1A1A1A;
-    z-index: 100;
+    z-index: 9999;
     pointer-events: none;
   }
   .sidebar.collapsed .sidebar-header { padding: 24px 12px 20px; text-align: center; }
