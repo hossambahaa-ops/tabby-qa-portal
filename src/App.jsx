@@ -4106,7 +4106,7 @@ function EscalationsPage({ token, profile }) {
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
   const [aboutPerson, setAboutPerson] = useState("");
-  const [isAnonymous, setIsAnonymous] = useState(false);
+  const [isAnonymous] = useState(true);
 
   const myEmail = profile?.email?.toLowerCase();
   const myRole = profile?.role || "qa";
@@ -4178,7 +4178,6 @@ function EscalationsPage({ token, profile }) {
       setCategory("");
       setDescription("");
       setAboutPerson("");
-      setIsAnonymous(false);
       load();
     } catch (e) { show("error", e.message); }
   };
@@ -4261,12 +4260,8 @@ function EscalationsPage({ token, profile }) {
             <textarea className="form-input" rows={4} value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the issue in detail..." style={{ resize: "vertical" }} />
           </div>
 
-          <div className="form-group" style={{ marginBottom: 16 }}>
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-              <input type="checkbox" checked={isAnonymous} onChange={e => setIsAnonymous(e.target.checked)} />
-              <span>Submit anonymously</span>
-              <span style={{ fontSize: 11, color: "var(--tx3)" }}>— your identity will be hidden from the person you're escalating about</span>
-            </label>
+          <div style={{ padding: "8px 12px", background: "var(--green-bg)", borderRadius: 8, marginBottom: 16, fontSize: 12, color: "var(--green)" }}>
+            🔒 All escalations are submitted anonymously — your identity is hidden from the person you're escalating about.
           </div>
 
           <div style={{ display: "flex", gap: 8 }}>

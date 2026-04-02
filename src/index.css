@@ -62,19 +62,10 @@ body, html, #root { height: 100%; font-family: var(--font); background: var(--bg
 .nav-item:hover { background: rgba(255,255,255,.06); color: rgba(255,255,255,.85); }
 .nav-item.active { background: rgba(60,255,165,.1); color: #3CFFA5; font-weight: 500; }
 
-.sidebar-profile { padding: 16px 14px; border-top: 1px solid rgba(255,255,255,.08); display: flex; align-items: center; gap: 10px; }
-.sidebar-avatar { width: 36px; height: 36px; border-radius: 50%; background: rgba(60,255,165,.12); display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; color: #3CFFA5; overflow: hidden; flex-shrink: 0; }
-.sidebar-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
-.sidebar-user { flex: 1; min-width: 0; }
-.sidebar-user-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sidebar-user-role { font-size: 11px; color: rgba(255,255,255,.4); }
-.sidebar-logout { background: none; border: none; color: rgba(255,255,255,.4); cursor: pointer; padding: 6px; border-radius: 6px; transition: all .15s; }
-.sidebar-logout:hover { color: #FFF; background: rgba(255,255,255,.08); }
-
 /* ── Main ── */
 .main-content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
-.topbar { display: none; padding: 12px 20px; background: var(--bg3); border-bottom: 1px solid var(--bd); align-items: center; gap: 12px; }
-.topbar-menu { background: none; border: none; cursor: pointer; color: var(--tx); padding: 4px; }
+.topbar { display: flex; padding: 12px 20px; background: var(--bg3); border-bottom: 1px solid var(--bd); align-items: center; gap: 12px; }
+.topbar-menu { background: none; border: none; cursor: pointer; color: var(--tx); padding: 4px; display: none; }
 .topbar-title { font-size: 15px; font-weight: 500; }
 .page { flex: 1; padding: 32px; max-width: 1200px; width: 100%; margin: 0 auto; }
 .page-header { margin-bottom: 28px; }
@@ -119,6 +110,7 @@ tr:hover td { background: var(--bg); }
 .role-badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: .3px; }
 .role-qa { background: var(--bg); color: var(--tx2); }
 .role-qa_lead { background: var(--accent-light); color: var(--accent); }
+.role-senior_qa { background: var(--teal-bg); color: var(--teal); }
 .role-qa_supervisor { background: var(--teal-bg); color: var(--teal); }
 .role-admin { background: var(--amber-bg); color: var(--amber); }
 .role-super_admin { background: var(--red-bg); color: var(--red); }
@@ -161,24 +153,6 @@ tr:hover td { background: var(--bg); }
 .input:focus { outline: none; border-color: var(--accent); }
 .input-sm { padding: 6px 10px; font-size: 13px; width: 100px; }
 
-/* ── Drop zone ── */
-.drop-zone { border: 2px dashed var(--bd); border-radius: var(--radius-lg); padding: 40px 20px; text-align: center; cursor: pointer; transition: all .2s; color: var(--tx2); }
-.drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: var(--accent-light); }
-
-/* ── Chart ── */
-.chart-area { padding: 8px 0; }
-
-/* ── Mobile overlay ── */
-.mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; }
-
-/* ── Team multi-select ── */
-.team-checkboxes { display: flex; flex-wrap: wrap; gap: 4px; }
-.team-checkbox { font-size: 11px; padding: 3px 10px; border-radius: 20px; border: 1px solid var(--bd); background: var(--bg3); color: var(--tx2); cursor: pointer; transition: all .15s; user-select: none; }
-.team-checkbox:hover { border-color: var(--accent); }
-.team-checkbox.checked { background: var(--accent-light); color: var(--accent); border-color: var(--accent); font-weight: 600; }
-.team-tag { font-size: 11px; padding: 2px 8px; border-radius: 12px; background: var(--bg2); color: var(--tx2); font-weight: 500; white-space: nowrap; }
-
-/* ── Forms ── */
 .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
 .form-group { display: flex; flex-direction: column; gap: 4px; }
 .form-label { font-size: 12px; font-weight: 500; color: var(--tx2); }
@@ -187,24 +161,25 @@ tr:hover td { background: var(--bg); }
 .score-input { width: 90px; padding: 7px 10px; text-align: center; font-weight: 600; font-size: 15px; }
 .score-input:focus { background: var(--accent-light); }
 
-/* ── Tabs ── */
+/* ── Tab buttons ── */
 .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; background: var(--bg2); padding: 4px; border-radius: var(--radius); width: fit-content; }
 .tab-btn { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border: none; border-radius: 8px; font-family: var(--font); font-size: 13px; font-weight: 500; color: var(--tx2); background: transparent; cursor: pointer; transition: all .15s; }
 .tab-btn:hover { color: var(--tx); }
 .tab-btn.active { background: var(--bg3); color: var(--tx); box-shadow: var(--shadow); }
 
-/* ── Controls row ── */
+/* ── Misc ── */
 .controls-row { display: flex; gap: 12px; flex-wrap: wrap; }
-
-/* ── CSV dropzone ── */
-.csv-dropzone { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 48px 24px; border: 2px dashed var(--bd); border-radius: var(--radius-lg); cursor: pointer; transition: all .2s; text-align: center; }
-.csv-dropzone:hover { border-color: var(--accent); background: var(--accent-light); }
+.team-tag { font-size: 11px; padding: 2px 8px; border-radius: 12px; background: var(--bg2); color: var(--tx2); font-weight: 500; white-space: nowrap; }
+.drop-zone { border: 2px dashed var(--bd); border-radius: var(--radius-lg); padding: 40px 20px; text-align: center; cursor: pointer; transition: all .2s; color: var(--tx2); }
+.drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); background: var(--accent-light); }
+.chart-area { padding: 8px 0; }
+.mobile-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 40; }
 
 @media (max-width: 768px) {
   .sidebar { position: fixed; left: 0; top: 0; bottom: 0; transform: translateX(-100%); }
   .sidebar.open { transform: translateX(0); }
   .mobile-overlay.open { display: block; }
-  .topbar { display: flex; }
+  .topbar-menu { display: flex !important; }
   .page { padding: 20px 16px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .welcome-banner { padding: 24px; }
