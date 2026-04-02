@@ -829,20 +829,26 @@ function ScoreEntryPage({token,profile}){
 }
 
 function AdminUsersPage({token,teams}){
-  const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const{show,el}=useToast();
+  const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const[editTeamId,setEditTeamId]=useState("");const{show,el}=useToast();
   const load=useCallback(async()=>{try{
     const[d,r]=await Promise.all([
-      sb.query("profiles",{select:"id,email,display_name,role,domain,operational_domain,status",token}),
+      sb.query("profiles",{select:"id,email,display_name,role,domain,operational_domain,team_id,status",token}),
       sb.query("qa_roster",{select:"email,queue",token}).catch(()=>[]),
     ]);
     setUsers(d.sort((a,b)=>ROLE_LEVEL[b.role]-ROLE_LEVEL[a.role]));
     setRoster(r);
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
-  const getUserTeamNames=(u)=>{const r2=roster.filter(r=>r.email?.toLowerCase()===u.email?.toLowerCase());return[...new Set(r2.map(r=>r.queue).filter(Boolean))];};
+  const getUserTeamNames=(u)=>{
+    // Show assigned team from profiles first, then roster
+    const assigned=u.team_id?teams.find(t=>t.id===u.team_id):null;
+    const rosterTeams=roster.filter(r=>r.email?.toLowerCase()===u.email?.toLowerCase()).map(r=>r.queue).filter(Boolean);
+    const all=[...new Set([assigned?.name,...rosterTeams].filter(Boolean))];
+    return all;
+  };
   const getOpDomain=(u)=>u.operational_domain||u.domain||"tabby.ai";
   const save=async(uid)=>{try{
-    await sb.query("profiles",{token,method:"PATCH",body:{role:editRole,operational_domain:editOpDomain},filters:`id=eq.${uid}`});
+    await sb.query("profiles",{token,method:"PATCH",body:{role:editRole,operational_domain:editOpDomain,team_id:editTeamId||null},filters:`id=eq.${uid}`});
     setEditingId(null);show("success","Updated");load();
   }catch(e){show("error",e.message);}};
   return(<div className="page">
@@ -853,9 +859,9 @@ function AdminUsersPage({token,teams}){
         <td>{editingId===u.id?<select className="select" value={editRole} onChange={e=>setEditRole(e.target.value)} style={{fontSize:12,padding:"4px 8px"}}>{Object.entries(ROLE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>:<span className={`role-badge role-${u.role}`}>{ROLE_LABELS[u.role]}</span>}</td>
         <td><span className={`domain-badge domain-${u.domain==="tabby.ai"?"ai":"sa"}`}>{u.domain}</span></td>
         <td>{editingId===u.id?<select className="select" value={editOpDomain} onChange={e=>setEditOpDomain(e.target.value)} style={{fontSize:12,padding:"4px 8px"}}><option value="tabby.ai">tabby.ai</option><option value="tabby.sa">tabby.sa</option></select>:<span className={`domain-badge domain-${getOpDomain(u)==="tabby.ai"?"ai":"sa"}`}>{getOpDomain(u)}</span>}</td>
-        <td>{uTeams.length>0?<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{uTeams.map((n,i)=><span key={i} className="team-tag">{n}</span>)}</div>:<span style={{fontSize:13,color:"var(--tx3)"}}>—</span>}</td>
+        <td>{editingId===u.id?<select className="select" value={editTeamId} onChange={e=>setEditTeamId(e.target.value)} style={{fontSize:12,padding:"4px 8px"}}><option value="">— None —</option>{teams.map(t=><option key={t.id} value={t.id}>{t.name} ({t.domain})</option>)}</select>:uTeams.length>0?<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{uTeams.map((n,i)=><span key={i} className="team-tag">{n}</span>)}</div>:<span style={{fontSize:13,color:"var(--tx3)"}}>—</span>}</td>
         <td><span className={`status-badge status-${u.status}`}>{u.status}</span></td>
-        <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditOpDomain(getOpDomain(u));}}>Edit</button>}</td></tr>);})}
+        <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditOpDomain(getOpDomain(u));setEditTeamId(u.team_id||"");}}>Edit</button>}</td></tr>);})}
       </tbody></table></div>}</div>{el}
   </div>);
 }
