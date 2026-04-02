@@ -102,7 +102,7 @@ document.head.appendChild(styleOverride);
 
 // PWA manifest injection
 if (!document.querySelector('link[rel="manifest"]')) {
-  const manifest = { name: "Tabby RADAR", short_name: "RADAR", start_url: "/", display: "standalone", background_color: "#1A1A1A", theme_color: "#3CFFA5", icons: [{ src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>", sizes: "any", type: "image/svg+xml" }] };
+  const manifest = { name: "Tabby RADAR", short_name: "RADAR", start_url: "/", display: "standalone", background_color: "#1A1A1A", theme_color: "#3CFFA5", icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='50' width='20' height='40' rx='4' fill='%233CFFA5'/%3E%3Crect x='40' y='25' width='20' height='65' rx='4' fill='%233CFFA5'/%3E%3Crect x='70' y='10' width='20' height='80' rx='4' fill='%233CFFA5'/%3E%3C/svg%3E", sizes: "any", type: "image/svg+xml" }] };
   const blob = new Blob([JSON.stringify(manifest)], { type: "application/json" });
   const link = document.createElement("link");
   link.rel = "manifest";
@@ -116,6 +116,14 @@ if (!document.querySelector('link[rel="manifest"]')) {
   metaStatus.name = "apple-mobile-web-app-status-bar-style";
   metaStatus.content = "black-translucent";
   document.head.appendChild(metaStatus);
+  // Override favicon
+  const existingFav = document.querySelector('link[rel="icon"]');
+  if (existingFav) existingFav.remove();
+  const favicon = document.createElement("link");
+  favicon.rel = "icon";
+  favicon.type = "image/svg+xml";
+  favicon.href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%231A1A1A'/%3E%3Crect x='12' y='50' width='18' height='38' rx='4' fill='%233CFFA5'/%3E%3Crect x='41' y='28' width='18' height='60' rx='4' fill='%233CFFA5'/%3E%3Crect x='70' y='12' width='18' height='76' rx='4' fill='%233CFFA5'/%3E%3C/svg%3E";
+  document.head.appendChild(favicon);
 }
 
 /* ═══ ROLE SYSTEM ═══ */
@@ -4923,7 +4931,7 @@ export default function App(){
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
       <div className="sidebar-header" style={{display:"flex",alignItems:"center",justifyContent:sidebarCollapsed?"center":"space-between"}}>
-        <div className="sidebar-brand">{sidebarCollapsed?"R":<>tabby<span>RADAR</span></>}</div>
+        <div className="sidebar-brand">{sidebarCollapsed?<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" rx="1" fill="#3CFFA5"/><rect x="10" y="7" width="4" height="14" rx="1" fill="#3CFFA5" opacity=".7"/><rect x="17" y="3" width="4" height="18" rx="1" fill="#3CFFA5" opacity=".4"/></svg>:<>tabby<span>RADAR</span></>}</div>
         <button className="sidebar-toggle" onClick={()=>setSidebarCollapsed(!sidebarCollapsed)} title={sidebarCollapsed?"Expand":"Collapse"}>
           <Icon d={sidebarCollapsed?"M9 5l7 7-7 7":"M15 19l-7-7 7-7"} size={16}/>
         </button>
