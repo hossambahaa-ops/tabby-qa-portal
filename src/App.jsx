@@ -118,6 +118,197 @@ if (!document.querySelector('link[rel="manifest"]')) {
   document.head.appendChild(metaStatus);
 }
 
+/* ═══ ROLE SYSTEM ═══ */
+const ROLE_LEVEL={qa:1,senior_qa:3,qa_lead:3,qa_supervisor:4,admin:5,super_admin:6};
+const ROLE_LABELS={qa:"QA",senior_qa:"Senior QA",qa_lead:"QA Lead",qa_supervisor:"QA Supervisor",admin:"Admin",super_admin:"Super Admin"};
+const hasRole=(r,min)=>(ROLE_LEVEL[r]||0)>=(ROLE_LEVEL[min]||99);
+
+/* ═══ SEARCHABLE MULTI-SELECT COMPONENT ═══ */
+function SearchableSelect({ options, value, onChange, placeholder, multi = false, labelKey = "label", valueKey = "value", className = "" }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const ref = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const filtered = options.filter(o => {
+    const label = typeof o === "string" ? o : o[labelKey] || "";
+    return label.toLowerCase().includes(search.toLowerCase());
+  });
+
+  const getLabel = (o) => typeof o === "string" ? o : o[labelKey] || "";
+  const getValue = (o) => typeof o === "string" ? o : o[valueKey] || "";
+
+  const isSelected = (o) => {
+    const v = getValue(o);
+    return multi ? (value || []).includes(v) : value === v;
+  };
+
+  const toggle = (o) => {
+    const v = getValue(o);
+    if (multi) {
+      const arr = value || [];
+      onChange(arr.includes(v) ? arr.filter(x => x !== v) : [...arr, v]);
+    } else {
+      onChange(v === value ? "" : v);
+      setOpen(false);
+      setSearch("");
+    }
+  };
+
+  const displayValue = () => {
+    if (multi && value?.length > 0) {
+      if (value.length === 1) {
+        const opt = options.find(o => getValue(o) === value[0]);
+        return opt ? getLabel(opt) : value[0];
+      }
+      return `${value.length} selected`;
+    }
+    if (!multi && value) {
+      const opt = options.find(o => getValue(o) === value);
+      return opt ? getLabel(opt) : value;
+    }
+    return "";
+  };
+
+  return (
+    <div ref={ref} style={{ position: "relative", minWidth: 130 }} className={className}>
+      <button
+        onClick={() => { setOpen(!open); setTimeout(() => inputRef.current?.focus(), 50); }}
+        style={{
+          display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", border: "1px solid var(--bd)",
+          borderRadius: "var(--radius)", background: "var(--bg3)", fontFamily: "var(--font)", fontSize: 12,
+          color: value && (multi ? value.length > 0 : true) ? "var(--tx)" : "var(--tx3)", cursor: "pointer",
+          width: "100%", textAlign: "left", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}
+      >
+        <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{displayValue() || placeholder || "Select..."}</span>
+        <svg width="10" height="10" viewBox="0 0 10 10" style={{ flexShrink: 0, opacity: 0.5 }}><path d="M2 4l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>
+      </button>
+      {open && <div style={{
+        position: "absolute", top: "calc(100% + 4px)", left: 0, minWidth: "100%", width: "max-content", maxWidth: 300,
+        maxHeight: 250, background: "var(--bg3)", border: "1px solid var(--bd)", borderRadius: "var(--radius)",
+        boxShadow: "var(--shadow-lg)", zIndex: 200, overflow: "hidden", display: "flex", flexDirection: "column",
+      }}>
+        <input
+          ref={inputRef}
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Type to search..."
+          style={{
+            padding: "8px 10px", border: "none", borderBottom: "1px solid var(--bd2)", fontFamily: "var(--font)",
+            fontSize: 12, background: "transparent", color: "var(--tx)", outline: "none",
+          }}
+        />
+        <div style={{ overflow: "auto", maxHeight: 200 }}>
+          {multi && value?.length > 0 && <button onClick={() => { onChange([]); }} style={{
+            width: "100%", padding: "6px 10px", border: "none", borderBottom: "1px solid var(--bd2)",
+            background: "transparent", fontFamily: "var(--font)", fontSize: 11, color: "var(--red)",
+            cursor: "pointer", textAlign: "left",
+          }}>Clear all</button>}
+          {filtered.length === 0 && <div style={{ padding: "10px", fontSize: 12, color: "var(--tx3)", textAlign: "center" }}>No results</div>}
+          {filtered.map((o, i) => {
+            const selected = isSelected(o);
+            return <button key={i} onClick={() => toggle(o)} style={{
+              width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "7px 10px", border: "none",
+              background: selected ? "var(--accent-light)" : "transparent", fontFamily: "var(--font)", fontSize: 12,
+              color: selected ? "var(--accent-text)" : "var(--tx)", cursor: "pointer", textAlign: "left",
+              transition: "background .1s",
+            }}
+              onMouseEnter={e => { if (!selected) e.target.style.background = "var(--bg)"; }}
+              onMouseLeave={e => { if (!selected) e.target.style.background = "transparent"; }}
+            >
+              {multi && <span style={{ width: 14, height: 14, borderRadius: 3, border: selected ? "none" : "1.5px solid var(--bd)", background: selected ? "var(--accent-text)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                {selected && <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5l2 2 4-4" fill="none" stroke="#fff" strokeWidth="1.5"/></svg>}
+              </span>}
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getLabel(o)}</span>
+            </button>;
+          })}
+        </div>
+      </div>}
+    </div>
+  );
+}
+
+/* ═══ GLOBAL FILTER CONTEXT ═══ */
+const defaultFilters = { domain: "", teams: [], month: "", people: [] };
+
+function GlobalFilterBar({ filters, setFilters, months, teams, roster, profile, role }) {
+  const isSv = hasRole(role, "qa_supervisor") && !hasRole(role, "admin");
+  const isQa = role === "qa";
+
+  // Build people options from roster
+  const peopleOptions = [...new Set(roster.map(r => r.email).filter(Boolean))].sort().map(e => ({
+    value: e,
+    label: e.split("@")[0].split(".").map(p => p.replace(/[\d]+$/, "")).filter(Boolean).map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(" ") + ` (${e.split("@")[1]})`,
+  }));
+
+  const teamOptions = [...new Set(roster.map(r => r.queue).filter(Boolean))].sort();
+  const domainOptions = [{ value: "tabby.ai", label: "tabby.ai" }, { value: "tabby.sa", label: "tabby.sa" }];
+
+  // Lock domain for supervisors
+  useEffect(() => {
+    if (isSv && !filters.domain) {
+      const svDomain = profile?.operational_domain || profile?.domain || "tabby.ai";
+      setFilters(f => ({ ...f, domain: svDomain }));
+    }
+  }, [isSv, profile]);
+
+  if (isQa) return null; // QAs don't see global filters
+
+  return (
+    <div style={{
+      display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 20px",
+      borderBottom: "1px solid var(--bd2)", background: "var(--bg)", fontSize: 12,
+    }}>
+      <span style={{ color: "var(--tx3)", fontSize: 11, fontWeight: 500 }}>Filters:</span>
+
+      <SearchableSelect
+        options={domainOptions}
+        value={filters.domain}
+        onChange={v => setFilters(f => ({ ...f, domain: v, teams: [], people: [] }))}
+        placeholder="All domains"
+        disabled={isSv}
+      />
+
+      <SearchableSelect
+        options={teamOptions}
+        value={filters.teams}
+        onChange={v => setFilters(f => ({ ...f, teams: v }))}
+        placeholder="All teams"
+        multi
+      />
+
+      {months.length > 0 && <SearchableSelect
+        options={months}
+        value={filters.month}
+        onChange={v => setFilters(f => ({ ...f, month: v }))}
+        placeholder="Latest month"
+      />}
+
+      <SearchableSelect
+        options={peopleOptions}
+        value={filters.people}
+        onChange={v => setFilters(f => ({ ...f, people: v }))}
+        placeholder="All people"
+        multi
+      />
+
+      {(filters.domain || filters.teams.length > 0 || filters.month || filters.people.length > 0) &&
+        <button onClick={() => setFilters({ ...defaultFilters, domain: isSv ? filters.domain : "" })} style={{
+          background: "none", border: "none", color: "var(--red)", fontSize: 11, cursor: "pointer",
+          fontFamily: "var(--font)", fontWeight: 500, padding: "4px 8px",
+        }}>Clear all</button>
+      }
+    </div>
+  );
+}
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://shuenqmzbrthiiokfzio.supabase.co";
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNodWVucW16YnJ0aGlpb2tmemlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Mzc4MjAsImV4cCI6MjA5MDUxMzgyMH0.WjbpCt33uJ_hGXucKEHn0q5_daaRnGzwRDVbTxs7lG4";
 
@@ -146,13 +337,33 @@ const sb = {
   },
 };
 
-const ROLE_LEVEL={qa:1,senior_qa:3,qa_lead:3,qa_supervisor:4,admin:5,super_admin:6};
-const ROLE_LABELS={qa:"QA",senior_qa:"Senior QA",qa_lead:"QA Lead",qa_supervisor:"QA Supervisor",admin:"Admin",super_admin:"Super Admin"};
-const hasRole=(r,min)=>(ROLE_LEVEL[r]||0)>=(ROLE_LEVEL[min]||99);
 const monday=(d)=>{const dt=new Date(d);const day=dt.getDay();const diff=dt.getDate()-day+(day===0?-6:1);dt.setDate(diff);return dt.toISOString().split("T")[0];};
 const fmtWeek=(d)=>{if(!d)return"—";const dt=new Date(d+"T00:00:00");return`Week of ${dt.toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;};
 
 function useToast(){const[t,setT]=useState(null);const show=(type,msg)=>{setT({type,msg});setTimeout(()=>setT(null),3500);};const el=t?<div className={`toast toast-${t.type}`}>{t.msg}</div>:null;return{show,el};}
+
+/* ═══ GLOBAL FILTER HELPERS ═══ */
+// Apply global filters to MTD/roster data — call this in each page
+function applyGF(rows, gf, emailField = "qa_email") {
+  if (!gf || !rows) return rows;
+  let r = rows;
+  if (gf.domain) r = r.filter(x => (x[emailField] || x.email || "").endsWith("@" + gf.domain));
+  if (gf.people?.length > 0) r = r.filter(x => gf.people.includes((x[emailField] || x.email || "").toLowerCase()));
+  if (gf.teams?.length > 0) {
+    // Need roster context — filter by team queue. Store on window for simplicity
+    const rosterMap = window.__gfRoster || {};
+    r = r.filter(x => {
+      const em = (x[emailField] || x.email || "").toLowerCase();
+      const q = rosterMap[em];
+      return q && gf.teams.includes(q);
+    });
+  }
+  return r;
+}
+function applyGFMonth(months, gf) {
+  if (gf?.month) return gf.month;
+  return months[0] || "";
+}
 
 const Icon=({d,size=20,color="currentColor"})=>(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d={d}/></svg>);
 const icons={
@@ -185,7 +396,7 @@ const GoogleLogo=()=>(<svg width="20" height="20" viewBox="0 0 48 48"><path fill
 
 /* ═══ PAGES ═══ */
 
-function DashboardPage({profile,token}){
+function DashboardPage({profile,token,gf}){
   const[mtd,setMtd]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);
   const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
   const[apPlans,setApPlans]=useState([]);const[apWeeks,setApWeeks]=useState([]);const[apDetections,setApDetections]=useState([]);
@@ -720,7 +931,7 @@ function TeamManagementPage({token}){
   </div>);
 }
 
-function ScoreEntryPage({token,profile}){
+function ScoreEntryPage({token,profile,gf}){
   const [data, setData] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -761,10 +972,14 @@ function ScoreEntryPage({token,profile}){
           const svDomain = profile?.operational_domain || profile?.domain || "";
           if (svDomain) setSelDomain(svDomain);
         }
+        // Sync from global filters
+        if (gf?.domain) setSelDomain(gf.domain);
+        if (gf?.month && uniqueMonths.includes(gf.month)) setSelMonth(gf.month);
+        if (gf?.teams?.length > 0) setSelTeam(gf.teams[0]);
       } catch (e) { console.error("MTD Scores:", e); }
       setLoading(false);
     })();
-  }, [token]);
+  }, [token, gf?.domain, gf?.month, gf?.teams]);
 
   const nameFromEmail = (email) => {
     if (!email) return "—";
@@ -808,6 +1023,11 @@ function ScoreEntryPage({token,profile}){
   if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
   if (selTL) filtered = filtered.filter(r => r.qa_tl === selTL);
   if (selQA) filtered = filtered.filter(r => r.qa_email === selQA);
+  // Apply global filters
+  if (gf?.people?.length > 0) filtered = filtered.filter(r => gf.people.includes(r.qa_email?.toLowerCase()));
+  if (gf?.domain && !selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+gf.domain));
+  if (gf?.teams?.length > 0 && !selTeam) filtered = filtered.filter(r => { const q = rosterMap[r.qa_email?.toLowerCase()]?.queue; return q && gf.teams.includes(q); });
+  if (gf?.month && !selMonth && gf.month !== selMonth) { /* month already handled by selMonth */ }
   const sorted = [...filtered].sort((a, b) => (b.final_performance || 0) - (a.final_performance || 0));
 
   const fpColor = (v) => v >= 0.4 ? "var(--green)" : v >= 0.25 ? "var(--amber)" : "var(--red)";
@@ -1004,7 +1224,7 @@ function AdminPage({token,profile}){
 }
 
 /* ═══ DAM ENGINE ═══ */
-function DAMPage({token,profile}){
+function DAMPage({token,profile,gf}){
   const[tab,setTab]=useState("flags");const[rules,setRules]=useState([]);const[flags,setFlags]=useState([]);const[steps,setSteps]=useState([]);
   const[loading,setLoading]=useState(true);const[showCreate,setShowCreate]=useState(false);
   const[selRule,setSelRule]=useState("");const[selProfile,setSelProfile]=useState("");const[flagNotes,setFlagNotes]=useState("");
@@ -1022,8 +1242,11 @@ function DAMPage({token,profile}){
     const svDomain=profile?.operational_domain||profile?.domain||"tabby.ai";
     const isAdminDAM=hasRole(profile?.role,"admin");
     const isSvDAM=hasRole(profile?.role,"qa_supervisor")&&!isAdminDAM;
-    const scopedFlags=isSvDAM?f.filter(fl=>fl.profiles?.email?.endsWith("@"+svDomain)):f;
-    const scopedProfiles=isSvDAM?p.filter(pr=>pr.email?.endsWith("@"+svDomain)):p;
+    let scopedFlags=isSvDAM?f.filter(fl=>(fl.profiles?.email||fl.qa_email||"").endsWith("@"+svDomain)):f;
+    let scopedProfiles=isSvDAM?p.filter(pr=>pr.email?.endsWith("@"+svDomain)):p;
+    // Apply global filters
+    if(gf?.domain){scopedFlags=scopedFlags.filter(fl=>(fl.profiles?.email||fl.qa_email||"").endsWith("@"+gf.domain));scopedProfiles=scopedProfiles.filter(pr=>pr.email?.endsWith("@"+gf.domain));}
+    if(gf?.people?.length>0)scopedFlags=scopedFlags.filter(fl=>gf.people.includes((fl.profiles?.email||fl.qa_email||"").toLowerCase()));
     setFlags(scopedFlags);setSteps(s);setProfiles(scopedProfiles);
   }catch(e){console.error(e);}setLoading(false);},[token]);
 
@@ -1177,7 +1400,7 @@ function DAMPage({token,profile}){
 }
 
 /* ═══ LEADERBOARD ═══ */
-function LeaderboardPage({token, profile}) {
+function LeaderboardPage({token, profile, gf}) {
   const [data, setData] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -1192,6 +1415,13 @@ function LeaderboardPage({token, profile}) {
   const [selYear, setSelYear] = useState("");
   const [selQaQuarterly, setSelQaQuarterly] = useState("");
   const {show, el} = useToast();
+
+  // Sync global filters to local state
+  useEffect(() => {
+    if (gf?.domain && gf.domain !== selDomain) setSelDomain(gf.domain);
+    if (gf?.month && gf.month !== selMonth) setSelMonth(gf.month);
+    if (gf?.teams?.length > 0 && gf.teams[0] !== selTeam) setSelTeam(gf.teams[0]);
+  }, [gf?.domain, gf?.month, gf?.teams]);
 
   useEffect(() => {
     (async () => {
@@ -1293,6 +1523,8 @@ function LeaderboardPage({token, profile}) {
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
   if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
   if (search.trim()) filtered = filtered.filter(r => r.qa_email?.toLowerCase().includes(search.toLowerCase()));
+  // Apply global people filter
+  if (gf?.people?.length > 0) filtered = filtered.filter(r => gf.people.includes(r.qa_email?.toLowerCase()));
   // Rank by calculated total score
   const ranked = [...filtered].sort((a, b) => getTotalScore(b) - getTotalScore(a));
 
@@ -1826,9 +2058,16 @@ function CoachingPage({token, profile}) {
         const svDomainC=profile?.operational_domain||profile?.domain||"tabby.ai";
         const isAdminC=hasRole(profile?.role,"admin");
         const isSvC=hasRole(profile?.role,"qa_supervisor")&&!isAdminC;
-        setRoster(isSvC?r.filter(x=>x.email?.endsWith("@"+svDomainC)):r);
-        setSessions(isSvC?s.filter(x=>x.member_email?.endsWith("@"+svDomainC)):s);
-        setActivePlans(isSvC?ap.filter(x=>x.qa_email?.endsWith("@"+svDomainC)):ap);
+        let filteredRoster=isSvC?r.filter(x=>x.email?.endsWith("@"+svDomainC)):r;
+        let filteredSessions=isSvC?s.filter(x=>x.member_email?.endsWith("@"+svDomainC)):s;
+        let filteredPlans=isSvC?ap.filter(x=>x.qa_email?.endsWith("@"+svDomainC)):ap;
+        // Apply global filters
+        if(gf?.domain){filteredRoster=filteredRoster.filter(x=>x.email?.endsWith("@"+gf.domain));filteredSessions=filteredSessions.filter(x=>x.member_email?.endsWith("@"+gf.domain));filteredPlans=filteredPlans.filter(x=>x.qa_email?.endsWith("@"+gf.domain));}
+        if(gf?.people?.length>0){filteredRoster=filteredRoster.filter(x=>gf.people.includes(x.email?.toLowerCase()));filteredSessions=filteredSessions.filter(x=>gf.people.includes(x.member_email?.toLowerCase()));filteredPlans=filteredPlans.filter(x=>gf.people.includes(x.qa_email?.toLowerCase()));}
+        if(gf?.teams?.length>0){const rm=window.__gfRoster||{};filteredRoster=filteredRoster.filter(x=>{const q=rm[x.email?.toLowerCase()];return q&&gf.teams.includes(q);});}
+        setRoster(filteredRoster);
+        setSessions(filteredSessions);
+        setActivePlans(filteredPlans);
         setPlanWeeks(apw);
       } catch (e) { console.error("Coaching load:", e); }
     })();
@@ -3736,7 +3975,7 @@ function ActionPlanPage({ token, profile }) {
 }
 
 /* ═══ COACHING VIOLATIONS PAGE ═══ */
-function CoachingViolationsPage({token, profile}) {
+function CoachingViolationsPage({token, profile, gf}) {
   const [violations, setViolations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("pending");
@@ -3767,7 +4006,10 @@ function CoachingViolationsPage({token, profile}) {
       const svDomain = profile?.operational_domain || profile?.domain || "tabby.ai";
       const isAdmin = hasRole(profile?.role, "admin");
       const isSv = hasRole(profile?.role, "qa_supervisor") && !isAdmin;
-      const filtered = isSv ? v.filter(x => x.qa_emails?.includes("@" + svDomain) || x.lead_email?.includes("@" + svDomain)) : v;
+      let filtered = isSv ? v.filter(x => x.qa_emails?.includes("@" + svDomain) || x.lead_email?.includes("@" + svDomain)) : v;
+      // Apply global filters
+      if(gf?.domain) filtered = filtered.filter(x => x.qa_emails?.includes("@" + gf.domain));
+      if(gf?.people?.length > 0) filtered = filtered.filter(x => gf.people.some(p => x.qa_emails?.toLowerCase().includes(p)));
       setViolations(filtered);
       setProfiles(p);
       setDamRules(r);
@@ -4119,7 +4361,7 @@ const ESCALATION_ROUTING = {
   admin: () => ({ label: "Head of QA", email: "imad.moussa@tabby.ai" }),
 };
 
-function EscalationsPage({ token, profile }) {
+function EscalationsPage({ token, profile, gf }) {
   const [escalations, setEscalations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -4583,6 +4825,9 @@ export default function App(){
   const[viewAsRole,setViewAsRole]=useState("");
   const[darkMode,setDarkMode]=useState(()=>localStorage.getItem("dark_mode")==="true");
   const[showSearch,setShowSearch]=useState(false);
+  const[globalFilters,setGlobalFilters]=useState({...defaultFilters});
+  const[globalRoster,setGlobalRoster]=useState([]);
+  const[globalMonths,setGlobalMonths]=useState([]);
   // Persist page in URL hash
   useEffect(()=>{window.location.hash=page;},[page]);
   useEffect(()=>{const onHash=()=>{const h=window.location.hash.replace("#","");if(h)setPage(h);};window.addEventListener("hashchange",onHash);return()=>window.removeEventListener("hashchange",onHash);},[]);
@@ -4615,24 +4860,43 @@ export default function App(){
       if(p2.length>0)setProfile(p2[0]);
     }catch(e){console.error("Auto-create profile:",e);}
   }}catch(e){console.error("Profile:",e);}}setLoading(false);})();},[]);
+
+  // Load global filter data (roster + months)
+  useEffect(()=>{if(!session)return;(async()=>{try{
+    const[r,m]=await Promise.all([
+      sb.query("qa_roster",{select:"email,queue,manager_email",token:session.access_token}).catch(()=>[]),
+      sb.query("mtd_scores",{select:"month",token:session.access_token}).catch(()=>[]),
+    ]);
+    setGlobalRoster(r);
+    // Build roster map for global filter team lookups
+    const rm = {};
+    r.forEach(x => { if (x.email && x.queue) rm[x.email.toLowerCase()] = x.queue; });
+    window.__gfRoster = rm;
+    const monthOrder=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const uniqueMonths=[...new Set(m.map(x=>x.month).filter(Boolean))].sort((a,b)=>{
+      const[am,ay]=a.split("-");const[bm,by]=b.split("-");
+      return by-ay||monthOrder.indexOf(bm)-monthOrder.indexOf(am);
+    });
+    setGlobalMonths(uniqueMonths);
+  }catch(e){console.error("Global filters:",e);}})();},[session]);
   if(loading)return<div className="loading-fullscreen"><div className="spinner"/><p style={{marginTop:16,color:"var(--tx2)",fontSize:14}}>Loading portal...</p></div>;
   if(!session)return(<div className="login-page"><div className="login-card"><div style={{marginBottom:8}}><TabbyLogo size={28}/></div><div className="login-subtitle">QA Performance & Analytics Dashboard<br/>Sign in with your Tabby Google account.</div><button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}><GoogleLogo/>Sign in with Google</button><div className="login-divider">Supported domains</div><div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div><div className="login-footer">Internal tool &middot; Tabby RADAR</div></div></div>);
   const realRole=profile?.role||"qa";
   const userRole=viewAsRole||realRole;
   const effectiveProfile=viewAsRole?{...profile,role:viewAsRole}:profile;
   const visibleNav=NAV_ITEMS.filter(n=>!n.minRole||hasRole(userRole,n.minRole)||n.key==="escalations");let curSec=null;
-  const renderPage=()=>{const t=session.access_token;const p=effectiveProfile;switch(page){
-    case"dashboard":return<DashboardPage profile={p} token={t}/>;
-    case"scores":return<ScoreEntryPage token={t} profile={p}/>;
-    case"admin":return hasRole(userRole,"admin")?<AdminPage token={t} profile={p}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>;
-    case"leaderboard":return<LeaderboardPage token={t} profile={p}/>;
-    case"dam":return hasRole(userRole,"qa_lead")?<DAMPage token={t} profile={p}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
-    case"plans":return hasRole(userRole,"qa_lead")?<ActionPlanPage token={t} profile={p}/>:<PlaceholderPage title="Action plans & PIPs" icon={icons.plan} minRole="qa_lead" userRole={userRole}/>;
-    case"coaching":return hasRole(userRole,"qa_lead")?<CoachingPage token={t} profile={p}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
-    case"violations":return hasRole(userRole,"qa_lead")?<CoachingViolationsPage token={t} profile={p}/>:<PlaceholderPage title="Coaching Violations" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
+  const renderPage=()=>{const t=session.access_token;const p=effectiveProfile;const gf=globalFilters;switch(page){
+    case"dashboard":return<DashboardPage profile={p} token={t} gf={gf}/>;
+    case"scores":return<ScoreEntryPage token={t} profile={p} gf={gf}/>;
+    case"admin":return hasRole(userRole,"admin")?<AdminPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>;
+    case"leaderboard":return<LeaderboardPage token={t} profile={p} gf={gf}/>;
+    case"dam":return hasRole(userRole,"qa_lead")?<DAMPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
+    case"plans":return hasRole(userRole,"qa_lead")?<ActionPlanPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Action plans & PIPs" icon={icons.plan} minRole="qa_lead" userRole={userRole}/>;
+    case"coaching":return hasRole(userRole,"qa_lead")?<CoachingPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
+    case"violations":return hasRole(userRole,"qa_lead")?<CoachingViolationsPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Coaching Violations" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
     case"hr":return<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>;
-    case"escalations":return<EscalationsPage token={t} profile={p}/>;
-    default:return<DashboardPage profile={p} token={t}/>;
+    case"escalations":return<EscalationsPage token={t} profile={p} gf={gf}/>;
+    default:return<DashboardPage profile={p} token={t} gf={gf}/>;
   }};
   return(<div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
@@ -4682,6 +4946,8 @@ export default function App(){
         <button onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{background:"none",border:"1px solid var(--bd)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"var(--tx2)",cursor:"pointer"}}>Sign out</button>
       </div>
     </div>
+    {/* Global filter bar */}
+    <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} teams={[]} roster={globalRoster} profile={effectiveProfile} role={userRole}/>
     {/* Search overlay */}
     {showSearch&&<GlobalSearch token={session.access_token} onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
     {renderPage()}</div>
