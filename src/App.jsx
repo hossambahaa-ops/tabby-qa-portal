@@ -130,7 +130,7 @@ function DashboardPage({profile,token}){
         const score=row?getScore(row):0;
         const ruleName=flag.dam_rules?.name||"Unknown";
         const pipAction=step.pip_action||step.action||"AP required";
-        flagged.push({email:flag.profiles?.email||email,name:flag.profiles?.display_name||nameFromEmail(email),score,reason:`DAM: ${ruleName} — #${flag.occurrence_number}: ${pipAction}`,slab0Count:0});
+        flagged.push({email:flag.profiles?.email||email,name:flag.profiles?.display_name||nameFromEmail(email),score,reason:`DAM: ${ruleName} — #${flag.occurrence_number}: ${pipAction}`,slab0Count:0,planType:step.includes_pip?"pip":"ap"});
       });
       flagged.sort((a,b)=>a.score-b.score);
       setApDetections(flagged);
@@ -213,7 +213,7 @@ function DashboardPage({profile,token}){
             </div>
           </div>
           <div style={{display:"flex",gap:6}}>
-            <button className="btn btn-primary btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={(e)=>{e.stopPropagation();nav("plans");}}>Create AP</button>
+            <button className="btn btn-primary btn-sm" style={{fontSize:11,padding:"3px 10px",background:d.planType==="pip"?"var(--red)":"",color:d.planType==="pip"?"#fff":""}} onClick={(e)=>{e.stopPropagation();nav("plans");}}>Create {(d.planType||"pip").toUpperCase()}</button>
             {hasRole(profile?.role,"super_admin") ?
               <button className="btn btn-outline btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={async(e)=>{e.stopPropagation();try{await sb.query("ap_dismissals",{token,method:"POST",body:{qa_email:d.email,dismissed_by:profile?.email,reason:"Dismissed by super admin",month:months[0]||"",detection_info:d.reason}});setApDetections(prev=>prev.filter(x=>x.email!==d.email));}catch(err){console.error(err);}}}>Dismiss</button> :
               <button className="btn btn-outline btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={(e)=>{e.stopPropagation();setDismissModal(d);}}>Dismiss</button>
@@ -2525,6 +2525,8 @@ function ActionPlanPage({ token, profile }) {
         totalScore, kpis, latestMonth,
         tl: row?.qa_tl,
         damFlagId: flag.id,
+        planType: step.includes_pip ? "pip" : "ap",
+        pipActionType: step.pip_action || "new",
       });
     });
 
@@ -3016,14 +3018,9 @@ function ActionPlanPage({ token, profile }) {
                 </div>
 
                 <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                  <button className="btn btn-primary btn-sm" onClick={() => startCreate(d.email, "ap")}>
-                    <Icon d={icons.plan} size={14} />Create AP
+                  <button className="btn btn-primary btn-sm" onClick={() => startCreate(d.email, d.planType || "pip")} style={d.planType === "pip" ? { background: "var(--red)", color: "#fff" } : {}}>
+                    <Icon d={d.planType === "pip" ? icons.dam : icons.plan} size={14} />Create {(d.planType || "pip").toUpperCase()}
                   </button>
-                  {d.severity === "critical" && (
-                    <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={() => startCreate(d.email, "pip")}>
-                      <Icon d={icons.dam} size={14} />Create PIP
-                    </button>
-                  )}
                   {hasRole(profile?.role, "super_admin") ?
                     <button className="btn btn-outline btn-sm" onClick={() => dismissDetectionDB(d.email, "")}>Dismiss</button> :
                     <button className="btn btn-outline btn-sm" onClick={() => { setDismissModalAP(d); setDismissReasonAP(""); }}>Dismiss</button>
