@@ -810,44 +810,33 @@ function ScoreEntryPage({token,profile}){
 }
 
 function AdminUsersPage({token,teams}){
-  const[users,setUsers]=useState([]);const[memberships,setMemberships]=useState({});const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editTeams,setEditTeams]=useState([]);const[editOpDomain,setEditOpDomain]=useState("");const{show,el}=useToast();
+  const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const{show,el}=useToast();
   const load=useCallback(async()=>{try{
-    const[d,tm]=await Promise.all([
+    const[d,r]=await Promise.all([
       sb.query("profiles",{select:"id,email,display_name,role,domain,operational_domain,status",token}),
-      sb.query("team_members",{select:"id,profile_id,team_id,is_primary",token})
+      sb.query("qa_roster",{select:"email,queue",token}).catch(()=>[]),
     ]);
     setUsers(d.sort((a,b)=>ROLE_LEVEL[b.role]-ROLE_LEVEL[a.role]));
-    const map={};tm.forEach(m=>{if(!map[m.profile_id])map[m.profile_id]=[];map[m.profile_id].push(m);});
-    setMemberships(map);
+    setRoster(r);
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
-  const getUserTeamNames=(uid)=>{const ms=memberships[uid]||[];return ms.map(m=>{const t=teams.find(t2=>t2.id===m.team_id);return t?t.name:null;}).filter(Boolean);};
+  const getUserTeamNames=(u)=>{const r2=roster.filter(r=>r.email?.toLowerCase()===u.email?.toLowerCase());return[...new Set(r2.map(r=>r.queue).filter(Boolean))];};
   const getOpDomain=(u)=>u.operational_domain||u.domain||"tabby.ai";
   const save=async(uid)=>{try{
     await sb.query("profiles",{token,method:"PATCH",body:{role:editRole,operational_domain:editOpDomain},filters:`id=eq.${uid}`});
-    await sb.query("team_members",{token,method:"DELETE",filters:`profile_id=eq.${uid}`});
-    if(editTeams.length>0){
-      const rows=editTeams.map((tid,i)=>({profile_id:uid,team_id:tid,is_primary:i===0}));
-      await sb.query("team_members",{token,method:"POST",body:rows});
-      await sb.query("profiles",{token,method:"PATCH",body:{team_id:editTeams[0]},filters:`id=eq.${uid}`});
-    } else {
-      await sb.query("profiles",{token,method:"PATCH",body:{team_id:null},filters:`id=eq.${uid}`});
-    }
     setEditingId(null);show("success","Updated");load();
   }catch(e){show("error",e.message);}};
-  const toggleTeam=(tid)=>{setEditTeams(prev=>prev.includes(tid)?prev.filter(t=>t!==tid):[...prev,tid]);};
   return(<div className="page">
     <div className="page-header"><div className="page-title">User management</div><div className="page-subtitle">{users.length} users</div></div>
     <div className="card">{loading?<div className="loading-spinner"><div className="spinner"/></div>:
       <div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Email domain</th><th>Op. domain</th><th>Teams</th><th>Status</th><th></th></tr></thead><tbody>
-        {users.map(u=>{const uTeams=getUserTeamNames(u.id);const uTeamIds=(memberships[u.id]||[]).map(m=>m.team_id);return(<tr key={u.id}><td style={{fontWeight:500}}>{u.display_name||"—"}</td><td style={{color:"var(--tx2)",fontSize:13}}>{u.email}</td>
+        {users.map(u=>{const uTeams=getUserTeamNames(u);return(<tr key={u.id}><td style={{fontWeight:500}}>{u.display_name||"—"}</td><td style={{color:"var(--tx2)",fontSize:13}}>{u.email}</td>
         <td>{editingId===u.id?<select className="select" value={editRole} onChange={e=>setEditRole(e.target.value)} style={{fontSize:12,padding:"4px 8px"}}>{Object.entries(ROLE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>:<span className={`role-badge role-${u.role}`}>{ROLE_LABELS[u.role]}</span>}</td>
         <td><span className={`domain-badge domain-${u.domain==="tabby.ai"?"ai":"sa"}`}>{u.domain}</span></td>
         <td>{editingId===u.id?<select className="select" value={editOpDomain} onChange={e=>setEditOpDomain(e.target.value)} style={{fontSize:12,padding:"4px 8px"}}><option value="tabby.ai">tabby.ai</option><option value="tabby.sa">tabby.sa</option></select>:<span className={`domain-badge domain-${getOpDomain(u)==="tabby.ai"?"ai":"sa"}`}>{getOpDomain(u)}</span>}</td>
-        <td>{editingId===u.id?<div className="team-checkboxes">{teams.map(t=><label key={t.id} className={`team-checkbox ${editTeams.includes(t.id)?"checked":""}`}><input type="checkbox" checked={editTeams.includes(t.id)} onChange={()=>toggleTeam(t.id)} style={{display:"none"}}/>{t.name}</label>)}{teams.length===0&&<span style={{fontSize:12,color:"var(--tx3)"}}>No teams created</span>}</div>:
-          uTeams.length>0?<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{uTeams.map((n,i)=><span key={i} className="team-tag">{n}</span>)}</div>:<span style={{fontSize:13,color:"var(--tx3)"}}>Unassigned</span>}</td>
+        <td>{uTeams.length>0?<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{uTeams.map((n,i)=><span key={i} className="team-tag">{n}</span>)}</div>:<span style={{fontSize:13,color:"var(--tx3)"}}>—</span>}</td>
         <td><span className={`status-badge status-${u.status}`}>{u.status}</span></td>
-        <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditOpDomain(getOpDomain(u));setEditTeams([...uTeamIds]);}}>Edit</button>}</td></tr>);})}
+        <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditOpDomain(getOpDomain(u));}}>Edit</button>}</td></tr>);})}
       </tbody></table></div>}</div>{el}
   </div>);
 }
