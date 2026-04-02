@@ -937,7 +937,7 @@ function ScoreEntryPage({token,profile,gf}){
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState([]);
   const [selMonth, setSelMonth] = useState("");
-  const [selQA, setSelQA] = useState("");
+  const [selQA, setSelQA] = useState([]);
   const [selTL, setSelTL] = useState("");
   const [selDomain, setSelDomain] = useState("");
   const [selTeam, setSelTeam] = useState("");
@@ -1022,7 +1022,7 @@ function ScoreEntryPage({token,profile,gf}){
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
   if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
   if (selTL) filtered = filtered.filter(r => r.qa_tl === selTL);
-  if (selQA) filtered = filtered.filter(r => r.qa_email === selQA);
+  if (selQA.length > 0) filtered = filtered.filter(r => selQA.includes(r.qa_email));
   // Apply global filters
   if (gf?.people?.length > 0) filtered = filtered.filter(r => gf.people.includes(r.qa_email?.toLowerCase()));
   if (gf?.domain && !selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+gf.domain));
@@ -1045,38 +1045,49 @@ function ScoreEntryPage({token,profile,gf}){
       <div className="controls-row">
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">Month</label>
-          <select className="select form-input" value={selMonth} onChange={e=>{setSelMonth(e.target.value);setSelQA("");setSelTL("");setSelDomain("");setSelTeam("");}}>
-            {months.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
+          <SearchableSelect
+            options={months}
+            value={selMonth}
+            onChange={v=>{setSelMonth(v);setSelQA([]);setSelTL("");setSelDomain("");setSelTeam("");}}
+            placeholder="Select month"
+          />
         </div>
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">Domain</label>
-          <select className="select form-input" value={selDomain} onChange={e=>{setSelDomain(e.target.value);setSelQA("");setSelTL("");setSelTeam("");}} disabled={hasRole(profile?.role,"qa_supervisor")&&!hasRole(profile?.role,"admin")}>
-            {(!hasRole(profile?.role,"qa_supervisor")||hasRole(profile?.role,"admin"))&&<option value="">All domains</option>}
-            <option value="tabby.ai">tabby.ai</option>
-            <option value="tabby.sa">tabby.sa</option>
-          </select>
+          <SearchableSelect
+            options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]}
+            value={selDomain}
+            onChange={v=>{setSelDomain(v);setSelQA([]);setSelTL("");setSelTeam("");}}
+            placeholder="All domains"
+          />
         </div>
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">Team</label>
-          <select className="select form-input" value={selTeam} onChange={e=>{setSelTeam(e.target.value);setSelQA("");setSelTL("");}}>
-            <option value="">All teams</option>
-            {scoreTeams.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>
+          <SearchableSelect
+            options={scoreTeams}
+            value={selTeam}
+            onChange={v=>{setSelTeam(v);setSelQA([]);setSelTL("");}}
+            placeholder="All teams"
+          />
         </div>
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">QA Lead</label>
-          <select className="select form-input" value={selTL} onChange={e=>{setSelTL(e.target.value);setSelQA("");}}>
-            <option value="">All leads ({tlEmails.length})</option>
-            {tlEmails.map(e => <option key={e} value={e}>{nameFromEmail(e)}</option>)}
-          </select>
+          <SearchableSelect
+            options={tlEmails.map(e=>({value:e,label:nameFromEmail(e)}))}
+            value={selTL}
+            onChange={v=>{setSelTL(v);setSelQA([]);}}
+            placeholder={`All leads (${tlEmails.length})`}
+          />
         </div>
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">Specialist</label>
-          <select className="select form-input" value={selQA} onChange={e=>setSelQA(e.target.value)}>
-            <option value="">All ({filtered.length})</option>
-            {[...new Set(filtered.map(r=>r.qa_email))].sort().map(e => <option key={e} value={e}>{nameFromEmail(e)}</option>)}
-          </select>
+          <SearchableSelect
+            options={[...new Set(filtered.map(r=>r.qa_email))].sort().map(e=>({value:e,label:nameFromEmail(e)+" ("+e.split("@")[1]+")"}))}
+            value={selQA}
+            onChange={setSelQA}
+            placeholder={`All (${filtered.length})`}
+            multi
+          />
         </div>
       </div>
     </div>
@@ -1416,12 +1427,14 @@ function LeaderboardPage({token, profile, gf}) {
   const [selQaQuarterly, setSelQaQuarterly] = useState("");
   const {show, el} = useToast();
 
-  // Sync global filters to local state
+  // Sync global filters to local state — runs whenever global filters change
   useEffect(() => {
-    if (gf?.domain && gf.domain !== selDomain) setSelDomain(gf.domain);
-    if (gf?.month && gf.month !== selMonth) setSelMonth(gf.month);
-    if (gf?.teams?.length > 0 && gf.teams[0] !== selTeam) setSelTeam(gf.teams[0]);
-  }, [gf?.domain, gf?.month, gf?.teams]);
+    if (gf?.domain) setSelDomain(gf.domain);
+    else if (!gf?.domain && selDomain && !hasRole(profile?.role,"qa_supervisor")) setSelDomain("");
+    if (gf?.month && months.includes(gf.month)) setSelMonth(gf.month);
+    if (gf?.teams?.length > 0) setSelTeam(gf.teams[0]);
+    else if (gf?.teams?.length === 0 && selTeam) setSelTeam("");
+  }, [gf?.domain, gf?.month, JSON.stringify(gf?.teams), months.length]);
 
   useEffect(() => {
     (async () => {
@@ -1450,12 +1463,20 @@ function LeaderboardPage({token, profile, gf}) {
         setData(qaOnlyRows);
         const uniqueMonths = [...new Set(qaOnlyRows.map(r => r.month))];
         setMonths(uniqueMonths);
-        if (uniqueMonths.length > 0 && !selMonth) setSelMonth(uniqueMonths[0]);
-        // Auto-scope supervisors to their domain
-        if (hasRole(profile?.role,"qa_supervisor") && !hasRole(profile?.role,"admin") && !selDomain) {
+        // Global filter month takes priority, then default to latest
+        if (gf?.month && uniqueMonths.includes(gf.month)) {
+          setSelMonth(gf.month);
+        } else if (uniqueMonths.length > 0 && !selMonth) {
+          setSelMonth(uniqueMonths[0]);
+        }
+        // Global filter domain takes priority
+        if (gf?.domain) {
+          setSelDomain(gf.domain);
+        } else if (hasRole(profile?.role,"qa_supervisor") && !hasRole(profile?.role,"admin") && !selDomain) {
           const svDomain = profile?.operational_domain || profile?.domain || "";
           if (svDomain) setSelDomain(svDomain);
         }
+        if (gf?.teams?.length > 0) setSelTeam(gf.teams[0]);
       } catch (e) {
         console.error("Leaderboard:", e);
         show("error", "Failed to load leaderboard data");
