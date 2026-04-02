@@ -3975,6 +3975,357 @@ function CoachingViolationsPage({token, profile}) {
   );
 }
 
+/* ═══ ESCALATIONS PAGE ═══ */
+const ESCALATION_CATEGORIES = [
+  "Unfair treatment",
+  "Communication issues",
+  "Workload concerns",
+  "Policy violation",
+  "Harassment or bullying",
+  "Performance evaluation dispute",
+  "Schedule or attendance issue",
+  "Other",
+];
+
+const ESCALATION_ROUTING = {
+  qa: (profile, roster) => {
+    // QA → route to supervisor of their TL
+    const r = roster.find(x => x.email?.toLowerCase() === profile?.email?.toLowerCase());
+    const tlEmail = r?.manager_email;
+    // For now route to supervisor domain
+    return { label: "Supervisor", email: null, note: "Will be routed to your domain supervisor" };
+  },
+  senior_qa: (profile) => ({ label: "QA Manager", email: "amanda.souza@tabby.ai" }),
+  qa_lead: () => ({ label: "QA Manager", email: "amanda.souza@tabby.ai" }),
+  qa_supervisor: () => ({ label: "Head of QA", email: "imad.moussa@tabby.ai" }),
+  admin: () => ({ label: "Head of QA", email: "imad.moussa@tabby.ai" }),
+};
+
+function EscalationsPage({ token, profile }) {
+  const [escalations, setEscalations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [tab, setTab] = useState("my");
+  const [roster, setRoster] = useState([]);
+  const [viewEsc, setViewEsc] = useState(null);
+  const [responseText, setResponseText] = useState("");
+  const [resolutionNote, setResolutionNote] = useState("");
+  const { show, el } = useToast();
+
+  // Form state
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const [aboutPerson, setAboutPerson] = useState("");
+  const [isAnonymous, setIsAnonymous] = useState(false);
+
+  const myEmail = profile?.email?.toLowerCase();
+  const myRole = profile?.role || "qa";
+
+  const nameFromEmail = (email) => {
+    if (!email) return "—";
+    return email.split("@")[0].split(".").map(p => {
+      const c = p.replace(/[\d]+$/, "");
+      return c ? c.charAt(0).toUpperCase() + c.slice(1) : "";
+    }).filter(Boolean).join(" ");
+  };
+
+  const getRouting = () => {
+    const fn = ESCALATION_ROUTING[myRole] || ESCALATION_ROUTING.qa;
+    return fn(profile, roster);
+  };
+
+  const load = useCallback(async () => {
+    try {
+      const [e, r] = await Promise.all([
+        sb.query("escalations", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
+        sb.query("qa_roster", { select: "email,manager_email,queue", token }).catch(() => []),
+      ]);
+      setRoster(r);
+
+      // Filter: user sees their own submitted + ones routed to them
+      const isAdmin = hasRole(myRole, "admin");
+      const isSupervisor = hasRole(myRole, "qa_supervisor");
+      const filtered = isAdmin ? e : e.filter(x =>
+        x.submitted_by?.toLowerCase() === myEmail ||
+        x.routed_to?.toLowerCase() === myEmail ||
+        (isSupervisor && x.routed_to?.toLowerCase().includes("supervisor"))
+      );
+      setEscalations(filtered);
+    } catch (e) { console.error("Escalations:", e); }
+    setLoading(false);
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const mySubmitted = escalations.filter(e => e.submitted_by?.toLowerCase() === myEmail);
+  const routedToMe = escalations.filter(e => {
+    const rt = e.routed_to?.toLowerCase();
+    if (rt === myEmail) return true;
+    // Supervisor catches "supervisor" routed ones for their domain
+    if (hasRole(myRole, "qa_supervisor") && rt?.includes("supervisor")) {
+      const domain = profile?.operational_domain || profile?.domain;
+      return e.submitted_by?.endsWith("@" + domain);
+    }
+    return false;
+  });
+
+  const submitEscalation = async () => {
+    if (!category) { show("error", "Select a category"); return; }
+    if (!description.trim()) { show("error", "Description is required"); return; }
+
+    const routing = getRouting();
+    const routedTo = routing.email || "supervisor";
+
+    try {
+      await sb.query("escalations", {
+        token, method: "POST",
+        body: {
+          submitted_by: myEmail,
+          submitted_role: myRole,
+          is_anonymous: isAnonymous,
+          about_person: aboutPerson.trim() || null,
+          category,
+          description: description.trim(),
+          routed_to: routedTo,
+          status: "open",
+        },
+      });
+      show("success", "Escalation submitted successfully");
+      setShowForm(false);
+      setCategory("");
+      setDescription("");
+      setAboutPerson("");
+      setIsAnonymous(false);
+      load();
+    } catch (e) { show("error", e.message); }
+  };
+
+  const submitResponse = async (escId) => {
+    if (!responseText.trim()) { show("error", "Response is required"); return; }
+    try {
+      await sb.query("escalations", {
+        token, method: "PATCH",
+        body: { response: responseText.trim(), responded_by: myEmail, responded_at: new Date().toISOString(), status: "in_progress" },
+        filters: `id=eq.${escId}`,
+      });
+      show("success", "Response sent");
+      setResponseText("");
+      setViewEsc(null);
+      load();
+    } catch (e) { show("error", e.message); }
+  };
+
+  const resolveEscalation = async (escId) => {
+    try {
+      await sb.query("escalations", {
+        token, method: "PATCH",
+        body: { status: "resolved", resolution_note: resolutionNote.trim() || null, resolved_at: new Date().toISOString() },
+        filters: `id=eq.${escId}`,
+      });
+      show("success", "Escalation resolved");
+      setResolutionNote("");
+      setViewEsc(null);
+      load();
+    } catch (e) { show("error", e.message); }
+  };
+
+  const statusColor = (s) => {
+    if (s === "open") return { bg: "var(--red-bg)", color: "var(--red)" };
+    if (s === "in_progress") return { bg: "var(--amber-bg)", color: "var(--amber)" };
+    if (s === "resolved") return { bg: "var(--green-bg)", color: "var(--green)" };
+    return { bg: "var(--bg2)", color: "var(--tx3)" };
+  };
+
+  if (loading) return <div className="page"><div className="loading-spinner"><div className="spinner" /></div></div>;
+
+  const routing = getRouting();
+
+  return (
+    <div className="page">
+      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <div className="page-title">Escalations</div>
+          <div className="page-subtitle">Raise concerns confidentially to leadership</div>
+        </div>
+        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+          <Icon d={icons.plus} size={16} />New escalation
+        </button>
+      </div>
+
+      {/* New Escalation Form */}
+      {showForm && <div className="card" style={{ marginBottom: 16, borderLeft: "4px solid var(--accent)" }}>
+        <div className="card-header"><span className="card-title">Submit an Escalation</span></div>
+        <div style={{ padding: "0 0 16px" }}>
+          <div style={{ padding: "8px 12px", background: "var(--bg)", borderRadius: 8, marginBottom: 16, fontSize: 12, color: "var(--tx2)" }}>
+            This will be routed to: <strong>{routing.label}</strong>{routing.email ? ` (${nameFromEmail(routing.email)})` : ""}
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">About (person you're escalating about)</label>
+            <input className="form-input" value={aboutPerson} onChange={e => setAboutPerson(e.target.value)} placeholder="Name or email of the person..." />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Category <span style={{ color: "var(--red)" }}>*</span></label>
+            <select className="select form-input" value={category} onChange={e => setCategory(e.target.value)}>
+              <option value="">— Select category —</option>
+              {ESCALATION_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Description <span style={{ color: "var(--red)" }}>*</span></label>
+            <textarea className="form-input" rows={4} value={description} onChange={e => setDescription(e.target.value)} placeholder="Describe the issue in detail..." style={{ resize: "vertical" }} />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+              <input type="checkbox" checked={isAnonymous} onChange={e => setIsAnonymous(e.target.checked)} />
+              <span>Submit anonymously</span>
+              <span style={{ fontSize: 11, color: "var(--tx3)" }}>— your identity will be hidden from the person you're escalating about</span>
+            </label>
+          </div>
+
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="btn btn-primary" onClick={submitEscalation} disabled={!category || !description.trim()}>Submit</button>
+            <button className="btn btn-outline" onClick={() => setShowForm(false)}>Cancel</button>
+          </div>
+        </div>
+      </div>}
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button className={`tab-btn ${tab === "my" ? "active" : ""}`} onClick={() => setTab("my")}>
+          My escalations ({mySubmitted.length})
+        </button>
+        {(hasRole(myRole, "qa_supervisor") || routedToMe.length > 0) && <button className={`tab-btn ${tab === "inbox" ? "active" : ""}`} onClick={() => setTab("inbox")}>
+          Inbox ({routedToMe.filter(e => e.status !== "resolved" && e.status !== "dismissed").length})
+        </button>}
+        {hasRole(myRole, "admin") && <button className={`tab-btn ${tab === "all" ? "active" : ""}`} onClick={() => setTab("all")}>
+          All ({escalations.length})
+        </button>}
+      </div>
+
+      {/* Escalation Cards */}
+      {(()=>{
+        const list = tab === "inbox" ? routedToMe : tab === "all" ? escalations : mySubmitted;
+        if (list.length === 0) return <div className="card"><div className="placeholder" style={{ padding: 40 }}><p style={{ color: "var(--tx3)" }}>{tab === "my" ? "You haven't submitted any escalations." : "No escalations in your inbox."}</p></div></div>;
+
+        return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {list.map(esc => {
+            const sc = statusColor(esc.status);
+            const isRoutedToMe = esc.routed_to?.toLowerCase() === myEmail || (hasRole(myRole, "qa_supervisor") && esc.routed_to?.includes("supervisor"));
+            const submitterDisplay = esc.is_anonymous && isRoutedToMe && !hasRole(myRole, "admin") ? "Anonymous" : nameFromEmail(esc.submitted_by);
+
+            return <div key={esc.id} className="card" style={{ cursor: "pointer", borderLeft: `4px solid ${sc.color}` }} onClick={() => { setViewEsc(esc); setResponseText(""); setResolutionNote(""); }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, fontWeight: 600, background: sc.bg, color: sc.color }}>
+                      {esc.status.replace("_", " ")}
+                    </span>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx)" }}>{esc.category}</span>
+                    {esc.is_anonymous && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, background: "var(--bg2)", color: "var(--tx3)" }}>Anonymous</span>}
+                  </div>
+                  <div style={{ fontSize: 13, color: "var(--tx2)", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 500 }}>
+                    {esc.description}
+                  </div>
+                  <div style={{ fontSize: 11, color: "var(--tx3)" }}>
+                    From: {submitterDisplay} · About: {esc.about_person || "—"} · {new Date(esc.created_at).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" })}
+                  </div>
+                </div>
+                {esc.response && <div style={{ fontSize: 11, color: "var(--green)", fontWeight: 500 }}>Has response</div>}
+              </div>
+            </div>;
+          })}
+        </div>;
+      })()}
+
+      {/* View/Respond Modal */}
+      {viewEsc && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setViewEsc(null); }}>
+        <div className="card" style={{ width: "100%", maxWidth: 600, margin: 20, maxHeight: "80vh", overflow: "auto" }}>
+          <div className="card-header">
+            <span className="card-title">Escalation Details</span>
+            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, fontWeight: 600, ...statusColor(viewEsc.status) }}>{viewEsc.status.replace("_", " ")}</span>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13, marginBottom: 16 }}>
+            <div><span style={{ color: "var(--tx3)" }}>From: </span><strong>{viewEsc.is_anonymous && viewEsc.routed_to?.toLowerCase() === myEmail && !hasRole(myRole, "admin") ? "Anonymous" : nameFromEmail(viewEsc.submitted_by)}</strong>{viewEsc.is_anonymous && <span style={{ fontSize: 10, color: "var(--tx3)", marginLeft: 4 }}>(anonymous)</span>}</div>
+            <div><span style={{ color: "var(--tx3)" }}>About: </span><strong>{viewEsc.about_person || "—"}</strong></div>
+            <div><span style={{ color: "var(--tx3)" }}>Category: </span><strong>{viewEsc.category}</strong></div>
+            <div><span style={{ color: "var(--tx3)" }}>Date: </span>{new Date(viewEsc.created_at).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" })}</div>
+            <div><span style={{ color: "var(--tx3)" }}>Routed to: </span>{nameFromEmail(viewEsc.routed_to)}</div>
+            <div><span style={{ color: "var(--tx3)" }}>Role: </span>{ROLE_LABELS[viewEsc.submitted_role] || viewEsc.submitted_role}</div>
+          </div>
+
+          <div style={{ padding: "12px 16px", background: "var(--bg)", borderRadius: 8, marginBottom: 16, fontSize: 13, lineHeight: 1.6 }}>
+            {viewEsc.description}
+          </div>
+
+          {/* Response section */}
+          {viewEsc.response && <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--accent-text)", marginBottom: 4 }}>Response from {nameFromEmail(viewEsc.responded_by)}</div>
+            <div style={{ padding: "12px 16px", background: "var(--green-bg)", borderRadius: 8, fontSize: 13, lineHeight: 1.6 }}>
+              {viewEsc.response}
+            </div>
+            {viewEsc.responded_at && <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 4 }}>{new Date(viewEsc.responded_at).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" })}</div>}
+          </div>}
+
+          {/* Resolution */}
+          {viewEsc.resolution_note && <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--green)", marginBottom: 4 }}>Resolution</div>
+            <div style={{ padding: "12px 16px", background: "var(--green-bg)", borderRadius: 8, fontSize: 13 }}>{viewEsc.resolution_note}</div>
+          </div>}
+
+          {/* Actions for receiver */}
+          {(viewEsc.routed_to?.toLowerCase() === myEmail || (hasRole(myRole, "qa_supervisor") && viewEsc.routed_to?.includes("supervisor")) || hasRole(myRole, "admin")) && viewEsc.status !== "resolved" && viewEsc.status !== "dismissed" && <>
+            {!viewEsc.response && <div className="form-group" style={{ marginBottom: 12 }}>
+              <label className="form-label">Your Response</label>
+              <textarea className="form-input" rows={3} value={responseText} onChange={e => setResponseText(e.target.value)} placeholder="Respond to this escalation..." style={{ resize: "vertical" }} />
+              <button className="btn btn-primary btn-sm" style={{ marginTop: 8 }} onClick={() => submitResponse(viewEsc.id)} disabled={!responseText.trim()}>Send Response</button>
+            </div>}
+
+            <div className="form-group" style={{ marginBottom: 12 }}>
+              <label className="form-label">Resolve</label>
+              <textarea className="form-input" rows={2} value={resolutionNote} onChange={e => setResolutionNote(e.target.value)} placeholder="Resolution notes (optional)..." style={{ resize: "vertical" }} />
+              <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                <button className="btn btn-primary btn-sm" style={{ background: "var(--green)" }} onClick={() => resolveEscalation(viewEsc.id)}>Mark Resolved</button>
+                {hasRole(myRole, "admin") && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async () => {
+                  try {
+                    await sb.query("escalations", { token, method: "PATCH", body: { status: "dismissed" }, filters: `id=eq.${viewEsc.id}` });
+                    show("success", "Dismissed");
+                    setViewEsc(null);
+                    load();
+                  } catch (e) { show("error", e.message); }
+                }}>Dismiss</button>}
+              </div>
+            </div>
+          </>}
+
+          {/* Super admin delete */}
+          {hasRole(myRole, "super_admin") && <div style={{ borderTop: "1px solid var(--bd)", paddingTop: 12, marginTop: 12 }}>
+            <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async () => {
+              if (!confirm("Permanently delete this escalation?")) return;
+              try {
+                await sb.query("escalations", { token, method: "DELETE", filters: `id=eq.${viewEsc.id}` });
+                show("success", "Deleted");
+                setViewEsc(null);
+                load();
+              } catch (e) { show("error", e.message); }
+            }}><Icon d={icons.trash} size={14} /> Delete permanently</button>
+          </div>}
+
+          <div style={{ marginTop: 16 }}>
+            <button className="btn btn-outline" onClick={() => setViewEsc(null)}>Close</button>
+          </div>
+        </div>
+      </div>}
+
+      {el}
+    </div>
+  );
+}
+
 function PlaceholderPage({title,description,icon,minRole,userRole}){const locked=minRole&&!hasRole(userRole,minRole);
   return(<div className="page"><div className="page-header"><div className="page-title">{title}</div></div><div className="card"><div className="placeholder"><div className="placeholder-icon"><Icon d={icon} size={28}/></div><h3>{title}</h3><p>{locked?`Requires ${ROLE_LABELS[minRole]} access or above.`:description}</p><div className="placeholder-badge">{locked?"Access restricted":"Coming soon"}</div></div></div></div>);}
 
@@ -4030,7 +4381,7 @@ export default function App(){
     case"coaching":return hasRole(userRole,"qa_lead")?<CoachingPage token={t} profile={profile}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
     case"violations":return hasRole(userRole,"qa_lead")?<CoachingViolationsPage token={t} profile={profile}/>:<PlaceholderPage title="Coaching Violations" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
     case"hr":return<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>;
-    case"escalations":return<PlaceholderPage title="Escalations" description="Flag concerns about leadership." icon={icons.escalation} userRole={userRole}/>;
+    case"escalations":return<EscalationsPage token={t} profile={profile}/>;
     default:return<DashboardPage profile={profile} token={t}/>;
   }};
   return(<div className="app-layout">
