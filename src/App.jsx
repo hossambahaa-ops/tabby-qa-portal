@@ -4339,7 +4339,12 @@ const NAV_ITEMS=[
 
 /* ═══ APP ═══ */
 export default function App(){
-  const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);const[page,setPage]=useState("dashboard");const[sidebarOpen,setSidebarOpen]=useState(false);
+  const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);
+  const[page,setPage]=useState(()=>{const h=window.location.hash.replace("#","");return h||"dashboard";});
+  const[sidebarOpen,setSidebarOpen]=useState(false);
+  // Persist page in URL hash
+  useEffect(()=>{window.location.hash=page;},[page]);
+  useEffect(()=>{const onHash=()=>{const h=window.location.hash.replace("#","");if(h)setPage(h);};window.addEventListener("hashchange",onHash);return()=>window.removeEventListener("hashchange",onHash);},[]);
   useEffect(()=>{const handler=(e)=>setPage(e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[]);
   useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{
     // First try by Auth UUID
@@ -4386,6 +4391,18 @@ export default function App(){
       <nav className="sidebar-nav">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}}><Icon d={item.icon} size={18}/>{item.label}</button></div>);})}</nav>
       <div className="sidebar-profile"><div className="sidebar-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" referrerPolicy="no-referrer"/>:(profile?.display_name||"?")[0].toUpperCase()}</div><div className="sidebar-user"><div className="sidebar-user-name">{profile?.display_name||profile?.email}</div><div className="sidebar-user-role">{ROLE_LABELS[userRole]} &middot; {profile?.domain}</div></div><button className="sidebar-logout" onClick={sb.auth.signOut} title="Sign out"><Icon d={icons.logout} size={16}/></button></div>
     </aside>
-    <div className="main-content"><div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)}><Icon d={icons.menu} size={22}/></button><span className="topbar-title">{NAV_ITEMS.find(n=>n.key===page)?.label||"Dashboard"}</span></div>{renderPage()}</div>
+    <div className="main-content"><div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)}><Icon d={icons.menu} size={22}/></button><span className="topbar-title">{NAV_ITEMS.find(n=>n.key===page)?.label||"Dashboard"}</span>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginLeft:"auto"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{width:30,height:30,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600}}>{(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>
+          <div style={{display:"flex",flexDirection:"column",lineHeight:1.2}}>
+            <span style={{fontSize:13,fontWeight:500,color:"var(--tx)"}}>{profile?.display_name||"User"}</span>
+            <span className={`role-badge role-${profile?.role}`} style={{fontSize:9,padding:"1px 6px",alignSelf:"flex-start"}}>{ROLE_LABELS[profile?.role]||"QA"}</span>
+          </div>
+        </div>
+        <span style={{fontSize:10,padding:"2px 6px",borderRadius:8,background:profile?.domain==="tabby.sa"?"#FEF3C7":"#DBEAFE",color:profile?.domain==="tabby.sa"?"#92400E":"#1E40AF",fontWeight:600}}>{profile?.domain}</span>
+        <button onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{background:"none",border:"1px solid var(--bd)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"var(--tx2)",cursor:"pointer"}}>Sign out</button>
+      </div>
+    </div>{renderPage()}</div>
   </div>);
 }
