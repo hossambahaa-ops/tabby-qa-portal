@@ -3988,14 +3988,15 @@ const ESCALATION_CATEGORIES = [
 ];
 
 const ESCALATION_ROUTING = {
-  qa: (profile, roster) => {
-    // QA → route to supervisor of their TL
-    const r = roster.find(x => x.email?.toLowerCase() === profile?.email?.toLowerCase());
-    const tlEmail = r?.manager_email;
-    // For now route to supervisor domain
-    return { label: "Supervisor", email: null, note: "Will be routed to your domain supervisor" };
+  qa: (profile, roster, supervisors) => {
+    // QA → route to their domain supervisor
+    const domain = profile?.domain || "tabby.ai";
+    const sv = supervisors.find(s => s.operational_domain === domain);
+    return sv
+      ? { label: "Supervisor", email: sv.email, note: `${sv.display_name || sv.email}` }
+      : { label: "QA Manager", email: "amanda.souza@tabby.ai", note: "No supervisor found, routing to QA Manager" };
   },
-  senior_qa: (profile) => ({ label: "QA Manager", email: "amanda.souza@tabby.ai" }),
+  senior_qa: () => ({ label: "QA Manager", email: "amanda.souza@tabby.ai" }),
   qa_lead: () => ({ label: "QA Manager", email: "amanda.souza@tabby.ai" }),
   qa_supervisor: () => ({ label: "Head of QA", email: "imad.moussa@tabby.ai" }),
   admin: () => ({ label: "Head of QA", email: "imad.moussa@tabby.ai" }),
@@ -4007,6 +4008,7 @@ function EscalationsPage({ token, profile }) {
   const [showForm, setShowForm] = useState(false);
   const [tab, setTab] = useState("my");
   const [roster, setRoster] = useState([]);
+  const [supervisors, setSupervisors] = useState([]);
   const [viewEsc, setViewEsc] = useState(null);
   const [responseText, setResponseText] = useState("");
   const [resolutionNote, setResolutionNote] = useState("");
@@ -4031,24 +4033,24 @@ function EscalationsPage({ token, profile }) {
 
   const getRouting = () => {
     const fn = ESCALATION_ROUTING[myRole] || ESCALATION_ROUTING.qa;
-    return fn(profile, roster);
+    return fn(profile, roster, supervisors);
   };
 
   const load = useCallback(async () => {
     try {
-      const [e, r] = await Promise.all([
+      const [e, r, svProfs] = await Promise.all([
         sb.query("escalations", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
         sb.query("qa_roster", { select: "email,manager_email,queue", token }).catch(() => []),
+        sb.query("profiles", { select: "email,display_name,role,operational_domain", filters: "role=eq.qa_supervisor&status=eq.active", token }).catch(() => []),
       ]);
       setRoster(r);
+      setSupervisors(svProfs);
 
       // Filter: user sees their own submitted + ones routed to them
       const isAdmin = hasRole(myRole, "admin");
-      const isSupervisor = hasRole(myRole, "qa_supervisor");
       const filtered = isAdmin ? e : e.filter(x =>
         x.submitted_by?.toLowerCase() === myEmail ||
-        x.routed_to?.toLowerCase() === myEmail ||
-        (isSupervisor && x.routed_to?.toLowerCase().includes("supervisor"))
+        x.routed_to?.toLowerCase() === myEmail
       );
       setEscalations(filtered);
     } catch (e) { console.error("Escalations:", e); }
@@ -4059,14 +4061,7 @@ function EscalationsPage({ token, profile }) {
 
   const mySubmitted = escalations.filter(e => e.submitted_by?.toLowerCase() === myEmail);
   const routedToMe = escalations.filter(e => {
-    const rt = e.routed_to?.toLowerCase();
-    if (rt === myEmail) return true;
-    // Supervisor catches "supervisor" routed ones for their domain
-    if (hasRole(myRole, "qa_supervisor") && rt?.includes("supervisor")) {
-      const domain = profile?.operational_domain || profile?.domain;
-      return e.submitted_by?.endsWith("@" + domain);
-    }
-    return false;
+    return e.routed_to?.toLowerCase() === myEmail && e.submitted_by?.toLowerCase() !== myEmail;
   });
 
   const submitEscalation = async () => {
@@ -4250,7 +4245,7 @@ function EscalationsPage({ token, profile }) {
           </div>
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 13, marginBottom: 16 }}>
-            <div><span style={{ color: "var(--tx3)" }}>From: </span><strong>{viewEsc.is_anonymous && viewEsc.routed_to?.toLowerCase() === myEmail && !hasRole(myRole, "admin") ? "Anonymous" : nameFromEmail(viewEsc.submitted_by)}</strong>{viewEsc.is_anonymous && <span style={{ fontSize: 10, color: "var(--tx3)", marginLeft: 4 }}>(anonymous)</span>}</div>
+            <div><span style={{ color: "var(--tx3)" }}>From: </span><strong>{viewEsc.is_anonymous && !hasRole(myRole, "admin") && viewEsc.submitted_by?.toLowerCase() !== myEmail ? "Anonymous" : nameFromEmail(viewEsc.submitted_by)}</strong>{viewEsc.is_anonymous && <span style={{ fontSize: 10, color: "var(--tx3)", marginLeft: 4 }}>(anonymous)</span>}</div>
             <div><span style={{ color: "var(--tx3)" }}>About: </span><strong>{viewEsc.about_person || "—"}</strong></div>
             <div><span style={{ color: "var(--tx3)" }}>Category: </span><strong>{viewEsc.category}</strong></div>
             <div><span style={{ color: "var(--tx3)" }}>Date: </span>{new Date(viewEsc.created_at).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" })}</div>
@@ -4278,7 +4273,7 @@ function EscalationsPage({ token, profile }) {
           </div>}
 
           {/* Actions for receiver */}
-          {(viewEsc.routed_to?.toLowerCase() === myEmail || (hasRole(myRole, "qa_supervisor") && viewEsc.routed_to?.includes("supervisor")) || hasRole(myRole, "admin")) && viewEsc.status !== "resolved" && viewEsc.status !== "dismissed" && <>
+          {(viewEsc.routed_to?.toLowerCase() === myEmail || hasRole(myRole, "admin")) && viewEsc.status !== "resolved" && viewEsc.status !== "dismissed" && <>
             {!viewEsc.response && <div className="form-group" style={{ marginBottom: 12 }}>
               <label className="form-label">Your Response</label>
               <textarea className="form-input" rows={3} value={responseText} onChange={e => setResponseText(e.target.value)} placeholder="Respond to this escalation..." style={{ resize: "vertical" }} />
