@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import "./index.css";
 
-// Style overrides — topbar always visible
+// Style overrides — topbar always visible, collapsible sidebar
 const styleOverride = document.createElement("style");
 styleOverride.textContent = `
   .topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(8px); background: rgba(255,255,255,.85) !important; }
@@ -9,6 +9,27 @@ styleOverride.textContent = `
     .topbar-menu { display: none !important; }
   }
   .role-senior_qa{background:var(--teal-bg);color:var(--teal)}
+  .sidebar { transition: width .25s ease, transform .25s ease; overflow: hidden; }
+  .sidebar.collapsed { width: 64px !important; }
+  .sidebar.collapsed .sidebar-brand span,
+  .sidebar.collapsed .sidebar-tag,
+  .sidebar.collapsed .sidebar-section,
+  .sidebar.collapsed .sidebar-user,
+  .sidebar.collapsed .sidebar-logout,
+  .sidebar.collapsed .nav-item-label { display: none !important; }
+  .sidebar.collapsed .nav-item { justify-content: center; padding: 10px 0; }
+  .sidebar.collapsed .sidebar-header { padding: 24px 12px 20px; text-align: center; }
+  .sidebar.collapsed .sidebar-brand { font-size: 16px; }
+  .sidebar.collapsed .sidebar-profile { justify-content: center; padding: 16px 8px; }
+  .sidebar.collapsed .sidebar-avatar { margin: 0; }
+  .sidebar.collapsed .sidebar-nav { padding: 12px 6px; }
+  .sidebar-toggle { background: none; border: none; color: #fff6; cursor: pointer; padding: 8px; border-radius: 6px; transition: all .15s; display: flex; align-items: center; justify-content: center; }
+  .sidebar-toggle:hover { color: #fff; background: #ffffff14; }
+  .view-as-bar { background: var(--amber-bg); padding: 6px 16px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--amber); font-weight: 500; border-bottom: 1px solid var(--amber); }
+  .view-as-bar select { font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--amber); background: #fff; font-family: var(--font); }
+  @media (max-width: 768px) {
+    .sidebar.collapsed { width: var(--sidebar-w) !important; }
+  }
 `;
 document.head.appendChild(styleOverride);
 
@@ -4353,9 +4374,13 @@ export default function App(){
   const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);
   const[page,setPage]=useState(()=>{const h=window.location.hash.replace("#","");return h||"dashboard";});
   const[sidebarOpen,setSidebarOpen]=useState(false);
+  const[sidebarCollapsed,setSidebarCollapsed]=useState(()=>localStorage.getItem("sb_collapsed")==="true");
+  const[viewAsRole,setViewAsRole]=useState("");
   // Persist page in URL hash
   useEffect(()=>{window.location.hash=page;},[page]);
   useEffect(()=>{const onHash=()=>{const h=window.location.hash.replace("#","");if(h)setPage(h);};window.addEventListener("hashchange",onHash);return()=>window.removeEventListener("hashchange",onHash);},[]);
+  // Persist sidebar collapse
+  useEffect(()=>{localStorage.setItem("sb_collapsed",sidebarCollapsed);},[sidebarCollapsed]);
   useEffect(()=>{const handler=(e)=>setPage(e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[]);
   useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{
     // First try by Auth UUID
@@ -4381,34 +4406,56 @@ export default function App(){
   }}catch(e){console.error("Profile:",e);}}setLoading(false);})();},[]);
   if(loading)return<div className="loading-fullscreen"><div className="spinner"/><p style={{marginTop:16,color:"var(--tx2)",fontSize:14}}>Loading portal...</p></div>;
   if(!session)return(<div className="login-page"><div className="login-card"><div style={{marginBottom:8}}><TabbyLogo size={28}/></div><div className="login-subtitle">QA Performance & Analytics Dashboard<br/>Sign in with your Tabby Google account.</div><button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}><GoogleLogo/>Sign in with Google</button><div className="login-divider">Supported domains</div><div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div><div className="login-footer">Internal tool &middot; Tabby RADAR</div></div></div>);
-  const userRole=profile?.role||"qa";const visibleNav=NAV_ITEMS.filter(n=>!n.minRole||hasRole(userRole,n.minRole)||n.key==="escalations");let curSec=null;
-  const renderPage=()=>{const t=session.access_token;switch(page){
-    case"dashboard":return<DashboardPage profile={profile} token={t}/>;
-    case"scores":return<ScoreEntryPage token={t} profile={profile}/>;
-    case"admin":return hasRole(userRole,"admin")?<AdminPage token={t} profile={profile}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>;
-    case"leaderboard":return<LeaderboardPage token={t} profile={profile}/>;
-    case"dam":return hasRole(userRole,"qa_lead")?<DAMPage token={t} profile={profile}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
-    case"plans":return hasRole(userRole,"qa_lead")?<ActionPlanPage token={t} profile={profile}/>:<PlaceholderPage title="Action plans & PIPs" icon={icons.plan} minRole="qa_lead" userRole={userRole}/>;
-    case"coaching":return hasRole(userRole,"qa_lead")?<CoachingPage token={t} profile={profile}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
-    case"violations":return hasRole(userRole,"qa_lead")?<CoachingViolationsPage token={t} profile={profile}/>:<PlaceholderPage title="Coaching Violations" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
+  const realRole=profile?.role||"qa";
+  const userRole=viewAsRole||realRole;
+  const effectiveProfile=viewAsRole?{...profile,role:viewAsRole}:profile;
+  const visibleNav=NAV_ITEMS.filter(n=>!n.minRole||hasRole(userRole,n.minRole)||n.key==="escalations");let curSec=null;
+  const renderPage=()=>{const t=session.access_token;const p=effectiveProfile;switch(page){
+    case"dashboard":return<DashboardPage profile={p} token={t}/>;
+    case"scores":return<ScoreEntryPage token={t} profile={p}/>;
+    case"admin":return hasRole(userRole,"admin")?<AdminPage token={t} profile={p}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>;
+    case"leaderboard":return<LeaderboardPage token={t} profile={p}/>;
+    case"dam":return hasRole(userRole,"qa_lead")?<DAMPage token={t} profile={p}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
+    case"plans":return hasRole(userRole,"qa_lead")?<ActionPlanPage token={t} profile={p}/>:<PlaceholderPage title="Action plans & PIPs" icon={icons.plan} minRole="qa_lead" userRole={userRole}/>;
+    case"coaching":return hasRole(userRole,"qa_lead")?<CoachingPage token={t} profile={p}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
+    case"violations":return hasRole(userRole,"qa_lead")?<CoachingViolationsPage token={t} profile={p}/>:<PlaceholderPage title="Coaching Violations" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
     case"hr":return<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>;
-    case"escalations":return<EscalationsPage token={t} profile={profile}/>;
-    default:return<DashboardPage profile={profile} token={t}/>;
+    case"escalations":return<EscalationsPage token={t} profile={p}/>;
+    default:return<DashboardPage profile={p} token={t}/>;
   }};
   return(<div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
-    <aside className={`sidebar ${sidebarOpen?"open":""}`}>
-      <div className="sidebar-header"><div className="sidebar-brand">tabby<span>RADAR</span></div></div>
-      <nav className="sidebar-nav">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}}><Icon d={item.icon} size={18}/>{item.label}</button></div>);})}</nav>
-      <div className="sidebar-profile"><div className="sidebar-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" referrerPolicy="no-referrer"/>:(profile?.display_name||"?")[0].toUpperCase()}</div><div className="sidebar-user"><div className="sidebar-user-name">{profile?.display_name||profile?.email}</div><div className="sidebar-user-role">{ROLE_LABELS[userRole]} &middot; {profile?.domain}</div></div><button className="sidebar-logout" onClick={sb.auth.signOut} title="Sign out"><Icon d={icons.logout} size={16}/></button></div>
+    <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
+      <div className="sidebar-header" style={{display:"flex",alignItems:"center",justifyContent:sidebarCollapsed?"center":"space-between"}}>
+        <div className="sidebar-brand">{sidebarCollapsed?"R":<>tabby<span>RADAR</span></>}</div>
+        <button className="sidebar-toggle" onClick={()=>setSidebarCollapsed(!sidebarCollapsed)} title={sidebarCollapsed?"Expand":"Collapse"}>
+          <Icon d={sidebarCollapsed?"M9 5l7 7-7 7":"M15 19l-7-7 7-7"} size={16}/>
+        </button>
+      </div>
+      <nav className="sidebar-nav">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} title={sidebarCollapsed?item.label:""}><Icon d={item.icon} size={18}/><span className="nav-item-label">{item.label}</span></button></div>);})}</nav>
+      <div className="sidebar-profile"><div className="sidebar-avatar">{profile?.avatar_url?<img src={profile.avatar_url} alt="" referrerPolicy="no-referrer"/>:(profile?.display_name||"?")[0].toUpperCase()}</div><div className="sidebar-user"><div className="sidebar-user-name">{profile?.display_name||profile?.email}</div><div className="sidebar-user-role">{ROLE_LABELS[realRole]} &middot; {profile?.domain}</div></div><button className="sidebar-logout" onClick={sb.auth.signOut} title="Sign out"><Icon d={icons.logout} size={16}/></button></div>
     </aside>
-    <div className="main-content"><div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)}><Icon d={icons.menu} size={22}/></button><span className="topbar-title">{NAV_ITEMS.find(n=>n.key===page)?.label||"Dashboard"}</span>
+    <div className="main-content">
+      {/* View-as banner for super admin */}
+      {viewAsRole && <div className="view-as-bar">
+        <span>👁 Viewing as <strong>{ROLE_LABELS[viewAsRole]}</strong></span>
+        <button onClick={()=>setViewAsRole("")} style={{background:"var(--amber)",color:"#fff",border:"none",borderRadius:4,padding:"2px 8px",fontSize:11,cursor:"pointer",fontFamily:"var(--font)"}}>Exit</button>
+      </div>}
+      <div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)}><Icon d={icons.menu} size={22}/></button><span className="topbar-title">{NAV_ITEMS.find(n=>n.key===page)?.label||"Dashboard"}</span>
       <div style={{display:"flex",alignItems:"center",gap:10,marginLeft:"auto"}}>
+        {/* View-as dropdown for super admin */}
+        {realRole==="super_admin"&&!viewAsRole&&<select value={viewAsRole} onChange={e=>setViewAsRole(e.target.value)} style={{fontSize:11,padding:"4px 8px",borderRadius:6,border:"1px solid var(--bd)",background:"var(--bg3)",fontFamily:"var(--font)",color:"var(--tx2)",cursor:"pointer"}}>
+          <option value="">View as...</option>
+          <option value="qa">QA</option>
+          <option value="qa_lead">QA Lead</option>
+          <option value="qa_supervisor">QA Supervisor</option>
+          <option value="admin">Admin</option>
+        </select>}
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <div style={{width:30,height:30,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600}}>{(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>
           <div style={{display:"flex",flexDirection:"column",lineHeight:1.2}}>
             <span style={{fontSize:13,fontWeight:500,color:"var(--tx)"}}>{profile?.display_name||"User"}</span>
-            <span className={`role-badge role-${profile?.role}`} style={{fontSize:9,padding:"1px 6px",alignSelf:"flex-start"}}>{ROLE_LABELS[profile?.role]||"QA"}</span>
+            <span className={`role-badge role-${viewAsRole||profile?.role}`} style={{fontSize:9,padding:"1px 6px",alignSelf:"flex-start"}}>{ROLE_LABELS[viewAsRole||profile?.role]||"QA"}{viewAsRole?" (viewing)":""}</span>
           </div>
         </div>
         <span style={{fontSize:10,padding:"2px 6px",borderRadius:8,background:profile?.domain==="tabby.sa"?"#FEF3C7":"#DBEAFE",color:profile?.domain==="tabby.sa"?"#92400E":"#1E40AF",fontWeight:600}}>{profile?.domain}</span>
