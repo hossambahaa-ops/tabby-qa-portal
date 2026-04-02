@@ -17,7 +17,35 @@ styleOverride.textContent = `
   .sidebar.collapsed .sidebar-user,
   .sidebar.collapsed .sidebar-logout,
   .sidebar.collapsed .nav-item-label { display: none !important; }
-  .sidebar.collapsed .nav-item { justify-content: center; padding: 10px 0; }
+  .sidebar.collapsed .nav-item { justify-content: center; padding: 10px 0; position: relative; }
+  .sidebar.collapsed .nav-item:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: calc(100% + 12px);
+    top: 50%;
+    transform: translateY(-50%);
+    background: #1A1A1A;
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0,0,0,.3);
+    pointer-events: none;
+  }
+  .sidebar.collapsed .nav-item:hover::before {
+    content: '';
+    position: absolute;
+    left: calc(100% + 6px);
+    top: 50%;
+    transform: translateY(-50%);
+    border: 5px solid transparent;
+    border-right-color: #1A1A1A;
+    z-index: 100;
+    pointer-events: none;
+  }
   .sidebar.collapsed .sidebar-header { padding: 24px 12px 20px; text-align: center; }
   .sidebar.collapsed .sidebar-brand { font-size: 16px; }
   .sidebar.collapsed .sidebar-profile { justify-content: center; padding: 16px 8px; }
@@ -4614,7 +4642,7 @@ export default function App(){
           <Icon d={sidebarCollapsed?"M9 5l7 7-7 7":"M15 19l-7-7 7-7"} size={16}/>
         </button>
       </div>
-      <nav className="sidebar-nav">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} title={sidebarCollapsed?item.label:""}><Icon d={item.icon} size={18}/><span className="nav-item-label">{item.label}</span></button></div>);})}</nav>
+      <nav className="sidebar-nav">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label}><Icon d={item.icon} size={18}/><span className="nav-item-label">{item.label}</span></button></div>);})}</nav>
     </aside>
     <div className="main-content">
       {/* View-as banner for super admin */}
