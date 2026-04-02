@@ -93,14 +93,26 @@ function DashboardPage({profile,token}){
       sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[]),
       sb.query("qa_roster",{select:"*",token}).catch(()=>[]),
       sb.query("dam_flags",{select:"id,profile_id,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
-      sb.query("profiles",{select:"id,role,status",filters:"status=eq.active",token}).catch(()=>[]),
+      sb.query("profiles",{select:"id,email,role,status",filters:"status=eq.active",token}).catch(()=>[]),
       sb.query("action_plans",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
       sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
       sb.query("ap_dismissals",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
       sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action",token}).catch(()=>[]),
     ]);
-    setMtd(mtdRows);setRoster(rosterRows);setDamCount(damFlagsRaw.filter(f=>f.status==="pending").length);
-    setProfileCount({qas:profs.filter(p=>p.role==="qa").length,leads:profs.filter(p=>p.role==="qa_lead"||p.role==="senior_qa").length,active:profs.length});
+    // Build blacklist for non-QA users (both domain variants)
+    const nonQaProfsD = profs.filter(p => p.role !== "qa");
+    const blacklistD = new Set();
+    nonQaProfsD.forEach(p => {
+      const em = p.email?.toLowerCase(); if (!em) return;
+      blacklistD.add(em);
+      const local = em.split("@")[0];
+      if (em.endsWith("@tabby.ai")) blacklistD.add(local + "@tabby.sa");
+      if (em.endsWith("@tabby.sa")) blacklistD.add(local + "@tabby.ai");
+    });
+    const filteredRoster = rosterRows.filter(r => !blacklistD.has(r.email?.toLowerCase()));
+    const filteredMtd = mtdRows.filter(r => !blacklistD.has(r.qa_email?.toLowerCase()));
+    setMtd(filteredMtd);setRoster(filteredRoster);setDamCount(damFlagsRaw.filter(f=>f.status==="pending").length);
+    setProfileCount({qas:filteredRoster.length,leads:[...new Set(filteredRoster.map(r=>r.manager_email).filter(Boolean))].length,active:profs.length});
     setApPlans(plans);setApWeeks(planWeeks);setApDismissals(dismissals);
 
     // Auto-detection for TL dashboard alert — DAM-driven
@@ -1426,7 +1438,13 @@ function LeaderboardPage({token, profile}) {
         const quarters = Object.values(quarterMap).sort((a, b) => b.year - a.year || b.quarter - a.quarter);
         const activeQ = selQuarter && quarters.find(q => q.label === selQuarter) ? selQuarter : (quarters[0]?.label || "");
         const qData = quarters.find(q => q.label === activeQ);
-        const qMonths = qData ? qData.months : [];
+        // Sort months chronologically within the quarter
+        const monthOrder = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const qMonths = qData ? [...qData.months].sort((a, b) => {
+          const ai = monthOrder.indexOf(a.split("-")[0]);
+          const bi = monthOrder.indexOf(b.split("-")[0]);
+          return ai - bi;
+        }) : [];
         const qRows = data.filter(r => qMonths.includes(r.month));
 
         // For each QA, calculate their slab score per month (0-55), then sum across the quarter
