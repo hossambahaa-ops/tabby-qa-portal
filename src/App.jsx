@@ -92,7 +92,7 @@ function DashboardPage({profile,token}){
     const[mtdRows,rosterRows,damFlagsRaw,profs,plans,planWeeks,dismissals,damStepsRaw]=await Promise.all([
       sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[]),
       sb.query("qa_roster",{select:"*",token}).catch(()=>[]),
-      sb.query("dam_flags",{select:"id,profile_id,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
+      sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
       sb.query("profiles",{select:"id,email,role,status",filters:"status=eq.active",token}).catch(()=>[]),
       sb.query("action_plans",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
       sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
@@ -128,7 +128,7 @@ function DashboardPage({profile,token}){
       const activeFlags=(damFlagsRaw||[]).filter(f=>f.status==="pending"||f.status==="acknowledged");
       const flagged=[];
       activeFlags.forEach(flag=>{
-        const email=flag.profiles?.email?.toLowerCase();
+        const email=flag.profiles?.email||flag.qa_email?.toLowerCase();
         if(!email)return;
         if(activePlanEmails.includes(email))return;
         if(dismissedEmails.has(email))return;
@@ -142,7 +142,7 @@ function DashboardPage({profile,token}){
         const score=row?getScore(row):0;
         const ruleName=flag.dam_rules?.name||"Unknown";
         const pipAction=step.pip_action||step.action||"AP required";
-        flagged.push({email:flag.profiles?.email||email,name:flag.profiles?.display_name||nameFromEmail(email),score,reason:`DAM: ${ruleName} — #${flag.occurrence_number}: ${pipAction}`,slab0Count:0,planType:step.includes_pip?"pip":"ap"});
+        flagged.push({email:flag.profiles?.email||flag.qa_email||email,name:flag.profiles?.display_name||nameFromEmail(email),score,reason:`DAM: ${ruleName} — #${flag.occurrence_number}: ${pipAction}`,slab0Count:0,planType:step.includes_pip?"pip":"ap"});
       });
       flagged.sort((a,b)=>a.score-b.score);
       setApDetections(flagged);
@@ -896,7 +896,7 @@ function DAMPage({token,profile}){
   const load=useCallback(async()=>{try{
     const[r,f,s,p]=await Promise.all([
       sb.query("dam_rules",{select:"id,name,description,behavior_type,dam_reference,severity,auditing_flow,executor_role,auditor_role,goal,compliant_action",filters:"is_active=eq.true&order=behavior_type.asc,name.asc",token}),
-      sb.query("dam_flags",{select:"id,profile_id,rule_id,severity,recommended_action,triggered_at,status,notes,occurrence_number,reviewed_by,reviewed_at,profiles!dam_flags_profile_id_fkey(display_name,email),dam_rules(name,behavior_type,dam_reference)",filters:"order=triggered_at.desc&limit=100",token}).catch(()=>[]),
+      sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,severity,recommended_action,triggered_at,status,notes,occurrence_number,reviewed_by,reviewed_at,profiles!dam_flags_profile_id_fkey(display_name,email),dam_rules(name,behavior_type,dam_reference)",filters:"order=triggered_at.desc&limit=100",token}).catch(()=>[]),
       sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action,deduction_days,is_hr_investigation",filters:"order=rule_id.asc,occurrence.asc",token}),
       sb.query("profiles",{select:"id,display_name,email,role",filters:"status=eq.active",token}),
     ]);
@@ -994,7 +994,7 @@ function DAMPage({token,profile}){
           {flags.filter(f=>f.status!=="resolved"&&f.status!=="dismissed").map(f=>{
             const step=f.escalation_step_id?steps.find(s=>s.id===f.escalation_step_id):getStepsForRule(f.rule_id).find(s=>s.occurrence===f.occurrence_number);
             return(<tr key={f.id}>
-              <td style={{fontWeight:500}}>{f.profiles?.display_name||f.profiles?.email||"—"}</td>
+              <td style={{fontWeight:500}}>{f.profiles?.display_name||f.profiles?.email||f.qa_email||"—"}</td>
               <td style={{fontSize:13}}>{f.dam_rules?.name||"—"}</td>
               <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,background:f.dam_rules?.behavior_type==="manipulation"?"var(--red-bg)":f.dam_rules?.behavior_type==="performance_management"?"var(--amber-bg)":"var(--accent-light)",color:f.dam_rules?.behavior_type==="manipulation"?"var(--red)":f.dam_rules?.behavior_type==="performance_management"?"var(--amber)":"var(--accent-text)",fontWeight:500}}>{f.dam_rules?.behavior_type?.replace(/_/g," ")||"—"}</span></td>
               <td style={{fontWeight:600}}>#{f.occurrence_number}</td>
@@ -2525,7 +2525,7 @@ function ActionPlanPage({ token, profile }) {
     const flagged = [];
 
     activeFlags.forEach(flag => {
-      const email = flag.profiles?.email?.toLowerCase();
+      const email = flag.profiles?.email||flag.qa_email?.toLowerCase();
       if (!email) return;
       if (activePlanEmails.includes(email)) return;
       if (dismissedEmails.has(email)) return;
@@ -2542,7 +2542,7 @@ function ActionPlanPage({ token, profile }) {
       const pipAction = step.pip_action || step.action || "Action Plan required";
 
       flagged.push({
-        email: flag.profiles?.email || email,
+        email: flag.profiles?.email||flag.qa_email || email,
         name: flag.profiles?.display_name || nameFromEmail(email),
         reason: `DAM: ${ruleName} (${behaviorType}) — Occurrence #${flag.occurrence_number}: ${pipAction}`,
         severity: flag.occurrence_number >= 4 ? "critical" : flag.occurrence_number >= 3 ? "high" : flag.occurrence_number >= 2 ? "medium" : "medium",
@@ -3698,36 +3698,31 @@ function CoachingViolationsPage({token, profile}) {
           let qaProfile = profiles.find(p => p.email?.toLowerCase() === qaEmail.toLowerCase());
           if (!qaProfile) {
             const local = qaEmail.split("@")[0];
-            qaProfile = profiles.find(p => p.email?.toLowerCase() === (local + "@tabby.ai").toLowerCase() || p.email?.toLowerCase() === (local + "@tabby.sa").toLowerCase());
-          }
-          if (!qaProfile) {
-            show("error", `Profile not found for ${qaEmail} — they need to log in first`);
-            continue;
+            qaProfile = profiles.find(p => p.email?.toLowerCase() === (local + "@tabby.ai") || p.email?.toLowerCase() === (local + "@tabby.sa"));
           }
 
-          // Count existing occurrences
+          // Count existing occurrences (by profile_id or qa_email)
           let occurrence = 1;
           try {
-            const existing = await sb.query("dam_flags", {
-              select: "id",
-              filters: `profile_id=eq.${qaProfile.id}&rule_id=eq.${selDamRule}&status=neq.dismissed`,
-              token,
-            });
+            const filterStr = qaProfile
+              ? `profile_id=eq.${qaProfile.id}&rule_id=eq.${selDamRule}&status=neq.dismissed`
+              : `qa_email=eq.${qaEmail}&rule_id=eq.${selDamRule}&status=neq.dismissed`;
+            const existing = await sb.query("dam_flags", { select: "id", filters: filterStr, token });
             occurrence = (existing?.length || 0) + 1;
           } catch {}
 
-          // Create DAM flag
-          await sb.query("dam_flags", {
-            token, method: "POST",
-            body: {
-              profile_id: qaProfile.id,
-              rule_id: selDamRule,
-              severity: occurrence >= 4 ? "critical" : occurrence >= 3 ? "high" : occurrence >= 2 ? "medium" : "medium",
-              status: "pending",
-              notes: `Auto-created from coaching violation: ${reviewModal.violation_type}. Link: ${reviewModal.coaching_link}. Review notes: ${reviewNotes.trim()}`,
-              occurrence_number: occurrence,
-            },
-          });
+          // Create DAM flag — with profile_id if available, otherwise just qa_email
+          const flagBody = {
+            rule_id: selDamRule,
+            qa_email: qaEmail,
+            severity: occurrence >= 4 ? "critical" : occurrence >= 3 ? "high" : occurrence >= 2 ? "medium" : "medium",
+            status: "pending",
+            notes: `Auto-created from coaching violation: ${reviewModal.violation_type}. Link: ${reviewModal.coaching_link}. Review notes: ${reviewNotes.trim()}`,
+            occurrence_number: occurrence,
+          };
+          if (qaProfile) flagBody.profile_id = qaProfile.id;
+
+          await sb.query("dam_flags", { token, method: "POST", body: flagBody });
           flagsCreated++;
         }
 
@@ -4000,7 +3995,19 @@ const NAV_ITEMS=[
 export default function App(){
   const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);const[page,setPage]=useState("dashboard");const[sidebarOpen,setSidebarOpen]=useState(false);
   useEffect(()=>{const handler=(e)=>setPage(e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[]);
-  useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{const p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user?.id}`,token:s.access_token});if(p.length>0){setProfile(p[0]);}else if(s.user?.id){
+  useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{
+    // First try by Auth UUID
+    let p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user?.id}`,token:s.access_token});
+    // If not found, check by email (pre-created profile from violations/admin)
+    if(p.length===0 && s.user?.email){
+      const emailProf=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`email=eq.${s.user.email}`,token:s.access_token}).catch(()=>[]);
+      if(emailProf.length>0){
+        // Update the pre-created profile with the real Auth UUID
+        await sb.query("profiles",{token:s.access_token,method:"PATCH",body:{id:s.user.id,display_name:s.user.user_metadata?.full_name||s.user.user_metadata?.name||emailProf[0].display_name,avatar_url:s.user.user_metadata?.avatar_url||null},filters:`email=eq.${s.user.email}`}).catch(()=>{});
+        p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user.id}`,token:s.access_token}).catch(()=>[]);
+      }
+    }
+    if(p.length>0){setProfile(p[0]);}else if(s.user?.id){
     // Auto-create profile for first-time login
     const email=s.user.email||"";const domain=email.endsWith("@tabby.sa")?"tabby.sa":"tabby.ai";
     const name=s.user.user_metadata?.full_name||s.user.user_metadata?.name||email.split("@")[0].split(".").map(p=>p.charAt(0).toUpperCase()+p.slice(1)).join(" ");
