@@ -688,7 +688,7 @@ function ScoreEntryPage({token,profile}){
 
   return (<div className="page">
     <div className="page-header">
-      <div className="page-title">Score entry</div>
+      <div className="page-title">Performance Review</div>
       <div className="page-subtitle">MTD performance data — synced from Metabase hourly</div>
     </div>
 
@@ -3600,7 +3600,7 @@ function PlaceholderPage({title,description,icon,minRole,userRole}){const locked
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
   {key:"leaderboard",label:"Leaderboard",icon:icons.leaderboard},
-  {key:"scores",label:"Score entry",icon:icons.scores,section:"Performance"},
+  {key:"scores",label:"Performance Review",icon:icons.scores,section:"Performance"},
   {key:"dam",label:"DAM flags",icon:icons.dam,minRole:"qa_lead"},
   {key:"plans",label:"AP / PIP",icon:icons.plan,minRole:"qa_lead"},
   {key:"coaching",label:"Coaching",icon:icons.coaching,minRole:"qa_lead",section:"Management"},
