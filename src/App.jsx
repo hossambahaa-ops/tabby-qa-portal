@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import "./index.css";
 
-// Style overrides — topbar always visible, collapsible sidebar
+// Style overrides — topbar, collapsible sidebar, dark mode, notifications, search
 const styleOverride = document.createElement("style");
 styleOverride.textContent = `
   .topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(8px); background: rgba(255,255,255,.85) !important; }
@@ -27,11 +27,67 @@ styleOverride.textContent = `
   .sidebar-toggle:hover { color: #fff; background: #ffffff14; }
   .view-as-bar { background: var(--amber-bg); padding: 6px 16px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--amber); font-weight: 500; border-bottom: 1px solid var(--amber); }
   .view-as-bar select { font-size: 11px; padding: 2px 6px; border-radius: 4px; border: 1px solid var(--amber); background: #fff; font-family: var(--font); }
+
+  /* Notification bell */
+  .notif-btn { position: relative; background: none; border: none; cursor: pointer; padding: 6px; border-radius: 8px; color: var(--tx2); transition: all .15s; }
+  .notif-btn:hover { background: var(--bg); color: var(--tx); }
+  .notif-badge { position: absolute; top: 0; right: 0; min-width: 16px; height: 16px; border-radius: 8px; background: var(--red); color: #fff; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+  .notif-dropdown { position: absolute; top: calc(100% + 8px); right: 0; width: 340px; max-height: 400px; overflow-y: auto; background: var(--bg3); border: 1px solid var(--bd); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); z-index: 100; }
+  .notif-item { padding: 12px 16px; border-bottom: 1px solid var(--bd2); cursor: pointer; transition: background .1s; font-size: 12px; }
+  .notif-item:hover { background: var(--bg); }
+  .notif-item:last-child { border-bottom: none; }
+  .notif-header { padding: 12px 16px; border-bottom: 1px solid var(--bd); font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+
+  /* Search overlay */
+  .search-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 200; display: flex; align-items: flex-start; justify-content: center; padding-top: 80px; }
+  .search-box { width: 100%; max-width: 560px; background: var(--bg3); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); overflow: hidden; }
+  .search-input { width: 100%; padding: 16px 20px; border: none; font-size: 16px; font-family: var(--font); background: transparent; color: var(--tx); outline: none; }
+  .search-results { max-height: 400px; overflow-y: auto; border-top: 1px solid var(--bd2); }
+  .search-result { padding: 10px 20px; cursor: pointer; transition: background .1s; display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .search-result:hover { background: var(--bg); }
+  .search-result-type { font-size: 9px; padding: 2px 6px; border-radius: 8px; font-weight: 600; text-transform: uppercase; }
+
+  /* Dark mode */
+  .dark { --bg: #0F0F0F; --bg2: #1A1A1A; --bg3: #222; --tx: #E5E5E5; --tx2: #999; --tx3: #666; --bd: #333; --bd2: #2A2A2A; --accent-light: #0A2E1A; --accent-text: #3CFFA5; --sidebar-bg: #0A0A0A; }
+  .dark .topbar { background: rgba(15,15,15,.85) !important; }
+  .dark .card { background: var(--bg3); border-color: var(--bd2); }
+  .dark .btn-outline { background: var(--bg3); color: var(--tx); border-color: var(--bd); }
+  .dark .select, .dark .input, .dark .form-input { background: var(--bg2); color: var(--tx); border-color: var(--bd); }
+  .dark .notif-dropdown { background: var(--bg3); border-color: var(--bd); }
+  .dark .search-box { background: var(--bg3); }
+  .dark .welcome-banner { background: linear-gradient(135deg,#0A0A0A,#1A1A1A); }
+  .dark .stat-card { background: var(--bg3); border-color: var(--bd2); }
+  .dark table th { color: var(--tx2); border-color: var(--bd); }
+  .dark table td { border-color: var(--bd2); }
+  .dark tr:hover td { background: var(--bg2); }
+  .dark .login-page { background: linear-gradient(135deg,#000,#111,#000); }
+  .dark .login-card { background: #1A1A1A; }
+  .dark .login-btn { background: #222; color: var(--tx); border-color: var(--bd); }
+
   @media (max-width: 768px) {
     .sidebar.collapsed { width: var(--sidebar-w) !important; }
+    .notif-dropdown { width: 280px; right: -40px; }
   }
 `;
 document.head.appendChild(styleOverride);
+
+// PWA manifest injection
+if (!document.querySelector('link[rel="manifest"]')) {
+  const manifest = { name: "Tabby RADAR", short_name: "RADAR", start_url: "/", display: "standalone", background_color: "#1A1A1A", theme_color: "#3CFFA5", icons: [{ src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>", sizes: "any", type: "image/svg+xml" }] };
+  const blob = new Blob([JSON.stringify(manifest)], { type: "application/json" });
+  const link = document.createElement("link");
+  link.rel = "manifest";
+  link.href = URL.createObjectURL(blob);
+  document.head.appendChild(link);
+  const meta = document.createElement("meta");
+  meta.name = "apple-mobile-web-app-capable";
+  meta.content = "yes";
+  document.head.appendChild(meta);
+  const metaStatus = document.createElement("meta");
+  metaStatus.name = "apple-mobile-web-app-status-bar-style";
+  metaStatus.content = "black-translucent";
+  document.head.appendChild(metaStatus);
+}
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "https://shuenqmzbrthiiokfzio.supabase.co";
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNodWVucW16YnJ0aGlpb2tmemlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ5Mzc4MjAsImV4cCI6MjA5MDUxMzgyMH0.WjbpCt33uJ_hGXucKEHn0q5_daaRnGzwRDVbTxs7lG4";
@@ -4356,6 +4412,131 @@ function EscalationsPage({ token, profile }) {
 function PlaceholderPage({title,description,icon,minRole,userRole}){const locked=minRole&&!hasRole(userRole,minRole);
   return(<div className="page"><div className="page-header"><div className="page-title">{title}</div></div><div className="card"><div className="placeholder"><div className="placeholder-icon"><Icon d={icon} size={28}/></div><h3>{title}</h3><p>{locked?`Requires ${ROLE_LABELS[minRole]} access or above.`:description}</p><div className="placeholder-badge">{locked?"Access restricted":"Coming soon"}</div></div></div></div>);}
 
+/* ═══ ACTIVITY LOGGER ═══ */
+async function logActivity(token, actor, action, targetType, targetId, details) {
+  try {
+    await sb.query("activity_log", { token, method: "POST", body: { actor_email: actor, action, target_type: targetType || null, target_id: targetId || null, details: details || null } });
+  } catch {}
+}
+
+/* ═══ NOTIFICATION BELL ═══ */
+function NotificationBell({ token, profile, onNavigate }) {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState([]);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const [violations, damFlags, escalations] = await Promise.all([
+          sb.query("coaching_violations", { select: "id,violation_type,qa_emails,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []),
+          sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []),
+          sb.query("escalations", { select: "id,category,status,submitted_by,created_at", filters: `routed_to=eq.${profile?.email}&status=eq.open&order=created_at.desc&limit=10`, token }).catch(() => []),
+        ]);
+        const all = [
+          ...violations.map(v => ({ id: v.id, type: "violation", title: `Violation: ${v.violation_type}`, sub: v.qa_emails?.split("\n")[0], time: v.created_at, page: "violations" })),
+          ...damFlags.map(f => ({ id: f.id, type: "dam", title: `DAM: ${f.dam_rules?.name || "Flag"}`, sub: f.qa_email || "—", time: f.created_at, page: "dam" })),
+          ...escalations.map(e => ({ id: e.id, type: "escalation", title: `Escalation: ${e.category}`, sub: e.submitted_by, time: e.created_at, page: "escalations" })),
+        ].sort((a, b) => new Date(b.time) - new Date(a.time));
+        setItems(all);
+      } catch {}
+    };
+    load();
+    const interval = setInterval(load, 60000); // refresh every minute
+    return () => clearInterval(interval);
+  }, [token, profile?.email]);
+
+  useEffect(() => {
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
+  const count = items.length;
+  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" } };
+
+  return (
+    <div ref={ref} style={{ position: "relative" }}>
+      <button className="notif-btn" onClick={() => setOpen(!open)}>
+        <Icon d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" size={20} />
+        {count > 0 && <span className="notif-badge">{count > 9 ? "9+" : count}</span>}
+      </button>
+      {open && <div className="notif-dropdown">
+        <div className="notif-header"><span>Notifications</span><span style={{ fontSize: 11, color: "var(--tx3)" }}>{count} pending</span></div>
+        {items.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>All clear!</div> :
+          items.slice(0, 8).map(item => {
+            const tc = typeColor[item.type] || {};
+            return <div key={item.id} className="notif-item" onClick={() => { onNavigate(item.page); setOpen(false); }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+                <div>
+                  <span className="search-result-type" style={{ background: tc.bg, color: tc.color, marginRight: 6 }}>{item.type}</span>
+                  <span style={{ fontWeight: 500 }}>{item.title}</span>
+                </div>
+              </div>
+              <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{item.sub} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
+            </div>;
+          })
+        }
+      </div>}
+    </div>
+  );
+}
+
+/* ═══ GLOBAL SEARCH ═══ */
+function GlobalSearch({ token, onNavigate, onClose }) {
+  const [query, setQuery] = useState("");
+  const [results, setResults] = useState([]);
+  const inputRef = useRef(null);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    if (query.length < 2) { setResults([]); return; }
+    const timer = setTimeout(async () => {
+      try {
+        const q = query.toLowerCase();
+        const [profiles, violations, damFlags, escalations] = await Promise.all([
+          sb.query("profiles", { select: "id,email,display_name,role", filters: `or=(email.ilike.%${q}%,display_name.ilike.%${q}%)&limit=5`, token }).catch(() => []),
+          sb.query("coaching_violations", { select: "id,qa_emails,violation_type,status", filters: `qa_emails.ilike.%${q}%&limit=5`, token }).catch(() => []),
+          sb.query("dam_flags", { select: "id,qa_email,dam_rules(name)", filters: `qa_email.ilike.%${q}%&limit=5`, token }).catch(() => []),
+          sb.query("escalations", { select: "id,category,about_person,status", filters: `or=(about_person.ilike.%${q}%,category.ilike.%${q}%)&limit=5`, token }).catch(() => []),
+        ]);
+        const all = [
+          ...profiles.map(p => ({ id: p.id, type: "profile", label: p.display_name || p.email, sub: `${ROLE_LABELS[p.role]} · ${p.email}`, page: "admin" })),
+          ...violations.map(v => ({ id: v.id, type: "violation", label: v.violation_type, sub: v.qa_emails?.split("\n")[0], page: "violations" })),
+          ...damFlags.map(f => ({ id: f.id, type: "dam", label: f.dam_rules?.name || "DAM Flag", sub: f.qa_email, page: "dam" })),
+          ...escalations.map(e => ({ id: e.id, type: "escalation", label: e.category, sub: e.about_person || "—", page: "escalations" })),
+        ];
+        setResults(all);
+      } catch {}
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query, token]);
+
+  const typeColors = { profile: { bg: "var(--accent-light)", color: "var(--accent-text)" }, violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" } };
+
+  return (
+    <div className="search-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="search-box">
+        <input ref={inputRef} className="search-input" placeholder="Search QAs, violations, flags, escalations..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape") onClose(); }} />
+        {results.length > 0 && <div className="search-results">
+          {results.map(r => {
+            const tc = typeColors[r.type] || {};
+            return <div key={r.type + r.id} className="search-result" onClick={() => { onNavigate(r.page); onClose(); }}>
+              <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{r.type}</span>
+              <div>
+                <div style={{ fontWeight: 500 }}>{r.label}</div>
+                <div style={{ fontSize: 11, color: "var(--tx3)" }}>{r.sub}</div>
+              </div>
+            </div>;
+          })}
+        </div>}
+        {query.length >= 2 && results.length === 0 && <div style={{ padding: 20, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>No results found</div>}
+      </div>
+    </div>
+  );
+}
+
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
   {key:"leaderboard",label:"Leaderboard",icon:icons.leaderboard},
@@ -4376,11 +4557,17 @@ export default function App(){
   const[sidebarOpen,setSidebarOpen]=useState(false);
   const[sidebarCollapsed,setSidebarCollapsed]=useState(()=>localStorage.getItem("sb_collapsed")==="true");
   const[viewAsRole,setViewAsRole]=useState("");
+  const[darkMode,setDarkMode]=useState(()=>localStorage.getItem("dark_mode")==="true");
+  const[showSearch,setShowSearch]=useState(false);
   // Persist page in URL hash
   useEffect(()=>{window.location.hash=page;},[page]);
   useEffect(()=>{const onHash=()=>{const h=window.location.hash.replace("#","");if(h)setPage(h);};window.addEventListener("hashchange",onHash);return()=>window.removeEventListener("hashchange",onHash);},[]);
   // Persist sidebar collapse
   useEffect(()=>{localStorage.setItem("sb_collapsed",sidebarCollapsed);},[sidebarCollapsed]);
+  // Dark mode
+  useEffect(()=>{document.documentElement.classList.toggle("dark",darkMode);localStorage.setItem("dark_mode",darkMode);},[darkMode]);
+  // Keyboard shortcut: Cmd/Ctrl+K for search
+  useEffect(()=>{const handler=(e)=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();setShowSearch(true);}};document.addEventListener("keydown",handler);return()=>document.removeEventListener("keydown",handler);},[]);
   useEffect(()=>{const handler=(e)=>setPage(e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[]);
   useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{
     // First try by Auth UUID
@@ -4442,7 +4629,17 @@ export default function App(){
         <button onClick={()=>setViewAsRole("")} style={{background:"var(--amber)",color:"#fff",border:"none",borderRadius:4,padding:"2px 8px",fontSize:11,cursor:"pointer",fontFamily:"var(--font)"}}>Exit</button>
       </div>}
       <div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)}><Icon d={icons.menu} size={22}/></button><span className="topbar-title">{NAV_ITEMS.find(n=>n.key===page)?.label||"Dashboard"}</span>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginLeft:"auto"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
+        {/* Search */}
+        <button className="notif-btn" onClick={()=>setShowSearch(true)} title="Search (⌘K)">
+          <Icon d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" size={18}/>
+        </button>
+        {/* Notifications */}
+        <NotificationBell token={session.access_token} profile={profile} onNavigate={setPage}/>
+        {/* Dark mode */}
+        <button className="notif-btn" onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Light mode":"Dark mode"}>
+          <Icon d={darkMode?"M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z":"M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"} size={18}/>
+        </button>
         {/* View-as dropdown for super admin */}
         {realRole==="super_admin"&&!viewAsRole&&<select value={viewAsRole} onChange={e=>setViewAsRole(e.target.value)} style={{fontSize:11,padding:"4px 8px",borderRadius:6,border:"1px solid var(--bd)",background:"var(--bg3)",fontFamily:"var(--font)",color:"var(--tx2)",cursor:"pointer"}}>
           <option value="">View as...</option>
@@ -4461,6 +4658,9 @@ export default function App(){
         <span style={{fontSize:10,padding:"2px 6px",borderRadius:8,background:profile?.domain==="tabby.sa"?"#FEF3C7":"#DBEAFE",color:profile?.domain==="tabby.sa"?"#92400E":"#1E40AF",fontWeight:600}}>{profile?.domain}</span>
         <button onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{background:"none",border:"1px solid var(--bd)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"var(--tx2)",cursor:"pointer"}}>Sign out</button>
       </div>
-    </div>{renderPage()}</div>
+    </div>
+    {/* Search overlay */}
+    {showSearch&&<GlobalSearch token={session.access_token} onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
+    {renderPage()}</div>
   </div>);
 }
