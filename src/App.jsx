@@ -1359,7 +1359,7 @@ function ScoreEntryPage({token,profile,gf}){
         <div style={{width:1,height:32,background:"var(--bd)"}}/>
         <div style={{textAlign:"center"}}>
           <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>Avg Score</div>
-          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px",color:scoreColor(sorted.reduce((a,r)=>a+getScore(r),0)/sorted.length)}}>{(sorted.reduce((a,r)=>a+getScore(r),0)/sorted.length).toFixed(1)}</div>
+          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px"}}>{(sorted.reduce((a,r)=>a+(r.final_performance||0),0)/sorted.length*100).toFixed(1)}%</div>
         </div>
         <div style={{width:1,height:32,background:"var(--bd)"}}/>
         <div style={{textAlign:"center"}}>
@@ -1431,7 +1431,7 @@ function ScoreEntryPage({token,profile,gf}){
             <button className="btn btn-outline btn-sm" onClick={()=>{
               const csv=["Specialist,Email,TL,Score,Tickets/day,DSAT,Occupancy,RTR,JKQ"];
               sorted.forEach(r=>{
-                csv.push(`"${nameFromEmail(r.qa_email)}",${r.qa_email},"${r.qa_tl?nameFromEmail(r.qa_tl):""}",${getScore(r).toFixed(1)},${r.ticket_per_day||0},${r.dsat||0},${r.occupancy_pct||0},${r.avg_rtr_score||0},${r.jkq_result||""}`);
+                csv.push(`"${nameFromEmail(r.qa_email)}",${r.qa_email},"${r.qa_tl?nameFromEmail(r.qa_tl):""}",${((r.final_performance||0)*100).toFixed(1)},${r.ticket_per_day||0},${r.dsat||0},${r.occupancy_pct||0},${r.avg_rtr_score||0},${r.jkq_result||""}`);
               });
               const blob=new Blob([csv.join("\n")],{type:"text/csv"});
               const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`performance_${selMonth}.csv`;a.click();
