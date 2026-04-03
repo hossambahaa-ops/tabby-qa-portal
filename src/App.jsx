@@ -2181,6 +2181,81 @@ function LeaderboardPage({token, profile, gf}) {
           Showing top 3 performers and your position. Full rankings are visible to team leads.
         </div>}
 
+        {/* ── QA Self-Service: My Performance Panel ── */}
+        {isQaInd && (()=>{
+          const myRankIdx = ranked.findIndex(r => r.qa_email?.toLowerCase() === myEmailInd);
+          const myRow = myRankIdx >= 0 ? ranked[myRankIdx] : null;
+          if (!myRow) return null;
+          const myKpis = getKpiScores(myRow);
+          const myTotal = myKpis.reduce((s,k) => s + k.score, 0);
+          // Historical scores across months
+          const history = months.slice(0,6).reverse().map(m => {
+            const row = mtd.find(r => r.month === m && r.qa_email?.toLowerCase() === myEmailInd);
+            if (!row) return { month: m, score: null };
+            const ks = getKpiScores(row);
+            return { month: m, score: ks.reduce((s,k) => s + k.score, 0) };
+          }).filter(h => h.score !== null);
+
+          return <div className="card" style={{marginBottom:24,borderLeft:"4px solid var(--tabby-purple,#6A2C79)"}}>
+            <div className="card-header">
+              <span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}>
+                <span style={{fontSize:18}}>📊</span> My Performance — {selMonth}
+              </span>
+              <span style={{fontSize:22,fontWeight:800,letterSpacing:"-1px",color:scoreColor(myTotal)}}>
+                {myTotal.toFixed(1)} <span style={{fontSize:13,fontWeight:400,color:"var(--tx3)"}}>/ {maxScore}</span>
+                <span style={{fontSize:12,fontWeight:600,color:"var(--tx3)",marginLeft:8}}>Rank #{myRankIdx+1} of {ranked.length}</span>
+              </span>
+            </div>
+
+            {/* KPI Slab Breakdown */}
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"10px 20px",marginBottom:16}}>
+              {myKpis.map(k => (
+                <div key={k.key} style={{padding:"10px 14px",background:"var(--bg)",borderRadius:10,border:"1px solid var(--bd2)"}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
+                    <span style={{fontSize:12,fontWeight:600}}>{k.label}</span>
+                    <span style={{fontSize:12,fontWeight:700,color:scoreColor(k.score/k.weight*maxScore)}}>{k.score.toFixed(1)} / {k.weight}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--tx2)",marginBottom:4}}>
+                    <span>Raw: {k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "—"}</span>
+                    <span style={{padding:"1px 6px",borderRadius:8,fontSize:9,fontWeight:600,
+                      background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=75?"var(--teal-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",
+                      color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)"
+                    }}>{k.slab.label} ({k.slab.pct}%)</span>
+                  </div>
+                  <div style={{height:5,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .4s"}}/></div>
+                  <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"var(--tx3)",marginTop:3}}>
+                    <span>Slab 1: ≥{k.thresholds[0]}%</span><span>Slab 2: ≥{k.thresholds[1]}%</span><span>Slab 3: ≥{k.thresholds[2]}%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Extra metrics */}
+            <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:16,paddingBottom:12,borderBottom:"1px solid var(--bd2)"}}>
+              <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>DSAT: </span><span style={{fontWeight:600,color:(myRow.dsat||0)>0?"var(--red)":"var(--green)"}}>{myRow.dsat||0}</span></div>
+              <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>Tickets/day: </span><span style={{fontWeight:600}}>{myRow.ticket_per_day||"—"}</span></div>
+              <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>JKQ: </span><span style={{fontWeight:600,color:myRow.jkq_result==="Pass"?"var(--green)":myRow.jkq_result==="Missed"?"var(--red)":"var(--tx2)"}}>{myRow.jkq_result||"—"}</span></div>
+              <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>Working days: </span><span style={{fontWeight:600}}>{myRow.working_days||"—"}</span></div>
+            </div>
+
+            {/* Historical Trend */}
+            {history.length >= 2 && <div>
+              <div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Score history</div>
+              <div style={{display:"flex",alignItems:"flex-end",gap:6,height:60}}>
+                {history.map((h,i) => {
+                  const pct = h.score / maxScore * 100;
+                  const isLatest = i === history.length - 1;
+                  return <div key={h.month} style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1,gap:4}}>
+                    <span style={{fontSize:10,fontWeight:isLatest?700:400,color:isLatest?scoreColor(h.score):"var(--tx3)"}}>{h.score.toFixed(1)}</span>
+                    <div style={{width:"100%",height:`${Math.max(pct*0.5,4)}px`,borderRadius:4,background:isLatest?scoreColor(h.score):"var(--bd)",transition:"height .3s"}}/>
+                    <span style={{fontSize:9,color:"var(--tx3)"}}>{h.month.split("-")[0]}</span>
+                  </div>;
+                })}
+              </div>
+            </div>}
+          </div>;
+        })()}
+
         {/* Podium top 3 */}
         {ranked.length >= 3 && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:20,marginBottom:32,flexWrap:"wrap"}}>
           {[1,0,2].map(idx => {
@@ -2733,16 +2808,30 @@ function CoachingPage({token, profile}) {
   };
 
   // Apply template
-  const applyTemplate = () => {
-    const t = TEMPLATES[meetingType];
+  const applyTemplate = (forceType) => {
+    const t = TEMPLATES[forceType || meetingType];
     if (!t) return;
-    if (!topics) setTopics(t.topics || "");
-    if (!strengths) setStrengths(t.strengths || "");
-    if (!weaknesses) setWeaknesses(t.weaknesses || "");
-    if (!goals) setGoals(t.goals || "");
-    if (!actions) setActions(t.actions || "");
-    show("success", "Template applied");
+    setTopics(t.topics || "");
+    setStrengths(t.strengths || "");
+    setWeaknesses(t.weaknesses || "");
+    setGoals(t.goals || "");
+    setActions(t.actions || "");
+    if (!forceType) show("success", "Template applied");
   };
+
+  // Auto-apply template when meeting type changes and fields are empty
+  useEffect(() => {
+    if (!topics && !strengths && !weaknesses && !goals && !actions) {
+      const t = TEMPLATES[meetingType];
+      if (t) {
+        setTopics(t.topics || "");
+        setStrengths(t.strengths || "");
+        setWeaknesses(t.weaknesses || "");
+        setGoals(t.goals || "");
+        setActions(t.actions || "");
+      }
+    }
+  }, [meetingType]);
 
   // Target row helpers
   const addTargetRow = () => setTargetRows([...targetRows, {metric:"",start:"",w1:"",w2:"",w3:"",w4:"",a1:"",a2:"",a3:"",a4:""}]);
