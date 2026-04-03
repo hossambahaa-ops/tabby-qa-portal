@@ -1195,13 +1195,13 @@ function DashboardPage({profile,token,gf}){
                 <div key={k.key} style={{padding:"10px 12px",background:"var(--bg)",borderRadius:8}}>
                   <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
                     <span style={{fontSize:13,fontWeight:600}}>{k.label}</span>
-                    <span style={{fontSize:13,fontWeight:700,color:k.slab.pct>=75?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}>{k.score.toFixed(1)} / {k.weight}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}>{k.score.toFixed(1)} / {k.weight}</span>
                   </div>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--tx2)",marginBottom:4}}>
                     <span>Raw: {k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "—"}</span>
-                    <span style={{padding:"1px 6px",borderRadius:8,fontSize:10,fontWeight:600,background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",color:k.slab.pct===100?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}>{k.slab.label}</span>
+                    <span style={{padding:"1px 6px",borderRadius:8,fontSize:10,fontWeight:600,background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=75?"var(--teal-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}>{k.slab.label} ({k.slab.pct}%)</span>
                   </div>
-                  <div style={{height:5,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct>=75?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}/></div>
+                  <div style={{height:5,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}/></div>
                 </div>
               ))}
             </div>
@@ -2270,7 +2270,7 @@ function LeaderboardPage({token, profile, gf}) {
                     <td key={k.key} style={{textAlign:"center",padding:"8px 6px"}}>
                       <div style={{fontSize:13,fontWeight:600,color:scoreColor(k.score/k.weight*maxScore)}}>{k.score.toFixed(1)}</div>
                       <div style={{fontSize:10,color:"var(--tx3)"}}>{k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "—"}</div>
-                      <div style={{height:3,background:"var(--bd2)",borderRadius:2,marginTop:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:2,background:k.slab.pct>=75?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .3s"}}/></div>
+                      <div style={{height:3,background:"var(--bd2)",borderRadius:2,marginTop:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:2,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .3s"}}/></div>
                     </td>
                   ))}
                   <td style={{textAlign:"center"}}>
@@ -2292,11 +2292,11 @@ function LeaderboardPage({token, profile, gf}) {
                         <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--tx2)",marginBottom:6}}>
                           <span>Raw: {k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "No data"}</span>
                           <span style={{padding:"1px 8px",borderRadius:10,fontSize:10,fontWeight:600,
-                            background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",
-                            color:k.slab.pct===100?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)"
+                            background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=75?"var(--teal-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",
+                            color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)"
                           }}>{k.slab.label} ({k.slab.pct}%)</span>
                         </div>
-                        <div style={{height:6,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct>=75?"var(--green)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .4s"}}/></div>
+                        <div style={{height:6,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .4s"}}/></div>
                         <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--tx3)",marginTop:4}}>
                           <span>Slab 1: ≥{k.thresholds[0]}%</span>
                           <span>Slab 2: ≥{k.thresholds[1]}%</span>
