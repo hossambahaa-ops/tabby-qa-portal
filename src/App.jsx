@@ -636,6 +636,7 @@ function DashboardPage({profile,token,gf}){
         try{
           const r=await fetch("https://script.google.com/macros/s/AKfycbwpQjACvkSQBkbJok5L00-jXNMJm9x8b5-cdd4c5imZXeXCD5eHu8_zCsRNgWIegzvZ/exec",{method:"POST",mode:"no-cors"});
           show("success","Sync triggered — data will update in ~30 seconds");
+          logActivity(token, profile?.email, "mtd_sync_triggered", "mtd_scores", null, "Manual sync from dashboard");
         }catch(e){
           show("error","Sync request failed: "+e.message);
         }
@@ -1144,9 +1145,9 @@ function TeamManagementPage({token}){
   const getMemberCount=(teamName)=>roster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain))).length;
   const getTeamMembers=(teamName)=>roster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain)));
 
-  const save=async()=>{try{const b={name:form.name,domain:form.domain,lead_id:form.lead_id||null,supervisor_id:form.supervisor_id||null};if(editId){await sb.query("teams",{token,method:"PATCH",body:b,filters:`id=eq.${editId}`});show("success","Team updated");}else{await sb.query("teams",{token,method:"POST",body:b});show("success","Team created");}setShowForm(false);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});load();}catch(e){show("error",e.message);}};
+  const save=async()=>{try{const b={name:form.name,domain:form.domain,lead_id:form.lead_id||null,supervisor_id:form.supervisor_id||null};if(editId){await sb.query("teams",{token,method:"PATCH",body:b,filters:`id=eq.${editId}`});logActivity(token,profile?.email,"team_updated","teams",editId,`Name: ${form.name}`);show("success","Team updated");}else{await sb.query("teams",{token,method:"POST",body:b});logActivity(token,profile?.email,"team_created","teams",null,`Name: ${form.name}, Domain: ${form.domain}`);show("success","Team created");}setShowForm(false);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});load();}catch(e){show("error",e.message);}};
   const startEdit=(t)=>{setForm({name:t.name,domain:t.domain,lead_id:t.lead_id||"",supervisor_id:t.supervisor_id||""});setEditId(t.id);setShowForm(true);};
-  const del=async(id)=>{if(!confirm("Delete this team?"))return;try{await sb.query("teams",{token,method:"DELETE",filters:`id=eq.${id}`});show("success","Deleted");load();}catch(e){show("error",e.message);}};
+  const del=async(id)=>{if(!confirm("Delete this team?"))return;try{const t=teams.find(x=>x.id===id);await sb.query("teams",{token,method:"DELETE",filters:`id=eq.${id}`});logActivity(token,profile?.email,"team_deleted","teams",id,`Name: ${t?.name||"?"}`);show("success","Deleted");load();}catch(e){show("error",e.message);}};
 
   const [expandedTeam, setExpandedTeam] = useState(null);
   const [filterDomain, setFilterDomain] = useState("");
@@ -1528,7 +1529,9 @@ function AdminUsersPage({token,teams}){
   };
   const getOpDomain=(u)=>u.operational_domain||u.domain||"tabby.ai";
   const save=async(uid)=>{try{
+    const u=users.find(x=>x.id===uid);
     await sb.query("profiles",{token,method:"PATCH",body:{role:editRole,operational_domain:editOpDomain,team_id:editTeamId||null},filters:`id=eq.${uid}`});
+    logActivity(token, profile?.email, "user_updated", "profiles", uid, `${u?.email}: role=${editRole}, domain=${editOpDomain}`);
     setEditingId(null);show("success","Updated");load();
   }catch(e){show("error",e.message);}};
   return(<div className="page">
@@ -1599,6 +1602,7 @@ function DAMPage({token,profile,gf}){
         notes:flagNotes,trigger_data:{created_by:profile.id,step_action:step?.action||"No step defined"},
       }});
       show("success",`Flag created — occurrence #${occ}${step?": "+step.action:""}`);
+      logActivity(token, profile?.email, "dam_flag_created", "dam_flags", selProfile, `Rule: ${rules.find(r=>r.id===selRule)?.name}, Occurrence: #${occ}`);
       setShowCreate(false);setSelRule("");setSelProfile("");setFlagNotes("");load();
     }catch(e){show("error",e.message);}
   };
@@ -1606,6 +1610,7 @@ function DAMPage({token,profile,gf}){
   const updateFlagStatus=async(flagId,status)=>{
     try{
       await sb.query("dam_flags",{token,method:"PATCH",body:{status,reviewed_by:profile.id,reviewed_at:new Date().toISOString()},filters:`id=eq.${flagId}`});
+      logActivity(token, profile?.email, `dam_flag_${status}`, "dam_flags", flagId, `Status changed to: ${status}`);
       show("success","Flag updated");load();
     }catch(e){show("error",e.message);}
   };
@@ -2844,6 +2849,7 @@ function CoachingPage({token, profile}) {
       } else {
         show("success", "Email sent and session logged successfully!");
       }
+      logActivity(token, profile?.email, "coaching_session_created", "coaching_sessions", null, `Member: ${memberEmail}, Type: ${sessionType}`);
       setShowPreview(false);
     } catch (e) {
       show("error", e.message);
@@ -3491,6 +3497,7 @@ function ActionPlanPage({ token, profile }) {
       }
 
       show("success", `${planType.toUpperCase()} created for ${nameFromEmail(selQaEmail)}`);
+      logActivity(token, profile?.email, `${planType}_created`, "action_plans", null, `QA: ${selQaEmail}, Duration: ${duration} weeks`);
       setShowCreateForm(false);
       setTab("active");
       load();
@@ -3656,6 +3663,7 @@ function ActionPlanPage({ token, profile }) {
         }
       } else {
         show("success", `${concludingPlan.type.toUpperCase()} concluded as ${conclusionOutcome === "pass" ? "PASSED" : "FAILED"}`);
+        logActivity(token, profile?.email, `${concludingPlan.type}_concluded`, "action_plans", concludingPlan.id, `QA: ${concludingPlan.qa_email}, Result: ${conclusionOutcome}`);
       }
 
       setConcludingPlan(null);
@@ -4537,8 +4545,10 @@ function CoachingViolationsPage({token, profile, gf}) {
         });
 
         show("success", `Marked as valid — ${flagsCreated} DAM flag(s) created`);
+        logActivity(token, profile?.email, "violation_valid", "coaching_violations", reviewModal.id, `QA: ${reviewModal.qa_emails}, Type: ${reviewModal.violation_type}`);
       } else {
         show("success", "Marked as invalid");
+        logActivity(token, profile?.email, "violation_invalid", "coaching_violations", reviewModal.id, `QA: ${reviewModal.qa_emails}, Type: ${reviewModal.violation_type}`);
       }
 
       setReviewModal(null);
@@ -4895,6 +4905,7 @@ function EscalationsPage({ token, profile, gf }) {
         },
       });
       show("success", "Escalation submitted successfully");
+      logActivity(token, profile?.email, "escalation_created", "escalations", null, `Category: ${category}, Routed to: ${routing.email}`);
       setShowForm(false);
       setCategory("");
       setDescription("");
