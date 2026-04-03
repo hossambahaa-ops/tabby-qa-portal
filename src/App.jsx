@@ -80,10 +80,10 @@ styleOverride.textContent = `
   .search-result-type { font-size: 9px; padding: 2px 8px; border-radius: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
 
   /* Dark mode — Tabby branded */
-  .dark { --bg: #0D0B10; --bg2: #161320; --bg3: #1C1828; --tx: #E8E5ED; --tx2: #9590A0; --tx3: #5D576B; --bd: #2A2540; --bd2: #211D32; --accent-light: #0A2E1A; --accent-text: #3BFF9D; --primary-light: #1E1430; --primary-text: #B88FC4; --sidebar-bg: #080610; }
-  .dark .topbar { background: rgba(13,11,16,.85) !important; border-color: rgba(255,255,255,.04); }
+  .dark { --bg: #0F0D14; --bg2: #181522; --bg3: #211D30; --tx: #F5F3F8; --tx2: #B8B0C8; --tx3: #7E7694; --bd: #332D48; --bd2: #2A2540; --accent-light: #0D3320; --accent-text: #3BFF9D; --primary-light: #251838; --primary-text: #C9A0D8; --sidebar-bg: #0A0814; --green-bg: #0D2E1A; --amber-bg: #2E2410; --red-bg: #2E1010; }
+  .dark .topbar { background: rgba(15,13,20,.9) !important; border-color: rgba(255,255,255,.06); }
   .dark .card { background: var(--bg3); border-color: var(--bd2); }
-  .dark .card:hover { box-shadow: 0 4px 24px rgba(106,44,121,.08); }
+  .dark .card:hover { box-shadow: 0 4px 24px rgba(106,44,121,.1); }
   .dark .btn-primary { background: var(--tabby-purple); }
   .dark .btn-outline { background: var(--bg3); color: var(--tx); border-color: var(--bd); }
   .dark .btn-outline:hover { border-color: var(--tabby-purple-light); color: var(--tabby-purple-light); }
@@ -91,7 +91,7 @@ styleOverride.textContent = `
   .dark .select:focus, .dark .input:focus, .dark .form-input:focus { border-color: var(--tabby-purple-light); box-shadow: 0 0 0 3px rgba(106,44,121,.15); }
   .dark .notif-dropdown { background: var(--bg3); border-color: var(--bd); }
   .dark .search-box { background: var(--bg3); border-color: var(--bd); }
-  .dark .welcome-banner { background: linear-gradient(135deg, rgba(106,44,121,.15), #0D0B10, rgba(59,255,157,.03)); border-color: rgba(106,44,121,.15); }
+  .dark .welcome-banner { background: linear-gradient(135deg, rgba(106,44,121,.25), #0F0D14 60%, rgba(59,255,157,.05)); border-color: rgba(106,44,121,.2); }
   .dark .stat-card { background: var(--bg3); border-color: var(--bd2); }
   .dark .stat-card:hover { box-shadow: 0 4px 20px rgba(106,44,121,.1); border-color: rgba(106,44,121,.15); }
   .dark table th { color: var(--tx2); border-color: var(--bd); }
@@ -638,15 +638,15 @@ function DashboardPage({profile,token,gf}){
           {tasks.map((t, i) => {
             const pc = priorityColors[t.priority] || priorityColors.info;
             return <div key={i} onClick={t.action} style={{
-              display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 8,
-              borderLeft: `3px solid ${pc.border}`, background: pc.bg, cursor: "pointer", transition: "opacity .15s",
+              display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", borderRadius: 10,
+              borderLeft: `3px solid ${pc.border}`, background: pc.bg, cursor: "pointer", transition: "all .2s",
             }}
               onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
               onMouseLeave={e => e.currentTarget.style.opacity = "1"}
             >
               <span style={{ fontSize: 16, flexShrink: 0 }}>{t.icon}</span>
               <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "var(--tx)" }}>{t.text}</span>
-              <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 8, background: "rgba(0,0,0,.06)", color: "var(--tx3)", fontWeight: 500, textTransform: "uppercase" }}>{t.type}</span>
+              <span style={{ fontSize: 9, padding: "2px 8px", borderRadius: 8, background: "var(--bg2)", color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>{t.type}</span>
             </div>;
           })}
         </div>
