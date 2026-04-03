@@ -1230,7 +1230,7 @@ function DashboardPage({profile,token,gf}){
       </div>}
     </>:
     /* No personal MTD data */
-    <div style={{padding:"16px 0",marginBottom:20,color:"var(--tx3)",fontSize:13}}>No performance data found for your email ({profile?.email}). Data syncs from Metabase hourly.</div>}
+    (!isLead&&!hasRole(profile?.role,"qa_supervisor"))?<div style={{padding:"16px 0",marginBottom:20,color:"var(--tx3)",fontSize:13}}>No performance data found for your email ({profile?.email}). Data syncs from Metabase hourly.</div>:null}
 
     {/* ── Global stats (for admins/supervisors) ── */}
     {hasRole(profile?.role,"qa_supervisor")&&(()=>{
