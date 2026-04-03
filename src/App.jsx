@@ -515,7 +515,11 @@ function DashboardPage({profile,token,gf}){
   const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
   const[apPlans,setApPlans]=useState([]);const[apWeeks,setApWeeks]=useState([]);const[apDetections,setApDetections]=useState([]);
   const[apDismissals,setApDismissals]=useState([]);const[dismissModal,setDismissModal]=useState(null);const[dismissReason,setDismissReason]=useState("");
+  const[userTasks,setUserTasks]=useState([]);const[showTaskForm,setShowTaskForm]=useState(false);
+  const[taskForm,setTaskForm]=useState({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});
+  const[editingTask,setEditingTask]=useState(null);const[postponeModal,setPostponeModal]=useState(null);const[postponeDate,setPostponeDate]=useState("");const[postponeReason,setPostponeReason]=useState("");
   const isLead=hasRole(profile?.role,"qa_lead");
+  const isAdmin=hasRole(profile?.role,"admin");
   const{show,el:toastEl}=useToast();
 
   const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
@@ -591,6 +595,16 @@ function DashboardPage({profile,token,gf}){
     }
   }catch(e){console.error("Dashboard:",e);}setLoading(false);})();},[token]);
 
+  // Load user tasks
+  const loadTasks=useCallback(async()=>{try{
+    const myEmail=profile?.email?.toLowerCase();
+    const t=await sb.query("tasks",{select:"*",filters:"order=priority.asc,due_date.asc",token}).catch(()=>[]);
+    // Show tasks created by me OR assigned to me
+    const mine=t.filter(tk=>tk.created_by?.toLowerCase()===myEmail||tk.assigned_to?.toLowerCase()===myEmail);
+    setUserTasks(mine);
+  }catch(e){console.error("Tasks:",e);}},[token,profile?.email]);
+  useEffect(()=>{if(profile?.email)loadTasks();},[loadTasks,profile?.email]);
+
   const months=[...new Set(mtd.map(r=>r.month))];
   const latestMonth=months[0]||"—";
   const prevMonth=months[1]||null;
@@ -626,6 +640,52 @@ function DashboardPage({profile,token,gf}){
   const myHistory=months.slice(0,6).reverse().map(m=>{const row=mtd.find(r=>r.month===m&&r.qa_email?.toLowerCase()===myEmail);return{month:m,score:row?getScore(row):null};}).filter(d=>d.score!==null);
 
   const nav=(page)=>window.dispatchEvent(new CustomEvent("navigate",{detail:page}));
+
+  // Task CRUD
+  const saveTask=async()=>{
+    if(!taskForm.title.trim()){show("error","Task title is required");return;}
+    try{
+      const body={title:taskForm.title,description:taskForm.description||null,priority:taskForm.priority,due_date:taskForm.due_date||null,eta_date:taskForm.eta_date||null,created_by:profile?.email,assigned_to:taskForm.assigned_to||null,updated_at:new Date().toISOString()};
+      if(editingTask){
+        await sb.query("tasks",{token,method:"PATCH",body,filters:`id=eq.${editingTask.id}`});
+        logActivity(token,profile?.email,"task_updated","tasks",editingTask.id,`Title: ${taskForm.title}`);
+        show("success","Task updated");
+      }else{
+        await sb.query("tasks",{token,method:"POST",body});
+        logActivity(token,profile?.email,"task_created","tasks",null,`Title: ${taskForm.title}${taskForm.assigned_to?", Assigned to: "+taskForm.assigned_to:""}`);
+        show("success",taskForm.assigned_to?`Task created and assigned to ${taskForm.assigned_to}`:"Task created");
+      }
+      setShowTaskForm(false);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});loadTasks();
+    }catch(e){show("error",e.message);}
+  };
+  const toggleTaskDone=async(task)=>{
+    const newStatus=task.status==="done"?"pending":"done";
+    try{
+      await sb.query("tasks",{token,method:"PATCH",body:{status:newStatus,completed_at:newStatus==="done"?new Date().toISOString():null,updated_at:new Date().toISOString()},filters:`id=eq.${task.id}`});
+      logActivity(token,profile?.email,newStatus==="done"?"task_completed":"task_reopened","tasks",task.id,`Title: ${task.title}`);
+      loadTasks();
+    }catch(e){show("error",e.message);}
+  };
+  const postponeTask=async()=>{
+    if(!postponeDate){show("error","Select a new date");return;}
+    try{
+      await sb.query("tasks",{token,method:"PATCH",body:{status:"postponed",postponed_to:postponeDate,postpone_reason:postponeReason||null,due_date:postponeDate,updated_at:new Date().toISOString()},filters:`id=eq.${postponeModal.id}`});
+      logActivity(token,profile?.email,"task_postponed","tasks",postponeModal.id,`Title: ${postponeModal.title}, New date: ${postponeDate}`);
+      show("success","Task postponed");setPostponeModal(null);setPostponeDate("");setPostponeReason("");loadTasks();
+    }catch(e){show("error",e.message);}
+  };
+  const deleteTask=async(task)=>{
+    if(!confirm("Delete this task?"))return;
+    try{
+      await sb.query("tasks",{token,method:"DELETE",filters:`id=eq.${task.id}`});
+      logActivity(token,profile?.email,"task_deleted","tasks",task.id,`Title: ${task.title}`);
+      show("success","Task deleted");loadTasks();
+    }catch(e){show("error",e.message);}
+  };
+  const priorityConfig={urgent:{label:"Urgent",color:"var(--red)",bg:"var(--red-bg)"},high:{label:"High",color:"var(--amber)",bg:"var(--amber-bg)"},medium:{label:"Medium",color:"var(--tabby-purple)",bg:"var(--primary-light)"},low:{label:"Low",color:"var(--tx3)",bg:"var(--bg2)"}};
+  const activeTasks=userTasks.filter(t=>t.status!=="done");
+  const doneTasks=userTasks.filter(t=>t.status==="done");
+  const myEmail=profile?.email?.toLowerCase();
 
   const[syncing,setSyncing]=useState(false);
 
@@ -765,6 +825,150 @@ function DashboardPage({profile,token,gf}){
         </div>
       </div>;
     })()}
+
+    {/* ── User Task Management ── */}
+    <div className="card" style={{marginBottom:20}}>
+      <div className="card-header">
+        <span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:18}}>✅</span> My Tasks
+          {activeTasks.length>0&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:12,background:"var(--primary-light)",color:"var(--tabby-purple,var(--primary-text))",fontWeight:700}}>{activeTasks.length}</span>}
+        </span>
+        <button className="btn btn-primary btn-sm" onClick={()=>{setShowTaskForm(true);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});}}>
+          <Icon d={icons.plus} size={14}/>New task
+        </button>
+      </div>
+
+      {/* Create/Edit task form */}
+      {showTaskForm&&<div style={{padding:16,background:"var(--bg)",borderRadius:12,marginBottom:16,border:"1px solid var(--bd2)"}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+          <div className="form-group" style={{gridColumn:"1/-1"}}>
+            <label className="form-label">Title *</label>
+            <input className="form-input" value={taskForm.title} onChange={e=>setTaskForm({...taskForm,title:e.target.value})} placeholder="What needs to be done?" autoFocus/>
+          </div>
+          <div className="form-group" style={{gridColumn:"1/-1"}}>
+            <label className="form-label">Description</label>
+            <textarea className="form-input" rows={2} value={taskForm.description} onChange={e=>setTaskForm({...taskForm,description:e.target.value})} placeholder="Add details..." style={{resize:"vertical"}}/>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Priority</label>
+            <SearchableSelect options={[{value:"urgent",label:"🔴 Urgent"},{value:"high",label:"🟠 High"},{value:"medium",label:"🟣 Medium"},{value:"low",label:"⚪ Low"}]} value={taskForm.priority} onChange={v=>setTaskForm({...taskForm,priority:v})} placeholder="Medium"/>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Due date</label>
+            <input type="date" className="form-input" value={taskForm.due_date} onChange={e=>setTaskForm({...taskForm,due_date:e.target.value})}/>
+          </div>
+          <div className="form-group">
+            <label className="form-label">ETA</label>
+            <input type="date" className="form-input" value={taskForm.eta_date} onChange={e=>setTaskForm({...taskForm,eta_date:e.target.value})}/>
+          </div>
+          {isAdmin&&<div className="form-group">
+            <label className="form-label">Assign to (email)</label>
+            <SearchableSelect
+              options={roster.map(r=>({value:r.email,label:nameFromEmail(r.email)+` (${r.email.split("@")[1]})`}))}
+              value={taskForm.assigned_to}
+              onChange={v=>setTaskForm({...taskForm,assigned_to:v})}
+              placeholder="Assign to someone..."
+            />
+          </div>}
+        </div>
+        <div style={{display:"flex",gap:8,marginTop:12}}>
+          <button className="btn btn-primary" onClick={saveTask}>{editingTask?"Update":"Create"}</button>
+          <button className="btn btn-outline" onClick={()=>{setShowTaskForm(false);setEditingTask(null);}}>Cancel</button>
+        </div>
+      </div>}
+
+      {/* Active tasks list */}
+      {activeTasks.length===0&&!showTaskForm?
+        <div style={{textAlign:"center",padding:"24px 0",color:"var(--tx3)",fontSize:13}}>No active tasks — click "New task" to add one</div>
+      :
+        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+          {activeTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(task=>{
+            const pc=priorityConfig[task.priority]||priorityConfig.medium;
+            const isOverdue=task.due_date&&new Date(task.due_date)<new Date()&&task.status!=="done";
+            const isAssignedToMe=task.assigned_to?.toLowerCase()===myEmail&&task.created_by?.toLowerCase()!==myEmail;
+            return <div key={task.id} style={{
+              display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,
+              background:isOverdue?"var(--red-bg)":"var(--bg)",border:"1px solid "+(isOverdue?"var(--red)":"var(--bd2)"),
+              transition:"all .2s",
+            }}>
+              {/* Checkbox */}
+              <button onClick={()=>toggleTaskDone(task)} style={{
+                width:22,height:22,borderRadius:6,border:`2px solid ${pc.color}`,background:task.status==="done"?pc.color:"transparent",
+                display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,transition:"all .2s",
+              }}>
+                {task.status==="done"&&<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>}
+              </button>
+              {/* Content */}
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{fontSize:13,fontWeight:600,letterSpacing:"-.2px",textDecoration:task.status==="done"?"line-through":"none",color:task.status==="done"?"var(--tx3)":"var(--tx)"}}>{task.title}</div>
+                <div style={{display:"flex",gap:8,alignItems:"center",marginTop:3,flexWrap:"wrap"}}>
+                  <span style={{fontSize:10,padding:"1px 6px",borderRadius:6,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase"}}>{pc.label}</span>
+                  {task.due_date&&<span style={{fontSize:11,color:isOverdue?"var(--red)":"var(--tx3)",fontWeight:isOverdue?600:400}}>{isOverdue?"⏰ Overdue: ":""}{new Date(task.due_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>}
+                  {task.eta_date&&<span style={{fontSize:11,color:"var(--tx3)"}}>ETA: {new Date(task.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>}
+                  {isAssignedToMe&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:6,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:600}}>Assigned by {nameFromEmail(task.created_by)}</span>}
+                  {task.assigned_to&&task.created_by?.toLowerCase()===myEmail&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:6,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600}}>→ {nameFromEmail(task.assigned_to)}</span>}
+                  {task.status==="postponed"&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:6,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:600}}>Postponed</span>}
+                </div>
+                {task.description&&<div style={{fontSize:12,color:"var(--tx2)",marginTop:4,lineHeight:1.4}}>{task.description}</div>}
+              </div>
+              {/* Actions */}
+              <div style={{display:"flex",gap:4,flexShrink:0}}>
+                <button onClick={()=>setPostponeModal(task)} title="Postpone" style={{background:"none",border:"none",cursor:"pointer",padding:4,borderRadius:6,color:"var(--tx3)",transition:"color .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.color="var(--amber)"} onMouseLeave={e=>e.currentTarget.style.color="var(--tx3)"}>
+                  <Icon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={16}/>
+                </button>
+                <button onClick={()=>{setEditingTask(task);setTaskForm({title:task.title,description:task.description||"",priority:task.priority,due_date:task.due_date||"",eta_date:task.eta_date||"",assigned_to:task.assigned_to||""});setShowTaskForm(true);}} title="Edit" style={{background:"none",border:"none",cursor:"pointer",padding:4,borderRadius:6,color:"var(--tx3)",transition:"color .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.color="var(--tabby-purple,var(--accent-text))"} onMouseLeave={e=>e.currentTarget.style.color="var(--tx3)"}>
+                  <Icon d={icons.edit} size={16}/>
+                </button>
+                <button onClick={()=>deleteTask(task)} title="Delete" style={{background:"none",border:"none",cursor:"pointer",padding:4,borderRadius:6,color:"var(--tx3)",transition:"color .15s"}}
+                  onMouseEnter={e=>e.currentTarget.style.color="var(--red)"} onMouseLeave={e=>e.currentTarget.style.color="var(--tx3)"}>
+                  <Icon d={icons.trash} size={16}/>
+                </button>
+              </div>
+            </div>;
+          })}
+        </div>
+      }
+
+      {/* Completed tasks (collapsible) */}
+      {doneTasks.length>0&&<div style={{marginTop:12}}>
+        <button onClick={e=>{const el=e.currentTarget.nextElementSibling;el.style.display=el.style.display==="none"?"block":"none";}} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--tx3)",fontWeight:500,fontFamily:"var(--font)",padding:"4px 0"}}>
+          {doneTasks.length} completed task{doneTasks.length!==1?"s":""} ▾
+        </button>
+        <div style={{display:"none"}}>
+          {doneTasks.map(task=>(
+            <div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",opacity:.6}}>
+              <button onClick={()=>toggleTaskDone(task)} style={{width:22,height:22,borderRadius:6,border:"2px solid var(--green)",background:"var(--green)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+                <svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>
+              </button>
+              <span style={{flex:1,fontSize:13,textDecoration:"line-through",color:"var(--tx3)"}}>{task.title}</span>
+              <span style={{fontSize:11,color:"var(--tx3)"}}>{task.completed_at?new Date(task.completed_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}</span>
+              <button onClick={()=>deleteTask(task)} style={{background:"none",border:"none",cursor:"pointer",padding:4,color:"var(--tx3)"}}><Icon d={icons.trash} size={14}/></button>
+            </div>
+          ))}
+        </div>
+      </div>}
+    </div>
+
+    {/* ── Postpone Modal ── */}
+    {postponeModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget){setPostponeModal(null);setPostponeDate("");setPostponeReason("");}}}>
+      <div className="card" style={{width:"100%",maxWidth:400,margin:20}}>
+        <div className="card-header"><span className="card-title">Postpone: {postponeModal.title}</span></div>
+        <div className="form-group" style={{marginBottom:12}}>
+          <label className="form-label">New due date *</label>
+          <input type="date" className="form-input" value={postponeDate} onChange={e=>setPostponeDate(e.target.value)} min={new Date().toISOString().split("T")[0]}/>
+        </div>
+        <div className="form-group" style={{marginBottom:12}}>
+          <label className="form-label">Reason (optional)</label>
+          <textarea className="form-input" rows={2} value={postponeReason} onChange={e=>setPostponeReason(e.target.value)} placeholder="Why is this being postponed?" style={{resize:"vertical"}}/>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <button className="btn btn-primary" onClick={postponeTask} disabled={!postponeDate}>Postpone</button>
+          <button className="btn btn-outline" onClick={()=>{setPostponeModal(null);setPostponeDate("");setPostponeReason("");}}>Cancel</button>
+        </div>
+      </div>
+    </div>}
 
     {/* ── AP/PIP Detection Alerts for TLs ── */}
     {isLead&&apDetections.length>0&&<div className="card" style={{marginBottom:16,borderLeft:"4px solid var(--amber)"}}>
@@ -5174,15 +5378,17 @@ function NotificationBell({ token, profile, onNavigate }) {
   useEffect(() => {
     const load = async () => {
       try {
-        const [violations, damFlags, escalations] = await Promise.all([
+        const [violations, damFlags, escalations, assignedTasks] = await Promise.all([
           sb.query("coaching_violations", { select: "id,violation_type,qa_emails,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []),
           sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []),
           sb.query("escalations", { select: "id,category,status,submitted_by,created_at", filters: `routed_to=eq.${profile?.email}&status=eq.open&order=created_at.desc&limit=10`, token }).catch(() => []),
+          sb.query("tasks", { select: "id,title,priority,created_by,due_date,created_at", filters: `assigned_to=eq.${profile?.email}&status=neq.done&order=created_at.desc&limit=10`, token }).catch(() => []),
         ]);
         const all = [
           ...violations.map(v => ({ id: v.id, type: "violation", title: `Violation: ${v.violation_type}`, sub: v.qa_emails?.split("\n")[0], time: v.created_at, page: "violations" })),
           ...damFlags.map(f => ({ id: f.id, type: "dam", title: `DAM: ${f.dam_rules?.name || "Flag"}`, sub: f.qa_email || "—", time: f.created_at, page: "dam" })),
           ...escalations.map(e => ({ id: e.id, type: "escalation", title: `Escalation: ${e.category}`, sub: e.submitted_by, time: e.created_at, page: "escalations" })),
+          ...assignedTasks.map(t => ({ id: t.id, type: "task", title: `📋 Task: ${t.title}`, sub: `From: ${t.created_by?.split("@")[0]}${t.due_date?" · Due: "+new Date(t.due_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}`, time: t.created_at, page: "dashboard" })),
         ].sort((a, b) => new Date(b.time) - new Date(a.time));
         setItems(all);
       } catch {}
@@ -5199,7 +5405,7 @@ function NotificationBell({ token, profile, onNavigate }) {
   }, []);
 
   const count = items.length;
-  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" } };
+  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" } };
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
