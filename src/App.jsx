@@ -404,13 +404,83 @@ const icons={
   edit:"M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z",
   trash:"M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
 };
-const TabbyLogo = ({size=24, color="#3CFFA5"}) => (
+const TabbyLogo = ({size=24, color="#3BFF9D"}) => (
   <svg width={size * 4.5} height={size} viewBox="0 0 450 100" fill="none">
-    <rect width="450" height="100" rx="16" fill="#1A1A1A"/>
-    <text x="28" y="68" fontFamily="'DM Sans', sans-serif" fontSize="52" fontWeight="700" fill={color} letterSpacing="-1">tabby</text>
-    <text x="222" y="68" fontFamily="'DM Sans', sans-serif" fontSize="52" fontWeight="700" fill="#FFF" letterSpacing="-1">RADAR</text>
+    <rect width="450" height="100" rx="16" fill="var(--sidebar-bg)"/>
+    <text x="28" y="68" fontFamily="'Plus Jakarta Sans', sans-serif" fontSize="52" fontWeight="700" fill="#fff" letterSpacing="-1">tabby</text>
+    <text x="222" y="68" fontFamily="'Plus Jakarta Sans', sans-serif" fontSize="52" fontWeight="700" fill={color} letterSpacing="-1">RADAR</text>
   </svg>
 );
+
+/* ═══ DASHBOARD CHART COMPONENTS ═══ */
+
+// Progress Ring — circular progress indicator
+const ProgressRing = ({ value, max, size = 64, stroke = 5, color = "var(--tabby-green)", label, sublabel }) => {
+  const r = (size - stroke) / 2;
+  const circ = 2 * Math.PI * r;
+  const pct = Math.min(value / max, 1);
+  const offset = circ * (1 - pct);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+      <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--bd2)" strokeWidth={stroke} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
+          strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
+          style={{ transition: "stroke-dashoffset 1s cubic-bezier(.4,0,.2,1)" }} />
+      </svg>
+      {(label || sublabel) && <div>
+        {label && <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-1px", fontVariantNumeric: "tabular-nums" }}>{label}</div>}
+        {sublabel && <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 500 }}>{sublabel}</div>}
+      </div>}
+    </div>
+  );
+};
+
+// Mini Bar Chart — simple vertical bars for trend data
+const MiniBarChart = ({ data, height = 48, color = "var(--tabby-green)", showLabels = false }) => {
+  if (!data || data.length === 0) return null;
+  const max = Math.max(...data.map(d => d.value), 1);
+  const barW = Math.min(12, (100 / data.length) - 2);
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height }}>
+        {data.map((d, i) => (
+          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+            <div style={{
+              width: "100%", maxWidth: barW, borderRadius: 3,
+              height: `${Math.max((d.value / max) * height, 3)}px`,
+              background: i === data.length - 1 ? color : "var(--bd)",
+              transition: "height .6s cubic-bezier(.4,0,.2,1)",
+              opacity: 0.4 + (i / data.length) * 0.6,
+            }} title={`${d.label}: ${d.value}`} />
+          </div>
+        ))}
+      </div>
+      {showLabels && <div style={{ display: "flex", gap: 3 }}>
+        {data.map((d, i) => (
+          <div key={i} style={{ flex: 1, textAlign: "center", fontSize: 8, color: "var(--tx3)", fontWeight: 500 }}>
+            {d.label?.slice(0, 3)}
+          </div>
+        ))}
+      </div>}
+    </div>
+  );
+};
+
+// Spark Line — inline trend line
+const SparkLine = ({ data, width = 100, height = 28, color = "var(--tabby-green)" }) => {
+  if (!data || data.length < 2) return null;
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  const points = data.map((v, i) => `${(i / (data.length - 1)) * width},${height - ((v - min) / range) * (height - 4) - 2}`).join(" ");
+  return (
+    <svg width={width} height={height} style={{ display: "block" }}>
+      <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity=".8" />
+      <circle cx={(data.length - 1) / (data.length - 1) * width} cy={height - ((data[data.length-1] - min) / range) * (height - 4) - 2} r="3" fill={color} />
+    </svg>
+  );
+};
 
 const GoogleLogo=()=>(<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>);
 
@@ -798,10 +868,39 @@ function DashboardPage({profile,token,gf}){
     {/* ── Lead+ team overview ── */}
     {isLead&&<>
       <div className="stats-grid">
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>👥</div><div className="stat-label">My team</div><div className="stat-value">{allTeamEmails.length}</div></div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Team avg score</div><div className="stat-value" style={{color:scoreColor(teamAvgScore)}}>{teamAvgScore.toFixed(1)}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div>{teamTrend&&<div style={{fontSize:12,marginTop:4,color:Number(teamTrend)>=0?"var(--green)":"var(--red)"}}>{Number(teamTrend)>=0?"↑":"↓"} {Math.abs(teamTrend)} pts vs {prevMonth}</div>}</div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Team DSAT</div><div className="stat-value" style={{color:"var(--tx)"}}>{teamDsat}</div></div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🚩</div><div className="stat-label">Pending DAM flags</div><div className="stat-value">{damCount}</div></div>
+        <div className="stat-card">
+          <div className="stat-label">My team</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div className="stat-value">{allTeamEmails.length}</div>
+            <div style={{width:40,height:40,borderRadius:12,background:"var(--primary-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>👥</div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Team avg score</div>
+          <ProgressRing value={teamAvgScore} max={maxScore} size={56} stroke={5}
+            color={scoreColor(teamAvgScore)}
+            label={teamAvgScore.toFixed(1)}
+            sublabel={`of ${maxScore} pts`}
+          />
+          {teamTrend&&<div style={{fontSize:12,marginTop:8,color:Number(teamTrend)>=0?"var(--green)":"var(--red)",fontWeight:600}}>{Number(teamTrend)>=0?"↑":"↓"} {Math.abs(teamTrend)} pts vs {prevMonth}</div>}
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Team DSAT</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div className="stat-value">{teamDsat}</div>
+            <MiniBarChart data={months.slice(0,4).reverse().map(m=>{
+              const mData=mtd.filter(r=>r.month===m&&allTeamEmails.includes(r.qa_email?.toLowerCase()));
+              return {label:m.slice(0,3),value:mData.reduce((a,r)=>a+(r.dsat||0),0)};
+            })} height={36} color="var(--red)" />
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Pending DAM flags</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div className="stat-value" style={{color:damCount>0?"var(--amber)":"var(--tx)"}}>{damCount}</div>
+            {damCount>0&&<button className="btn btn-outline btn-sm" onClick={()=>nav("dam")} style={{fontSize:11}}>Review →</button>}
+          </div>
+        </div>
       </div>
 
       {/* Team members table */}
@@ -825,10 +924,31 @@ function DashboardPage({profile,token,gf}){
     {/* ── Personal stats (everyone) ── */}
     {myData?<>
       <div className="stats-grid">
-        <div className="stat-card"><div className="stat-icon" style={{background:scoreBg(myData?getScore(myData):0),color:scoreColor(myData?getScore(myData):0),fontSize:18}}>📊</div><div className="stat-label">My score</div><div className="stat-value" style={{color:scoreColor(myData?getScore(myData):0)}}>{myData?getScore(myData).toFixed(1):0}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div>{myPrevData&&<div style={{fontSize:12,marginTop:4,color:(getScore(myData)-getScore(myPrevData))>=0?"var(--green)":"var(--red)"}}>{(getScore(myData)-getScore(myPrevData))>=0?"↑":"↓"} {Math.abs(getScore(myData)-getScore(myPrevData)).toFixed(1)} pts vs {prevMonth}</div>}</div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Rank</div><div className="stat-value">{myRank>0?"#"+myRank:"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {ranked.length}</span></div></div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--teal-bg)",color:"var(--teal)",fontSize:18}}>🎫</div><div className="stat-label">Tickets/day</div><div className="stat-value">{myData.ticket_per_day??0}</div></div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--teal-bg)",color:"var(--teal)",fontSize:18}}>📋</div><div className="stat-label">DSAT</div><div className="stat-value">{myData.dsat??0}</div></div>
+        <div className="stat-card">
+          <div className="stat-label">My score</div>
+          <ProgressRing value={myData?getScore(myData):0} max={maxScore} size={56} stroke={5}
+            color={scoreColor(myData?getScore(myData):0)}
+            label={myData?getScore(myData).toFixed(1):"0"}
+            sublabel={`of ${maxScore} pts`}
+          />
+          {myPrevData&&<div style={{fontSize:12,marginTop:8,color:(getScore(myData)-getScore(myPrevData))>=0?"var(--green)":"var(--red)",fontWeight:600}}>{(getScore(myData)-getScore(myPrevData))>=0?"↑":"↓"} {Math.abs(getScore(myData)-getScore(myPrevData)).toFixed(1)} pts vs {prevMonth}</div>}
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Rank</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div className="stat-value">{myRank>0?"#"+myRank:"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {ranked.length}</span></div>
+            {myHistory.length>=2&&<SparkLine data={myHistory.map(h=>h.score)} width={80} height={32} color={scoreColor(myData?getScore(myData):0)} />}
+          </div>
+          <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>Performance trend</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Tickets / day</div>
+          <div className="stat-value">{myData.ticket_per_day??0}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">DSAT</div>
+          <div className="stat-value">{myData.dsat??0}</div>
+        </div>
       </div>
 
       {/* My KPI detail with slab calculation */}
@@ -924,11 +1044,39 @@ function DashboardPage({profile,token,gf}){
       const svRoster=isAdminRole?roster:roster.filter(r=>r.email?.endsWith("@"+svDomain));
       const svCurrent=isAdminRole?current:current.filter(r=>r.qa_email?.endsWith("@"+svDomain));
       const svRanked=isAdminRole?ranked:[...svCurrent].sort((a,b)=>getScore(b)-getScore(a));
+      const svAvg=svRanked.length?svRanked.reduce((a,r)=>a+getScore(r),0)/svRanked.length:0;
+      const svTotalDsat=svCurrent.reduce((a,r)=>a+(r.dsat||0),0);
       return <div className="stats-grid">
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>👥</div><div className="stat-label">Total QAs ({isAdminRole?"all":svDomain})</div><div className="stat-value">{svRoster.length}</div></div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>👔</div><div className="stat-label">Team leads</div><div className="stat-value">{[...new Set(svRoster.map(r=>r.manager_email).filter(Boolean))].length}</div></div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Avg score ({latestMonth})</div><div className="stat-value" style={{color:scoreColor(svRanked.length?svRanked.reduce((a,r)=>a+getScore(r),0)/svRanked.length:0)}}>{svRanked.length?(svRanked.reduce((a,r)=>a+getScore(r),0)/svRanked.length).toFixed(1):"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div></div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Total DSAT ({latestMonth})</div><div className="stat-value">{svCurrent.reduce((a,r)=>a+(r.dsat||0),0)}</div></div>
+        <div className="stat-card">
+          <div className="stat-label">Total QAs ({isAdminRole?"all":svDomain})</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div className="stat-value">{svRoster.length}</div>
+            <div style={{width:40,height:40,borderRadius:12,background:"var(--primary-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>👥</div>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Team leads</div>
+          <div className="stat-value">{[...new Set(svRoster.map(r=>r.manager_email).filter(Boolean))].length}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Avg score ({latestMonth})</div>
+          <ProgressRing value={svAvg} max={maxScore} size={56} stroke={5}
+            color={scoreColor(svAvg)}
+            label={svAvg.toFixed(1)}
+            sublabel={`of ${maxScore} pts`}
+          />
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Total DSAT ({latestMonth})</div>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <div className="stat-value">{svTotalDsat}</div>
+            <MiniBarChart data={months.slice(0,4).reverse().map(m=>{
+              const md=mtd.filter(r=>r.month===m);
+              const scoped=isAdminRole?md:md.filter(r=>r.qa_email?.endsWith("@"+svDomain));
+              return {label:m.slice(0,3),value:scoped.reduce((a,r)=>a+(r.dsat||0),0)};
+            })} height={36} color="var(--red)" />
+          </div>
+        </div>
       </div>;
     })()}
 
