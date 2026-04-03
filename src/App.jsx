@@ -518,9 +518,28 @@ function DashboardPage({profile,token,gf}){
   const[userTasks,setUserTasks]=useState([]);const[showTaskForm,setShowTaskForm]=useState(false);
   const[taskForm,setTaskForm]=useState({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});
   const[editingTask,setEditingTask]=useState(null);const[postponeModal,setPostponeModal]=useState(null);const[postponeDate,setPostponeDate]=useState("");const[postponeReason,setPostponeReason]=useState("");
+  const[showAnnForm,setShowAnnForm]=useState(false);
+  const[annForm,setAnnForm]=useState({title:"",message:"",priority:"normal",target_type:"all",target_value:""});
   const isLead=hasRole(profile?.role,"qa_lead");
   const isAdmin=hasRole(profile?.role,"admin");
+  const isSupervisor=hasRole(profile?.role,"qa_supervisor");
+  const canAnnounce=isAdmin||isSupervisor;
   const{show,el:toastEl}=useToast();
+
+  const sendAnnouncement=async()=>{
+    if(!annForm.title.trim()||!annForm.message.trim()){show("error","Title and message are required");return;}
+    if(annForm.target_type!=="all"&&!annForm.target_value){show("error","Please select a target");return;}
+    try{
+      await sb.query("announcements",{token,method:"POST",body:{
+        title:annForm.title,message:annForm.message,priority:annForm.priority,
+        target_type:annForm.target_type,target_value:annForm.target_type==="all"?null:annForm.target_value,
+        sent_by:profile?.email,requires_ack:true,
+      }});
+      logActivity(token,profile?.email,"announcement_sent","announcements",null,`Title: ${annForm.title}, Target: ${annForm.target_type}${annForm.target_value?" ("+annForm.target_value+")":""}`);
+      show("success",`Announcement sent to ${annForm.target_type==="all"?"everyone":annForm.target_value}`);
+      setShowAnnForm(false);setAnnForm({title:"",message:"",priority:"normal",target_type:"all",target_value:""});
+    }catch(e){show("error",e.message);}
+  };
 
   const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
   const fmt=(val)=>{if(val===null||val===undefined||val==="")return"—";const s=String(val).trim();if(s.includes("%"))return s;const n=parseFloat(s.replace(",","."));if(isNaN(n))return s;if(n>=0&&n<=2)return(n*100).toFixed(1)+"%";if(n>2&&!Number.isInteger(n))return n.toFixed(1)+"%";return String(val);};
@@ -690,9 +709,12 @@ function DashboardPage({profile,token,gf}){
   const[syncing,setSyncing]=useState(false);
 
   return(<div className="page">
-    {/* Super admin: Sync MTD data button */}
-    {hasRole(profile?.role,"super_admin")&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
-      <button className="btn btn-outline btn-sm" disabled={syncing} onClick={async()=>{
+    {/* Admin/Supervisor action bar */}
+    {(hasRole(profile?.role,"super_admin")||canAnnounce)&&<div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:8}}>
+      {canAnnounce&&<button className="btn btn-outline btn-sm" onClick={()=>setShowAnnForm(!showAnnForm)} style={{fontSize:12}}>
+        <Icon d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" size={14}/>Send announcement
+      </button>}
+      {hasRole(profile?.role,"super_admin")&&<button className="btn btn-outline btn-sm" disabled={syncing} onClick={async()=>{
         setSyncing(true);
         try{
           const r=await fetch("https://script.google.com/macros/s/AKfycbwpQjACvkSQBkbJok5L00-jXNMJm9x8b5-cdd4c5imZXeXCD5eHu8_zCsRNgWIegzvZ/exec",{method:"POST",mode:"no-cors"});
@@ -704,7 +726,46 @@ function DashboardPage({profile,token,gf}){
         setSyncing(false);
       }} style={{fontSize:12}}>
         {syncing?<><div className="spinner" style={{width:14,height:14,borderWidth:2,marginRight:6}}/>Syncing...</>:<><Icon d={icons.upload} size={14}/>Sync MTD data</>}
-      </button>
+      </button>}
+    </div>}
+
+    {/* Announcement form */}
+    {showAnnForm&&<div className="card" style={{marginBottom:16,borderLeft:"4px solid var(--tabby-purple,#6A2C79)"}}>
+      <div className="card-header"><span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:18}}>📢</span>Send Announcement</span></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
+        <div className="form-group" style={{gridColumn:"1/-1"}}>
+          <label className="form-label">Title *</label>
+          <input className="form-input" value={annForm.title} onChange={e=>setAnnForm({...annForm,title:e.target.value})} placeholder="Announcement title..." autoFocus/>
+        </div>
+        <div className="form-group" style={{gridColumn:"1/-1"}}>
+          <label className="form-label">Message *</label>
+          <textarea className="form-input" rows={4} value={annForm.message} onChange={e=>setAnnForm({...annForm,message:e.target.value})} placeholder="Write your message here..." style={{resize:"vertical"}}/>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Priority</label>
+          <SearchableSelect options={[{value:"normal",label:"ℹ️ Normal"},{value:"important",label:"⚠️ Important"},{value:"urgent",label:"🔴 Urgent"}]} value={annForm.priority} onChange={v=>setAnnForm({...annForm,priority:v})} placeholder="Normal"/>
+        </div>
+        <div className="form-group">
+          <label className="form-label">Send to</label>
+          <SearchableSelect options={[{value:"all",label:"Everyone"},{value:"domain",label:"Specific domain"},{value:"team",label:"Specific team"},{value:"individual",label:"Individual person"}]} value={annForm.target_type} onChange={v=>setAnnForm({...annForm,target_type:v,target_value:""})} placeholder="Everyone"/>
+        </div>
+        {annForm.target_type==="domain"&&<div className="form-group">
+          <label className="form-label">Domain</label>
+          <SearchableSelect options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]} value={annForm.target_value} onChange={v=>setAnnForm({...annForm,target_value:v})} placeholder="Select domain"/>
+        </div>}
+        {annForm.target_type==="team"&&<div className="form-group">
+          <label className="form-label">Team</label>
+          <SearchableSelect options={[...new Set(roster.map(r=>r.queue).filter(Boolean))].sort()} value={annForm.target_value} onChange={v=>setAnnForm({...annForm,target_value:v})} placeholder="Select team"/>
+        </div>}
+        {annForm.target_type==="individual"&&<div className="form-group">
+          <label className="form-label">Person</label>
+          <SearchableSelect options={roster.map(r=>({value:r.email,label:nameFromEmail(r.email)+` (${r.email.split("@")[1]})`}))} value={annForm.target_value} onChange={v=>setAnnForm({...annForm,target_value:v})} placeholder="Select person"/>
+        </div>}
+      </div>
+      <div style={{display:"flex",gap:8,marginTop:16}}>
+        <button className="btn btn-primary" onClick={sendAnnouncement}>Send announcement</button>
+        <button className="btn btn-outline" onClick={()=>setShowAnnForm(false)}>Cancel</button>
+      </div>
     </div>}
     <div className="welcome-banner">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:16}}>
@@ -1733,28 +1794,39 @@ function ScoreEntryPage({token,profile,gf}){
 }
 
 function AdminUsersPage({token,teams}){
-  const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const[editTeamId,setEditTeamId]=useState("");const{show,el}=useToast();
+  const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const[editTeamIds,setEditTeamIds]=useState([]);const[userTeamsMap,setUserTeamsMap]=useState({});const{show,el}=useToast();
   const load=useCallback(async()=>{try{
-    const[d,r]=await Promise.all([
+    const[d,r,ut]=await Promise.all([
       sb.query("profiles",{select:"id,email,display_name,role,domain,operational_domain,team_id,status",token}),
       sb.query("qa_roster",{select:"email,queue",token}).catch(()=>[]),
+      sb.query("user_teams",{select:"user_id,team_id",token}).catch(()=>[]),
     ]);
     setUsers(d.sort((a,b)=>ROLE_LEVEL[b.role]-ROLE_LEVEL[a.role]));
     setRoster(r);
+    // Build map: user_id -> [team_id, ...]
+    const map={};
+    ut.forEach(x=>{if(!map[x.user_id])map[x.user_id]=[];map[x.user_id].push(x.team_id);});
+    // Also include legacy team_id from profiles
+    d.forEach(u=>{if(u.team_id){if(!map[u.id])map[u.id]=[];if(!map[u.id].includes(u.team_id))map[u.id].push(u.team_id);}});
+    setUserTeamsMap(map);
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
   const getUserTeamNames=(u)=>{
-    // Show assigned team from profiles first, then roster
-    const assigned=u.team_id?teams.find(t=>t.id===u.team_id):null;
+    const ids=userTeamsMap[u.id]||[];
+    const teamNames=ids.map(tid=>{const t=teams.find(x=>x.id===tid);return t?t.name:null;}).filter(Boolean);
     const rosterTeams=roster.filter(r=>r.email?.toLowerCase()===u.email?.toLowerCase()).map(r=>r.queue).filter(Boolean);
-    const all=[...new Set([assigned?.name,...rosterTeams].filter(Boolean))];
-    return all;
+    return [...new Set([...teamNames,...rosterTeams])];
   };
   const getOpDomain=(u)=>u.operational_domain||u.domain||"tabby.ai";
   const save=async(uid)=>{try{
     const u=users.find(x=>x.id===uid);
-    await sb.query("profiles",{token,method:"PATCH",body:{role:editRole,operational_domain:editOpDomain,team_id:editTeamId||null},filters:`id=eq.${uid}`});
-    logActivity(token, profile?.email, "user_updated", "profiles", uid, `${u?.email}: role=${editRole}, domain=${editOpDomain}`);
+    await sb.query("profiles",{token,method:"PATCH",body:{role:editRole,operational_domain:editOpDomain,team_id:editTeamIds[0]||null},filters:`id=eq.${uid}`});
+    // Sync user_teams junction table
+    await sb.query("user_teams",{token,method:"DELETE",filters:`user_id=eq.${uid}`}).catch(()=>{});
+    for(const tid of editTeamIds){
+      await sb.query("user_teams",{token,method:"POST",body:{user_id:uid,team_id:tid}}).catch(()=>{});
+    }
+    logActivity(token, profile?.email, "user_updated", "profiles", uid, `${u?.email}: role=${editRole}, domain=${editOpDomain}, teams=${editTeamIds.length}`);
     setEditingId(null);show("success","Updated");load();
   }catch(e){show("error",e.message);}};
   return(<div className="page">
@@ -1762,12 +1834,12 @@ function AdminUsersPage({token,teams}){
     <div className="card">{loading?<div className="loading-spinner"><div className="spinner"/></div>:
       <div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Email domain</th><th>Op. domain</th><th>Teams</th><th>Status</th><th></th></tr></thead><tbody>
         {users.map(u=>{const uTeams=getUserTeamNames(u);return(<tr key={u.id}><td style={{fontWeight:500}}>{u.display_name||"—"}</td><td style={{color:"var(--tx2)",fontSize:13}}>{u.email}</td>
-        <td>{editingId===u.id?<select className="select" value={editRole} onChange={e=>setEditRole(e.target.value)} style={{fontSize:12,padding:"4px 8px"}}>{Object.entries(ROLE_LABELS).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>:<span className={`role-badge role-${u.role}`}>{ROLE_LABELS[u.role]}</span>}</td>
+        <td>{editingId===u.id?<SearchableSelect options={Object.entries(ROLE_LABELS).map(([k,v])=>({value:k,label:v}))} value={editRole} onChange={setEditRole} placeholder="Select role"/>:<span className={`role-badge role-${u.role}`}>{ROLE_LABELS[u.role]}</span>}</td>
         <td><span className={`domain-badge domain-${u.domain==="tabby.ai"?"ai":"sa"}`}>{u.domain}</span></td>
-        <td>{editingId===u.id?<select className="select" value={editOpDomain} onChange={e=>setEditOpDomain(e.target.value)} style={{fontSize:12,padding:"4px 8px"}}><option value="tabby.ai">tabby.ai</option><option value="tabby.sa">tabby.sa</option></select>:<span className={`domain-badge domain-${getOpDomain(u)==="tabby.ai"?"ai":"sa"}`}>{getOpDomain(u)}</span>}</td>
-        <td>{editingId===u.id?<select className="select" value={editTeamId} onChange={e=>setEditTeamId(e.target.value)} style={{fontSize:12,padding:"4px 8px"}}><option value="">— None —</option>{teams.map(t=><option key={t.id} value={t.id}>{t.name} ({t.domain})</option>)}</select>:uTeams.length>0?<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{uTeams.map((n,i)=><span key={i} className="team-tag">{n}</span>)}</div>:<span style={{fontSize:13,color:"var(--tx3)"}}>—</span>}</td>
+        <td>{editingId===u.id?<SearchableSelect options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]} value={editOpDomain} onChange={setEditOpDomain} placeholder="Domain"/>:<span className={`domain-badge domain-${getOpDomain(u)==="tabby.ai"?"ai":"sa"}`}>{getOpDomain(u)}</span>}</td>
+        <td>{editingId===u.id?<SearchableSelect options={teams.map(t=>({value:t.id,label:`${t.name} (${t.domain})`}))} value={editTeamIds} onChange={setEditTeamIds} placeholder="Select teams..." multi/>:uTeams.length>0?<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{uTeams.map((n,i)=><span key={i} className="team-tag">{n}</span>)}</div>:<span style={{fontSize:13,color:"var(--tx3)"}}>—</span>}</td>
         <td><span className={`status-badge status-${u.status}`}>{u.status}</span></td>
-        <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditOpDomain(getOpDomain(u));setEditTeamId(u.team_id||"");}}>Edit</button>}</td></tr>);})}
+        <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditOpDomain(getOpDomain(u));setEditTeamIds(userTeamsMap[u.id]||[]);}}>Edit</button>}</td></tr>);})}
       </tbody></table></div>}</div>{el}
   </div>);
 }
@@ -5514,6 +5586,7 @@ export default function App(){
   const[globalFilters,setGlobalFilters]=useState({...defaultFilters});
   const[globalRoster,setGlobalRoster]=useState([]);
   const[globalMonths,setGlobalMonths]=useState([]);
+  const[pendingAnnouncements,setPendingAnnouncements]=useState([]);
   // Persist page in URL hash
   useEffect(()=>{window.location.hash=page;},[page]);
   useEffect(()=>{const onHash=()=>{const h=window.location.hash.replace("#","");if(h)setPage(h);};window.addEventListener("hashchange",onHash);return()=>window.removeEventListener("hashchange",onHash);},[]);
@@ -5565,6 +5638,34 @@ export default function App(){
     });
     setGlobalMonths(uniqueMonths);
   }catch(e){console.error("Global filters:",e);}})();},[session]);
+
+  // Load pending announcements that need acknowledgement
+  useEffect(()=>{if(!session||!profile)return;(async()=>{try{
+    const[anns,acks]=await Promise.all([
+      sb.query("announcements",{select:"*",filters:"order=created_at.desc",token:session.access_token}).catch(()=>[]),
+      sb.query("announcement_acks",{select:"announcement_id",filters:`user_email=eq.${profile.email}`,token:session.access_token}).catch(()=>[]),
+    ]);
+    const ackedIds=new Set(acks.map(a=>a.announcement_id));
+    const myEmail=profile.email?.toLowerCase();
+    const myDomain=profile.domain||profile.operational_domain||"";
+    const myQueue=(window.__gfRoster||{})[myEmail]||"";
+    const pending=anns.filter(a=>{
+      if(ackedIds.has(a.id))return false;
+      if(a.target_type==="all")return true;
+      if(a.target_type==="domain")return myEmail.endsWith("@"+a.target_value);
+      if(a.target_type==="team")return myQueue===a.target_value;
+      if(a.target_type==="individual")return myEmail===a.target_value?.toLowerCase();
+      return false;
+    });
+    setPendingAnnouncements(pending);
+  }catch(e){console.error("Announcements:",e);}})();},[session,profile]);
+
+  const acknowledgeAnnouncement=async(annId)=>{
+    try{
+      await sb.query("announcement_acks",{token:session.access_token,method:"POST",body:{announcement_id:annId,user_email:profile.email}});
+      setPendingAnnouncements(prev=>prev.filter(a=>a.id!==annId));
+    }catch(e){console.error("Ack error:",e);}
+  };
   if(loading)return<div className="loading-fullscreen"><div style={{marginBottom:24,fontSize:24,fontWeight:700,color:"#fff",letterSpacing:"-1px"}}>tabby<span style={{background:"linear-gradient(135deg, #3BFF9D, #6A2C79)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>RADAR</span></div><div className="spinner"/><p style={{marginTop:16,color:"rgba(255,255,255,.4)",fontSize:13}}>Loading your workspace...</p></div>;
   if(!session)return(<div className="login-page"><div className="login-card"><div style={{marginBottom:8}}><TabbyLogo size={28}/></div><div className="login-subtitle">QA Performance & Analytics Dashboard<br/>Sign in with your Tabby Google account.</div><button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}><GoogleLogo/>Sign in with Google</button><div className="login-divider">Supported domains</div><div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div><div className="login-footer">Internal tool &middot; Tabby RADAR</div></div></div>);
   const realRole=profile?.role||"qa";
@@ -5639,6 +5740,60 @@ export default function App(){
     <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} teams={[]} roster={globalRoster} profile={effectiveProfile} role={userRole}/>
     {/* Search overlay */}
     {showSearch&&<GlobalSearch token={session.access_token} onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
-    {renderPage()}</div>
+    {renderPage()}
+
+    {/* ═══ ANNOUNCEMENT POPUP — blocks until acknowledged ═══ */}
+    {pendingAnnouncements.length>0&&<div style={{
+      position:"fixed",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(8px)",
+      display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,
+      animation:"fadeIn .3s cubic-bezier(.4,0,.2,1)",
+    }}>
+      <div style={{
+        width:"100%",maxWidth:520,margin:20,background:"var(--bg3)",borderRadius:20,
+        boxShadow:"0 32px 64px rgba(0,0,0,.4)",border:"1px solid var(--bd)",overflow:"hidden",
+      }}>
+        {/* Header */}
+        <div style={{
+          padding:"20px 24px",background:"linear-gradient(135deg, var(--tabby-purple-dark,#4A1B56), var(--tabby-purple,#6A2C79))",
+          color:"#fff",
+        }}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+            <span style={{fontSize:22}}>📢</span>
+            <span style={{fontSize:16,fontWeight:700}}>Announcement</span>
+            {pendingAnnouncements.length>1&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:"rgba(255,255,255,.15)",fontWeight:600}}>{pendingAnnouncements.length} messages</span>}
+          </div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.6)"}}>From: {pendingAnnouncements[0].sent_by?.split("@")[0].split(".").map(p=>p.charAt(0).toUpperCase()+p.slice(1)).join(" ")} · {new Date(pendingAnnouncements[0].created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
+        </div>
+        {/* Body */}
+        <div style={{padding:"24px"}}>
+          {(()=>{
+            const ann=pendingAnnouncements[0];
+            const priorityStyle={urgent:{bg:"var(--red-bg)",color:"var(--red)",label:"URGENT"},important:{bg:"var(--amber-bg)",color:"var(--amber)",label:"IMPORTANT"},normal:{bg:"var(--primary-light)",color:"var(--tabby-purple,#6A2C79)",label:"INFO"}}[ann.priority]||{};
+            return <>
+              <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
+                <span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:priorityStyle.bg,color:priorityStyle.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".5px"}}>{priorityStyle.label}</span>
+                {ann.target_type!=="all"&&<span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:"var(--bg2)",color:"var(--tx3)",fontWeight:600}}>To: {ann.target_type==="domain"?ann.target_value:ann.target_type==="team"?"Team: "+ann.target_value:ann.target_value}</span>}
+              </div>
+              <h3 style={{fontSize:18,fontWeight:700,marginBottom:12,letterSpacing:"-.3px",lineHeight:1.3}}>{ann.title}</h3>
+              <div style={{fontSize:14,color:"var(--tx2)",lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:300,overflowY:"auto"}}>{ann.message}</div>
+            </>;
+          })()}
+        </div>
+        {/* Footer — must acknowledge */}
+        <div style={{padding:"16px 24px",borderTop:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:11,color:"var(--tx3)"}}>You must acknowledge to continue</span>
+          <button onClick={()=>acknowledgeAnnouncement(pendingAnnouncements[0].id)} style={{
+            padding:"10px 24px",borderRadius:10,border:"none",
+            background:"var(--tabby-purple,#6A2C79)",color:"#fff",fontSize:13,fontWeight:700,
+            cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",
+          }}
+            onMouseEnter={e=>{e.currentTarget.style.background="var(--tabby-purple-light,#8B4D99)";e.currentTarget.style.transform="translateY(-1px)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="var(--tabby-purple,#6A2C79)";e.currentTarget.style.transform="translateY(0)";}}
+          >I Acknowledge</button>
+        </div>
+      </div>
+    </div>}
+
+    </div>
   </div>);
 }
