@@ -1229,16 +1229,8 @@ function DashboardPage({profile,token,gf}){
         <svg width="100%" height="100" viewBox={`0 0 ${myHistory.length*100} 100`} style={{overflow:"visible"}}><polyline fill="none" stroke="var(--accent-text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={myHistory.map((d,i)=>{const y=90-(d.score/maxScore)*70;return`${i*100+50},${Math.max(10,Math.min(90,y))}`;}).join(" ")}/>{myHistory.map((d,i)=>{const y=90-(d.score/maxScore)*70;const cy=Math.max(10,Math.min(90,y));return(<g key={i}><circle cx={i*100+50} cy={cy} r="4" fill="var(--accent-text)"/><text x={i*100+50} y={cy-12} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--tx)" fontFamily="var(--font)">{d.score.toFixed(1)}</text><text x={i*100+50} y={cy+18} textAnchor="middle" fontSize="10" fill="var(--tx3)" fontFamily="var(--font)">{d.month}</text></g>);})}</svg>
       </div>}
     </>:
-    /* No personal MTD data — show quick actions */
-    <div className="card" style={{marginBottom:20}}><div className="card-header"><span className="card-title">Quick actions</span></div>
-      <div className="placeholder" style={{padding:"30px 20px"}}>
-        {isLead?<div style={{display:"flex",gap:12,flexWrap:"wrap",justifyContent:"center"}}>
-          <button className="btn btn-primary" onClick={()=>nav("scores")} style={{cursor:"pointer"}}>View Scores</button>
-          <button className="btn btn-outline" onClick={()=>nav("leaderboard")} style={{cursor:"pointer"}}>Leaderboard</button>
-          <button className="btn btn-outline" onClick={()=>nav("dam")} style={{cursor:"pointer"}}>DAM Flags</button>
-        </div>:<p style={{color:"var(--tx3)"}}>No performance data found for your email ({profile?.email}). Data syncs from Metabase hourly.</p>}
-      </div>
-    </div>}
+    /* No personal MTD data */
+    <div style={{padding:"16px 0",marginBottom:20,color:"var(--tx3)",fontSize:13}}>No performance data found for your email ({profile?.email}). Data syncs from Metabase hourly.</div>}
 
     {/* ── Global stats (for admins/supervisors) ── */}
     {hasRole(profile?.role,"qa_supervisor")&&(()=>{
@@ -5341,27 +5333,47 @@ function NotificationBell({ token, profile, onNavigate }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const ref = useRef(null);
+  const isLead = hasRole(profile?.role, "qa_lead");
+  const isSv = hasRole(profile?.role, "qa_supervisor");
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [violations, damFlags, escalations, assignedTasks] = await Promise.all([
-          sb.query("coaching_violations", { select: "id,violation_type,qa_emails,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []),
-          sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []),
+        const myEmail = profile?.email?.toLowerCase();
+        const queries = [
+          sb.query("tasks", { select: "id,title,priority,created_by,eta_date,created_at", filters: `assigned_to=eq.${profile?.email}&status=neq.done&order=created_at.desc&limit=10`, token }).catch(() => []),
           sb.query("escalations", { select: "id,category,status,submitted_by,created_at", filters: `routed_to=eq.${profile?.email}&status=eq.open&order=created_at.desc&limit=10`, token }).catch(() => []),
-          sb.query("tasks", { select: "id,title,priority,created_by,due_date,created_at", filters: `assigned_to=eq.${profile?.email}&status=neq.done&order=created_at.desc&limit=10`, token }).catch(() => []),
-        ]);
+          sb.query("announcements", { select: "id,title,priority,sent_by,created_at", filters: "order=created_at.desc&limit=5", token }).catch(() => []),
+        ];
+        // QA Lead+ gets violations and DAM flags
+        if (isLead) {
+          queries.push(sb.query("coaching_violations", { select: "id,violation_type,qa_emails,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
+          queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
+          queries.push(sb.query("action_plans", { select: "id,qa_email,type,status,end_date,created_at", filters: "status=eq.active&order=created_at.desc&limit=10", token }).catch(() => []));
+        }
+        const results = await Promise.all(queries);
+        const [assignedTasks, escalations, announcements] = results;
+        const violations = isLead ? results[3] : [];
+        const damFlags = isLead ? results[4] : [];
+        const activePlans = isLead ? results[5] : [];
+
         const all = [
-          ...violations.map(v => ({ id: v.id, type: "violation", title: `Violation: ${v.violation_type}`, sub: v.qa_emails?.split("\n")[0], time: v.created_at, page: "violations" })),
-          ...damFlags.map(f => ({ id: f.id, type: "dam", title: `DAM: ${f.dam_rules?.name || "Flag"}`, sub: f.qa_email || "—", time: f.created_at, page: "dam" })),
-          ...escalations.map(e => ({ id: e.id, type: "escalation", title: `Escalation: ${e.category}`, sub: e.submitted_by, time: e.created_at, page: "escalations" })),
-          ...assignedTasks.map(t => ({ id: t.id, type: "task", title: `📋 Task: ${t.title}`, sub: `From: ${t.created_by?.split("@")[0]}${t.due_date?" · Due: "+new Date(t.due_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}`, time: t.created_at, page: "dashboard" })),
+          ...assignedTasks.map(t => ({ id: "t-"+t.id, type: "task", title: `📋 Task: ${t.title}`, sub: `From: ${t.created_by?.split("@")[0]}${t.eta_date?" · ETA: "+new Date(t.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}`, time: t.created_at, page: "dashboard" })),
+          ...escalations.map(e => ({ id: "e-"+e.id, type: "escalation", title: `Escalation: ${e.category}`, sub: "Anonymous submission", time: e.created_at, page: "escalations" })),
+          ...violations.map(v => ({ id: "v-"+v.id, type: "violation", title: `⚠️ Violation: ${v.violation_type}`, sub: v.qa_emails?.split("\n")[0], time: v.created_at, page: "violations" })),
+          ...damFlags.map(f => ({ id: "d-"+f.id, type: "dam", title: `🚩 DAM: ${f.dam_rules?.name || "Flag"}`, sub: f.qa_email || "—", time: f.created_at, page: "dam" })),
+          ...activePlans.filter(p => {
+            // Notify if plan is ending within 7 days
+            if (!p.end_date) return false;
+            const daysLeft = (new Date(p.end_date) - new Date()) / (1000*60*60*24);
+            return daysLeft <= 7 && daysLeft > -1;
+          }).map(p => ({ id: "ap-"+p.id, type: "plan", title: `📋 ${p.type.toUpperCase()} ending soon`, sub: `${p.qa_email?.split("@")[0]} — ${Math.ceil((new Date(p.end_date)-new Date())/(1000*60*60*24))} days left`, time: p.created_at, page: "plans" })),
         ].sort((a, b) => new Date(b.time) - new Date(a.time));
         setItems(all);
       } catch {}
     };
     load();
-    const interval = setInterval(load, 60000); // refresh every minute
+    const interval = setInterval(load, 60000);
     return () => clearInterval(interval);
   }, [token, profile?.email]);
 
@@ -5372,7 +5384,7 @@ function NotificationBell({ token, profile, onNavigate }) {
   }, []);
 
   const count = items.length;
-  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" } };
+  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" } };
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
