@@ -542,6 +542,105 @@ function DashboardPage({profile,token,gf}){
     <div className="welcome-banner"><h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2><p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p><div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div></div>
     {loading?<div className="loading-spinner"><div className="spinner"/></div>:<>
 
+    {/* ── Task Center ── */}
+    {(()=>{
+      const tasks = [];
+      const today = new Date();
+      const dayOfWeek = today.getDay(); // 0=Sun, 1=Mon...
+      const dayOfMonth = today.getDate();
+      const isMonday = dayOfWeek === 1;
+      const isFirstWeek = dayOfMonth <= 7;
+
+      // ── Tasks for ALL roles ──
+      if (!myData && !isLead) tasks.push({ priority: "info", icon: "📊", text: "Check your performance dashboard", action: () => {}, type: "daily" });
+
+      // ── QA-specific tasks ──
+      if (profile?.role === "qa") {
+        if (myData && getScore(myData) < 25) tasks.push({ priority: "red", icon: "⚠️", text: `Your score is ${getScore(myData).toFixed(1)}/55 — review your KPIs`, action: () => nav("leaderboard"), type: "daily" });
+        // Check if QA has active AP/PIP
+        const myPlans = apPlans.filter(p => p.qa_email?.toLowerCase() === myEmail && p.status === "active");
+        if (myPlans.length > 0) tasks.push({ priority: "amber", icon: "📋", text: `You have ${myPlans.length} active plan(s) — check progress`, action: () => nav("plans"), type: "daily" });
+      }
+
+      // ── QA Lead tasks ──
+      if (isLead) {
+        // Pending violations
+        const pendingViolations = damCount; // from dashboard state
+        if (pendingViolations > 0) tasks.push({ priority: "red", icon: "🔴", text: `${pendingViolations} pending DAM flag(s) need attention`, action: () => nav("dam"), type: "daily" });
+
+        // AP/PIP detections
+        if (apDetections.length > 0) tasks.push({ priority: "red", icon: "⚠️", text: `${apDetections.length} QA(s) flagged for Action Plan — review and create`, action: () => nav("plans"), type: "daily" });
+
+        // Active AP/PIPs needing follow-up
+        const activePlans = apPlans.filter(p => p.status === "active");
+        if (activePlans.length > 0) tasks.push({ priority: "amber", icon: "📋", text: `${activePlans.length} active AP/PIP(s) — update progress & schedule follow-up`, action: () => nav("plans"), type: "weekly" });
+
+        // Coaching reminders
+        if (isMonday) tasks.push({ priority: "info", icon: "💬", text: "Schedule this week's coaching sessions", action: () => nav("coaching"), type: "weekly" });
+
+        // Monthly tasks
+        if (isFirstWeek) {
+          tasks.push({ priority: "amber", icon: "📊", text: "Review last month's team performance on Leaderboard", action: () => nav("leaderboard"), type: "monthly" });
+          tasks.push({ priority: "info", icon: "📝", text: "Close out coaching records from last month", action: () => nav("coaching"), type: "monthly" });
+        }
+
+        // Team members with low scores
+        const myRosterEmails = roster.filter(r => r.manager_email?.toLowerCase() === myEmail).map(r => r.email?.toLowerCase());
+        const lowScoreTeam = current.filter(r => myRosterEmails.includes(r.qa_email?.toLowerCase()) && getScore(r) < 20);
+        if (lowScoreTeam.length > 0) tasks.push({ priority: "red", icon: "📉", text: `${lowScoreTeam.length} team member(s) scoring below 20/55 — consider coaching`, action: () => nav("scores"), type: "daily" });
+      }
+
+      // ── Supervisor tasks ──
+      if (hasRole(profile?.role, "qa_supervisor")) {
+        if (dayOfWeek === 0 || isMonday) tasks.push({ priority: "info", icon: "👁", text: "Review domain-level DAM flags and escalations", action: () => nav("dam"), type: "weekly" });
+        if (isFirstWeek) tasks.push({ priority: "amber", icon: "📊", text: "Monthly domain performance review — check Leaderboard", action: () => nav("leaderboard"), type: "monthly" });
+      }
+
+      // ── Admin tasks ──
+      if (hasRole(profile?.role, "admin")) {
+        if (isFirstWeek) {
+          tasks.push({ priority: "info", icon: "🔄", text: "Sync MTD data from Google Sheets", action: () => {}, type: "monthly" });
+          tasks.push({ priority: "info", icon: "👥", text: "Review user roles and team assignments", action: () => nav("admin"), type: "monthly" });
+        }
+      }
+
+      const priorityOrder = { red: 0, amber: 1, info: 2 };
+      tasks.sort((a, b) => (priorityOrder[a.priority] ?? 9) - (priorityOrder[b.priority] ?? 9));
+
+      const priorityColors = {
+        red: { bg: "var(--red-bg)", color: "var(--red)", border: "var(--red)" },
+        amber: { bg: "var(--amber-bg)", color: "var(--amber)", border: "var(--amber)" },
+        info: { bg: "var(--accent-light)", color: "var(--accent-text)", border: "var(--accent)" },
+      };
+
+      if (tasks.length === 0) return null;
+
+      return <div className="card" style={{ marginBottom: 20 }}>
+        <div className="card-header">
+          <span className="card-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 18 }}>📌</span> Your Tasks
+            <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, background: tasks.some(t => t.priority === "red") ? "var(--red-bg)" : "var(--amber-bg)", color: tasks.some(t => t.priority === "red") ? "var(--red)" : "var(--amber)", fontWeight: 600 }}>{tasks.length}</span>
+          </span>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {tasks.map((t, i) => {
+            const pc = priorityColors[t.priority] || priorityColors.info;
+            return <div key={i} onClick={t.action} style={{
+              display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 8,
+              borderLeft: `3px solid ${pc.border}`, background: pc.bg, cursor: "pointer", transition: "opacity .15s",
+            }}
+              onMouseEnter={e => e.currentTarget.style.opacity = "0.85"}
+              onMouseLeave={e => e.currentTarget.style.opacity = "1"}
+            >
+              <span style={{ fontSize: 16, flexShrink: 0 }}>{t.icon}</span>
+              <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: "var(--tx)" }}>{t.text}</span>
+              <span style={{ fontSize: 9, padding: "2px 6px", borderRadius: 8, background: "rgba(0,0,0,.06)", color: "var(--tx3)", fontWeight: 500, textTransform: "uppercase" }}>{t.type}</span>
+            </div>;
+          })}
+        </div>
+      </div>;
+    })()}
+
     {/* ── AP/PIP Detection Alerts for TLs ── */}
     {isLead&&apDetections.length>0&&<div className="card" style={{marginBottom:16,borderLeft:"4px solid var(--amber)"}}>
       <div className="card-header" style={{cursor:"pointer"}} onClick={()=>nav("plans")}>
@@ -3822,6 +3921,22 @@ function ActionPlanPage({ token, profile }) {
                         }, 300);
                       }}>
                         <Icon d={icons.coaching} size={14} />Send Review Email
+                      </button>
+
+                      {/* Schedule Google Calendar meeting */}
+                      <button className="btn btn-outline btn-sm" onClick={() => {
+                        const title = encodeURIComponent(`${plan.type === "pip" ? "PIP" : "AP"} Review — ${plan.qa_email?.split("@")[0].split(".").map(p=>p.charAt(0).toUpperCase()+p.slice(1)).join(" ")}`);
+                        const details = encodeURIComponent(`${plan.type === "pip" ? "PIP" : "Action Plan"} follow-up meeting.\n\nQA: ${plan.qa_email}\nPlan created: ${new Date(plan.created_at).toLocaleDateString()}`);
+                        const attendee = encodeURIComponent(plan.qa_email);
+                        const now = new Date();
+                        const start = new Date(now.getTime() + 24*60*60*1000); // tomorrow
+                        start.setHours(10,0,0,0);
+                        const end = new Date(start.getTime() + 30*60*1000); // 30 min
+                        const fmt = (d) => d.toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");
+                        const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&dates=${fmt(start)}/${fmt(end)}&add=${attendee}`;
+                        window.open(url, "_blank");
+                      }}>
+                        <Icon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={14} />Schedule Meeting
                       </button>
 
                       {/* Pull all remaining weeks */}
