@@ -1393,7 +1393,7 @@ function DashboardPage({profile,token,gf}){
   </div>);
 }
 
-function TeamManagementPage({token}){
+function TeamManagementPage({token,profile}){
   const[teams,setTeams]=useState([]);const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[showForm,setShowForm]=useState(false);
   const[form,setForm]=useState({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});const[editId,setEditId]=useState(null);const{show,el}=useToast();
   const load=useCallback(async()=>{try{const[t,u,r]=await Promise.all([
@@ -1793,7 +1793,7 @@ function ScoreEntryPage({token,profile,gf}){
   </div>);
 }
 
-function AdminUsersPage({token,teams}){
+function AdminUsersPage({token,teams,profile}){
   const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const[editTeamIds,setEditTeamIds]=useState([]);const[userTeamsMap,setUserTeamsMap]=useState({});const{show,el}=useToast();
   const load=useCallback(async()=>{try{
     const[d,r,ut]=await Promise.all([
@@ -1849,7 +1849,7 @@ function AdminPage({token,profile}){
   useEffect(()=>{sb.query("teams",{select:"id,name,domain",token}).then(setTeams).catch(()=>{});},[token]);
   return(<div><div className="page" style={{paddingBottom:0}}><div className="page-header" style={{marginBottom:16}}><div className="page-title">Admin panel</div></div>
     <div className="tab-bar" style={{marginBottom:0}}><button className={`tab-btn ${tab==="users"?"active":""}`} onClick={()=>setTab("users")}>Users</button><button className={`tab-btn ${tab==="teams"?"active":""}`} onClick={()=>setTab("teams")}>Teams</button></div></div>
-    {tab==="users"&&<AdminUsersPage token={token} teams={teams}/>}{tab==="teams"&&<TeamManagementPage token={token}/>}</div>);
+    {tab==="users"&&<AdminUsersPage token={token} teams={teams} profile={profile}/>}{tab==="teams"&&<TeamManagementPage token={token} profile={profile}/>}</div>);
 }
 
 /* ═══ DAM ENGINE ═══ */
