@@ -283,10 +283,11 @@ function GlobalFilterBar({ filters, setFilters, months, teams, roster, profile, 
 
   return (
     <div style={{
-      display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 20px",
+      display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", padding: "8px 24px",
       borderBottom: "1px solid var(--bd2)", background: "var(--bg)", fontSize: 12,
     }}>
-      <span style={{ color: "var(--tx3)", fontSize: 11, fontWeight: 500 }}>Filters:</span>
+      <span style={{ color: "var(--tx3)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".8px" }}>Filters</span>
+      <div style={{ width: 1, height: 16, background: "var(--bd)" }}/>
 
       <SearchableSelect
         options={domainOptions}
@@ -645,7 +646,25 @@ function DashboardPage({profile,token,gf}){
         {syncing?<><div className="spinner" style={{width:14,height:14,borderWidth:2,marginRight:6}}/>Syncing...</>:<><Icon d={icons.upload} size={14}/>Sync MTD data</>}
       </button>
     </div>}
-    <div className="welcome-banner"><h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2><p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p><div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div></div>
+    <div className="welcome-banner">
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:16}}>
+        <div>
+          <h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2>
+          <p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p>
+          <div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div>
+        </div>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",position:"relative",zIndex:1}}>
+          <button onClick={()=>nav("leaderboard")} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(255,255,255,.12)",background:"rgba(255,255,255,.06)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",backdropFilter:"blur(4px)"}}
+            onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,.12)";e.currentTarget.style.borderColor="rgba(59,255,157,.3)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.06)";e.currentTarget.style.borderColor="rgba(255,255,255,.12)";}}
+          >Leaderboard →</button>
+          {isLead&&<button onClick={()=>nav("scores")} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(255,255,255,.12)",background:"rgba(255,255,255,.06)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",backdropFilter:"blur(4px)"}}
+            onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,.12)";e.currentTarget.style.borderColor="rgba(59,255,157,.3)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.06)";e.currentTarget.style.borderColor="rgba(255,255,255,.12)";}}
+          >Performance →</button>}
+        </div>
+      </div>
+    </div>
     {loading?<SkeletonLoader rows={3}/>:<>
 
     {/* ── Task Center ── */}
@@ -5396,15 +5415,18 @@ export default function App(){
           <option value="qa_supervisor">QA Supervisor</option>
           <option value="admin">Admin</option>
         </select>}
-        <div style={{display:"flex",alignItems:"center",gap:8}}>
-          <div style={{width:30,height:30,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600}}>{(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>
+        <div style={{display:"flex",alignItems:"center",gap:10,marginLeft:8,paddingLeft:12,borderLeft:"1px solid var(--bd)"}}>
+          <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-light))",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>{(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>
           <div style={{display:"flex",flexDirection:"column",lineHeight:1.2}}>
-            <span style={{fontSize:13,fontWeight:500,color:"var(--tx)"}}>{profile?.display_name||"User"}</span>
+            <span style={{fontSize:13,fontWeight:600,color:"var(--tx)",letterSpacing:"-.2px"}}>{profile?.display_name||"User"}</span>
             <span className={`role-badge role-${viewAsRole||profile?.role}`} style={{fontSize:9,padding:"1px 6px",alignSelf:"flex-start"}}>{ROLE_LABELS[viewAsRole||profile?.role]||"QA"}{viewAsRole?" (viewing)":""}</span>
           </div>
         </div>
-        <span style={{fontSize:10,padding:"2px 6px",borderRadius:8,background:profile?.domain==="tabby.sa"?"#FEF3C7":"#DBEAFE",color:profile?.domain==="tabby.sa"?"#92400E":"#1E40AF",fontWeight:600}}>{profile?.domain}</span>
-        <button onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{background:"none",border:"1px solid var(--bd)",borderRadius:6,padding:"4px 10px",fontSize:11,color:"var(--tx2)",cursor:"pointer"}}>Sign out</button>
+        <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:profile?.domain==="tabby.sa"?"rgba(234,88,12,.1)":"rgba(79,70,229,.1)",color:profile?.domain==="tabby.sa"?"#EA580C":"#4F46E5",fontWeight:600}}>{profile?.domain}</span>
+        <button onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{background:"none",border:"1px solid var(--bd)",borderRadius:8,padding:"5px 12px",fontSize:11,color:"var(--tx3)",cursor:"pointer",fontFamily:"var(--font)",fontWeight:500,transition:"all .2s"}}
+          onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--red)";e.currentTarget.style.color="var(--red)";}}
+          onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--bd)";e.currentTarget.style.color="var(--tx3)";}}
+        >Sign out</button>
       </div>
     </div>
     {/* Global filter bar */}
