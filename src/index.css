@@ -219,3 +219,7 @@ tr:hover td { background: var(--bg2); }
   .welcome-banner { padding: 24px; }
   .welcome-banner h2 { font-size: 20px; }
 }
+
+/* ── Skeleton pulse animation ── */
+@keyframes pulse { 0%, 100% { opacity: .35; } 50% { opacity: .7; } }
+

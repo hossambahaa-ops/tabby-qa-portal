@@ -482,6 +482,29 @@ const SparkLine = ({ data, width = 100, height = 28, color = "var(--tabby-green)
   );
 };
 
+// Skeleton loader — shows pulsing placeholder while data loads
+const SkeletonLoader = ({ rows = 4 }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 8 }}>
+    <div className="stats-grid">
+      {[1,2,3,4].map(i => (
+        <div key={i} className="stat-card" style={{ minHeight: 100 }}>
+          <div style={{ width: "40%", height: 10, borderRadius: 6, background: "var(--bd2)", marginBottom: 16, animation: "pulse 1.5s ease infinite" }} />
+          <div style={{ width: "60%", height: 28, borderRadius: 8, background: "var(--bd2)", animation: "pulse 1.5s ease infinite", animationDelay: `${i * 0.1}s` }} />
+        </div>
+      ))}
+    </div>
+    {[...Array(rows)].map((_, i) => (
+      <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 0", borderBottom: "1px solid var(--bd2)" }}>
+        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--bd2)", flexShrink: 0, animation: "pulse 1.5s ease infinite", animationDelay: `${i * 0.1}s` }} />
+        <div style={{ flex: 1 }}>
+          <div style={{ width: `${60 + Math.random() * 30}%`, height: 12, borderRadius: 6, background: "var(--bd2)", marginBottom: 6, animation: "pulse 1.5s ease infinite" }} />
+          <div style={{ width: "40%", height: 10, borderRadius: 6, background: "var(--bd2)", animation: "pulse 1.5s ease infinite" }} />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
 const GoogleLogo=()=>(<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>);
 
 /* ═══ PAGES ═══ */
@@ -622,7 +645,7 @@ function DashboardPage({profile,token,gf}){
       </button>
     </div>}
     <div className="welcome-banner"><h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2><p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p><div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div></div>
-    {loading?<div className="loading-spinner"><div className="spinner"/></div>:<>
+    {loading?<SkeletonLoader rows={3}/>:<>
 
     {/* ── Task Center ── */}
     {(()=>{
@@ -1303,9 +1326,27 @@ function ScoreEntryPage({token,profile,gf}){
   if (loading) return <div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
 
   return (<div className="page">
-    <div className="page-header">
-      <div className="page-title">Performance Review</div>
-      <div className="page-subtitle">MTD performance data — synced from Metabase hourly</div>
+    <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+      <div>
+        <div className="page-title">Performance Review</div>
+        <div className="page-subtitle">MTD performance data — synced from Metabase hourly</div>
+      </div>
+      {sorted.length>0&&<div style={{display:"flex",gap:16,alignItems:"center"}}>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>Specialists</div>
+          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px"}}>{sorted.length}</div>
+        </div>
+        <div style={{width:1,height:32,background:"var(--bd)"}}/>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>Avg Score</div>
+          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px",color:scoreColor(sorted.reduce((a,r)=>a+getScore(r),0)/sorted.length)}}>{(sorted.reduce((a,r)=>a+getScore(r),0)/sorted.length).toFixed(1)}</div>
+        </div>
+        <div style={{width:1,height:32,background:"var(--bd)"}}/>
+        <div style={{textAlign:"center"}}>
+          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>Total DSAT</div>
+          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px",color:sorted.reduce((a,r)=>a+(r.dsat||0),0)>0?"var(--red)":"var(--tx)"}}>{sorted.reduce((a,r)=>a+(r.dsat||0),0)}</div>
+        </div>
+      </div>}
     </div>
 
     <div className="card" style={{marginBottom:16}}>
@@ -1365,7 +1406,19 @@ function ScoreEntryPage({token,profile,gf}){
       <div className="card">
         <div className="card-header">
           <span className="card-title">{selMonth} — {sorted.length} specialists</span>
-          <span style={{fontSize:12,color:"var(--tx3)"}}>Synced: {sorted[0]?.synced_at ? new Date(sorted[0].synced_at).toLocaleString() : "—"}</span>
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <span style={{fontSize:12,color:"var(--tx3)"}}>Synced: {sorted[0]?.synced_at ? new Date(sorted[0].synced_at).toLocaleString() : "—"}</span>
+            <button className="btn btn-outline btn-sm" onClick={()=>{
+              const csv=["Specialist,Email,TL,Score,Tickets/day,DSAT,Occupancy,RTR,JKQ"];
+              sorted.forEach(r=>{
+                csv.push(`"${nameFromEmail(r.qa_email)}",${r.qa_email},"${r.qa_tl?nameFromEmail(r.qa_tl):""}",${getScore(r).toFixed(1)},${r.ticket_per_day||0},${r.dsat||0},${r.occupancy_pct||0},${r.avg_rtr_score||0},${r.jkq_result||""}`);
+              });
+              const blob=new Blob([csv.join("\n")],{type:"text/csv"});
+              const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`performance_${selMonth}.csv`;a.click();
+            }} style={{fontSize:11}}>
+              <Icon d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" size={13}/>Export CSV
+            </button>
+          </div>
         </div>
         <div className="table-wrap">
           <table>
@@ -1563,9 +1616,15 @@ function DAMPage({token,profile,gf}){
   if(loading)return<div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
 
   return(<div className="page">
-    <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-      <div><div className="page-title">DAM engine</div><div className="page-subtitle">Disciplinary Actions Matrix — {flags.filter(f=>f.status==="pending").length} pending flags</div></div>
-      <button className="btn btn-primary" onClick={()=>setShowCreate(!showCreate)}><Icon d={icons.plus} size={16}/>Create flag</button>
+    <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+      <div>
+        <div className="page-title">DAM engine</div>
+        <div className="page-subtitle">Disciplinary Actions Matrix — behavioral accountability tracking</div>
+      </div>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        {flags.filter(f=>f.status==="pending").length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--amber-bg)",color:"var(--amber)",fontSize:12,fontWeight:700}}>{flags.filter(f=>f.status==="pending").length} pending</span>}
+        <button className="btn btn-primary" onClick={()=>setShowCreate(!showCreate)}><Icon d={icons.plus} size={16}/>Create flag</button>
+      </div>
     </div>
 
     <div className="tab-bar">
@@ -1578,18 +1637,20 @@ function DAMPage({token,profile,gf}){
       <div className="card-header"><span className="card-title">Create DAM flag</span></div>
       <div className="form-grid">
         <div className="form-group"><label className="form-label">Person</label>
-          <select className="select form-input" value={selProfile} onChange={e=>setSelProfile(e.target.value)}>
-            <option value="">— Select person —</option>
-            {profiles.filter(p=>p.role==="qa"||p.role==="senior_qa"||p.role==="qa_lead").map(p=><option key={p.id} value={p.id}>{p.display_name||p.email} ({ROLE_LABELS[p.role]})</option>)}
-          </select>
+          <SearchableSelect
+            options={profiles.filter(p=>p.role==="qa"||p.role==="senior_qa"||p.role==="qa_lead").map(p=>({value:p.id,label:(p.display_name||p.email)+` (${ROLE_LABELS[p.role]})`}))}
+            value={selProfile}
+            onChange={setSelProfile}
+            placeholder="Select person..."
+          />
         </div>
         <div className="form-group"><label className="form-label">Behavior</label>
-          <select className="select form-input" value={selRule} onChange={e=>setSelRule(e.target.value)}>
-            <option value="">— Select behavior —</option>
-            {behaviorTypes.map(bt=><optgroup key={bt.key} label={bt.label}>
-              {rules.filter(r=>r.behavior_type===bt.key).map(r=><option key={r.id} value={r.id}>{r.name}</option>)}
-            </optgroup>)}
-          </select>
+          <SearchableSelect
+            options={rules.map(r=>({value:r.id,label:`[${r.behavior_type}] ${r.name}`}))}
+            value={selRule}
+            onChange={setSelRule}
+            placeholder="Select behavior..."
+          />
         </div>
         <div className="form-group" style={{gridColumn:"1/-1"}}><label className="form-label">Notes</label>
           <textarea className="form-input" rows={2} value={flagNotes} onChange={e=>setFlagNotes(e.target.value)} placeholder="Context, evidence, audit findings..." style={{resize:"vertical"}}/>
@@ -1863,15 +1924,9 @@ function LeaderboardPage({token, profile, gf}) {
           <div className="page-title">Leaderboard</div>
           <div className="page-subtitle">Performance rankings — {selMonth || "All months"}</div>
         </div>
-        {hasRole(profile?.role,"qa_lead")&&<div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-          <select className="select" value={selMonth} onChange={e=>{setSelMonth(e.target.value);setSelDomain("");setSelTeam("");}}>
-            {months.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          <select className="select" value={selDomain} onChange={e=>{setSelDomain(e.target.value);setSelTeam("");}} disabled={hasRole(profile?.role,"qa_supervisor")&&!hasRole(profile?.role,"admin")}>
-            {(!hasRole(profile?.role,"qa_supervisor")||hasRole(profile?.role,"admin"))&&<option value="">All domains</option>}
-            <option value="tabby.ai">tabby.ai</option>
-            <option value="tabby.sa">tabby.sa</option>
-          </select>
+        {hasRole(profile?.role,"qa_lead")&&<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+          <SearchableSelect options={months} value={selMonth} onChange={v=>{setSelMonth(v);setSelDomain("");setSelTeam("");}} placeholder="Select month"/>
+          <SearchableSelect options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]} value={selDomain} onChange={v=>{setSelDomain(v);setSelTeam("");}} placeholder="All domains"/>
         </div>}
       </div>
 
@@ -1883,11 +1938,8 @@ function LeaderboardPage({token, profile, gf}) {
           {hasRole(profile?.role,"qa_lead")&&<button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>}
           {hasRole(profile?.role,"qa_lead")&&<button className={`tab ${view==="quarterly"?"active":""}`} onClick={()=>setView("quarterly")}>Quarterly</button>}
         </div>
-        {hasRole(profile?.role,"qa_lead")&&<select className="select" value={selTeam} onChange={e=>setSelTeam(e.target.value)}>
-          <option value="">All teams ({teams.length})</option>
-          {teams.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>}
-        {view==="individual" && hasRole(profile?.role,"qa_lead") && <input className="input" placeholder="Search by email..." value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:220,marginLeft:"auto"}}/>}
+        {hasRole(profile?.role,"qa_lead")&&<SearchableSelect options={teams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${teams.length})`}/>}
+        {view==="individual" && hasRole(profile?.role,"qa_lead") && <input className="input" placeholder="Search by name or email..." value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:220,marginLeft:"auto",fontSize:12}}/>}
       </div>
 
       {hasRole(profile?.role,"qa_lead")&&<div className="stats-grid">
@@ -1987,7 +2039,24 @@ function LeaderboardPage({token, profile, gf}) {
 
         {/* Full ranking table */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Full rankings — {selMonth}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{visibleRanked.length} specialists · Scored out of {maxScore}</span></div>
+          <div className="card-header">
+            <span className="card-title">Full rankings — {selMonth}</span>
+            <div style={{display:"flex",alignItems:"center",gap:12}}>
+              <span style={{fontSize:12,color:"var(--tx3)"}}>{visibleRanked.length} specialists · Scored out of {maxScore}</span>
+              {hasRole(profile?.role,"qa_lead")&&<button className="btn btn-outline btn-sm" onClick={()=>{
+                const kpiHeaders=Object.values(KPI_SLABS).map(k=>k.label);
+                const csv=["Rank,Specialist,Email,TL,"+kpiHeaders.join(",")+",Total"];
+                ranked.forEach((r,i)=>{
+                  const kpis=getKpiScores(r);
+                  csv.push(`${i+1},"${nameFromEmail(r.qa_email)}",${r.qa_email},"${r.qa_tl?nameFromEmail(r.qa_tl):""}",${kpis.map(k=>k.score.toFixed(1)).join(",")},${getTotalScore(r).toFixed(1)}`);
+                });
+                const blob=new Blob([csv.join("\n")],{type:"text/csv"});
+                const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`leaderboard_${selMonth}.csv`;a.click();
+              }} style={{fontSize:11}}>
+                <Icon d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" size={13}/>Export CSV
+              </button>}
+            </div>
+          </div>
           {visibleRanked.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {selMonth}.</p></div> :
           <div className="table-wrap"><table><thead><tr>
             <th style={{width:50}}>#</th>
@@ -2216,10 +2285,23 @@ function LeaderboardPage({token, profile, gf}) {
           </div>
 
           <div className="stats-grid" style={{marginBottom:20}}>
-            <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>📅</div><div className="stat-label">Quarter</div><div className="stat-value">{activeQ}</div></div>
-            <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>👥</div><div className="stat-label">QAs ranked</div><div className="stat-value">{allQas.length}</div></div>
-            <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>📊</div><div className="stat-label">Avg score</div><div className="stat-value">{allQas.length?(allQas.reduce((a,q)=>a+q.totalScore,0)/allQas.length).toFixed(1)+"%":"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {55*qMonths.length}%</span></div></div>
-            {allQas[0] && <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Top performer</div><div className="stat-value" style={{fontSize:16}}>{nameFromEmail(allQas[0].email)}</div></div>}
+            <div className="stat-card"><div className="stat-label">Quarter</div><div className="stat-value">{activeQ}</div></div>
+            <div className="stat-card"><div className="stat-label">QAs ranked</div><div className="stat-value">{allQas.length}</div></div>
+            <div className="stat-card">
+              <div className="stat-label">Avg score</div>
+              <ProgressRing value={allQas.length?allQas.reduce((a,q)=>a+q.totalScore,0)/allQas.length:0} max={55*qMonths.length} size={48} stroke={4}
+                color="var(--tabby-green)"
+                label={allQas.length?(allQas.reduce((a,q)=>a+q.totalScore,0)/allQas.length).toFixed(1)+"%":"—"}
+                sublabel={`of ${55*qMonths.length}%`}
+              />
+            </div>
+            {allQas[0] && <div className="stat-card">
+              <div className="stat-label">Top performer</div>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
+                <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,#FEF3C7,#FDE68A)",color:"#92400E",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:12}}>1</div>
+                <div style={{fontWeight:700,fontSize:15,letterSpacing:"-.3px"}}>{nameFromEmail(allQas[0].email)}</div>
+              </div>
+            </div>}
           </div>
 
           {allQas.length >= 3 && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:20,marginBottom:32,flexWrap:"wrap"}}>
@@ -2780,8 +2862,12 @@ function CoachingPage({token, profile}) {
 
   return (
     <div className="page">
-      <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-        <div><div className="page-title">Coaching sessions</div><div className="page-subtitle">1:1 coaching email generator — {sessions.length} sessions logged</div></div>
+      <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+        <div>
+          <div className="page-title">Coaching sessions</div>
+          <div className="page-subtitle">1:1 coaching email generator and session tracking</div>
+        </div>
+        {sessions.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--primary-light)",color:"var(--primary-text,var(--tabby-purple))",fontSize:12,fontWeight:600}}>{sessions.length} sessions logged</span>}
       </div>
 
       <div className="tab-bar" style={{marginBottom:16}}>
@@ -4471,12 +4557,18 @@ function CoachingViolationsPage({token, profile, gf}) {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <div className="page-title">Coaching Violations</div>
-        <div className="page-subtitle">Review coaching link violations detected by the audit script</div>
+      <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+        <div>
+          <div className="page-title">Coaching Violations</div>
+          <div className="page-subtitle">Review coaching link violations detected by the audit script</div>
+        </div>
+        <div style={{display:"flex",gap:12,alignItems:"center"}}>
+          {pendingV.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--red-bg)",color:"var(--red)",fontSize:12,fontWeight:700}}>{pendingV.length} pending</span>}
+          <span style={{padding:"4px 12px",borderRadius:20,background:"var(--green-bg)",color:"var(--green)",fontSize:12,fontWeight:600}}>{reviewedV.length} reviewed</span>
+        </div>
       </div>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+      <div className="tab-bar" style={{marginBottom:16}}>
         <button className={`tab-btn ${tab === "pending" ? "active" : ""}`} onClick={() => setTab("pending")}>
           Pending review ({pendingV.length})
         </button>
