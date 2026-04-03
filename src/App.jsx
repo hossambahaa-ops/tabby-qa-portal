@@ -704,7 +704,6 @@ function DashboardPage({profile,token,gf}){
   const priorityConfig={urgent:{label:"Urgent",color:"var(--red)",bg:"var(--red-bg)"},high:{label:"High",color:"var(--amber)",bg:"var(--amber-bg)"},medium:{label:"Medium",color:"var(--tabby-purple)",bg:"var(--primary-light)"},low:{label:"Low",color:"var(--tx3)",bg:"var(--bg2)"}};
   const activeTasks=userTasks.filter(t=>t.status!=="done");
   const doneTasks=userTasks.filter(t=>t.status==="done");
-  const myEmail=profile?.email?.toLowerCase();
 
   const[syncing,setSyncing]=useState(false);
 
