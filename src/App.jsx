@@ -1891,10 +1891,27 @@ function LeaderboardPage({token, profile, gf}) {
       </div>
 
       {hasRole(profile?.role,"qa_lead")&&<div className="stats-grid">
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--accent-light)",color:"var(--accent-text)",fontSize:18}}>🏆</div><div className="stat-label">{view==="individual"?"Ranked":"Teams"}</div><div className="stat-value">{view==="individual"?ranked.length:teamData.length}</div></div>
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--green-bg)",color:"var(--green)",fontSize:18}}>📊</div><div className="stat-label">Avg score</div><div className="stat-value" style={{color:scoreColor(avgScore)}}>{avgScore.toFixed(1)}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div></div>
-        {topPerson && view==="individual" && <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>⭐</div><div className="stat-label">Top performer</div><div className="stat-value" style={{fontSize:16}}>{nameFromEmail(topPerson.qa_email)}</div></div>}
-        <div className="stat-card"><div className="stat-icon" style={{background:"var(--red-bg)",color:"var(--red)",fontSize:18}}>⚠️</div><div className="stat-label">Total DSAT</div><div className="stat-value">{totalDsat}</div></div>
+        <div className="stat-card">
+          <div className="stat-label">{view==="individual"?"Ranked":"Teams"}</div>
+          <div className="stat-value">{view==="individual"?ranked.length:teamData.length}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Avg score</div>
+          <ProgressRing value={avgScore} max={maxScore} size={48} stroke={4}
+            color={scoreColor(avgScore)} label={avgScore.toFixed(1)} sublabel={`of ${maxScore}`}
+          />
+        </div>
+        {topPerson && view==="individual" && <div className="stat-card">
+          <div className="stat-label">Top performer</div>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
+            <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,#FEF3C7,#FDE68A)",color:"#92400E",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:12}}>1</div>
+            <div style={{fontWeight:700,fontSize:15,letterSpacing:"-.3px"}}>{nameFromEmail(topPerson.qa_email)}</div>
+          </div>
+        </div>}
+        <div className="stat-card">
+          <div className="stat-label">Total DSAT</div>
+          <div className="stat-value" style={{color:totalDsat>0?"var(--red)":"var(--tx)"}}>{totalDsat}</div>
+        </div>
       </div>}
 
       {view==="individual" && (()=>{
@@ -1926,18 +1943,44 @@ function LeaderboardPage({token, profile, gf}) {
         </div>}
 
         {/* Podium top 3 */}
-        {ranked.length >= 3 && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:16,marginBottom:28,flexWrap:"wrap"}}>
+        {ranked.length >= 3 && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:20,marginBottom:32,flexWrap:"wrap"}}>
           {[1,0,2].map(idx => {
             const r = ranked[idx]; const rank = idx + 1; const isGold = rank === 1;
-            const medals = ["","🥇","🥈","🥉"];
             const total = getTotalScore(r);
-            return (<div key={r.qa_email} className="card" style={{textAlign:"center",padding:isGold?"24px 28px":"18px 22px",minWidth:isGold?180:150,border:isGold?"2px solid var(--amber)":"1px solid var(--bd2)",transform:isGold?"translateY(-8px)":"none",transition:"transform .2s"}}>
-              <div style={{fontSize:isGold?28:22,marginBottom:8}}>{medals[rank]}</div>
-              <div style={{width:isGold?52:40,height:isGold?52:40,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:600,fontSize:isGold?16:13,margin:"0 auto 8px"}}>{initialsFromEmail(r.qa_email)}</div>
-              <div style={{fontWeight:600,fontSize:isGold?15:14}}>{nameFromEmail(r.qa_email)}</div>
-              <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8}}>{r.qa_email.split("@")[1]}</div>
-              <div style={{fontSize:isGold?26:20,fontWeight:700,color:scoreColor(total)}}>{total.toFixed(1)}<span style={{fontSize:12,fontWeight:400,color:"var(--tx3)"}}> / {maxScore}</span></div>
-              <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>JKQ: {r.jkq_result||"—"} · Tickets: {r.ticket_per_day}/day</div>
+            const podiumColors = {
+              1: { bg: "linear-gradient(135deg, rgba(245,158,11,.08), rgba(245,158,11,.02))", border: "rgba(245,158,11,.3)", medal: "#F59E0B", ring: "#F59E0B" },
+              2: { bg: "linear-gradient(135deg, rgba(156,163,175,.08), rgba(156,163,175,.02))", border: "rgba(156,163,175,.2)", medal: "#9CA3AF", ring: "#9CA3AF" },
+              3: { bg: "linear-gradient(135deg, rgba(234,88,12,.06), rgba(234,88,12,.02))", border: "rgba(234,88,12,.2)", medal: "#EA580C", ring: "#EA580C" },
+            }[rank];
+            return (<div key={r.qa_email} style={{
+              textAlign:"center", padding:isGold?"28px 32px":"22px 26px", minWidth:isGold?200:170,
+              background: podiumColors.bg, border: `1px solid ${podiumColors.border}`,
+              borderRadius: 16, transform:isGold?"translateY(-12px)":"none", transition:"all .3s cubic-bezier(.4,0,.2,1)",
+              position: "relative", overflow: "hidden",
+            }}
+              onMouseEnter={e => e.currentTarget.style.transform = isGold ? "translateY(-16px) scale(1.02)" : "translateY(-4px) scale(1.02)"}
+              onMouseLeave={e => e.currentTarget.style.transform = isGold ? "translateY(-12px)" : "none"}
+            >
+              {/* Rank badge */}
+              <div style={{
+                width: isGold?36:28, height: isGold?36:28, borderRadius: "50%", background: podiumColors.medal,
+                color: "#fff", display: "flex", alignItems: "center", justifyContent: "center",
+                fontWeight: 800, fontSize: isGold?16:13, margin: "0 auto 12px",
+                boxShadow: `0 4px 12px ${podiumColors.medal}40`,
+              }}>{rank}</div>
+              {/* Avatar with score ring */}
+              <div style={{position:"relative",margin:"0 auto 10px",width:isGold?64:52,height:isGold?64:52}}>
+                <ProgressRing value={total} max={maxScore} size={isGold?64:52} stroke={3} color={podiumColors.ring} />
+                <div style={{
+                  position:"absolute",inset:isGold?8:6,borderRadius:"50%",background:"var(--primary-light)",
+                  color:"var(--tabby-green)",display:"flex",alignItems:"center",justifyContent:"center",
+                  fontWeight:700,fontSize:isGold?16:13,letterSpacing:"-0.5px",
+                }}>{initialsFromEmail(r.qa_email)}</div>
+              </div>
+              <div style={{fontWeight:700,fontSize:isGold?16:14,letterSpacing:"-.3px"}}>{nameFromEmail(r.qa_email)}</div>
+              <div style={{fontSize:11,color:"var(--tx3)",marginBottom:10}}>{r.qa_email.split("@")[1]}</div>
+              <div style={{fontSize:isGold?28:22,fontWeight:800,color:scoreColor(total),letterSpacing:"-1px",fontVariantNumeric:"tabular-nums"}}>{total.toFixed(1)}<span style={{fontSize:12,fontWeight:500,color:"var(--tx3)"}}> / {maxScore}</span></div>
+              <div style={{fontSize:10,color:"var(--tx3)",marginTop:6,fontWeight:500}}>JKQ: {r.jkq_result||"—"} · {r.ticket_per_day} tickets/day</div>
             </div>);
           })}
         </div>}
@@ -1964,8 +2007,8 @@ function LeaderboardPage({token, profile, gf}) {
               return (<React.Fragment key={r.id || r.qa_email}>
                 {showGap && <tr><td colSpan={4 + Object.keys(KPI_SLABS).length} style={{textAlign:"center",padding:"6px",color:"var(--tx3)",fontSize:12,background:"var(--bg)"}}>···</td></tr>}
                 <tr onClick={() => setExpandedRow(isExp ? null : r.id)} style={{cursor:"pointer",background:isMe?"var(--accent-light)":"transparent"}}>
-                  <td>{rank <= 3 ? <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:26,height:26,borderRadius:"50%",fontWeight:600,fontSize:12,background:rank===1?"#FEF3C7":rank===2?"#F3F4F6":"#FED7AA",color:rank===1?"#92400E":rank===2?"#374151":"#9A3412"}}>{rank}</span> : <span style={{color:"var(--tx3)",fontWeight:500}}>{rank}</span>}</td>
-                  <td><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:32,height:32,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600}}>{initialsFromEmail(r.qa_email)}</div><div><div style={{fontWeight:500,fontSize:14}}>{nameFromEmail(r.qa_email)}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{r.qa_email}</div></div></div></td>
+                  <td>{rank <= 3 ? <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",fontWeight:700,fontSize:12,background:rank===1?"linear-gradient(135deg,#FEF3C7,#FDE68A)":rank===2?"linear-gradient(135deg,#F3F4F6,#E5E7EB)":"linear-gradient(135deg,#FED7AA,#FDBA74)",color:rank===1?"#92400E":rank===2?"#374151":"#9A3412",boxShadow:rank===1?"0 2px 8px rgba(245,158,11,.3)":"none"}}>{rank}</span> : <span style={{color:"var(--tx3)",fontWeight:600,fontSize:13}}>{rank}</span>}</td>
+                  <td><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:"var(--primary-light)",color:"var(--tabby-purple-light,var(--accent-text))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,border:"2px solid var(--bd2)"}}>{initialsFromEmail(r.qa_email)}</div><div><div style={{fontWeight:600,fontSize:13.5,letterSpacing:"-.2px"}}>{nameFromEmail(r.qa_email)}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{r.qa_email}</div></div></div></td>
                   <td style={{fontSize:13,color:"var(--tx2)"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
                   {kpis.map(k => (
                     <td key={k.key} style={{textAlign:"center",padding:"8px 6px"}}>
@@ -2179,16 +2222,27 @@ function LeaderboardPage({token, profile, gf}) {
             {allQas[0] && <div className="stat-card"><div className="stat-icon" style={{background:"var(--amber-bg)",color:"var(--amber)",fontSize:18}}>🏆</div><div className="stat-label">Top performer</div><div className="stat-value" style={{fontSize:16}}>{nameFromEmail(allQas[0].email)}</div></div>}
           </div>
 
-          {allQas.length >= 3 && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:16,marginBottom:28,flexWrap:"wrap"}}>
+          {allQas.length >= 3 && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:20,marginBottom:32,flexWrap:"wrap"}}>
             {[1,0,2].map(idx => {
               const qa = allQas[idx]; const rank = idx + 1; const isGold = rank === 1;
-              const medals = ["","🥇","🥈","🥉"];
-              return (<div key={qa.email} className="card" style={{textAlign:"center",padding:isGold?"24px 28px":"18px 22px",minWidth:isGold?180:150,border:isGold?"2px solid var(--amber)":"1px solid var(--bd2)",transform:isGold?"translateY(-8px)":"none"}}>
-                <div style={{fontSize:isGold?28:22,marginBottom:8}}>{medals[rank]}</div>
-                <div style={{width:isGold?52:40,height:isGold?52:40,borderRadius:"50%",background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:600,fontSize:isGold?16:13,margin:"0 auto 8px"}}>{initialsFromEmail(qa.email)}</div>
-                <div style={{fontWeight:600,fontSize:isGold?15:14}}>{nameFromEmail(qa.email)}</div>
-                <div style={{fontSize:11,color:"var(--tx3)",marginBottom:8}}>{activeQ}</div>
-                <div style={{fontSize:isGold?26:20,fontWeight:700,color:"var(--accent-text)"}}>{qa.totalScore.toFixed(1)}%<span style={{fontSize:12,fontWeight:400,color:"var(--tx3)"}}> / {55*qMonths.length}%</span></div>
+              const podiumColors = {
+                1: { bg: "linear-gradient(135deg, rgba(245,158,11,.08), rgba(245,158,11,.02))", border: "rgba(245,158,11,.3)", medal: "#F59E0B" },
+                2: { bg: "linear-gradient(135deg, rgba(156,163,175,.08), rgba(156,163,175,.02))", border: "rgba(156,163,175,.2)", medal: "#9CA3AF" },
+                3: { bg: "linear-gradient(135deg, rgba(234,88,12,.06), rgba(234,88,12,.02))", border: "rgba(234,88,12,.2)", medal: "#EA580C" },
+              }[rank];
+              return (<div key={qa.email} style={{
+                textAlign:"center",padding:isGold?"28px 32px":"22px 26px",minWidth:isGold?200:170,
+                background:podiumColors.bg,border:`1px solid ${podiumColors.border}`,borderRadius:16,
+                transform:isGold?"translateY(-12px)":"none",transition:"all .3s cubic-bezier(.4,0,.2,1)",
+              }}
+                onMouseEnter={e => e.currentTarget.style.transform = isGold ? "translateY(-16px) scale(1.02)" : "translateY(-4px) scale(1.02)"}
+                onMouseLeave={e => e.currentTarget.style.transform = isGold ? "translateY(-12px)" : "none"}
+              >
+                <div style={{width:isGold?36:28,height:isGold?36:28,borderRadius:"50%",background:podiumColors.medal,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:isGold?16:13,margin:"0 auto 12px",boxShadow:`0 4px 12px ${podiumColors.medal}40`}}>{rank}</div>
+                <div style={{width:isGold?52:40,height:isGold?52:40,borderRadius:"50%",background:"var(--primary-light)",color:"var(--tabby-green,var(--accent-text))",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:isGold?16:13,margin:"0 auto 10px",border:"2px solid var(--bd2)"}}>{initialsFromEmail(qa.email)}</div>
+                <div style={{fontWeight:700,fontSize:isGold?16:14,letterSpacing:"-.3px"}}>{nameFromEmail(qa.email)}</div>
+                <div style={{fontSize:11,color:"var(--tx3)",marginBottom:10}}>{activeQ}</div>
+                <div style={{fontSize:isGold?28:22,fontWeight:800,letterSpacing:"-1px",fontVariantNumeric:"tabular-nums",color:"var(--accent-text)"}}>{qa.totalScore.toFixed(1)}%<span style={{fontSize:12,fontWeight:500,color:"var(--tx3)"}}> / {55*qMonths.length}%</span></div>
               </div>);
             })}
           </div>}
