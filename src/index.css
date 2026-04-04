@@ -312,6 +312,7 @@ tr { transition: background .15s cubic-bezier(.4,0,.2,1); }
 /* ── Card hover lift ── */
 .card {
   transition: box-shadow .25s var(--ease);
+  overflow: visible;
 }
 .card:hover {
   box-shadow: var(--shadow-md);
@@ -319,12 +320,12 @@ tr { transition: background .15s cubic-bezier(.4,0,.2,1); }
 
 /* ── Button press effect ── */
 .btn {
-  transition: all .15s var(--ease);
+  transition: background .15s var(--ease), border-color .15s var(--ease), color .15s var(--ease), box-shadow .15s var(--ease);
 }
-.btn:active {
+.btn:active:not(:disabled) {
   transform: scale(0.97);
 }
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   filter: brightness(1.1);
   box-shadow: 0 4px 16px rgba(106,44,121,.25);
 }

@@ -614,10 +614,13 @@ function DashboardPage({profile,token,gf}){
     if(hasRole(profile?.role,"qa_lead")){
       const dismissedEmails=new Set(dismissals.map(d=>d.qa_email?.toLowerCase()));
       const activePlanEmails=plans.filter(p=>p.status==="active"||p.status==="pending_review").map(p=>p.qa_email?.toLowerCase());
-      const myTeam=rosterRows.filter(r=>r.manager_email&&r.manager_email.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.email.toLowerCase());
+      const pEmail=profile?.email?.toLowerCase()||"";
+      const pLocal=pEmail.split("@")[0];
+      const pAlt=pEmail.endsWith("@tabby.ai")?pLocal+"@tabby.sa":pLocal+"@tabby.ai";
+      const myTeam=rosterRows.filter(r=>{const m=r.manager_email?.toLowerCase();return m&&(m===pEmail||m===pAlt||m===pLocal);}).map(r=>r.email.toLowerCase());
       const mnths=sortMonthsDesc([...new Set(mtdRows.map(r=>r.month))]);
       const latestMtd=mtdRows.filter(r=>r.month===mnths[0]);
-      const myTlRows=latestMtd.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.qa_email?.toLowerCase());
+      const myTlRows=latestMtd.filter(r=>{const tl=r.qa_tl?.toLowerCase();return tl&&(tl===pEmail||tl===pAlt);}).map(r=>r.qa_email?.toLowerCase());
       const teamEmails=[...new Set([...myTeam,...myTlRows])];
 
       const activeFlags=(damFlagsRaw||[]).filter(f=>f.status==="pending"||f.status==="acknowledged");
@@ -671,9 +674,17 @@ function DashboardPage({profile,token,gf}){
 
   const myRoster=roster.find(r=>r.email.toLowerCase()===myEmail);
 
-  // Team members
-  const myTeamEmails=roster.filter(r=>r.manager_email&&r.manager_email.toLowerCase()===myEmail).map(r=>r.email.toLowerCase());
-  const myTlEmails=current.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===myEmail).map(r=>r.qa_email?.toLowerCase());
+  // Team members — match both domain variants of myEmail
+  const myEmailLocal=myEmail?myEmail.split("@")[0]:"";
+  const myEmailAlt=myEmail?(myEmail.endsWith("@tabby.ai")?myEmailLocal+"@tabby.sa":myEmailLocal+"@tabby.ai"):"";
+  const myTeamEmails=roster.filter(r=>{
+    const mgr=r.manager_email?.toLowerCase();
+    return mgr&&(mgr===myEmail||mgr===myEmailAlt||mgr===myEmailLocal);
+  }).map(r=>r.email.toLowerCase());
+  const myTlEmails=current.filter(r=>{
+    const tl=r.qa_tl?.toLowerCase();
+    return tl&&(tl===myEmail||tl===myEmailAlt||tl===myEmailLocal);
+  }).map(r=>r.qa_email?.toLowerCase());
   const allTeamEmails=[...new Set([...myTeamEmails,...myTlEmails])];
   const teamCurrent=current.filter(r=>allTeamEmails.includes(r.qa_email?.toLowerCase()));
   const teamPrevious=previous.filter(r=>allTeamEmails.includes(r.qa_email?.toLowerCase()));
@@ -2279,8 +2290,10 @@ function LeaderboardPage({token, profile, gf}) {
         const isQaInd = profile?.role === "qa";
         const isLeadInd = hasRole(profile?.role, "qa_lead") && !hasRole(profile?.role, "qa_supervisor");
         
-        // For QA leads: filter to their team only
-        const myTeamEmailsInd = roster.filter(r => r.manager_email?.toLowerCase() === myEmailInd).map(r => r.email?.toLowerCase());
+        // For QA leads: filter to their team only (cross-domain)
+        const myLocalInd = myEmailInd?.split("@")[0]||"";
+        const myAltInd = myEmailInd?(myEmailInd.endsWith("@tabby.ai")?myLocalInd+"@tabby.sa":myLocalInd+"@tabby.ai"):"";
+        const myTeamEmailsInd = roster.filter(r => {const m=r.manager_email?.toLowerCase();return m&&(m===myEmailInd||m===myAltInd||m===myLocalInd);}).map(r => r.email?.toLowerCase());
         
         let visibleRanked = ranked;
         if (isQaInd) {
@@ -2610,7 +2623,10 @@ function LeaderboardPage({token, profile, gf}) {
         const isSupervisorQ = hasRole(profile?.role, "qa_supervisor");
         const isAdminQ = hasRole(profile?.role, "admin");
         const myDomainQ = profile?.operational_domain || profile?.domain || "tabby.ai";
-        const rosterTeamQ = roster.filter(r => r.manager_email?.toLowerCase?.() === myEmailQ || qRows.some(row => row.qa_email?.toLowerCase() === r.email?.toLowerCase() && row.qa_tl?.toLowerCase() === myEmailQ)).map(r => r.email?.toLowerCase());
+        const myLocalQ = myEmailQ?.split("@")[0]||"";
+        const myAltQ = myEmailQ?(myEmailQ.endsWith("@tabby.ai")?myLocalQ+"@tabby.sa":myLocalQ+"@tabby.ai"):"";
+        const rosterTeamQ = roster.filter(r => {const m=r.manager_email?.toLowerCase?.();return m&&(m===myEmailQ||m===myAltQ||m===myLocalQ);}).map(r => r.email?.toLowerCase())
+          .concat(qRows.filter(row=>{ const tl=row.qa_tl?.toLowerCase(); return tl&&(tl===myEmailQ||tl===myAltQ); }).map(r=>r.qa_email?.toLowerCase()));
         const teamEmailsQ = [...new Set(rosterTeamQ)];
 
         let visibleQas;
@@ -4102,7 +4118,9 @@ function ActionPlanPage({ token, profile }) {
   const myDomain = profile?.operational_domain || profile?.domain || "tabby.ai";
 
   // Leads see their team's plans; supervisors see their domain; admins see all
-  const myTeamEmails = roster.filter(r => r.manager_email?.toLowerCase() === myEmail).map(r => r.email?.toLowerCase());
+  const myTeamLocal = myEmail?.split("@")[0]||"";
+  const myEmailAltAP = myEmail?(myEmail.endsWith("@tabby.ai")?myTeamLocal+"@tabby.sa":myTeamLocal+"@tabby.ai"):"";
+  const myTeamEmails = roster.filter(r => {const m=r.manager_email?.toLowerCase();return m&&(m===myEmail||m===myEmailAltAP||m===myTeamLocal);}).map(r => r.email?.toLowerCase());
   const visiblePlans = isAdmin ? plans : isSupervisor ? plans.filter(p =>
     p.qa_email?.endsWith("@" + myDomain)
   ) : plans.filter(p =>
