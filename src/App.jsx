@@ -578,7 +578,28 @@ function DashboardPage({profile,token,gf}){
       if (em.endsWith("@tabby.ai")) blacklistD.add(local + "@tabby.sa");
       if (em.endsWith("@tabby.sa")) blacklistD.add(local + "@tabby.ai");
     });
-    const filteredRoster = rosterRows.filter(r => !blacklistD.has(r.email?.toLowerCase()));
+    // Build valid manager set — only QA Lead+ emails (both domain variants)
+    const validManagers = new Set();
+    profs.filter(p => p.role !== "qa").forEach(p => {
+      const em = p.email?.toLowerCase(); if (!em) return;
+      validManagers.add(em);
+      const local = em.split("@")[0];
+      if (em.endsWith("@tabby.ai")) validManagers.add(local + "@tabby.sa");
+      if (em.endsWith("@tabby.sa")) validManagers.add(local + "@tabby.ai");
+      // Also add without domain for partial matches (roster stores "name" not "name@domain")
+      validManagers.add(local);
+    });
+    // Filter roster: exclude non-QA profiles AND exclude entries with unknown managers
+    const filteredRoster = rosterRows.filter(r => {
+      if (blacklistD.has(r.email?.toLowerCase())) return false;
+      const mgr = r.manager_email?.toLowerCase();
+      if (!mgr) return false; // No manager = external/unassigned
+      // Check if manager_email matches a known lead (full email or local part)
+      if (validManagers.has(mgr)) return true;
+      const mgrLocal = mgr.split("@")[0];
+      if (validManagers.has(mgrLocal)) return true;
+      return false;
+    });
     const filteredMtd = mtdRows.filter(r => !blacklistD.has(r.qa_email?.toLowerCase()));
     setMtd(filteredMtd);setRoster(filteredRoster);setDamCount(damFlagsRaw.filter(f=>f.status==="pending").length);
     setProfileCount({qas:filteredRoster.length,leads:[...new Set(filteredRoster.map(r=>r.manager_email).filter(Boolean))].length,active:profs.length});
@@ -589,7 +610,7 @@ function DashboardPage({profile,token,gf}){
       const dismissedEmails=new Set(dismissals.map(d=>d.qa_email?.toLowerCase()));
       const activePlanEmails=plans.filter(p=>p.status==="active"||p.status==="pending_review").map(p=>p.qa_email?.toLowerCase());
       const myTeam=rosterRows.filter(r=>r.manager_email&&r.manager_email.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.email.toLowerCase());
-      const mnths=[...new Set(mtdRows.map(r=>r.month))].sort().reverse();
+      const mnths=sortMonthsDesc([...new Set(mtdRows.map(r=>r.month))]);
       const latestMtd=mtdRows.filter(r=>r.month===mnths[0]);
       const myTlRows=latestMtd.filter(r=>r.qa_tl&&r.qa_tl.toLowerCase()===profile?.email?.toLowerCase()).map(r=>r.qa_email?.toLowerCase());
       const teamEmails=[...new Set([...myTeam,...myTlRows])];
@@ -628,7 +649,7 @@ function DashboardPage({profile,token,gf}){
   }catch(e){console.error("Tasks:",e);}},[token,profile?.email]);
   useEffect(()=>{if(profile?.email)loadTasks();},[loadTasks,profile?.email]);
 
-  const months=[...new Set(mtd.map(r=>r.month))];
+  const months=sortMonthsDesc([...new Set(mtd.map(r=>r.month))]);
   const latestMonth=months[0]||"—";
   const prevMonth=months[1]||null;
 
@@ -1420,17 +1441,34 @@ function ScoreEntryPage({token,profile,gf}){
         // Build blacklist: exclude both domain variants of non-QA users
         const nonQaProfiles = profRows.filter(p => p.role !== "qa");
         const blacklist = new Set();
+        const validMgrs = new Set();
         nonQaProfiles.forEach(p => {
           const email = p.email?.toLowerCase();
           if (!email) return;
           blacklist.add(email);
+          validMgrs.add(email);
           const local = email.split("@")[0];
-          if (email.endsWith("@tabby.ai")) blacklist.add(local + "@tabby.sa");
-          if (email.endsWith("@tabby.sa")) blacklist.add(local + "@tabby.ai");
+          if (email.endsWith("@tabby.ai")) { blacklist.add(local + "@tabby.sa"); validMgrs.add(local + "@tabby.sa"); }
+          if (email.endsWith("@tabby.sa")) { blacklist.add(local + "@tabby.ai"); validMgrs.add(local + "@tabby.ai"); }
+          validMgrs.add(local);
         });
-        const filtered = rows.filter(r => !blacklist.has(r.qa_email?.toLowerCase()));
+        // Filter MTD: exclude non-QA profiles AND entries managed by unknown managers
+        const rosterMgrValid = new Set(rosterRows.filter(r => {
+          const mgr = r.manager_email?.toLowerCase();
+          if (!mgr) return false;
+          return validMgrs.has(mgr) || validMgrs.has(mgr.split("@")[0]);
+        }).map(r => r.email?.toLowerCase()));
+        const filtered = rows.filter(r => {
+          const em = r.qa_email?.toLowerCase();
+          if (blacklist.has(em)) return false;
+          // If email is in roster, check if their manager is valid
+          if (rosterRows.some(x => x.email?.toLowerCase() === em)) {
+            return rosterMgrValid.has(em);
+          }
+          return true; // MTD entries not in roster pass through
+        });
         setData(filtered);
-        const uniqueMonths = [...new Set(filtered.map(r => r.month))];
+        const uniqueMonths = sortMonthsDesc([...new Set(filtered.map(r => r.month))]);
         setMonths(uniqueMonths);
         if (uniqueMonths.length > 0) setSelMonth(uniqueMonths[0]);
         // Auto-scope supervisors to their domain
@@ -1980,7 +2018,7 @@ function LeaderboardPage({token, profile, gf}) {
         });
         const qaOnlyRows = rows.filter(r => !blacklist.has(r.qa_email?.toLowerCase()));
         setData(qaOnlyRows);
-        const uniqueMonths = [...new Set(qaOnlyRows.map(r => r.month))];
+        const uniqueMonths = sortMonthsDesc([...new Set(qaOnlyRows.map(r => r.month))]);
         setMonths(uniqueMonths);
         // Global filter month takes priority, then default to latest
         if (gf?.month && uniqueMonths.includes(gf.month)) {
