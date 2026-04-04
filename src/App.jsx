@@ -2286,8 +2286,8 @@ function LeaderboardPage({token, profile, gf}) {
       <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:20}}>
         <div className="tabs">
           <button className={`tab ${view==="individual"?"active":""}`} onClick={()=>setView("individual")}>Individual</button>
-          {hasRole(profile?.role,"qa_lead")&&<button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>}
-          {hasRole(profile?.role,"qa_lead")&&<button className={`tab ${view==="quarterly"?"active":""}`} onClick={()=>setView("quarterly")}>Quarterly</button>}
+          {hasRole(profile?.role,"qa_supervisor")&&<button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>}
+          {hasRole(profile?.role,"qa_supervisor")&&<button className={`tab ${view==="quarterly"?"active":""}`} onClick={()=>setView("quarterly")}>Quarterly</button>}
         </div>
         {hasRole(profile?.role,"qa_lead")&&<SearchableSelect options={teams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${teams.length})`}/>}
         {view==="individual" && hasRole(profile?.role,"qa_lead") && <input className="input" placeholder="Search by name or email..." value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:220,marginLeft:"auto",fontSize:12}}/>}
