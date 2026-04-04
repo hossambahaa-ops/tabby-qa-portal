@@ -1869,7 +1869,7 @@ function DAMPage({token,profile,gf}){
 
     {showCreate&&<div className="card" style={{marginBottom:16}}>
       <div className="card-header"><span className="card-title">Create DAM flag</span></div>
-      <div className="form-grid">
+      <div style={{display:"grid",gridTemplateColumns:"1fr",gap:12}}>
         <div className="form-group"><label className="form-label">Person</label>
           <SearchableSelect
             options={profiles.filter(p=>p.role==="qa"||p.role==="senior_qa"||p.role==="qa_lead").map(p=>({value:p.id,label:(p.display_name||p.email)+` (${ROLE_LABELS[p.role]})`}))}
@@ -1886,7 +1886,7 @@ function DAMPage({token,profile,gf}){
             placeholder="Select behavior..."
           />
         </div>
-        <div className="form-group" style={{gridColumn:"1/-1"}}><label className="form-label">Notes</label>
+        <div className="form-group"><label className="form-label">Notes</label>
           <textarea className="form-input" rows={2} value={flagNotes} onChange={e=>setFlagNotes(e.target.value)} placeholder="Context, evidence, audit findings..." style={{resize:"vertical"}}/>
         </div>
       </div>
