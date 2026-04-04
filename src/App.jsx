@@ -215,9 +215,14 @@ function SearchableSelect({ options, value, onChange, placeholder, multi = false
         <svg width="10" height="10" viewBox="0 0 10 10" style={{ flexShrink: 0, opacity: 0.5 }}><path d="M2 4l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>
       </button>
       {open && <div style={{
-        position: "absolute", top: "calc(100% + 4px)", left: 0, minWidth: "100%", width: "max-content", maxWidth: 300,
-        maxHeight: 250, background: "var(--bg3)", border: "1px solid var(--bd)", borderRadius: "var(--radius)",
-        boxShadow: "var(--shadow-lg)", zIndex: 200, overflow: "hidden", display: "flex", flexDirection: "column",
+        position: "absolute", top: "calc(100% + 4px)", left: 0, right: "auto", minWidth: "100%", width: "max-content", maxWidth: 420,
+        maxHeight: 280, background: "var(--bg3)", border: "1px solid var(--bd)", borderRadius: "var(--radius)",
+        boxShadow: "0 8px 30px rgba(0,0,0,.15)", zIndex: 200, overflow: "hidden", display: "flex", flexDirection: "column",
+      }} ref={el => {
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          if (rect.right > window.innerWidth - 8) { el.style.left = "auto"; el.style.right = "0"; }
+        }
       }}>
         <input
           ref={inputRef}
@@ -250,7 +255,7 @@ function SearchableSelect({ options, value, onChange, placeholder, multi = false
               {multi && <span style={{ width: 14, height: 14, borderRadius: 3, border: selected ? "none" : "1.5px solid var(--bd)", background: selected ? "var(--accent-text)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 {selected && <svg width="10" height="10" viewBox="0 0 10 10"><path d="M2 5l2 2 4-4" fill="none" stroke="#fff" strokeWidth="1.5"/></svg>}
               </span>}
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{getLabel(o)}</span>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 360 }}>{getLabel(o)}</span>
             </button>;
           })}
         </div>
