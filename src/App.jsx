@@ -2935,13 +2935,12 @@ function CoachingPage({token, profile}) {
         setToEmail(e.detail.email);
         setTab("compose");
         if (e.detail.type) setMeetingType(e.detail.type);
-        // Retry filling — data might not be loaded yet
-        let n = 0;
-        const retry = () => {
-          if (n++ > 15) return;
-          setTimeout(() => window.dispatchEvent(new CustomEvent("_fill_targets", { detail: e.detail.email })), n * 400);
-        };
-        retry();
+        // Fire multiple delayed events — one will land after data loads
+        for (let i = 1; i <= 10; i++) {
+          setTimeout(() => {
+            window.dispatchEvent(new CustomEvent("_fill_targets", { detail: e.detail.email }));
+          }, i * 500);
+        }
       }
     };
     window.addEventListener("prefill-coaching", handler);
@@ -2949,8 +2948,15 @@ function CoachingPage({token, profile}) {
   }, []);
 
   // Fill handler — runs with current activePlans state
+  // Re-registers whenever activePlans changes so it always has fresh data
+  const fillHandledRef = useRef(false);
+  useEffect(() => {
+    fillHandledRef.current = false; // Reset when plans change
+  }, [activePlans.length]);
+
   useEffect(() => {
     const handler = (e) => {
+      if (fillHandledRef.current) return; // Already filled, skip further retries
       const email = e.detail;
       if (!email || activePlans.length === 0) return;
       const plan = activePlans.find(p => p.qa_email?.toLowerCase() === email.toLowerCase());
@@ -2970,6 +2976,7 @@ function CoachingPage({token, profile}) {
         }));
         if (rows[0]?.metric) {
           setTargetRows(rows);
+          fillHandledRef.current = true; // Mark as done
           if (plan.type === "pip") setMeetingType("PIP Review");
           else if (plan.type === "ap") setMeetingType("Action Plan Review");
           show("success", `Targets loaded from ${plan.type.toUpperCase()} plan`);
@@ -3954,7 +3961,7 @@ function ActionPlanPage({ token, profile }) {
       }
 
       show("success", `${planType.toUpperCase()} created for ${nameFromEmail(selQaEmail)}`);
-      logActivity(token, profile?.email, `${planType}_created`, "action_plans", null, `QA: ${selQaEmail}, Duration: ${duration} weeks`);
+      logActivity(token, profile?.email, `${planType}_created`, "action_plans", null, `QA: ${selQaEmail}, Duration: ${planDuration} weeks`);
       setShowCreateForm(false);
       setTab("active");
       load();
