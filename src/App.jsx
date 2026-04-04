@@ -8,7 +8,7 @@ styleOverride.textContent = `
   @media (min-width: 769px) {
     .topbar-menu { display: none !important; }
   }
-  .role-senior_qa{background:var(--teal-bg);color:var(--teal)}
+  .role-senior_qa{background:var(--blue-bg);color:var(--blue)}
   .sidebar { transition: width .3s var(--ease), transform .3s var(--ease); }
   .sidebar.collapsed { width: 64px !important; overflow: visible !important; }
   .sidebar.collapsed .sidebar-nav { overflow: visible !important; }
@@ -142,6 +142,10 @@ if (!document.querySelector('link[rel="manifest"]')) {
 const ROLE_LEVEL={qa:1,senior_qa:3,qa_lead:3,qa_supervisor:4,admin:5,super_admin:6};
 const ROLE_LABELS={qa:"QA",senior_qa:"Senior QA",qa_lead:"QA Lead",qa_supervisor:"QA Supervisor",admin:"Admin",super_admin:"Super Admin"};
 const hasRole=(r,min)=>(ROLE_LEVEL[r]||0)>=(ROLE_LEVEL[min]||99);
+
+// Chronological month sort (newest first): "Mar-2026" > "Feb-2026" > "Jan-2026"
+const MONTH_IDX={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+const sortMonthsDesc=(months)=>[...months].sort((a,b)=>{const[am,ay]=a.split("-");const[bm,by]=b.split("-");return(parseInt(by)||0)-(parseInt(ay)||0)||(MONTH_IDX[bm]??0)-(MONTH_IDX[am]??0);});
 
 /* ═══ SEARCHABLE MULTI-SELECT COMPONENT ═══ */
 function SearchableSelect({ options, value, onChange, placeholder, multi = false, labelKey = "label", valueKey = "value", className = "" }) {
@@ -1114,7 +1118,7 @@ function DashboardPage({profile,token,gf}){
             <td style={{fontWeight:500,color:i<3?"var(--amber)":"var(--tx3)"}}>{i+1}</td>
             <td style={{fontWeight:500}}>{nameFromEmail(r.qa_email)}</td>
             <td style={{textAlign:"right"}}><span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:scoreBg(getScore(r)),color:scoreColor(getScore(r))}}>{getScore(r).toFixed(1)} / {maxScore}</span></td>
-            <td style={{textAlign:"right",color:"var(--teal)",fontWeight:500}}>{r.ticket_per_day??0}</td>
+            <td style={{textAlign:"right",color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day??0}</td>
             <td style={{textAlign:"right"}}>{r.dsat??0}</td>
             <td style={{textAlign:"right"}}>{fmt(r.occupancy_pct)}</td>
             <td style={{textAlign:"right"}}>{fmt(r.avg_rtr_score)}</td>
@@ -1195,13 +1199,13 @@ function DashboardPage({profile,token,gf}){
                 <div key={k.key} style={{padding:"10px 12px",background:"var(--bg)",borderRadius:8}}>
                   <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
                     <span style={{fontSize:13,fontWeight:600}}>{k.label}</span>
-                    <span style={{fontSize:13,fontWeight:700,color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}>{k.score.toFixed(1)} / {k.weight}</span>
+                    <span style={{fontSize:13,fontWeight:700,color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}>{k.score.toFixed(1)} / {k.weight}</span>
                   </div>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--tx2)",marginBottom:4}}>
                     <span>Raw: {k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "—"}</span>
-                    <span style={{padding:"1px 6px",borderRadius:8,fontSize:10,fontWeight:600,background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=75?"var(--teal-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}>{k.slab.label} ({k.slab.pct}%)</span>
+                    <span style={{padding:"1px 6px",borderRadius:8,fontSize:10,fontWeight:600,background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=75?"var(--blue-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}>{k.slab.label} ({k.slab.pct}%)</span>
                   </div>
-                  <div style={{height:5,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}/></div>
+                  <div style={{height:5,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}/></div>
                 </div>
               ))}
             </div>
@@ -1662,7 +1666,7 @@ function ScoreEntryPage({token,profile,gf}){
                       <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}{r.jkq_score>0?` (${r.jkq_score})`:""}</span>
                     ) : <span style={{color:"var(--tx3)"}}>—</span>}
                   </td>
-                  <td style={{textAlign:"right",color:"var(--teal)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</td>
+                  <td style={{textAlign:"right",color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{fmtPct(r.occupancy_pct)}</td>
                   <td style={{textAlign:"right"}}>{r.working_days||"—"}{r.ramadan_wds?<span style={{fontSize:10,color:"var(--tx3)"}}> ({r.ramadan_wds}R)</span>:""}</td>
                   <td style={{textAlign:"right"}}>
@@ -1798,7 +1802,7 @@ function DAMPage({token,profile,gf}){
   };
 
   const behaviorTypes=[{key:"manipulation",label:"Manipulation",color:"var(--red)"},{key:"performance_management",label:"Performance management",color:"var(--amber)"},{key:"completion_attainment",label:"Completion & attainment",color:"var(--accent-text)"}];
-  const statusColors={pending:"var(--amber)",acknowledged:"var(--accent-text)",action_created:"var(--teal)",resolved:"var(--green)",dismissed:"var(--tx3)"};
+  const statusColors={pending:"var(--amber)",acknowledged:"var(--accent-text)",action_created:"var(--blue)",resolved:"var(--green)",dismissed:"var(--tx3)"};
 
   if(loading)return<div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
 
@@ -2218,11 +2222,11 @@ function LeaderboardPage({token, profile, gf}) {
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--tx2)",marginBottom:4}}>
                     <span>Raw: {k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "—"}</span>
                     <span style={{padding:"1px 6px",borderRadius:8,fontSize:9,fontWeight:600,
-                      background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=75?"var(--teal-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",
-                      color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)"
+                      background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=75?"var(--blue-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",
+                      color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)"
                     }}>{k.slab.label} ({k.slab.pct}%)</span>
                   </div>
-                  <div style={{height:5,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .4s"}}/></div>
+                  <div style={{height:5,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .4s"}}/></div>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"var(--tx3)",marginTop:3}}>
                     <span>Slab 1: ≥{k.thresholds[0]}%</span><span>Slab 2: ≥{k.thresholds[1]}%</span><span>Slab 3: ≥{k.thresholds[2]}%</span>
                   </div>
@@ -2345,7 +2349,7 @@ function LeaderboardPage({token, profile, gf}) {
                     <td key={k.key} style={{textAlign:"center",padding:"8px 6px"}}>
                       <div style={{fontSize:13,fontWeight:600,color:scoreColor(k.score/k.weight*maxScore)}}>{k.score.toFixed(1)}</div>
                       <div style={{fontSize:10,color:"var(--tx3)"}}>{k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "—"}</div>
-                      <div style={{height:3,background:"var(--bd2)",borderRadius:2,marginTop:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:2,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .3s"}}/></div>
+                      <div style={{height:3,background:"var(--bd2)",borderRadius:2,marginTop:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:2,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .3s"}}/></div>
                     </td>
                   ))}
                   <td style={{textAlign:"center"}}>
@@ -2367,11 +2371,11 @@ function LeaderboardPage({token, profile, gf}) {
                         <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--tx2)",marginBottom:6}}>
                           <span>Raw: {k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "No data"}</span>
                           <span style={{padding:"1px 8px",borderRadius:10,fontSize:10,fontWeight:600,
-                            background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=75?"var(--teal-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",
-                            color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)"
+                            background:k.slab.pct===100?"var(--green-bg)":k.slab.pct>=75?"var(--blue-bg)":k.slab.pct>=50?"var(--amber-bg)":"var(--red-bg)",
+                            color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)"
                           }}>{k.slab.label} ({k.slab.pct}%)</span>
                         </div>
-                        <div style={{height:6,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--teal)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .4s"}}/></div>
+                        <div style={{height:6,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .4s"}}/></div>
                         <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--tx3)",marginTop:4}}>
                           <span>Slab 1: ≥{k.thresholds[0]}%</span>
                           <span>Slab 2: ≥{k.thresholds[1]}%</span>
@@ -3580,7 +3584,7 @@ function ActionPlanPage({ token, profile }) {
       .filter(p => p.status === "active" || p.status === "pending_review")
       .map(p => p.qa_email?.toLowerCase());
     const dismissedEmails = new Set((dismissalRows || []).map(d => d.qa_email?.toLowerCase()));
-    const months = [...new Set(mtdRows.map(r => r.month))].sort().reverse();
+    const months = sortMonthsDesc([...new Set(mtdRows.map(r => r.month))]);
     const latestMonth = months[0] || "—";
     const activeFlags = (damFlagRows || []).filter(f => f.status === "pending" || f.status === "acknowledged");
     const flagged = [];
@@ -3622,7 +3626,7 @@ function ActionPlanPage({ token, profile }) {
 
   // ── Generate suggested targets based on current scores ──
   const generateTargets = (qaEmail, kpiKeys) => {
-    const months = [...new Set(mtd.map(r => r.month))].sort().reverse();
+    const months = sortMonthsDesc([...new Set(mtd.map(r => r.month))]);
     const latestMonth = months[0];
     const row = mtd.find(r => r.month === latestMonth && r.qa_email?.toLowerCase() === qaEmail.toLowerCase());
     const periods = followUpMode === "monthly" ? planDuration : planDuration;
@@ -3799,7 +3803,7 @@ function ActionPlanPage({ token, profile }) {
     } catch { }
 
     // Pull latest MTD data
-    const months = [...new Set(mtd.map(r => r.month))].sort().reverse();
+    const months = sortMonthsDesc([...new Set(mtd.map(r => r.month))]);
     const latestMonth = months[0];
     const row = mtd.find(r => r.month === latestMonth && r.qa_email?.toLowerCase() === qaEmail.toLowerCase());
     if (!row) { show("error", "No MTD data found for " + nameFromEmail(qaEmail) + " in " + latestMonth); return; }
@@ -3952,7 +3956,7 @@ function ActionPlanPage({ token, profile }) {
         qa_email: email,
         dismissed_by: profile?.email,
         reason: reason || "Dismissed by super admin",
-        month: mtd.length ? [...new Set(mtd.map(r => r.month))].sort().reverse()[0] : "",
+        month: mtd.length ? sortMonthsDesc([...new Set(mtd.map(r => r.month))])[0] : "",
         detection_info: detections.find(d => d.email === email)?.reason || "",
       }});
       setDetections(prev => prev.filter(d => d.email !== email));
@@ -4063,7 +4067,7 @@ function ActionPlanPage({ token, profile }) {
             </div>
             {detections.map(d => (
               <div key={d.email} className="card" style={{
-                borderLeft: `4px solid ${d.severity === "critical" ? "var(--red)" : d.severity === "high" ? "var(--amber)" : "var(--teal)"}`,
+                borderLeft: `4px solid ${d.severity === "critical" ? "var(--red)" : d.severity === "high" ? "var(--amber)" : "var(--blue)"}`,
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -4225,7 +4229,7 @@ function ActionPlanPage({ token, profile }) {
             {Object.entries(KPI_SLABS).map(([key, def]) => {
               const isOn = selectedKpis.includes(key);
               // Get current value for this QA
-              const months2 = [...new Set(mtd.map(r => r.month))].sort().reverse();
+              const months2 = sortMonthsDesc([...new Set(mtd.map(r => r.month))]);
               const row2 = selQaEmail ? mtd.find(r => r.month === months2[0] && r.qa_email?.toLowerCase() === selQaEmail.toLowerCase()) : null;
               const curVal = row2 ? parseRaw(row2[def.rawKey]) : null;
               return (
@@ -5627,11 +5631,7 @@ export default function App(){
     const rm = {};
     r.forEach(x => { if (x.email && x.queue) rm[x.email.toLowerCase()] = x.queue; });
     window.__gfRoster = rm;
-    const monthOrder=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    const uniqueMonths=[...new Set(m.map(x=>x.month).filter(Boolean))].sort((a,b)=>{
-      const[am,ay]=a.split("-");const[bm,by]=b.split("-");
-      return by-ay||monthOrder.indexOf(bm)-monthOrder.indexOf(am);
-    });
+    const uniqueMonths=sortMonthsDesc([...new Set(m.map(x=>x.month).filter(Boolean))]);
     setGlobalMonths(uniqueMonths);
   }catch(e){console.error("Global filters:",e);}})();},[session]);
 
