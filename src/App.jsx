@@ -1434,7 +1434,7 @@ function ScoreEntryPage({token,profile,gf}){
       try {
         const [rows, rosterRows, profRows] = await Promise.all([
           sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token}),
-          sb.query("qa_roster", {select:"email,queue",token}).catch(()=>[]),
+          sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[]),
           sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[]),
         ]);
         setRoster(rosterRows);
@@ -1727,7 +1727,7 @@ function AdminUsersPage({token,teams,profile}){
   const load=useCallback(async()=>{try{
     const[d,r,ut]=await Promise.all([
       sb.query("profiles",{select:"id,email,display_name,role,domain,operational_domain,team_id,status",token}),
-      sb.query("qa_roster",{select:"email,queue",token}).catch(()=>[]),
+      sb.query("qa_roster",{select:"email,queue,manager_email",token}).catch(()=>[]),
       sb.query("user_teams",{select:"user_id,team_id",token}).catch(()=>[]),
     ]);
     setUsers(d.sort((a,b)=>ROLE_LEVEL[b.role]-ROLE_LEVEL[a.role]));
@@ -1998,7 +1998,7 @@ function LeaderboardPage({token, profile, gf}) {
       try {
         const [rows, rosterRows, profRows] = await Promise.all([
           sb.query("mtd_scores", {select:"*",filters:"order=month.desc,final_performance.desc",token}),
-          sb.query("qa_roster", {select:"email,queue",token}).catch(()=>[]),
+          sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[]),
           sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[]),
         ]);
         setData(rows);
