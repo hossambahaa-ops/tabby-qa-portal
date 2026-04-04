@@ -2979,14 +2979,35 @@ function CoachingPage({token, profile}) {
 
   // Auto-fill targets when navigating from AP/PIP page or when member has active plan
   useEffect(() => {
-    if (!memberActivePlan) return;
+    if (!toEmail || !memberActivePlan) return;
     if (meetingType !== "PIP Review" && meetingType !== "Action Plan Review") return;
     const isEmpty = targetRows.length <= 1 && (!targetRows[0]?.metric || targetRows[0]?.metric === "");
     if (window.__prefillAutoFill || isEmpty) {
       window.__prefillAutoFill = false;
-      try { autoFillFromPlan(); } catch(e) { console.error("Auto-fill error:", e); }
+      try {
+        const targets = (() => { try { const p=JSON.parse(memberActivePlan.targets || "[]"); return Array.isArray(p)?p:p.metrics||[]; } catch { return []; } })();
+        if (targets.length === 0) return;
+        const mPlanWeeks = planWeeks.filter(w => w.plan_id === memberActivePlan.id).sort((a, b) => a.week_number - b.week_number);
+        const nextWeek = mPlanWeeks.find(w => !w.actual_data);
+        const newRows = targets.map(t => {
+          const weekTargetData = nextWeek ? (() => { try { return JSON.parse(nextWeek.target_data || "{}"); } catch { return {}; } })() : {};
+          return {
+            metric: t.label || t.kpi_key,
+            start: t.current_value !== null && t.current_value !== undefined ? String(Math.round(t.current_value)) : "",
+            w1: t.weekly_targets?.[0] !== undefined ? String(t.weekly_targets[0]) : "",
+            w2: t.weekly_targets?.[1] !== undefined ? String(t.weekly_targets[1]) : "",
+            w3: t.weekly_targets?.[2] !== undefined ? String(t.weekly_targets[2]) : "",
+            w4: t.weekly_targets?.[3] !== undefined ? String(t.weekly_targets[3]) : "",
+            a1: "", a2: "", a3: "", a4: "",
+            _kpi_key: t.kpi_key,
+          };
+        });
+        setTargetRows(newRows);
+        if (memberActivePlan.type === "pip" && meetingType !== "PIP Review") setMeetingType("PIP Review");
+        else if (memberActivePlan.type === "ap" && meetingType !== "Action Plan Review") setMeetingType("Action Plan Review");
+      } catch(e) { console.error("Auto-fill error:", e); }
     }
-  }, [toEmail, meetingType, memberActivePlan?.id]);
+  }, [toEmail, meetingType, activePlans.length, planWeeks.length]);
 
   // Apply template
   const applyTemplate = (forceType) => {
