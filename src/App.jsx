@@ -151,6 +151,7 @@ const sortMonthsDesc=(months)=>[...months].sort((a,b)=>{const[am,ay]=a.split("-"
 function SearchableSelect({ options, value, onChange, placeholder, multi = false, labelKey = "label", valueKey = "value", className = "" }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [pos, setPos] = useState({ top: 0, left: 0, width: 200 });
   const ref = useRef(null);
   const inputRef = useRef(null);
 
@@ -159,6 +160,15 @@ function SearchableSelect({ options, value, onChange, placeholder, multi = false
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
   }, []);
+
+  // Recalculate position when opening
+  useEffect(() => {
+    if (open && ref.current) {
+      const r = ref.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.left, width: r.width });
+      setTimeout(() => inputRef.current?.focus(), 50);
+    }
+  }, [open]);
 
   const filtered = options.filter(o => {
     const label = typeof o === "string" ? o : o[labelKey] || "";
@@ -200,10 +210,12 @@ function SearchableSelect({ options, value, onChange, placeholder, multi = false
     return "";
   };
 
+  const flipUp = pos.top + 280 > window.innerHeight;
+
   return (
     <div ref={ref} style={{ position: "relative", minWidth: 130 }} className={className}>
       <button
-        onClick={() => { setOpen(!open); setTimeout(() => inputRef.current?.focus(), 50); }}
+        onClick={() => { setOpen(!open); setSearch(""); }}
         style={{
           display: "flex", alignItems: "center", gap: 6, padding: "5px 10px", border: "1px solid var(--bd)",
           borderRadius: "var(--radius)", background: "var(--bg3)", fontFamily: "var(--font)", fontSize: 12,
@@ -214,18 +226,14 @@ function SearchableSelect({ options, value, onChange, placeholder, multi = false
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{displayValue() || placeholder || "Select..."}</span>
         <svg width="10" height="10" viewBox="0 0 10 10" style={{ flexShrink: 0, opacity: 0.5 }}><path d="M2 4l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>
       </button>
-      {open && (()=>{
-        const btnRect = ref.current?.getBoundingClientRect();
-        const top = (btnRect?.bottom||0) + 4;
-        const left = btnRect?.left||0;
-        const w = btnRect?.width||200;
-        const flipUp = top + 280 > window.innerHeight;
-        return <div style={{
-          position: "fixed", top: flipUp ? "auto" : top, bottom: flipUp ? (window.innerHeight - (btnRect?.top||0) + 4) : "auto",
-          left: left, width: w, minWidth: 180,
-          maxHeight: 280, background: "var(--bg3)", border: "1px solid var(--bd)", borderRadius: "var(--radius)",
-          boxShadow: "0 8px 30px rgba(0,0,0,.15)", zIndex: 9000, overflow: "hidden", display: "flex", flexDirection: "column",
-        }}>
+      {open && <div style={{
+        position: "fixed",
+        top: flipUp ? "auto" : pos.top,
+        bottom: flipUp ? (window.innerHeight - pos.top + 40) : "auto",
+        left: pos.left, width: pos.width, minWidth: 180,
+        maxHeight: 280, background: "var(--bg3)", border: "1px solid var(--bd)", borderRadius: "var(--radius)",
+        boxShadow: "0 8px 30px rgba(0,0,0,.15)", zIndex: 9000, overflow: "hidden", display: "flex", flexDirection: "column",
+      }}>
         <input
           ref={inputRef}
           value={search}
@@ -261,7 +269,7 @@ function SearchableSelect({ options, value, onChange, placeholder, multi = false
             </button>;
           })}
         </div>
-      </div>;})()}
+      </div>}
     </div>
   );
 }
