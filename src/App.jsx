@@ -5747,33 +5747,44 @@ function NotificationBell({ token, profile, onNavigate }) {
       try {
         const myEmail = profile?.email?.toLowerCase();
         const queries = [
+          // Tasks assigned to ME
           sb.query("tasks", { select: "id,title,priority,created_by,eta_date,created_at", filters: `assigned_to=eq.${profile?.email}&status=neq.done&order=created_at.desc&limit=10`, token }).catch(() => []),
+          // Escalations routed to ME
           sb.query("escalations", { select: "id,category,status,submitted_by,created_at", filters: `routed_to=eq.${profile?.email}&status=eq.open&order=created_at.desc&limit=10`, token }).catch(() => []),
+          // Announcements (everyone gets these)
           sb.query("announcements", { select: "id,title,priority,sent_by,created_at", filters: "order=created_at.desc&limit=5", token }).catch(() => []),
+          // Feedback responses to MY feedback (any role)
+          sb.query("feedback", { select: "id,category,status,admin_response,created_at", filters: `user_email=eq.${profile?.email}&status=neq.new&order=created_at.desc&limit=5`, token }).catch(() => []),
         ];
-        // QA Lead+ gets violations and DAM flags
-        if (isLead) {
-          queries.push(sb.query("coaching_violations", { select: "id,violation_type,qa_emails,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
+        // QA Lead gets violations for THEIR team only, DAM flags, and their APs
+        if (isLead && !isSv) {
+          queries.push(sb.query("coaching_violations", { select: "id,violation_type,qa_emails,lead_email,created_at", filters: `lead_email=eq.${myEmail}&status=eq.pending&order=created_at.desc&limit=10`, token }).catch(() => []));
           queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
-          queries.push(sb.query("action_plans", { select: "id,qa_email,type,status,end_date,created_at", filters: "status=eq.active&order=created_at.desc&limit=10", token }).catch(() => []));
+          queries.push(sb.query("action_plans", { select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: `tl_email=eq.${myEmail}&status=eq.active&order=created_at.desc&limit=10`, token }).catch(() => []));
+        }
+        // Supervisors see their domain's violations + DAM flags
+        if (isSv) {
+          queries.push(sb.query("coaching_violations", { select: "id,violation_type,qa_emails,lead_email,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
+          queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
+          queries.push(sb.query("action_plans", { select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: "status=eq.active&order=created_at.desc&limit=10", token }).catch(() => []));
         }
         const results = await Promise.all(queries);
-        const [assignedTasks, escalations, announcements] = results;
-        const violations = isLead ? results[3] : [];
-        const damFlags = isLead ? results[4] : [];
-        const activePlans = isLead ? results[5] : [];
+        const [assignedTasks, escalations, announcements, myFeedback] = results;
+        const violations = (isLead || isSv) ? (results[4] || []) : [];
+        const damFlags = (isLead || isSv) ? (results[5] || []) : [];
+        const activePlans = (isLead || isSv) ? (results[6] || []) : [];
 
         const all = [
-          ...assignedTasks.map(t => ({ id: "t-"+t.id, type: "task", title: `📋 Task: ${t.title}`, sub: `From: ${t.created_by?.split("@")[0]}${t.eta_date?" · ETA: "+new Date(t.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}`, time: t.created_at, page: "dashboard" })),
+          ...assignedTasks.map(t => ({ id: "t-"+t.id, type: "task", title: `Task: ${t.title}`, sub: `From: ${t.created_by?.split("@")[0]}${t.eta_date?" · ETA: "+new Date(t.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}`, time: t.created_at, page: "dashboard" })),
           ...escalations.map(e => ({ id: "e-"+e.id, type: "escalation", title: `Escalation: ${e.category}`, sub: "Anonymous submission", time: e.created_at, page: "escalations" })),
-          ...violations.map(v => ({ id: "v-"+v.id, type: "violation", title: `⚠️ Violation: ${v.violation_type}`, sub: v.qa_emails?.split("\n")[0], time: v.created_at, page: "violations" })),
-          ...damFlags.map(f => ({ id: "d-"+f.id, type: "dam", title: `🚩 DAM: ${f.dam_rules?.name || "Flag"}`, sub: f.qa_email || "—", time: f.created_at, page: "dam" })),
+          ...myFeedback.filter(f => f.admin_response).map(f => ({ id: "fb-"+f.id, type: "feedback", title: `Feedback response: ${f.category}`, sub: `Status: ${f.status}`, time: f.created_at, page: "dashboard" })),
+          ...violations.map(v => ({ id: "v-"+v.id, type: "violation", title: `Violation: ${v.violation_type}`, sub: v.qa_emails?.split("\n")[0], time: v.created_at, page: "violations" })),
+          ...damFlags.map(f => ({ id: "d-"+f.id, type: "dam", title: `DAM: ${f.dam_rules?.name || "Flag"}`, sub: f.qa_email || "—", time: f.created_at, page: "dam" })),
           ...activePlans.filter(p => {
-            // Notify if plan is ending within 7 days
             if (!p.end_date) return false;
             const daysLeft = (new Date(p.end_date) - new Date()) / (1000*60*60*24);
             return daysLeft <= 7 && daysLeft > -1;
-          }).map(p => ({ id: "ap-"+p.id, type: "plan", title: `📋 ${p.type.toUpperCase()} ending soon`, sub: `${p.qa_email?.split("@")[0]} — ${Math.ceil((new Date(p.end_date)-new Date())/(1000*60*60*24))} days left`, time: p.created_at, page: "plans" })),
+          }).map(p => ({ id: "ap-"+p.id, type: "plan", title: `${p.type.toUpperCase()} ending soon`, sub: `${p.qa_email?.split("@")[0]} — ${Math.ceil((new Date(p.end_date)-new Date())/(1000*60*60*24))} days left`, time: p.created_at, page: "plans" })),
         ].sort((a, b) => new Date(b.time) - new Date(a.time));
         setItems(all);
       } catch {}
@@ -5790,7 +5801,7 @@ function NotificationBell({ token, profile, onNavigate }) {
   }, []);
 
   const count = items.length;
-  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" } };
+  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" } };
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
