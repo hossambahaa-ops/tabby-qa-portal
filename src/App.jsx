@@ -1778,12 +1778,63 @@ function AdminUsersPage({token,teams,profile}){
   </div>);
 }
 
+function AdminFeedbackPage({token}){
+  const[items,setItems]=useState([]);const[loading,setLoading]=useState(true);
+  const{show,el}=useToast();
+  const load=useCallback(async()=>{try{
+    const d=await sb.query("feedback",{select:"*",filters:"order=created_at.desc",token});
+    setItems(d);
+  }catch(e){console.error(e);}setLoading(false);},[token]);
+  useEffect(()=>{load();},[load]);
+  const updateStatus=async(id,status)=>{try{
+    await sb.query("feedback",{token,method:"PATCH",body:{status},filters:`id=eq.${id}`});
+    show("success","Updated");load();
+  }catch(e){show("error",e.message);}};
+  const catIcon={bug:"🐛",feature:"💡",improvement:"✨",general:"💬"};
+  const statusColor={new:{bg:"var(--blue-bg)",color:"var(--blue)"},reviewed:{bg:"var(--amber-bg)",color:"var(--amber)"},planned:{bg:"var(--primary-light)",color:"var(--tabby-purple,#6A2C79)"},done:{bg:"var(--green-bg)",color:"var(--green)"},dismissed:{bg:"var(--bg2)",color:"var(--tx3)"}};
+  return(<div className="page">
+    <div className="page-header"><div className="page-title">User Feedback</div><div className="page-subtitle">{items.length} submissions</div></div>
+    {loading?<div className="loading-spinner"><div className="spinner"/></div>:
+    items.length===0?<div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No feedback yet.</p></div></div>:
+    <div style={{display:"flex",flexDirection:"column",gap:12}}>
+      {items.map(f=>{
+        const sc=statusColor[f.status]||statusColor.new;
+        return <div key={f.id} className="card" style={{padding:"16px 20px"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:18}}>{catIcon[f.category]||"💬"}</span>
+              <div>
+                <div style={{fontSize:14,fontWeight:600}}>{f.user_name||f.user_email}</div>
+                <div style={{fontSize:11,color:"var(--tx3)"}}>{f.user_email} · {f.page} page · {new Date(f.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric",hour:"2-digit",minute:"2-digit"})}</div>
+              </div>
+            </div>
+            <div style={{display:"flex",alignItems:"center",gap:8}}>
+              {f.rating&&<span style={{fontSize:12}}>{Array(f.rating).fill("⭐").join("")}</span>}
+              <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:sc.bg,color:sc.color,fontWeight:600,textTransform:"uppercase"}}>{f.status}</span>
+            </div>
+          </div>
+          <div style={{fontSize:13,color:"var(--tx)",lineHeight:1.6,whiteSpace:"pre-wrap",marginBottom:12}}>{f.message}</div>
+          <div style={{display:"flex",gap:6}}>
+            {["new","reviewed","planned","done","dismissed"].map(s=>(
+              <button key={s} onClick={()=>updateStatus(f.id,s)} style={{
+                padding:"3px 10px",borderRadius:8,border:"1px solid "+(f.status===s?sc.color:"var(--bd)"),
+                background:f.status===s?sc.bg:"transparent",color:f.status===s?sc.color:"var(--tx3)",
+                fontSize:10,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",textTransform:"uppercase",
+              }}>{s}</button>
+            ))}
+          </div>
+        </div>;
+      })}
+    </div>}{el}
+  </div>);
+}
+
 function AdminPage({token,profile}){
   const[tab,setTab]=useState("users");const[teams,setTeams]=useState([]);
   useEffect(()=>{sb.query("teams",{select:"id,name,domain",token}).then(setTeams).catch(()=>{});},[token]);
   return(<div><div className="page" style={{paddingBottom:0}}><div className="page-header" style={{marginBottom:16}}><div className="page-title">Admin panel</div></div>
-    <div className="tab-bar" style={{marginBottom:0}}><button className={`tab-btn ${tab==="users"?"active":""}`} onClick={()=>setTab("users")}>Users</button><button className={`tab-btn ${tab==="teams"?"active":""}`} onClick={()=>setTab("teams")}>Teams</button></div></div>
-    {tab==="users"&&<AdminUsersPage token={token} teams={teams} profile={profile}/>}{tab==="teams"&&<TeamManagementPage token={token} profile={profile}/>}</div>);
+    <div className="tab-bar" style={{marginBottom:0}}><button className={`tab-btn ${tab==="users"?"active":""}`} onClick={()=>setTab("users")}>Users</button><button className={`tab-btn ${tab==="teams"?"active":""}`} onClick={()=>setTab("teams")}>Teams</button><button className={`tab-btn ${tab==="feedback"?"active":""}`} onClick={()=>setTab("feedback")}>Feedback</button></div></div>
+    {tab==="users"&&<AdminUsersPage token={token} teams={teams} profile={profile}/>}{tab==="teams"&&<TeamManagementPage token={token} profile={profile}/>}{tab==="feedback"&&<AdminFeedbackPage token={token}/>}</div>);
 }
 
 /* ═══ DAM ENGINE ═══ */
@@ -5630,6 +5681,10 @@ export default function App(){
   const[globalRoster,setGlobalRoster]=useState([]);
   const[globalMonths,setGlobalMonths]=useState([]);
   const[pendingAnnouncements,setPendingAnnouncements]=useState([]);
+  const[showFeedback,setShowFeedback]=useState(false);
+  const[feedbackForm,setFeedbackForm]=useState({category:"general",message:"",rating:0});
+  const[feedbackSending,setFeedbackSending]=useState(false);
+  const[feedbackSent,setFeedbackSent]=useState(false);
   // Persist page in URL hash
   useEffect(()=>{window.location.hash=page;},[page]);
   useEffect(()=>{const onHash=()=>{const h=window.location.hash.replace("#","");if(h)setPage(h);};window.addEventListener("hashchange",onHash);return()=>window.removeEventListener("hashchange",onHash);},[]);
@@ -5831,6 +5886,97 @@ export default function App(){
           >I Acknowledge</button>
         </div>
       </div>
+    </div>}
+
+    {/* ═══ FEEDBACK FLOATING BUTTON + MODAL ═══ */}
+    {!showFeedback&&<button onClick={()=>{setShowFeedback(true);setFeedbackSent(false);setFeedbackForm({category:"general",message:"",rating:0});}} style={{
+      position:"fixed",bottom:24,right:24,width:48,height:48,borderRadius:"50%",border:"none",
+      background:"var(--tabby-purple,#6A2C79)",color:"#fff",fontSize:20,cursor:"pointer",
+      boxShadow:"0 4px 20px rgba(106,44,121,.4)",display:"flex",alignItems:"center",justifyContent:"center",
+      zIndex:900,transition:"all .2s",
+    }}
+      onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.1)";e.currentTarget.style.boxShadow="0 6px 28px rgba(106,44,121,.5)";}}
+      onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";e.currentTarget.style.boxShadow="0 4px 20px rgba(106,44,121,.4)";}}
+      title="Send feedback"
+    >💬</button>}
+
+    {showFeedback&&<div style={{position:"fixed",bottom:24,right:24,width:380,maxHeight:"80vh",background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"0 16px 48px rgba(0,0,0,.25)",zIndex:950,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+      {/* Header */}
+      <div style={{padding:"16px 20px",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{fontSize:18}}>💬</span>
+          <span style={{fontSize:15,fontWeight:700,letterSpacing:"-.3px"}}>Send Feedback</span>
+        </div>
+        <button onClick={()=>setShowFeedback(false)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:18,padding:4}}>✕</button>
+      </div>
+
+      {feedbackSent?
+        /* Success state */
+        <div style={{padding:"40px 20px",textAlign:"center"}}>
+          <div style={{fontSize:40,marginBottom:12}}>🎉</div>
+          <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>Thank you!</div>
+          <div style={{fontSize:13,color:"var(--tx2)"}}>Your feedback has been received. We appreciate you taking the time to help us improve.</div>
+          <button onClick={()=>setShowFeedback(false)} className="btn btn-primary" style={{marginTop:20}}>Close</button>
+        </div>
+      :
+        /* Form */
+        <div style={{padding:"16px 20px",overflow:"auto"}}>
+          {/* Rating */}
+          <div style={{marginBottom:16,textAlign:"center"}}>
+            <div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>How's your experience?</div>
+            <div style={{display:"flex",justifyContent:"center",gap:8}}>
+              {[1,2,3,4,5].map(star=>(
+                <button key={star} onClick={()=>setFeedbackForm({...feedbackForm,rating:star})} style={{
+                  background:"none",border:"none",cursor:"pointer",fontSize:28,transition:"transform .15s",
+                  transform:feedbackForm.rating>=star?"scale(1.1)":"scale(1)",
+                  filter:feedbackForm.rating>=star?"none":"grayscale(1) opacity(0.3)",
+                }}>⭐</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Category */}
+          <div className="form-group" style={{marginBottom:12}}>
+            <label className="form-label">Category</label>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[{v:"bug",l:"🐛 Bug",c:"var(--red)"},{v:"feature",l:"💡 Feature Request",c:"var(--blue)"},{v:"improvement",l:"✨ Improvement",c:"var(--amber)"},{v:"general",l:"💬 General",c:"var(--tx3)"}].map(cat=>(
+                <button key={cat.v} onClick={()=>setFeedbackForm({...feedbackForm,category:cat.v})} style={{
+                  padding:"5px 12px",borderRadius:20,border:"1px solid "+(feedbackForm.category===cat.v?cat.c:"var(--bd)"),
+                  background:feedbackForm.category===cat.v?"var(--bg)":"transparent",
+                  color:feedbackForm.category===cat.v?cat.c:"var(--tx3)",fontSize:11,fontWeight:600,
+                  cursor:"pointer",fontFamily:"var(--font)",transition:"all .15s",
+                }}>{cat.l}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Message */}
+          <div className="form-group" style={{marginBottom:16}}>
+            <label className="form-label">Your feedback</label>
+            <textarea className="form-input" rows={4} value={feedbackForm.message} onChange={e=>setFeedbackForm({...feedbackForm,message:e.target.value})} placeholder="Tell us what's on your mind... What's working? What could be better?" style={{resize:"vertical",fontSize:13}}/>
+          </div>
+
+          {/* Submit */}
+          <button disabled={!feedbackForm.message.trim()||feedbackSending} onClick={async()=>{
+            setFeedbackSending(true);
+            try{
+              await sb.query("feedback",{token:session.access_token,method:"POST",body:{
+                user_email:profile?.email,user_name:profile?.display_name,
+                category:feedbackForm.category,message:feedbackForm.message,
+                rating:feedbackForm.rating||null,page:page,
+              }});
+              setFeedbackSent(true);
+            }catch(e){console.error("Feedback error:",e);}
+            setFeedbackSending(false);
+          }} className="btn btn-primary" style={{width:"100%"}}>
+            {feedbackSending?"Sending...":"Send feedback"}
+          </button>
+
+          <div style={{fontSize:10,color:"var(--tx3)",textAlign:"center",marginTop:8}}>
+            Your name and email will be attached so we can follow up if needed.
+          </div>
+        </div>
+      }
     </div>}
 
     </div>
