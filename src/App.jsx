@@ -3432,7 +3432,7 @@ function CoachingPage({token, profile}) {
 
           {/* Target table (AP/PIP only) */}
           {isTargetType && <div className="card" style={{border:"1.5px solid var(--red)",borderColor:"var(--red)"}}>
-            <div className="card-header"><span className="card-title" style={{color:"var(--red)"}}>Weekly QA Review — Score Tracking</span>
+            <div className="card-header"><span className="card-title" style={{color:"var(--accent)"}}>Weekly QA Review — Score Tracking</span>
               <button className="btn btn-outline btn-sm" onClick={addTargetRow}><Icon d={icons.plus} size={14}/>Add metric</button>
             </div>
             <div className="table-wrap">
@@ -3444,47 +3444,45 @@ function CoachingPage({token, profile}) {
                   {targetRows.map((r, ri) => {
                     const tEom = calcEom([r.w1,r.w2,r.w3,r.w4]);
                     const aEom = calcEom([r.a1,r.a2,r.a3,r.a4]);
+                    const rowBg = ri%2===0?"transparent":"var(--bg)";
                     return (<React.Fragment key={ri}>
                       {/* Target row */}
-                      <tr style={{background:ri%2===0?"#fff":"var(--bg)"}}>
+                      <tr style={{background:rowBg}}>
                         <td rowSpan={3} style={{fontWeight:600,fontSize:12,verticalAlign:"middle",minWidth:100}}>
-                          <input className="form-input" value={r.metric} onChange={e=>updateTarget(ri,"metric",e.target.value)} placeholder="Metric name" style={{padding:"4px 6px",fontSize:12,fontWeight:600,border:"none",background:"transparent"}}/>
+                          <input className="form-input" value={r.metric} onChange={e=>updateTarget(ri,"metric",e.target.value)} placeholder="Metric name" style={{padding:"4px 6px",fontSize:12,fontWeight:600,border:"none",background:"transparent",color:"var(--tx)"}}/>
                         </td>
-                        <td style={{fontSize:10,fontWeight:600,background:"var(--green-bg)",color:"var(--green)",padding:"2px 6px"}}>Target</td>
-                        <td><input className="form-input" type="number" value={r.start} onChange={e=>updateTarget(ri,"start",e.target.value)} style={{padding:"3px 4px",fontSize:12,textAlign:"center",width:50,border:"none",background:"transparent"}}/></td>
-                        {["w1","w2","w3","w4"].map(k => <td key={k}><input className="form-input" type="number" value={r[k]} onChange={e=>updateTarget(ri,k,e.target.value)} style={{padding:"3px 4px",fontSize:12,textAlign:"center",width:50,border:"none",background:"transparent"}}/></td>)}
-                        <td style={{fontWeight:700,textAlign:"center",background:"var(--green-bg)",color:"var(--green)",fontSize:12}}>{tEom !== null ? tEom+"%" : "—"}</td>
+                        <td style={{fontSize:10,fontWeight:600,color:"var(--green)",padding:"2px 6px"}}>Target</td>
+                        <td><input className="form-input" type="number" value={r.start} onChange={e=>updateTarget(ri,"start",e.target.value)} style={{padding:"3px 4px",fontSize:12,textAlign:"center",width:50,border:"none",background:"transparent",color:"var(--tx)"}}/></td>
+                        {["w1","w2","w3","w4"].map(k => <td key={k}><input className="form-input" type="number" value={r[k]} onChange={e=>updateTarget(ri,k,e.target.value)} style={{padding:"3px 4px",fontSize:12,textAlign:"center",width:50,border:"none",background:"transparent",color:"var(--tx)"}}/></td>)}
+                        <td style={{fontWeight:700,textAlign:"center",color:"var(--green)",fontSize:12}}>{tEom !== null ? tEom+"%" : "—"}</td>
                         <td rowSpan={3} style={{textAlign:"center",verticalAlign:"middle"}}>
-                          <button onClick={()=>removeTargetRow(ri)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,padding:2}}>✕</button>
+                          <button onClick={()=>removeTargetRow(ri)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,padding:2}}>×</button>
                         </td>
                       </tr>
                       {/* Actual row */}
-                      <tr style={{background:ri%2===0?"#fff":"var(--bg)"}}>
-                        <td style={{fontSize:10,fontWeight:600,background:"var(--amber-bg)",color:"var(--amber)",padding:"2px 6px"}}>Actual</td>
+                      <tr style={{background:rowBg}}>
+                        <td style={{fontSize:10,fontWeight:600,color:"var(--amber)",padding:"2px 6px"}}>Actual</td>
                         <td style={{color:"var(--tx3)",textAlign:"center",fontSize:11}}>—</td>
-                        {["a1","a2","a3","a4"].map(k => <td key={k}><input className="form-input" type="number" value={r[k]} onChange={e=>updateTarget(ri,k,e.target.value)} style={{padding:"3px 4px",fontSize:12,textAlign:"center",width:50,border:"none",background:"transparent"}}/></td>)}
+                        {["a1","a2","a3","a4"].map(k => <td key={k}><input className="form-input" type="number" value={r[k]} onChange={e=>updateTarget(ri,k,e.target.value)} style={{padding:"3px 4px",fontSize:12,textAlign:"center",width:50,border:"none",background:"transparent",color:"var(--tx)"}}/></td>)}
                         <td style={{fontWeight:700,textAlign:"center",fontSize:12,
-                          background:aEom!==null&&tEom!==null?(aEom>=tEom?"var(--green-bg)":"var(--red-bg)"):"var(--amber-bg)",
                           color:aEom!==null&&tEom!==null?(aEom>=tEom?"var(--green)":"var(--red)"):"var(--amber)"
                         }}>{aEom !== null ? aEom+"%" : "—"}</td>
                       </tr>
                       {/* Diff row */}
-                      <tr style={{background:ri%2===0?"#fff":"var(--bg)"}}>
-                        <td style={{fontSize:10,fontWeight:600,background:"var(--bg2)",color:"var(--tx3)",padding:"2px 6px"}}>Diff</td>
+                      <tr style={{background:rowBg,borderBottom:"1px solid var(--bd2)"}}>
+                        <td style={{fontSize:10,fontWeight:600,color:"var(--tx3)",padding:"2px 6px"}}>Diff</td>
                         <td style={{color:"var(--tx3)",textAlign:"center",fontSize:11}}>—</td>
                         {["w1","w2","w3","w4"].map((wk,wi) => {
                           const d = calcDiff(r[wk], r["a"+(wi+1)]);
                           return <td key={wk} style={{textAlign:"center",fontSize:12,fontWeight:d!==null?700:400,
-                            color:d!==null?(d>0?"var(--green)":d<0?"var(--red)":"var(--tx3)"):"var(--tx3)",
-                            background:d!==null?(d>0?"var(--green-bg)":d<0?"var(--red-bg)":"var(--bg2)"):"transparent"
+                            color:d!==null?(d>0?"var(--green)":d<0?"var(--red)":"var(--tx3)"):"var(--tx3)"
                           }}>{d !== null ? (d>0?"+":"")+d+"%" : "—"}</td>;
                         })}
                         {(() => {
                           if (aEom !== null && tEom !== null) {
                             const ed = Math.round((aEom - tEom) * 10) / 10;
                             return <td style={{textAlign:"center",fontSize:12,fontWeight:700,
-                              color:ed>0?"var(--green)":ed<0?"var(--red)":"var(--tx3)",
-                              background:ed>0?"var(--green-bg)":ed<0?"var(--red-bg)":"var(--bg2)"
+                              color:ed>0?"var(--green)":ed<0?"var(--red)":"var(--tx3)"
                             }}>{ed>0?"+":""}{ed}%</td>;
                           }
                           return <td style={{textAlign:"center",color:"var(--tx3)"}}>—</td>;
@@ -3495,7 +3493,7 @@ function CoachingPage({token, profile}) {
                 </tbody>
               </table>
             </div>
-            <div style={{fontSize:10,color:"var(--red)",marginTop:6,fontStyle:"italic"}}>EOM = average of filled weekly values. Difference = Actual minus Target.</div>
+            <div style={{fontSize:10,color:"var(--tx3)",marginTop:6,fontStyle:"italic"}}>EOM = average of filled weekly values. Difference = Actual minus Target.</div>
 
             {/* Conclusion */}
             <div style={{marginTop:16,padding:"14px",background:"var(--bg)",borderRadius:8,border:"1px solid var(--bd2)"}}>
@@ -5738,9 +5736,23 @@ async function logActivity(token, actor, action, targetType, targetId, details) 
 function NotificationBell({ token, profile, onNavigate }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
+  const [dismissed, setDismissed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("notif_dismissed") || "[]"); } catch { return []; }
+  });
   const ref = useRef(null);
   const isLead = hasRole(profile?.role, "qa_lead");
   const isSv = hasRole(profile?.role, "qa_supervisor");
+
+  const dismiss = (id) => {
+    const updated = [...dismissed, id];
+    setDismissed(updated);
+    localStorage.setItem("notif_dismissed", JSON.stringify(updated));
+  };
+
+  const dismissAll = () => {
+    const allIds = items.map(i => i.id);
+    setDismissed(prev => { const u = [...new Set([...prev, ...allIds])]; localStorage.setItem("notif_dismissed", JSON.stringify(u)); return u; });
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -5800,7 +5812,8 @@ function NotificationBell({ token, profile, onNavigate }) {
     return () => document.removeEventListener("mousedown", close);
   }, []);
 
-  const count = items.length;
+  const visible = items.filter(i => !dismissed.includes(i.id));
+  const count = visible.length;
   const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" } };
 
   return (
@@ -5810,18 +5823,25 @@ function NotificationBell({ token, profile, onNavigate }) {
         {count > 0 && <span className="notif-badge">{count > 9 ? "9+" : count}</span>}
       </button>
       {open && <div className="notif-dropdown">
-        <div className="notif-header"><span>Notifications</span><span style={{ fontSize: 11, color: "var(--tx3)" }}>{count} pending</span></div>
-        {items.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>All clear!</div> :
-          items.slice(0, 8).map(item => {
+        <div className="notif-header">
+          <span>Notifications</span>
+          <div style={{display:"flex",alignItems:"center",gap:8}}>
+            <span style={{ fontSize: 11, color: "var(--tx3)" }}>{count} pending</span>
+            {count > 0 && <button onClick={dismissAll} style={{fontSize:10,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>Clear all</button>}
+          </div>
+        </div>
+        {visible.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>All clear!</div> :
+          visible.slice(0, 8).map(item => {
             const tc = typeColor[item.type] || {};
-            return <div key={item.id} className="notif-item" onClick={() => { onNavigate(item.page); setOpen(false); }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
-                <div>
-                  <span className="search-result-type" style={{ background: tc.bg, color: tc.color, marginRight: 6 }}>{item.type}</span>
-                  <span style={{ fontWeight: 500 }}>{item.title}</span>
+            return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8}}>
+              <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); dismiss(item.id); }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
+                  <span style={{ fontWeight: 500, fontSize: 12 }}>{item.title}</span>
                 </div>
+                <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{item.sub} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
               </div>
-              <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{item.sub} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
+              <button onClick={(e) => { e.stopPropagation(); dismiss(item.id); }} title="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,padding:"2px",lineHeight:1,flexShrink:0,marginTop:2}}>×</button>
             </div>;
           })
         }
