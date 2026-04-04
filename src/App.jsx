@@ -2935,11 +2935,23 @@ function CoachingPage({token, profile}) {
         setToEmail(e.detail.email);
         setTab("compose");
         if (e.detail.type) setMeetingType(e.detail.type);
+        // Flag to auto-fill after data loads
+        window.__prefillAutoFill = true;
       }
     };
     window.addEventListener("prefill-coaching", handler);
     return () => window.removeEventListener("prefill-coaching", handler);
   }, []);
+
+  // Auto-fill targets when member has active plan and meeting type is AP/PIP Review
+  useEffect(() => {
+    if (memberActivePlan && (meetingType === "PIP Review" || meetingType === "Action Plan Review")) {
+      if (window.__prefillAutoFill || targetRows.length <= 1 && !targetRows[0]?.metric) {
+        window.__prefillAutoFill = false;
+        autoFillFromPlan();
+      }
+    }
+  }, [toEmail, memberActivePlan, meetingType]);
 
   // Get previous sessions for selected member
   const memberHistory = sessions.filter(s => s.member_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
@@ -3533,7 +3545,7 @@ function CoachingPage({token, profile}) {
               {ccEmail && <div style={{fontSize:13,marginBottom:4}}><span style={{color:"var(--tx3)",fontWeight:600,fontSize:11}}>CC:</span> {ccEmail}</div>}
               <div style={{fontSize:13,marginBottom:4}}><span style={{color:"var(--tx3)",fontWeight:600,fontSize:11}}>FROM:</span> {profile?.email}</div>
               <div style={{fontWeight:700,fontSize:15,padding:"12px 0",borderTop:"1px solid var(--bd2)",borderBottom:"1px solid var(--bd2)",margin:"10px 0 14px"}}>{emailSubject}</div>
-              <div style={{fontSize:13,lineHeight:1.85,maxHeight:500,overflowY:"auto"}} dangerouslySetInnerHTML={{__html: buildEmailBody()}}/>
+              <div style={{background:"#fff",color:"#1a1a1a",padding:"20px",borderRadius:8,fontSize:13,lineHeight:1.85,maxHeight:500,overflowY:"auto"}} dangerouslySetInnerHTML={{__html: buildEmailBody()}}/>
 
               <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--bd2)"}}>
                 <button className="btn btn-primary" onClick={generateAndSend} disabled={loading} style={{width:"100%",justifyContent:"center",padding:"12px"}}>
@@ -3968,7 +3980,8 @@ function ActionPlanPage({ token, profile }) {
     // Pull latest MTD data
     const months = sortMonthsDesc([...new Set(mtd.map(r => r.month))]);
     const latestMonth = months[0];
-    const row = mtd.find(r => r.month === latestMonth && r.qa_email?.toLowerCase() === qaEmail.toLowerCase());
+    const qaLocal = qaEmail.toLowerCase().split("@")[0];
+    const row = mtd.find(r => r.month === latestMonth && (r.qa_email?.toLowerCase() === qaEmail.toLowerCase() || r.qa_email?.toLowerCase().split("@")[0] === qaLocal));
     if (!row) { show("error", "No MTD data found for " + nameFromEmail(qaEmail) + " in " + latestMonth); return; }
 
     // Only pull actuals for KPIs that are in this plan's targets
