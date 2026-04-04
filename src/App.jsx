@@ -142,7 +142,7 @@ if (!document.querySelector('link[rel="manifest"]')) {
 
 /* ═══ ROLE SYSTEM ═══ */
 const ROLE_LEVEL={qa:1,senior_qa:3,qa_lead:3,qa_supervisor:4,admin:5,super_admin:6};
-const ROLE_LABELS={qa:"QA",senior_qa:"Senior QA",qa_lead:"QA Lead",qa_supervisor:"QA Supervisor",admin:"Admin",super_admin:"Super Admin"};
+const ROLE_LABELS={qa:"QA",senior_qa:"Senior QA",qa_lead:"QA Lead",auditor:"Auditor",qa_supervisor:"QA Supervisor",admin:"Admin",super_admin:"Super Admin"};
 const hasRole=(r,min)=>(ROLE_LEVEL[r]||0)>=(ROLE_LEVEL[min]||99);
 
 // Chronological month sort (newest first): "Mar-2026" > "Feb-2026" > "Jan-2026"
@@ -1590,7 +1590,7 @@ function ScoreEntryPage({token,profile,gf}){
   return (<div className="page">
     <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
       <div>
-        <div className="page-title">Performance Review</div>
+        <div className="page-title">Monthly Performance Review</div>
         <div className="page-subtitle">MTD performance data — synced from Metabase hourly</div>
       </div>
       {sorted.length>0&&<div style={{display:"flex",gap:16,alignItems:"center"}}>
@@ -2840,9 +2840,9 @@ function CoachingPage({token, profile}) {
   const [showPreview, setShowPreview] = useState(false);
   const [expandedSession, setExpandedSession] = useState(null);
 
-  const MEETING_TYPES = ["1:1 Meeting","Appraisal Review","Coaching Session","Weekly Check-in","Action Plan Review","PIP Review"];
-  const MEETING_TYPE_ENUM = {"1:1 Meeting":"weekly_1on1","Appraisal Review":"performance_review","Coaching Session":"ad_hoc","Weekly Check-in":"weekly_1on1","Action Plan Review":"ap_checkin","PIP Review":"pip_checkin"};
-  const ENUM_TO_LABEL = {"weekly_1on1":"1:1 Meeting","performance_review":"Appraisal Review","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
+  const MEETING_TYPES = ["1:1 Meeting","MPR","Coaching Session","Weekly Check-in","Action Plan Review","PIP Review"];
+  const MEETING_TYPE_ENUM = {"1:1 Meeting":"weekly_1on1","MPR":"performance_review","Coaching Session":"ad_hoc","Weekly Check-in":"weekly_1on1","Action Plan Review":"ap_checkin","PIP Review":"pip_checkin"};
+  const ENUM_TO_LABEL = {"weekly_1on1":"1:1 Meeting","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
   const TARGET_TYPES = ["Action Plan Review","PIP Review"];
   const isTargetType = TARGET_TYPES.includes(meetingType);
 
@@ -2864,7 +2864,7 @@ function CoachingPage({token, profile}) {
 
   const INTRO_MAP = {
     "1:1 Meeting":"This is a formal summary of our weekly 1:1 meeting.",
-    "Appraisal Review":"This is a formal summary of your Appraisal Review session.",
+    "MPR":"This is a formal summary of your MPR session.",
     "Coaching Session":"This is a formal summary of your Coaching Session.",
     "Weekly Check-in":"This is a formal summary of our Weekly Check-in.",
     "Action Plan Review":"This is a formal summary of your Action Plan Review. Please review your weekly targets and progress carefully.",
@@ -2877,7 +2877,7 @@ function CoachingPage({token, profile}) {
     "Weekly Check-in":{topics:"Weekly scorecard review\nCurrent challenges and blockers\nPriorities for the coming week",strengths:"Maintained consistent quality scores\nProactive communication",weaknesses:"Areas needing attention this week",goals:"Hit weekly targets across all KPIs",actions:"Focus on identified weak areas\nFlag any support needs by Wednesday"},
     "Action Plan Review":{topics:"Weekly target progress review\nCalibration score performance\nRTR session completion\nQuality consistency",strengths:"Commitment to improvement plan\nAttendance and engagement in sessions",weaknesses:"Areas where targets were not fully met\nSpecific attribute scoring gaps",goals:"Achieve agreed weekly targets\nImprove calibration alignment score",actions:"Complete weekly RTR sessions as agreed\nAttend all calibration sessions\nSubmit weekly self-review"},
     "PIP Review":{topics:"PIP target progress review\nDetailed performance metrics discussion\nSupport and resources assessment",strengths:"Positive steps taken during PIP period\nEngagement with coaching sessions",weaknesses:"Areas where PIP targets were not met\nRoot causes identified",goals:"Meet all PIP performance targets\nDemonstrate sustained improvement",actions:"Complete all agreed PIP actions\nMeet with HR for formal review\nSubmit weekly progress log"},
-    "Appraisal Review":{topics:"Overall performance review for the period\nKey achievements and highlights\nAreas requiring development",strengths:"Demonstrated ownership of quality metrics\nPositive attitude and team collaboration",weaknesses:"Consistency across all ticket categories\nDocumentation quality",goals:"Achieve target KPI scores for next quarter\nComplete mandatory compliance training",actions:"Submit self-appraisal form by end of week\nAgree on development plan for next period"},
+    "MPR":{topics:"Overall performance review for the period\nKey achievements and highlights\nAreas requiring development",strengths:"Demonstrated ownership of quality metrics\nPositive attitude and team collaboration",weaknesses:"Consistency across all ticket categories\nDocumentation quality",goals:"Achieve target KPI scores for next quarter\nComplete mandatory compliance training",actions:"Submit self-appraisal form by end of week\nAgree on development plan for next period"},
   };
 
   const nameFromEmail = (email) => {
@@ -5888,7 +5888,7 @@ function GlobalSearch({ token, onNavigate, onClose }) {
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
   {key:"leaderboard",label:"Leaderboard",icon:icons.leaderboard},
-  {key:"scores",label:"Performance Review",icon:icons.scores,section:"Performance"},
+  {key:"scores",label:"MPR",icon:icons.scores,section:"Performance"},
   {key:"dam",label:"DAM flags",icon:icons.dam,minRole:"qa_lead"},
   {key:"plans",label:"AP / PIP",icon:icons.plan,minRole:"qa_lead"},
   {key:"coaching",label:"Coaching",icon:icons.coaching,minRole:"qa_lead",section:"Management"},
@@ -6014,16 +6014,24 @@ export default function App(){
   const realRole=profile?.role||"qa";
   const userRole=viewAsRole||realRole;
   const effectiveProfile=viewAsRole?{...profile,role:viewAsRole}:profile;
-  const visibleNav=NAV_ITEMS.filter(n=>!n.minRole||hasRole(userRole,n.minRole)||n.key==="escalations");let curSec=null;
+  const isAuditor = userRole === "auditor";
+  const visibleNav=NAV_ITEMS.filter(n=>{
+    if (n.key === "escalations") return true;
+    if (isAuditor) {
+      // Auditors see: dashboard, leaderboard, scores, dam, violations, plans, escalations
+      return !n.minRole || ["dam","violations","plans"].includes(n.key);
+    }
+    return !n.minRole || hasRole(userRole, n.minRole);
+  });let curSec=null;
   const renderPage=()=>{const t=session.access_token;const p=effectiveProfile;const gf=globalFilters;switch(page){
     case"dashboard":return<DashboardPage profile={p} token={t} gf={gf}/>;
     case"scores":return<ScoreEntryPage token={t} profile={p} gf={gf}/>;
     case"admin":return hasRole(userRole,"admin")?<AdminPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>;
     case"leaderboard":return<LeaderboardPage token={t} profile={p} gf={gf}/>;
-    case"dam":return hasRole(userRole,"qa_lead")?<DAMPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
-    case"plans":return hasRole(userRole,"qa_lead")?<ActionPlanPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Action plans & PIPs" icon={icons.plan} minRole="qa_lead" userRole={userRole}/>;
-    case"coaching":return hasRole(userRole,"qa_lead")?<CoachingPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
-    case"violations":return hasRole(userRole,"qa_lead")?<CoachingViolationsPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Coaching Violations" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
+    case"dam":return (hasRole(userRole,"qa_lead")||userRole==="auditor")?<DAMPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
+    case"plans":return (hasRole(userRole,"qa_lead")||userRole==="auditor")?<ActionPlanPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Action plans & PIPs" icon={icons.plan} minRole="qa_lead" userRole={userRole}/>;
+    case"coaching":return hasRole(userRole,"qa_lead")&&userRole!=="auditor"?<CoachingPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
+    case"violations":return (hasRole(userRole,"qa_lead")||userRole==="auditor")?<CoachingViolationsPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Coaching Violations" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
     case"hr":return<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>;
     case"escalations":return<EscalationsPage token={t} profile={p} gf={gf}/>;
     default:return<DashboardPage profile={p} token={t} gf={gf}/>;
