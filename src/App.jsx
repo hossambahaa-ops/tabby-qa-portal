@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import "./index.css";
 
 // Style overrides — topbar, collapsible sidebar, dark mode, notifications, search
+document.title = "Tabby Pulse — QA Performance & Analytics";
 const styleOverride = document.createElement("style");
 styleOverride.textContent = `
   .topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(250,250,250,.8) !important; }
@@ -115,7 +116,7 @@ document.head.appendChild(styleOverride);
 
 // PWA manifest injection
 if (!document.querySelector('link[rel="manifest"]')) {
-  const manifest = { name: "Tabby RADAR", short_name: "RADAR", start_url: "/", display: "standalone", background_color: "#1A1A1A", theme_color: "#3CFFA5", icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='50' width='20' height='40' rx='4' fill='%233CFFA5'/%3E%3Crect x='40' y='25' width='20' height='65' rx='4' fill='%233CFFA5'/%3E%3Crect x='70' y='10' width='20' height='80' rx='4' fill='%233CFFA5'/%3E%3C/svg%3E", sizes: "any", type: "image/svg+xml" }] };
+  const manifest = { name: "Tabby Pulse", short_name: "Pulse", start_url: "/", display: "standalone", background_color: "#1A1A1A", theme_color: "#3CFFA5", icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='50' width='20' height='40' rx='4' fill='%233CFFA5'/%3E%3Crect x='40' y='25' width='20' height='65' rx='4' fill='%233CFFA5'/%3E%3Crect x='70' y='10' width='20' height='80' rx='4' fill='%233CFFA5'/%3E%3C/svg%3E", sizes: "any", type: "image/svg+xml" }] };
   const blob = new Blob([JSON.stringify(manifest)], { type: "application/json" });
   const link = document.createElement("link");
   link.rel = "manifest";
@@ -405,10 +406,12 @@ const icons={
   trash:"M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
 };
 const TabbyLogo = ({size=24, color="#3BFF9D"}) => (
-  <svg width={size * 4.5} height={size} viewBox="0 0 450 100" fill="none">
-    <rect width="450" height="100" rx="16" fill="var(--sidebar-bg)"/>
-    <text x="28" y="68" fontFamily="'Plus Jakarta Sans', sans-serif" fontSize="52" fontWeight="700" fill="#fff" letterSpacing="-1">tabby</text>
-    <text x="222" y="68" fontFamily="'Plus Jakarta Sans', sans-serif" fontSize="52" fontWeight="700" fill={color} letterSpacing="-1">RADAR</text>
+  <svg width={size * 5} height={size} viewBox="0 0 500 100" fill="none">
+    <rect width="500" height="100" rx="16" fill="var(--sidebar-bg)"/>
+    <path d="M30 50 L55 50 L65 25 L80 75 L95 35 L105 50 L130 50" stroke="url(#logoGrad)" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+    <defs><linearGradient id="logoGrad" x1="30" y1="50" x2="130" y2="50"><stop offset="0%" stopColor="#3BFF9D"/><stop offset="100%" stopColor="#6A2C79"/></linearGradient></defs>
+    <text x="142" y="68" fontFamily="'Plus Jakarta Sans', sans-serif" fontSize="52" fontWeight="700" fill="#fff" letterSpacing="-1">tabby</text>
+    <text x="336" y="68" fontFamily="'Plus Jakarta Sans', sans-serif" fontSize="52" fontWeight="700" fill={color} letterSpacing="-1">Pulse</text>
   </svg>
 );
 
@@ -5830,8 +5833,27 @@ export default function App(){
       setPendingAnnouncements(prev=>prev.filter(a=>a.id!==annId));
     }catch(e){console.error("Ack error:",e);}
   };
-  if(loading)return<div className="loading-fullscreen"><div style={{marginBottom:24,fontSize:24,fontWeight:700,color:"#fff",letterSpacing:"-1px"}}>tabby<span style={{background:"linear-gradient(135deg, #3BFF9D, #6A2C79)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>RADAR</span></div><div className="spinner"/><p style={{marginTop:16,color:"rgba(255,255,255,.4)",fontSize:13}}>Loading your workspace...</p></div>;
-  if(!session)return(<div className="login-page"><div className="login-card"><div style={{marginBottom:8}}><TabbyLogo size={28}/></div><div className="login-subtitle">QA Performance & Analytics Dashboard<br/>Sign in with your Tabby Google account.</div><button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}><GoogleLogo/>Sign in with Google</button><div className="login-divider">Supported domains</div><div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div><div className="login-footer">Internal tool &middot; Tabby RADAR</div></div></div>);
+  if(loading)return<div className="loading-fullscreen">
+    <svg width="200" height="60" viewBox="0 0 200 60" fill="none" className="pulse-line-anim">
+      <path d="M0 30 L40 30 L55 8 L75 52 L95 20 L110 30 L200 30" stroke="url(#pulseGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <defs><linearGradient id="pulseGrad" x1="0" y1="0" x2="200" y2="0"><stop offset="0%" stopColor="#3BFF9D"/><stop offset="100%" stopColor="#6A2C79"/></linearGradient></defs>
+    </svg>
+    <div style={{marginTop:20,fontSize:32,fontWeight:700,color:"#fff",letterSpacing:"-1px"}}>tabby<span style={{background:"linear-gradient(135deg, #3BFF9D, #6A2C79)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Pulse</span></div>
+    <p style={{marginTop:6,color:"rgba(255,255,255,.35)",fontSize:12,letterSpacing:"2px",textTransform:"uppercase"}}>QA Performance & Analytics</p>
+    <div className="spinner" style={{marginTop:28}}/>
+    <p style={{marginTop:16,color:"rgba(255,255,255,.3)",fontSize:12}}>Loading your workspace...</p>
+  </div>;
+  if(!session)return(<div className="login-page"><div className="login-card">
+    <div style={{marginBottom:16,display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
+      <svg width="120" height="40" viewBox="0 0 120 40" fill="none"><path d="M0 20 L24 20 L33 5 L45 35 L57 13 L66 20 L120 20" stroke="url(#lgGrad)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/><defs><linearGradient id="lgGrad" x1="0" y1="0" x2="120" y2="0"><stop offset="0%" stopColor="#3BFF9D"/><stop offset="100%" stopColor="#6A2C79"/></linearGradient></defs></svg>
+      <div style={{fontSize:28,fontWeight:700,color:"#fff",letterSpacing:"-1px"}}>tabby<span style={{background:"linear-gradient(135deg, #3BFF9D, #6A2C79)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>Pulse</span></div>
+    </div>
+    <div className="login-subtitle">QA Performance & Analytics<br/>Sign in with your Tabby Google account.</div>
+    <button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}><GoogleLogo/>Sign in with Google</button>
+    <div className="login-divider">Supported domains</div>
+    <div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div>
+    <div className="login-footer">Internal tool &middot; Tabby Pulse</div>
+  </div></div>);
   const realRole=profile?.role||"qa";
   const userRole=viewAsRole||realRole;
   const effectiveProfile=viewAsRole?{...profile,role:viewAsRole}:profile;
@@ -5853,7 +5875,7 @@ export default function App(){
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
       <div className="sidebar-header" style={{display:"flex",alignItems:"center",justifyContent:sidebarCollapsed?"center":"space-between"}}>
-        <div className="sidebar-brand">{sidebarCollapsed?<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><rect x="3" y="12" width="4" height="9" rx="1" fill="#3BFF9D"/><rect x="10" y="7" width="4" height="14" rx="1" fill="#3BFF9D" opacity=".75"/><rect x="17" y="3" width="4" height="18" rx="1" fill="#6A2C79" opacity=".8"/></svg>:<>tabby<span>RADAR</span></>}</div>
+        <div className="sidebar-brand">{sidebarCollapsed?<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M2 12 L6 12 L8 5 L12 19 L16 9 L18 12 L22 12" stroke="#3BFF9D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>:<>tabby<span>Pulse</span></>}</div>
         <button className="sidebar-toggle" onClick={()=>setSidebarCollapsed(!sidebarCollapsed)} title={sidebarCollapsed?"Expand":"Collapse"}>
           <Icon d={sidebarCollapsed?"M9 5l7 7-7 7":"M15 19l-7-7 7-7"} size={16}/>
         </button>
