@@ -214,16 +214,18 @@ function SearchableSelect({ options, value, onChange, placeholder, multi = false
         <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>{displayValue() || placeholder || "Select..."}</span>
         <svg width="10" height="10" viewBox="0 0 10 10" style={{ flexShrink: 0, opacity: 0.5 }}><path d="M2 4l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5"/></svg>
       </button>
-      {open && <div style={{
-        position: "absolute", top: "calc(100% + 4px)", left: 0, right: "auto", minWidth: "100%", width: "100%",
-        maxHeight: 280, background: "var(--bg3)", border: "1px solid var(--bd)", borderRadius: "var(--radius)",
-        boxShadow: "0 8px 30px rgba(0,0,0,.15)", zIndex: 200, overflow: "hidden", display: "flex", flexDirection: "column",
-      }} ref={el => {
-        if (el) {
-          const rect = el.getBoundingClientRect();
-          if (rect.right > window.innerWidth - 8) { el.style.left = "auto"; el.style.right = "0"; }
-        }
-      }}>
+      {open && (()=>{
+        const btnRect = ref.current?.getBoundingClientRect();
+        const top = (btnRect?.bottom||0) + 4;
+        const left = btnRect?.left||0;
+        const w = btnRect?.width||200;
+        const flipUp = top + 280 > window.innerHeight;
+        return <div style={{
+          position: "fixed", top: flipUp ? "auto" : top, bottom: flipUp ? (window.innerHeight - (btnRect?.top||0) + 4) : "auto",
+          left: left, width: w, minWidth: 180,
+          maxHeight: 280, background: "var(--bg3)", border: "1px solid var(--bd)", borderRadius: "var(--radius)",
+          boxShadow: "0 8px 30px rgba(0,0,0,.15)", zIndex: 9000, overflow: "hidden", display: "flex", flexDirection: "column",
+        }}>
         <input
           ref={inputRef}
           value={search}
@@ -259,7 +261,7 @@ function SearchableSelect({ options, value, onChange, placeholder, multi = false
             </button>;
           })}
         </div>
-      </div>}
+      </div>;})()}
     </div>
   );
 }
@@ -606,7 +608,29 @@ function DashboardPage({profile,token,gf}){
       return false;
     });
     const filteredMtd = mtdRows.filter(r => !blacklistD.has(r.qa_email?.toLowerCase()));
-    setMtd(filteredMtd);setRoster(filteredRoster);setDamCount(damFlagsRaw.filter(f=>f.status==="pending").length);
+    // Normalize cross-domain: if a QA exists in roster as @tabby.ai, normalize their @tabby.sa MTD records to @tabby.ai (and vice versa)
+    const rosterEmailSet = new Set(filteredRoster.map(r=>r.email?.toLowerCase()));
+    const normalizedMtd = filteredMtd.map(r => {
+      const em = r.qa_email?.toLowerCase();
+      if (!em) return r;
+      if (rosterEmailSet.has(em)) return r; // already matches roster
+      const local = em.split("@")[0];
+      const alt = em.endsWith("@tabby.ai") ? local+"@tabby.sa" : local+"@tabby.ai";
+      if (rosterEmailSet.has(alt)) return {...r, qa_email: alt}; // normalize to roster email
+      return r;
+    });
+    // Also normalize qa_tl field
+    const normalizedMtd2 = normalizedMtd.map(r => {
+      const tl = r.qa_tl?.toLowerCase();
+      if (!tl) return r;
+      const tlLocal = tl.split("@")[0];
+      const tlAlt = tl.endsWith("@tabby.ai") ? tlLocal+"@tabby.sa" : tlLocal+"@tabby.ai";
+      // If the TL is in profiles under the alt email, normalize
+      const profEmails = new Set(profs.map(p=>p.email?.toLowerCase()));
+      if (!profEmails.has(tl) && profEmails.has(tlAlt)) return {...r, qa_tl: tlAlt};
+      return r;
+    });
+    setMtd(normalizedMtd2);setRoster(filteredRoster);setDamCount(damFlagsRaw.filter(f=>f.status==="pending").length);
     setProfileCount({qas:filteredRoster.length,leads:[...new Set(filteredRoster.map(r=>r.manager_email).filter(Boolean))].length,active:profs.length});
     setApPlans(plans);setApWeeks(planWeeks);setApDismissals(dismissals);
 
