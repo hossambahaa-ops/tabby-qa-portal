@@ -2930,6 +2930,7 @@ function CoachingPage({token, profile}) {
 
   // Listen for prefill from AP/PIP page
   const pendingPrefillRef = useRef(null);
+  const pendingPrefillTypeRef = useRef(null);
   useEffect(() => {
     const handler = (e) => {
       if (e.detail?.email) {
@@ -2937,6 +2938,7 @@ function CoachingPage({token, profile}) {
         setTab("compose");
         if (e.detail.type) setMeetingType(e.detail.type);
         pendingPrefillRef.current = e.detail.email;
+        pendingPrefillTypeRef.current = e.detail.type;
       }
     };
     window.addEventListener("prefill-coaching", handler);
@@ -2947,11 +2949,14 @@ function CoachingPage({token, profile}) {
   useEffect(() => {
     if (!pendingPrefillRef.current) return;
     const email = pendingPrefillRef.current;
-    const plan = activePlans.find(p => p.qa_email?.toLowerCase() === email.toLowerCase());
+    const requestedType = pendingPrefillTypeRef.current;
+    // Match by plan type: "PIP Review" → pip, "Action Plan Review" → ap
+    const wantType = requestedType === "PIP Review" ? "pip" : "ap";
+    const plan = activePlans.find(p => p.qa_email?.toLowerCase() === email.toLowerCase() && p.type === wantType)
+      || activePlans.find(p => p.qa_email?.toLowerCase() === email.toLowerCase());
     if (!plan) {
-      // Plans not loaded yet — try fetching directly
       if (activePlans.length === 0) {
-        sb.query("action_plans", {select:"*", filters:`qa_email=eq.${email}&status=eq.active`, token}).then(directPlans => {
+        sb.query("action_plans", {select:"*", filters:`qa_email=eq.${email}&status=eq.active&type=eq.${wantType}`, token}).then(directPlans => {
           if (directPlans.length > 0) fillTargetsFromPlan(directPlans[0]);
         }).catch(() => {});
       }
@@ -2966,6 +2971,7 @@ function CoachingPage({token, profile}) {
     pendingPrefillRef.current = null;
     try {
       const parsed = JSON.parse(plan.targets);
+      const isMonthly = parsed.follow_up_mode === "monthly";
       const metrics = Array.isArray(parsed) ? parsed : (parsed.metrics || []);
       if (metrics.length === 0) return;
       const rows = metrics.map(t => {
@@ -2978,6 +2984,7 @@ function CoachingPage({token, profile}) {
           w3: wt[2] != null ? String(wt[2]) : "",
           w4: wt[3] != null ? String(wt[3]) : "",
           a1: "", a2: "", a3: "", a4: "", _kpi_key: t.kpi_key,
+          _monthly: isMonthly,
         };
       });
       if (rows[0]?.metric) {
@@ -2992,8 +2999,9 @@ function CoachingPage({token, profile}) {
   // Get previous sessions for selected member
   const memberHistory = sessions.filter(s => s.member_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
 
-  // ── AP/PIP Integration: detect active plan for selected member ──
-  const memberActivePlan = activePlans.find(p => p.qa_email?.toLowerCase() === toEmail.toLowerCase());
+  // ── AP/PIP Integration: detect active plans for selected member ──
+  const memberPlans = activePlans.filter(p => p.qa_email?.toLowerCase() === toEmail.toLowerCase());
+  const memberActivePlan = memberPlans.find(p => meetingType === "PIP Review" ? p.type === "pip" : p.type === "ap") || memberPlans[0];
   const memberPlanWeeks = memberActivePlan ? planWeeks.filter(w => w.plan_id === memberActivePlan.id).sort((a, b) => a.week_number - b.week_number) : [];
   const nextUnfilledWeek = memberPlanWeeks.find(w => !w.actual_data);
 
@@ -3406,18 +3414,27 @@ function CoachingPage({token, profile}) {
             </div>}
           </div>
 
-          {/* Active AP/PIP plan notice */}
-          {toEmail && memberActivePlan && <div style={{padding:"12px 16px",background:memberActivePlan.type==="pip"?"var(--red-bg)":"var(--amber-bg)",borderRadius:8,border:`1px solid ${memberActivePlan.type==="pip"?"var(--red)":"var(--amber)"}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:18}}>{memberActivePlan.type==="pip"?"⚠️":"📋"}</span>
-              <div>
-                <div style={{fontSize:13,fontWeight:600,color:memberActivePlan.type==="pip"?"var(--red)":"var(--amber)"}}>Active {memberActivePlan.type.toUpperCase()} plan</div>
-                <div style={{fontSize:11,color:"var(--tx2)"}}>
-                  Week {memberPlanWeeks.filter(w=>w.actual_data).length + 1} of {memberActivePlan.duration_weeks} · {nextUnfilledWeek ? "Next review due" : "All weeks filled"}
+          {/* Active AP/PIP plan notice — show all plans with separate pull buttons */}
+          {toEmail && memberPlans.length > 0 && <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {memberPlans.map(mp => {
+              const isPip = mp.type === "pip";
+              const mpWeeks = planWeeks.filter(w => w.plan_id === mp.id).sort((a, b) => a.week_number - b.week_number);
+              const filled = mpWeeks.filter(w => w.actual_data).length;
+              return <div key={mp.id} style={{padding:"12px 16px",background:isPip?"var(--red-bg)":"var(--amber-bg)",borderRadius:8,border:`1px solid ${isPip?"var(--red)":"var(--amber)"}`,display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <span style={{fontSize:18}}>{isPip?"⚠️":"📋"}</span>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600,color:isPip?"var(--red)":"var(--amber)"}}>Active {mp.type.toUpperCase()} plan</div>
+                    <div style={{fontSize:11,color:"var(--tx2)"}}>
+                      {filled} of {mp.duration_weeks} periods filled · {mpWeeks.find(w=>!w.actual_data) ? "Next review due" : "All filled"}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-            <button className="btn btn-outline btn-sm" onClick={autoFillFromPlan} style={{fontWeight:600}}>Auto-fill targets from plan</button>
+                <button className="btn btn-outline btn-sm" onClick={() => fillTargetsFromPlan(mp)} style={{fontWeight:600}}>
+                  Pull {mp.type.toUpperCase()} targets
+                </button>
+              </div>;
+            })}
           </div>}
 
           {/* Template bar */}
@@ -3458,13 +3475,17 @@ function CoachingPage({token, profile}) {
 
           {/* Target table (AP/PIP only) */}
           {isTargetType && <div className="card" style={{border:"1.5px solid var(--red)",borderColor:"var(--red)"}}>
-            <div className="card-header"><span className="card-title" style={{color:"var(--accent)"}}>Weekly QA Review — Score Tracking</span>
+            {(()=>{
+              const isMonthlyPlan = targetRows[0]?._monthly;
+              const colLabels = isMonthlyPlan ? ["M1","M2","M3","M4"] : ["W1","W2","W3","W4"];
+              return <>
+            <div className="card-header"><span className="card-title" style={{color:"var(--accent)"}}>{isMonthlyPlan ? "Monthly" : "Weekly"} QA Review — Score Tracking</span>
               <button className="btn btn-outline btn-sm" onClick={addTargetRow}><Icon d={icons.plus} size={14}/>Add metric</button>
             </div>
             <div className="table-wrap">
               <table style={{fontSize:12}}>
                 <thead><tr>
-                  <th>Metric</th><th>Row</th><th>Start</th><th>W1</th><th>W2</th><th>W3</th><th>W4</th><th>EOM</th><th style={{width:30}}></th>
+                  <th>Metric</th><th>Row</th><th>Start</th>{colLabels.map(c=><th key={c}>{c}</th>)}<th>EOM</th><th style={{width:30}}></th>
                 </tr></thead>
                 <tbody>
                   {targetRows.map((r, ri) => {
@@ -3531,10 +3552,10 @@ function CoachingPage({token, profile}) {
               {outcome==="fail" && <div className="form-group" style={{marginTop:8}}>
                 <label className="form-label">Agreed next steps / consequence</label>
                 <textarea className="form-input" rows={2} value={nextSteps} onChange={e=>setNextSteps(e.target.value)} placeholder="Describe the formal next steps..." style={{resize:"vertical"}}/>
-                <div style={{marginTop:8,padding:"8px 12px",background:"var(--red-bg)",borderRadius:6,fontSize:12,color:"var(--red)",fontWeight:500}}>⚠️ Please add HR to the CC field before sending.</div>
+                <div style={{marginTop:8,padding:"8px 12px",background:"var(--red-bg)",borderRadius:6,fontSize:12,color:"var(--red)",fontWeight:500}}>Please add HR to the CC field before sending.</div>
               </div>}
             </div>
-          </div>}
+          </>; })()}</div>}
 
           {/* Action buttons */}
           <div style={{display:"flex",gap:8}}>
