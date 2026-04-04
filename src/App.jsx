@@ -2935,23 +2935,12 @@ function CoachingPage({token, profile}) {
         setToEmail(e.detail.email);
         setTab("compose");
         if (e.detail.type) setMeetingType(e.detail.type);
-        // Flag to auto-fill after data loads
         window.__prefillAutoFill = true;
       }
     };
     window.addEventListener("prefill-coaching", handler);
     return () => window.removeEventListener("prefill-coaching", handler);
   }, []);
-
-  // Auto-fill targets when member has active plan and meeting type is AP/PIP Review
-  useEffect(() => {
-    if (memberActivePlan && (meetingType === "PIP Review" || meetingType === "Action Plan Review")) {
-      if (window.__prefillAutoFill || targetRows.length <= 1 && !targetRows[0]?.metric) {
-        window.__prefillAutoFill = false;
-        autoFillFromPlan();
-      }
-    }
-  }, [toEmail, memberActivePlan, meetingType]);
 
   // Get previous sessions for selected member
   const memberHistory = sessions.filter(s => s.member_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
@@ -2987,6 +2976,17 @@ function CoachingPage({token, profile}) {
     else if (memberActivePlan.type === "ap" && meetingType !== "Action Plan Review") setMeetingType("Action Plan Review");
     show("success", `Targets auto-filled from active ${memberActivePlan.type.toUpperCase()} plan (Week ${nextUnfilledWeek?.week_number || "—"})`);
   };
+
+  // Auto-fill targets when navigating from AP/PIP page or when member has active plan
+  useEffect(() => {
+    if (!memberActivePlan) return;
+    if (meetingType !== "PIP Review" && meetingType !== "Action Plan Review") return;
+    const isEmpty = targetRows.length <= 1 && (!targetRows[0]?.metric || targetRows[0]?.metric === "");
+    if (window.__prefillAutoFill || isEmpty) {
+      window.__prefillAutoFill = false;
+      try { autoFillFromPlan(); } catch(e) { console.error("Auto-fill error:", e); }
+    }
+  }, [toEmail, meetingType, memberActivePlan?.id]);
 
   // Apply template
   const applyTemplate = (forceType) => {
