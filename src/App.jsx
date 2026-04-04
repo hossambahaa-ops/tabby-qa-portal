@@ -2928,64 +2928,66 @@ function CoachingPage({token, profile}) {
     })();
   }, [token]);
 
-  // Listen for prefill from AP/PIP page — uses retry to wait for data to load
+  // Listen for prefill from AP/PIP page
+  const pendingPrefillRef = useRef(null);
   useEffect(() => {
     const handler = (e) => {
       if (e.detail?.email) {
         setToEmail(e.detail.email);
         setTab("compose");
         if (e.detail.type) setMeetingType(e.detail.type);
-        // Fire multiple delayed events — one will land after data loads
-        for (let i = 1; i <= 10; i++) {
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent("_fill_targets", { detail: e.detail.email }));
-          }, i * 500);
-        }
+        pendingPrefillRef.current = e.detail.email;
       }
     };
     window.addEventListener("prefill-coaching", handler);
     return () => window.removeEventListener("prefill-coaching", handler);
   }, []);
 
-  // Fill handler — runs with current activePlans state
-  // Re-registers whenever activePlans changes so it always has fresh data
-  const fillHandledRef = useRef(false);
+  // When toEmail changes OR activePlans loads, check if we need to fill targets
   useEffect(() => {
-    fillHandledRef.current = false; // Reset when plans change
-  }, [activePlans.length]);
+    if (!pendingPrefillRef.current) return;
+    const email = pendingPrefillRef.current;
+    const plan = activePlans.find(p => p.qa_email?.toLowerCase() === email.toLowerCase());
+    if (!plan) {
+      // Plans not loaded yet — try fetching directly
+      if (activePlans.length === 0) {
+        sb.query("action_plans", {select:"*", filters:`qa_email=eq.${email}&status=eq.active`, token}).then(directPlans => {
+          if (directPlans.length > 0) fillTargetsFromPlan(directPlans[0]);
+        }).catch(() => {});
+      }
+      return;
+    }
+    fillTargetsFromPlan(plan);
+  }, [toEmail, activePlans.length]);
 
-  useEffect(() => {
-    const handler = (e) => {
-      if (fillHandledRef.current) return; // Already filled, skip further retries
-      const email = e.detail;
-      if (!email || activePlans.length === 0) return;
-      const plan = activePlans.find(p => p.qa_email?.toLowerCase() === email.toLowerCase());
-      if (!plan) return;
-      try {
-        const parsed = JSON.parse(plan.targets || "{}");
-        const metrics = Array.isArray(parsed) ? parsed : (parsed.metrics || []);
-        if (metrics.length === 0) return;
-        const rows = metrics.map(t => ({
+  // Fill target rows from a plan object
+  const fillTargetsFromPlan = (plan) => {
+    if (!plan?.targets) return;
+    pendingPrefillRef.current = null;
+    try {
+      const parsed = JSON.parse(plan.targets);
+      const metrics = Array.isArray(parsed) ? parsed : (parsed.metrics || []);
+      if (metrics.length === 0) return;
+      const rows = metrics.map(t => {
+        const wt = t.weekly_targets || [];
+        return {
           metric: t.label || t.kpi_key || "",
           start: t.current_value != null ? String(Math.round(t.current_value)) : "",
-          w1: (t.weekly_targets?.[0] ?? t.target_value ?? "") + "",
-          w2: t.weekly_targets?.[1] != null ? String(t.weekly_targets[1]) : "",
-          w3: t.weekly_targets?.[2] != null ? String(t.weekly_targets[2]) : "",
-          w4: t.weekly_targets?.[3] != null ? String(t.weekly_targets[3]) : "",
+          w1: wt[0] != null ? String(wt[0]) : (t.target_value ? String(t.target_value) : ""),
+          w2: wt[1] != null ? String(wt[1]) : "",
+          w3: wt[2] != null ? String(wt[2]) : "",
+          w4: wt[3] != null ? String(wt[3]) : "",
           a1: "", a2: "", a3: "", a4: "", _kpi_key: t.kpi_key,
-        }));
-        if (rows[0]?.metric) {
-          setTargetRows(rows);
-          fillHandledRef.current = true; // Mark as done
-          if (plan.type === "pip") setMeetingType("PIP Review");
-          else if (plan.type === "ap") setMeetingType("Action Plan Review");
-          show("success", `Targets loaded from ${plan.type.toUpperCase()} plan`);
-        }
-      } catch {}
-    };
-    window.addEventListener("_fill_targets", handler);
-    return () => window.removeEventListener("_fill_targets", handler);
-  }, [activePlans]);
+        };
+      });
+      if (rows[0]?.metric) {
+        setTargetRows(rows);
+        if (plan.type === "pip") setMeetingType("PIP Review");
+        else if (plan.type === "ap") setMeetingType("Action Plan Review");
+        show("success", `Targets loaded from ${plan.type.toUpperCase()} plan`);
+      }
+    } catch(e) { console.error("Fill targets:", e); }
+  };
 
   // Get previous sessions for selected member
   const memberHistory = sessions.filter(s => s.member_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
@@ -2997,8 +2999,7 @@ function CoachingPage({token, profile}) {
 
   // Manual button handler for auto-fill
   const autoFillFromPlan = () => {
-    if (!memberActivePlan) return;
-    window.dispatchEvent(new CustomEvent("_fill_targets", { detail: toEmail }));
+    if (memberActivePlan) fillTargetsFromPlan(memberActivePlan);
   };
 
   // Apply template
