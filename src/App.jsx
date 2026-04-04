@@ -5516,6 +5516,7 @@ function EscalationsPage({ token, profile, gf }) {
                 ...allProfiles.filter(p =>
                   (p.role === "qa_lead" || p.role === "qa_supervisor" || p.role === "admin" || p.role === "super_admin")
                   && p.email?.toLowerCase() !== myEmail
+                  && !p.email?.toLowerCase().includes("imad.moussa")
                   && !roster.find(rr => rr.email?.toLowerCase() === p.email?.toLowerCase())
                 ).map(p => ({
                   value: p.email, label: `${p.display_name || nameFromEmail(p.email)} — ${ROLE_LABELS[p.role] || p.role}`
