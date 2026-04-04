@@ -1162,17 +1162,34 @@ function DashboardPage({profile,token,gf}){
       {/* Team members table */}
       {teamSorted.length>0&&<div className="card" style={{marginBottom:20}}>
         <div className="card-header"><span className="card-title">My team — {latestMonth}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{teamSorted.length} specialists</span></div>
-        <div className="table-wrap"><table><thead><tr><th>#</th><th>Specialist</th><th style={{textAlign:"right"}}>Score</th><th style={{textAlign:"right"}}>Tickets/d</th><th style={{textAlign:"right"}}>DSAT</th><th style={{textAlign:"right"}}>Occupancy</th><th style={{textAlign:"right"}}>RTR</th><th style={{textAlign:"center"}}>JKQ</th></tr></thead><tbody>
-          {teamSorted.map((r,i)=>(<tr key={r.id}>
+        <div className="table-wrap"><table><thead><tr>
+          <th>#</th>
+          <th>Specialist</th>
+          <th style={{textAlign:"right"}}>Score</th>
+          <th style={{textAlign:"right"}}>Occupancy</th>
+          <th style={{textAlign:"right"}}>Avg T/D</th>
+          <th style={{textAlign:"right"}}>Coaching %</th>
+          <th style={{textAlign:"right"}}>SBS</th>
+          <th style={{textAlign:"right"}}>RTR</th>
+          <th style={{textAlign:"right"}}>CO %</th>
+          <th style={{textAlign:"right"}}>ST/Hr</th>
+          <th style={{textAlign:"right"}}>WD</th>
+        </tr></thead><tbody>
+          {teamSorted.map((r,i)=>{
+            const stHours = r.side_tasks_duration_mins ? (r.side_tasks_duration_mins / 60).toFixed(1) : "—";
+            return (<tr key={r.id}>
             <td style={{fontWeight:500,color:i<3?"var(--amber)":"var(--tx3)"}}>{i+1}</td>
             <td style={{fontWeight:500}}>{nameFromEmail(r.qa_email)}</td>
             <td style={{textAlign:"right"}}><span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:scoreBg(getScore(r)),color:scoreColor(getScore(r))}}>{getScore(r).toFixed(1)} / {maxScore}</span></td>
-            <td style={{textAlign:"right",color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day??0}</td>
-            <td style={{textAlign:"right"}}>{r.dsat??0}</td>
             <td style={{textAlign:"right"}}>{fmt(r.occupancy_pct)}</td>
+            <td style={{textAlign:"right",color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day??0}</td>
+            <td style={{textAlign:"right"}}>{fmt(r.coaching_completion_pct)}</td>
+            <td style={{textAlign:"right"}}>{r.sbs??0}</td>
             <td style={{textAlign:"right"}}>{fmt(r.avg_rtr_score)}</td>
-            <td style={{textAlign:"center"}}>{r.jkq_result&&r.jkq_result!=="N/A"?<span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}</span>:<span style={{color:"var(--tx3)"}}>—</span>}</td>
-          </tr>))}
+            <td style={{textAlign:"right"}}>{fmt(r.avg_observation_score_pct)}</td>
+            <td style={{textAlign:"right"}}>{stHours}</td>
+            <td style={{textAlign:"right"}}>{r.working_days??0}</td>
+          </tr>);})}
         </tbody></table></div>
       </div>}
     </>}
