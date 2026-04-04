@@ -5925,7 +5925,7 @@ export default function App(){
   const[sidebarOpen,setSidebarOpen]=useState(false);
   const[sidebarCollapsed,setSidebarCollapsed]=useState(()=>localStorage.getItem("sb_collapsed")==="true");
   const[viewAsRole,setViewAsRole]=useState("");
-  const[darkMode,setDarkMode]=useState(()=>localStorage.getItem("dark_mode")==="true");
+  const[darkMode,setDarkMode]=useState(()=>{const stored=localStorage.getItem("dark_mode");return stored===null?true:stored==="true";});
   const[showSearch,setShowSearch]=useState(false);
   const[globalFilters,setGlobalFilters]=useState({...defaultFilters});
   const[globalRoster,setGlobalRoster]=useState([]);
