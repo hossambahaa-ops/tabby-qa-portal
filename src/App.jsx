@@ -2979,34 +2979,47 @@ function CoachingPage({token, profile}) {
 
   // Auto-fill targets when navigating from AP/PIP page or when member has active plan
   useEffect(() => {
-    if (!toEmail || !memberActivePlan) return;
+    if (!toEmail) return;
+    // Find the active plan for this member
+    const plan = activePlans.find(p => p.qa_email?.toLowerCase() === toEmail.toLowerCase());
+    if (!plan) return;
     if (meetingType !== "PIP Review" && meetingType !== "Action Plan Review") return;
+    
+    // Only auto-fill if triggered from AP/PIP page OR if table is empty
     const isEmpty = targetRows.length <= 1 && (!targetRows[0]?.metric || targetRows[0]?.metric === "");
-    if (window.__prefillAutoFill || isEmpty) {
-      window.__prefillAutoFill = false;
-      try {
-        const targets = (() => { try { const p=JSON.parse(memberActivePlan.targets || "[]"); return Array.isArray(p)?p:p.metrics||[]; } catch { return []; } })();
-        if (targets.length === 0) return;
-        const mPlanWeeks = planWeeks.filter(w => w.plan_id === memberActivePlan.id).sort((a, b) => a.week_number - b.week_number);
-        const nextWeek = mPlanWeeks.find(w => !w.actual_data);
-        const newRows = targets.map(t => {
-          const weekTargetData = nextWeek ? (() => { try { return JSON.parse(nextWeek.target_data || "{}"); } catch { return {}; } })() : {};
-          return {
-            metric: t.label || t.kpi_key,
-            start: t.current_value !== null && t.current_value !== undefined ? String(Math.round(t.current_value)) : "",
-            w1: t.weekly_targets?.[0] !== undefined ? String(t.weekly_targets[0]) : "",
-            w2: t.weekly_targets?.[1] !== undefined ? String(t.weekly_targets[1]) : "",
-            w3: t.weekly_targets?.[2] !== undefined ? String(t.weekly_targets[2]) : "",
-            w4: t.weekly_targets?.[3] !== undefined ? String(t.weekly_targets[3]) : "",
-            a1: "", a2: "", a3: "", a4: "",
-            _kpi_key: t.kpi_key,
-          };
-        });
+    if (!window.__prefillAutoFill && !isEmpty) return;
+    
+    try {
+      const parsed = JSON.parse(plan.targets || "{}");
+      const metrics = Array.isArray(parsed) ? parsed : (parsed.metrics || []);
+      if (metrics.length === 0) return;
+      
+      const mWeeks = planWeeks.filter(w => w.plan_id === plan.id).sort((a, b) => a.week_number - b.week_number);
+      const isMonthly = parsed.follow_up_mode === "monthly";
+      
+      const newRows = metrics.map(t => {
+        // For monthly plans: put the target in W1 only (since each "week" is actually a month)
+        // For weekly plans: spread across W1-W4
+        const wt = t.weekly_targets || [];
+        return {
+          metric: t.label || t.kpi_key || "—",
+          start: t.current_value != null ? String(Math.round(t.current_value)) : "",
+          w1: wt[0] != null ? String(wt[0]) : (t.target_value ? String(t.target_value) : ""),
+          w2: wt[1] != null ? String(wt[1]) : "",
+          w3: wt[2] != null ? String(wt[2]) : "",
+          w4: wt[3] != null ? String(wt[3]) : "",
+          a1: "", a2: "", a3: "", a4: "",
+          _kpi_key: t.kpi_key,
+        };
+      });
+      
+      if (newRows.length > 0 && newRows[0].metric && newRows[0].metric !== "—") {
         setTargetRows(newRows);
-        if (memberActivePlan.type === "pip" && meetingType !== "PIP Review") setMeetingType("PIP Review");
-        else if (memberActivePlan.type === "ap" && meetingType !== "Action Plan Review") setMeetingType("Action Plan Review");
-      } catch(e) { console.error("Auto-fill error:", e); }
-    }
+        window.__prefillAutoFill = false; // Only reset after successful fill
+        if (plan.type === "pip" && meetingType !== "PIP Review") setMeetingType("PIP Review");
+        else if (plan.type === "ap" && meetingType !== "Action Plan Review") setMeetingType("Action Plan Review");
+      }
+    } catch(e) { console.error("Auto-fill error:", e); }
   }, [toEmail, meetingType, activePlans.length, planWeeks.length]);
 
   // Apply template
