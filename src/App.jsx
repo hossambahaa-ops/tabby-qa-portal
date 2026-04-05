@@ -3403,38 +3403,59 @@ function CoachingPage({token, profile}) {
         }
       });
 
-      // Send formatted HTML email via Apps Script
-      const params = new URLSearchParams({
-        action: "sendAndLog",
-        to: toEmail,
-        cc: ccEmail,
-        replyTo: profile?.email || "",
-        subject: emailSubject,
-        senderEmail: profile?.email || "",
-        memberEmail: toEmail,
-        sessionDate: sessionDate,
-        meetingType: meetingType,
-        topics: topics,
-        strengths: strengths,
-        weaknesses: weaknesses,
-        goals: goals,
-        actions: actions,
-        performance: perfRating,
-        sigName: sigName,
-        sigTitle: sigTitle,
-        targetRows: isTargetType ? serializeTargets() : "",
-        followUp: "false",
-        threadId: "",
-        conclude: outcome ? "true" : "false",
-        outcome: outcome || "",
-        nextSteps: nextSteps || "",
-      });
+      // Send via Apps Script — use POST to avoid URL length limits
+      try {
+        const payload = {
+          action: "sendAndLog",
+          to: toEmail,
+          cc: ccEmail,
+          replyTo: profile?.email || "",
+          subject: emailSubject,
+          body: buildEmailBody(),
+          senderEmail: profile?.email || "",
+          memberEmail: toEmail,
+          sessionDate: sessionDate,
+          meetingType: meetingType,
+          topics, strengths, weaknesses, goals, actions,
+          performance: perfRating,
+          sigName, sigTitle,
+          targetRows: isTargetType ? serializeTargets() : "",
+          followUp: "false",
+          threadId: "",
+          conclude: outcome ? "true" : "false",
+          outcome: outcome || "",
+          nextSteps: nextSteps || "",
+        };
 
-      const scriptResp = await fetch(APPS_SCRIPT_URL + "?" + params.toString());
-      const scriptData = await scriptResp.json();
+        // Try regular fetch first, fall back to no-cors
+        let emailSent = false;
+        try {
+          const scriptResp = await fetch(APPS_SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(payload),
+          });
+          const scriptData = await scriptResp.json();
+          if (scriptData.status === "success") emailSent = true;
+          else console.error("Apps Script:", scriptData);
+        } catch(corsErr) {
+          // CORS blocked — try no-cors (fire and forget)
+          console.log("CORS blocked, trying no-cors POST");
+          await fetch(APPS_SCRIPT_URL, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "text/plain" },
+            body: JSON.stringify(payload),
+          });
+          emailSent = true; // Assume sent (can't read response in no-cors)
+        }
 
-      if (scriptData.status !== "success") {
-        throw new Error(scriptData.message || "Apps Script error");
+        if (!emailSent) {
+          show("error", "Session saved but email may not have been sent. Check Apps Script logs.");
+        }
+      } catch(emailErr) {
+        console.error("Email send error:", emailErr);
+        show("error", "Session saved but email failed: " + emailErr.message);
       }
 
       // Refresh history
