@@ -519,7 +519,7 @@ function DashboardPage({profile,token,gf}){
   const[apDismissals,setApDismissals]=useState([]);const[dismissModal,setDismissModal]=useState(null);const[dismissReason,setDismissReason]=useState("");
   const[userTasks,setUserTasks]=useState([]);const[showTaskForm,setShowTaskForm]=useState(false);const[taskView,setTaskView]=useState("calendar");const[hideCompleted,setHideCompleted]=useState(false);
   const[taskForm,setTaskForm]=useState({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});
-  const[editingTask,setEditingTask]=useState(null);const[postponeModal,setPostponeModal]=useState(null);const[postponeDate,setPostponeDate]=useState("");const[postponeReason,setPostponeReason]=useState("");
+  const[editingTask,setEditingTask]=useState(null);const[postponeModal,setPostponeModal]=useState(null);const[postponeDate,setPostponeDate]=useState("");const[postponeReason,setPostponeReason]=useState("");const[selectedTask,setSelectedTask]=useState(null);
   const[showAnnForm,setShowAnnForm]=useState(false);
   const[annForm,setAnnForm]=useState({title:"",message:"",priority:"normal",target_type:"all",target_value:""});
   const isLead=hasRole(profile?.role,"qa_lead");
@@ -909,20 +909,22 @@ function DashboardPage({profile,token,gf}){
       {taskView==="calendar"&&(()=>{
         const allTasks = hideCompleted ? activeTasks : userTasks;
         const today = new Date(); today.setHours(0,0,0,0);
+        const todayStr = today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
         const days = [];
-        for(let i=0;i<14;i++){const d=new Date(today);d.setDate(d.getDate()+i);const dateStr=d.toISOString().split("T")[0];const dayTasks=allTasks.filter(t=>(t.eta_date||t.due_date)===dateStr);days.push({date:d,dateStr,tasks:dayTasks,isToday:i===0});}
+        for(let i=0;i<14;i++){
+          const d=new Date(today);d.setDate(d.getDate()+i);
+          const dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+          const dayTasks=allTasks.filter(t=>(t.eta_date||t.due_date)===dateStr);
+          days.push({date:d,dateStr,tasks:dayTasks,isToday:i===0});
+        }
         const noDateTasks=allTasks.filter(t=>!t.eta_date&&!t.due_date);
-        const overdueTasks=activeTasks.filter(t=>{const eta=t.eta_date||t.due_date;return eta&&eta<today.toISOString().split("T")[0];});
-        const renderMini=(task)=>{const pc=priorityConfig[task.priority]||priorityConfig.medium;const isDone=task.status==="done";return <div key={task.id} style={{padding:"6px 10px",borderRadius:8,background:isDone?"transparent":"var(--bg3)",borderLeft:`3px solid ${isDone?"var(--green)":pc.color}`,marginBottom:4,display:"flex",alignItems:"center",gap:8,opacity:isDone?.5:1}}>
-          <button onClick={()=>toggleTaskDone(task)} style={{width:18,height:18,borderRadius:5,border:`2px solid ${isDone?"var(--green)":pc.color}`,background:isDone?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,padding:0}}>
+        const overdueTasks=activeTasks.filter(t=>{const eta=t.eta_date||t.due_date;return eta&&eta<todayStr;});
+        const renderMini=(task)=>{const pc=priorityConfig[task.priority]||priorityConfig.medium;const isDone=task.status==="done";return <div key={task.id} onClick={()=>setSelectedTask(task)} style={{padding:"6px 10px",borderRadius:8,background:isDone?"transparent":"var(--bg3)",borderLeft:`3px solid ${isDone?"var(--green)":pc.color}`,marginBottom:4,display:"flex",alignItems:"center",gap:8,opacity:isDone?.5:1,cursor:"pointer"}}>
+          <button onClick={(e)=>{e.stopPropagation();toggleTaskDone(task);}} style={{width:18,height:18,borderRadius:5,border:`2px solid ${isDone?"var(--green)":pc.color}`,background:isDone?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,padding:0}}>
             {isDone&&<svg width="10" height="10" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/></svg>}
           </button>
           <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:500,textDecoration:isDone?"line-through":"none",color:isDone?"var(--tx3)":"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{task.title}</div>
             {task.assigned_to&&task.created_by?.toLowerCase()===myEmail&&<div style={{fontSize:10,color:"var(--accent-text)",marginTop:1}}>→ {nameFromEmail(task.assigned_to)}</div>}
-          </div>
-          <div style={{display:"flex",gap:2,flexShrink:0}}>
-            <button onClick={()=>{setEditingTask(task);setTaskForm({title:task.title,description:task.description||"",priority:task.priority,due_date:"",eta_date:task.eta_date||"",assigned_to:task.assigned_to||""});setShowTaskForm(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:3,borderRadius:6,color:"var(--tx3)"}} onMouseEnter={e=>e.currentTarget.style.color="var(--accent-text)"} onMouseLeave={e=>e.currentTarget.style.color="var(--tx3)"}><Icon d={icons.edit} size={12}/></button>
-            <button onClick={()=>deleteTask(task)} style={{background:"none",border:"none",cursor:"pointer",padding:3,borderRadius:6,color:"var(--tx3)"}} onMouseEnter={e=>e.currentTarget.style.color="var(--red)"} onMouseLeave={e=>e.currentTarget.style.color="var(--tx3)"}><Icon d={icons.trash} size={12}/></button>
           </div>
         </div>;};
         return <div>
@@ -932,7 +934,7 @@ function DashboardPage({profile,token,gf}){
             {Array.from({length:days[0].date.getDay()}).map((_,i)=><div key={"pad-"+i}/>)}
             {days.map(day=><div key={day.dateStr} style={{minHeight:80,padding:6,borderRadius:8,background:day.isToday?"var(--primary-light)":"var(--bg)",border:day.isToday?"1px solid var(--tabby-purple)":"1px solid var(--bd2)"}}>
               <div style={{fontSize:11,fontWeight:day.isToday?700:500,color:day.isToday?"var(--tabby-purple,var(--primary-text))":"var(--tx2)",marginBottom:4}}>{day.date.toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
-              {day.tasks.map(t=>{const pc=priorityConfig[t.priority]||priorityConfig.medium;const isDone=t.status==="done";return <div key={t.id} onClick={()=>{setEditingTask(t);setTaskForm({title:t.title,description:t.description||"",priority:t.priority,due_date:"",eta_date:t.eta_date||"",assigned_to:t.assigned_to||""});setShowTaskForm(true);}} style={{padding:"3px 6px",borderRadius:5,marginBottom:2,cursor:"pointer",background:isDone?"transparent":pc.bg,borderLeft:`2px solid ${isDone?"var(--green)":pc.color}`,fontSize:10,fontWeight:500,color:isDone?"var(--tx3)":"var(--tx)",textDecoration:isDone?"line-through":"none",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",opacity:isDone?.5:1}}>{t.title}</div>;})}
+              {day.tasks.map(t=>{const pc=priorityConfig[t.priority]||priorityConfig.medium;const isDone=t.status==="done";return <div key={t.id} onClick={()=>setSelectedTask(t)} style={{padding:"3px 6px",borderRadius:5,marginBottom:2,cursor:"pointer",background:isDone?"transparent":pc.bg,borderLeft:`2px solid ${isDone?"var(--green)":pc.color}`,fontSize:10,fontWeight:500,color:isDone?"var(--tx3)":"var(--tx)",textDecoration:isDone?"line-through":"none",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",opacity:isDone?.5:1}}>{t.title}</div>;})}
             </div>)}
           </div>
           {noDateTasks.length>0&&<div style={{marginTop:12}}><div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>No date set ({noDateTasks.length})</div>{noDateTasks.map(renderMini)}</div>}
@@ -988,6 +990,48 @@ function DashboardPage({profile,token,gf}){
       </div>}
       </>}
     </div>
+
+    {/* ── Task Detail Modal ── */}
+    {selectedTask&&(()=>{
+      const t=userTasks.find(x=>x.id===selectedTask.id)||selectedTask;
+      const pc=priorityConfig[t.priority]||priorityConfig.medium;
+      const isDone=t.status==="done";
+      const isOverdue=t.eta_date&&new Date(t.eta_date+"T00:00:00")<new Date()&&!isDone;
+      return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget)setSelectedTask(null);}}>
+        <div className="card" style={{width:"100%",maxWidth:440,margin:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:10,padding:"2px 10px",borderRadius:8,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase"}}>{pc.label}</span>
+              {isDone&&<span style={{fontSize:10,padding:"2px 10px",borderRadius:8,background:"var(--green-bg)",color:"var(--green)",fontWeight:700}}>Completed</span>}
+              {isOverdue&&<span style={{fontSize:10,padding:"2px 10px",borderRadius:8,background:"var(--red-bg)",color:"var(--red)",fontWeight:700}}>Overdue</span>}
+            </div>
+            <button onClick={()=>setSelectedTask(null)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:18,padding:0,lineHeight:1}}>×</button>
+          </div>
+          <div style={{fontSize:18,fontWeight:700,color:"var(--tx)",marginBottom:8,textDecoration:isDone?"line-through":"none"}}>{t.title}</div>
+          {t.description&&<div style={{fontSize:13,color:"var(--tx2)",marginBottom:16,lineHeight:1.6,padding:"10px 14px",background:"var(--bg)",borderRadius:8}}>{t.description}</div>}
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16,fontSize:13}}>
+            {t.eta_date&&<div><span style={{color:"var(--tx3)",fontSize:11}}>ETA</span><div style={{fontWeight:500,color:isOverdue?"var(--red)":"var(--tx)"}}>{new Date(t.eta_date+"T00:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"})}</div></div>}
+            {t.assigned_to&&<div><span style={{color:"var(--tx3)",fontSize:11}}>Assigned to</span><div style={{fontWeight:500}}>{nameFromEmail(t.assigned_to)}</div></div>}
+            {t.created_by&&<div><span style={{color:"var(--tx3)",fontSize:11}}>Created by</span><div style={{fontWeight:500}}>{nameFromEmail(t.created_by)}</div></div>}
+            {t.created_at&&<div><span style={{color:"var(--tx3)",fontSize:11}}>Created</span><div style={{fontWeight:500}}>{new Date(t.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div></div>}
+          </div>
+          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+            <button className={`btn ${isDone?"btn-outline":"btn-primary"} btn-sm`} style={isDone?{}:{background:"var(--green)"}} onClick={()=>{toggleTaskDone(t);setSelectedTask(null);}}>
+              {isDone?"Reopen task":"Mark as done"}
+            </button>
+            <button className="btn btn-outline btn-sm" onClick={()=>{setEditingTask(t);setTaskForm({title:t.title,description:t.description||"",priority:t.priority,due_date:"",eta_date:t.eta_date||"",assigned_to:t.assigned_to||""});setShowTaskForm(true);setSelectedTask(null);}}>
+              <Icon d={icons.edit} size={14}/>Edit
+            </button>
+            <button className="btn btn-outline btn-sm" onClick={()=>{setPostponeModal(t);setSelectedTask(null);}}>
+              <Icon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={14}/>Postpone
+            </button>
+            <button className="btn btn-outline btn-sm" style={{color:"var(--red)",marginLeft:"auto"}} onClick={()=>{deleteTask(t);setSelectedTask(null);}}>
+              <Icon d={icons.trash} size={14}/>Delete
+            </button>
+          </div>
+        </div>
+      </div>;
+    })()}
 
     {/* ── Postpone Modal ── */}
     {postponeModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget){setPostponeModal(null);setPostponeDate("");setPostponeReason("");}}}>
