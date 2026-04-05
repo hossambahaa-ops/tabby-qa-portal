@@ -2972,7 +2972,7 @@ function LeaderboardPage({token, profile, gf}) {
 }
 
 /* ═══ COACHING MODULE ═══ */
-function CoachingPage({token, profile}) {
+function CoachingPage({token, profile, gf}) {
   const [tab, setTab] = useState("compose"); // compose | history
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState([]);
@@ -3147,20 +3147,24 @@ function CoachingPage({token, profile}) {
 
   // Load roster + history
   useEffect(() => {
+    if (!token) return;
     (async () => {
       try {
         const [r, s, ap, apw] = await Promise.all([
-          sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch(()=>[]),
-          sb.query("coaching_sessions", {select:"*",filters:"order=created_at.desc&limit=100",token}).catch(()=>[]),
-          sb.query("action_plans", {select:"*",filters:"status=eq.active",token}).catch(()=>[]),
-          sb.query("action_plan_weeks", {select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
+          sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch((e)=>{console.error("roster err:",e);return[];}),
+          sb.query("coaching_sessions", {select:"*",filters:"order=created_at.desc&limit=100",token}).catch((e)=>{console.error("sessions err:",e);return[];}),
+          sb.query("action_plans", {select:"*",filters:"status=eq.active",token}).catch((e)=>{console.error("ap err:",e);return[];}),
+          sb.query("action_plan_weeks", {select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch((e)=>{console.error("apw err:",e);return[];}),
         ]);
+        const sessionsArr = Array.isArray(s) ? s : [];
+        const rosterArr = Array.isArray(r) ? r : [];
+        const plansArr = Array.isArray(ap) ? ap : [];
         const svDomainC=profile?.operational_domain||profile?.domain||"tabby.ai";
         const isAdminC=hasRole(profile?.role,"admin");
         const isSvC=hasRole(profile?.role,"qa_supervisor")&&!isAdminC;
-        let filteredRoster=isSvC?r.filter(x=>x.email?.endsWith("@"+svDomainC)):r;
-        let filteredSessions=isSvC?s.filter(x=>x.member_email?.endsWith("@"+svDomainC)):s;
-        let filteredPlans=isSvC?ap.filter(x=>x.qa_email?.endsWith("@"+svDomainC)):ap;
+        let filteredRoster=isSvC?rosterArr.filter(x=>x.email?.endsWith("@"+svDomainC)):rosterArr;
+        let filteredSessions=isSvC?sessionsArr.filter(x=>x.member_email?.endsWith("@"+svDomainC)):sessionsArr;
+        let filteredPlans=isSvC?plansArr.filter(x=>x.qa_email?.endsWith("@"+svDomainC)):plansArr;
         // Apply global filters
         if(gf?.domain){filteredRoster=filteredRoster.filter(x=>x.email?.endsWith("@"+gf.domain));filteredSessions=filteredSessions.filter(x=>x.member_email?.endsWith("@"+gf.domain));filteredPlans=filteredPlans.filter(x=>x.qa_email?.endsWith("@"+gf.domain));}
         if(gf?.people?.length>0){filteredRoster=filteredRoster.filter(x=>gf.people.includes(x.email?.toLowerCase()));filteredSessions=filteredSessions.filter(x=>gf.people.includes(x.member_email?.toLowerCase()));filteredPlans=filteredPlans.filter(x=>gf.people.includes(x.qa_email?.toLowerCase()));}
