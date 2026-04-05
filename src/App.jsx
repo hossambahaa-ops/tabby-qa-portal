@@ -720,46 +720,50 @@ function DashboardPage({profile,token,gf}){
 
   const nav=(page)=>window.dispatchEvent(new CustomEvent("navigate",{detail:page}));
 
-  // Task CRUD
+  // Task CRUD — optimistic updates
   const saveTask=async()=>{
     if(!taskForm.title.trim()){show("error","Task title is required");return;}
     try{
       const body={title:taskForm.title,description:taskForm.description||null,priority:taskForm.priority,due_date:taskForm.due_date||null,eta_date:taskForm.eta_date||null,created_by:profile?.email,assigned_to:taskForm.assigned_to||null,updated_at:new Date().toISOString()};
       if(editingTask){
         await sb.query("tasks",{token,method:"PATCH",body,filters:`id=eq.${editingTask.id}`});
+        setUserTasks(prev=>prev.map(t=>t.id===editingTask.id?{...t,...body}:t));
         logActivity(token,profile?.email,"task_updated","tasks",editingTask.id,`Title: ${taskForm.title}`);
         show("success","Task updated");
       }else{
-        await sb.query("tasks",{token,method:"POST",body});
+        const [created]=await sb.query("tasks",{token,method:"POST",body,select:"*"});
+        if(created) setUserTasks(prev=>[created,...prev]);
         logActivity(token,profile?.email,"task_created","tasks",null,`Title: ${taskForm.title}${taskForm.assigned_to?", Assigned to: "+taskForm.assigned_to:""}`);
-        show("success",taskForm.assigned_to?`Task created and assigned to ${taskForm.assigned_to}`:"Task created");
+        show("success",taskForm.assigned_to?`Task created and assigned to ${nameFromEmail(taskForm.assigned_to)}`:"Task created");
       }
-      setShowTaskForm(false);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});loadTasks();
+      setShowTaskForm(false);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});
     }catch(e){show("error",e.message);}
   };
   const toggleTaskDone=async(task)=>{
     const newStatus=task.status==="done"?"pending":"done";
+    setUserTasks(prev=>prev.map(t=>t.id===task.id?{...t,status:newStatus,completed_at:newStatus==="done"?new Date().toISOString():null}:t));
     try{
       await sb.query("tasks",{token,method:"PATCH",body:{status:newStatus,completed_at:newStatus==="done"?new Date().toISOString():null,updated_at:new Date().toISOString()},filters:`id=eq.${task.id}`});
       logActivity(token,profile?.email,newStatus==="done"?"task_completed":"task_reopened","tasks",task.id,`Title: ${task.title}`);
-      loadTasks();
-    }catch(e){show("error",e.message);}
+    }catch(e){show("error",e.message);setUserTasks(prev=>prev.map(t=>t.id===task.id?{...t,status:task.status}:t));}
   };
   const postponeTask=async()=>{
     if(!postponeDate){show("error","Select a new date");return;}
     try{
       await sb.query("tasks",{token,method:"PATCH",body:{status:"postponed",postponed_to:postponeDate,postpone_reason:postponeReason||null,due_date:postponeDate,updated_at:new Date().toISOString()},filters:`id=eq.${postponeModal.id}`});
+      setUserTasks(prev=>prev.map(t=>t.id===postponeModal.id?{...t,status:"postponed",eta_date:postponeDate}:t));
       logActivity(token,profile?.email,"task_postponed","tasks",postponeModal.id,`Title: ${postponeModal.title}, New date: ${postponeDate}`);
-      show("success","Task postponed");setPostponeModal(null);setPostponeDate("");setPostponeReason("");loadTasks();
+      show("success","Task postponed");setPostponeModal(null);setPostponeDate("");setPostponeReason("");
     }catch(e){show("error",e.message);}
   };
   const deleteTask=async(task)=>{
     if(!confirm("Delete this task?"))return;
+    setUserTasks(prev=>prev.filter(t=>t.id!==task.id));
     try{
       await sb.query("tasks",{token,method:"DELETE",filters:`id=eq.${task.id}`});
       logActivity(token,profile?.email,"task_deleted","tasks",task.id,`Title: ${task.title}`);
-      show("success","Task deleted");loadTasks();
-    }catch(e){show("error",e.message);}
+      show("success","Task deleted");
+    }catch(e){show("error",e.message);loadTasks();}
   };
   const priorityConfig={urgent:{label:"Urgent",color:"var(--red)",bg:"var(--red-bg)"},high:{label:"High",color:"var(--amber)",bg:"var(--amber-bg)"},medium:{label:"Medium",color:"var(--tabby-purple)",bg:"var(--primary-light)"},low:{label:"Low",color:"var(--tx3)",bg:"var(--bg2)"}};
   const activeTasks=userTasks.filter(t=>t.status!=="done");
@@ -1883,7 +1887,8 @@ function AdminUsersPage({token,teams,profile}){
       await sb.query("user_teams",{token,method:"POST",body:{user_id:uid,team_id:tid}}).catch(()=>{});
     }
     logActivity(token, profile?.email, "user_updated", "profiles", uid, `${u?.email}: role=${editRole}, domain=${editOpDomain}, teams=${editTeamIds.length}`);
-    setEditingId(null);show("success","Updated");load();
+    setUsers(prev=>prev.map(x=>x.id===uid?{...x,role:editRole,operational_domain:editOpDomain,team_id:editTeamIds[0]||null}:x));
+    setEditingId(null);show("success","Updated");
   }catch(e){show("error",e.message);}};
   return(<div className="page">
     <div className="page-header"><div className="page-title">User management</div><div className="page-subtitle">{users.length} users</div></div>
@@ -1910,7 +1915,8 @@ function AdminFeedbackPage({token}){
   useEffect(()=>{load();},[load]);
   const updateStatus=async(id,status)=>{try{
     await sb.query("feedback",{token,method:"PATCH",body:{status},filters:`id=eq.${id}`});
-    show("success","Updated");load();
+    setItems(prev=>prev.map(x=>x.id===id?{...x,status}:x));
+    show("success","Updated");
   }catch(e){show("error",e.message);}};
   const catIcon={bug:"🐛",feature:"💡",improvement:"✨",general:"💬"};
   const catLabel={bug:"Bug",feature:"Feature",improvement:"Improvement",general:"General"};
@@ -2033,11 +2039,12 @@ function DAMPage({token,profile,gf}){
   };
 
   const updateFlagStatus=async(flagId,status)=>{
+    setFlags(prev=>prev.map(f=>f.id===flagId?{...f,status,reviewed_by:profile.id,reviewed_at:new Date().toISOString()}:f));
     try{
       await sb.query("dam_flags",{token,method:"PATCH",body:{status,reviewed_by:profile.id,reviewed_at:new Date().toISOString()},filters:`id=eq.${flagId}`});
       logActivity(token, profile?.email, `dam_flag_${status}`, "dam_flags", flagId, `Status changed to: ${status}`);
-      show("success","Flag updated");load();
-    }catch(e){show("error",e.message);}
+      show("success","Flag updated");
+    }catch(e){show("error",e.message);load();}
   };
 
   const behaviorTypes=[{key:"manipulation",label:"Manipulation",color:"var(--red)"},{key:"performance_management",label:"Performance management",color:"var(--amber)"},{key:"completion_attainment",label:"Completion & attainment",color:"var(--accent-text)"}];
@@ -2143,7 +2150,7 @@ function DAMPage({token,profile,gf}){
       {hasRole(profile?.role,"super_admin")&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
         <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{
           if(!confirm(`Permanently delete ALL ${flags.length} DAM flag records? This cannot be undone.`))return;
-          try{for(const f of flags){await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});}show("success","All DAM flags deleted");load();}catch(e){show("error",e.message);}
+          try{for(const f of flags){await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});}show("success","All DAM flags deleted");setFlags([]);}catch(e){show("error",e.message);}
         }}><Icon d={icons.trash} size={14}/>Clear all history</button>
       </div>}
       <div className="table-wrap"><table><thead><tr><th>Person</th><th>Behavior</th><th>Occ.</th><th>Status</th><th>Date</th><th>Notes</th>{hasRole(profile?.role,"super_admin")&&<th></th>}</tr></thead><tbody>
@@ -2157,7 +2164,7 @@ function DAMPage({token,profile,gf}){
           {hasRole(profile?.role,"super_admin")&&<td>
             <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{
               if(!confirm("Delete this flag permanently?"))return;
-              try{await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});show("success","Flag deleted");load();}catch(e){show("error",e.message);}
+              try{await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});show("success","Flag deleted");setFlags(prev=>prev.filter(x=>x.id!==f.id));}catch(e){show("error",e.message);}
             }}><Icon d={icons.trash} size={14}/></button>
           </td>}
         </tr>))}
@@ -4065,6 +4072,7 @@ function ActionPlanPage({ token, profile }) {
       logActivity(token, profile?.email, `${planType}_created`, "action_plans", null, `QA: ${selQaEmail}, Duration: ${planDuration} weeks`);
       setShowCreateForm(false);
       setTab("active");
+      // Reload to get new plan with ID
       load();
     } catch (e) {
       show("error", e.message);
@@ -4134,7 +4142,8 @@ function ActionPlanPage({ token, profile }) {
         filters: `id=eq.${weekId}`,
       });
       show("success", "Actuals updated from MTD (" + latestMonth + ")");
-      load();
+      // Optimistic update
+      setWeeks(prev => prev.map(w => w.id === weekId ? { ...w, actual_data: JSON.stringify(actualData), met_targets: metTargets, updated_at: new Date().toISOString() } : w));
     } catch (e) { show("error", e.message); }
   };
 
@@ -4235,7 +4244,9 @@ function ActionPlanPage({ token, profile }) {
       setConcludingPlan(null);
       setConclusionOutcome("");
       setConclusionNotes("");
-      load();
+      // Optimistic update
+      const newStatus = conclusionOutcome === "pass" ? "completed_pass" : "completed_fail";
+      setPlans(prev => prev.map(p => p.id === concludingPlan.id ? { ...p, status: newStatus, conclusion: conclusionOutcome, conclusion_notes: conclusionNotes, concluded_by: profile?.email, concluded_at: new Date().toISOString() } : p));
     } catch (e) { show("error", e.message); }
     setLoading(false);
   };
@@ -4846,7 +4857,8 @@ function ActionPlanPage({ token, profile }) {
                           await sb.query("action_plan_weeks", { token, method: "DELETE", filters: `plan_id=eq.${plan.id}` });
                           await sb.query("action_plans", { token, method: "DELETE", filters: `id=eq.${plan.id}` });
                           show("success", "Plan permanently deleted");
-                          load();
+                          setPlans(prev => prev.filter(p => p.id !== plan.id));
+                          setWeeks(prev => prev.filter(w => w.plan_id !== plan.id));
                         } catch (err) { show("error", err.message); }
                       }}>
                         <Icon d={icons.trash} size={14} />Delete
@@ -4929,7 +4941,8 @@ function ActionPlanPage({ token, profile }) {
                           await sb.query("action_plan_weeks", { token, method: "DELETE", filters: `plan_id=eq.${p.id}` });
                           await sb.query("action_plans", { token, method: "DELETE", filters: `id=eq.${p.id}` });
                           show("success", "Plan permanently deleted");
-                          load();
+                          setPlans(prev => prev.filter(x => x.id !== p.id));
+                          setWeeks(prev => prev.filter(w => w.plan_id !== p.id));
                         } catch (err) { show("error", err.message); }
                       }}><Icon d={icons.trash} size={14} /></button>
                     </td>}
@@ -5175,7 +5188,9 @@ function CoachingViolationsPage({token, profile, gf}) {
       }
 
       setReviewModal(null);
-      load();
+      // Optimistic update
+      const newStatus = reviewStatus === "valid" ? "dam_created" : "invalid";
+      setViolations(prev => prev.map(v => v.id === reviewModal.id ? { ...v, status: newStatus, reviewed_by: profile?.email, reviewed_at: new Date().toISOString(), review_notes: reviewNotes.trim() } : v));
     } catch (e) { show("error", e.message); }
   };
 
@@ -5625,6 +5640,7 @@ function EscalationsPage({ token, profile, gf }) {
       setDescription("");
       setAboutPerson("");
       setAttachments([]);
+      // Optimistic: reload to get new escalation with ID
       load();
     } catch (e) { show("error", e.message); }
     setUploading(false);
@@ -5639,9 +5655,9 @@ function EscalationsPage({ token, profile, gf }) {
         filters: `id=eq.${escId}`,
       });
       show("success", "Response sent");
+      setEscalations(prev => prev.map(e => e.id === escId ? { ...e, response: responseText.trim(), responded_by: myEmail, responded_at: new Date().toISOString(), status: "in_progress" } : e));
       setResponseText("");
       setViewEsc(null);
-      load();
     } catch (e) { show("error", e.message); }
   };
 
@@ -5653,9 +5669,9 @@ function EscalationsPage({ token, profile, gf }) {
         filters: `id=eq.${escId}`,
       });
       show("success", "Escalation resolved");
+      setEscalations(prev => prev.map(e => e.id === escId ? { ...e, status: "resolved", resolution_note: resolutionNote.trim() || null, resolved_at: new Date().toISOString() } : e));
       setResolutionNote("");
       setViewEsc(null);
-      load();
     } catch (e) { show("error", e.message); }
   };
 
