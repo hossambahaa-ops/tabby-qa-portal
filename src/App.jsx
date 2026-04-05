@@ -898,49 +898,56 @@ function DashboardPage({profile,token,gf}){
       {activeTasks.length===0&&!showTaskForm?
         <div style={{textAlign:"center",padding:"24px 0",color:"var(--tx3)",fontSize:13}}>No active tasks — click "New task" to add one</div>
       :
-        <div style={{display:"flex",flexDirection:"column",gap:4}}>
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {activeTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(task=>{
             const pc=priorityConfig[task.priority]||priorityConfig.medium;
             const isOverdue=task.eta_date&&new Date(task.eta_date)<new Date()&&task.status!=="done";
             const isAssignedToMe=task.assigned_to?.toLowerCase()===myEmail&&task.created_by?.toLowerCase()!==myEmail;
             return <div key={task.id} style={{
-              display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,
-              background:isOverdue?"var(--red-bg)":"var(--bg)",border:"1px solid "+(isOverdue?"var(--red)":"var(--bd2)"),
+              padding:"14px 18px",borderRadius:12,
+              background:"var(--bg3)",border:"1px solid var(--bd2)",
+              borderLeft:`4px solid ${isOverdue?"var(--red)":pc.color}`,
               transition:"all .2s",
             }}>
-              {/* Checkbox */}
-              <button onClick={()=>toggleTaskDone(task)} style={{
-                width:22,height:22,borderRadius:6,border:`2px solid ${pc.color}`,background:task.status==="done"?pc.color:"transparent",
-                display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,transition:"all .2s",
-              }}>
-                {task.status==="done"&&<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>}
-              </button>
-              {/* Content */}
-              <div style={{flex:1,minWidth:0}}>
-                <div style={{fontSize:13,fontWeight:600,letterSpacing:"-.2px",textDecoration:task.status==="done"?"line-through":"none",color:task.status==="done"?"var(--tx3)":"var(--tx)"}}>{task.title}</div>
-                <div style={{display:"flex",gap:8,alignItems:"center",marginTop:3,flexWrap:"wrap"}}>
-                  <span style={{fontSize:10,padding:"1px 6px",borderRadius:6,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase"}}>{pc.label}</span>
-                  {task.eta_date&&<span style={{fontSize:11,color:isOverdue?"var(--red)":"var(--tx3)",fontWeight:isOverdue?600:400}}>{isOverdue?"⏰ Overdue: ":"ETA: "}{new Date(task.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>}
-                  {isAssignedToMe&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:6,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:600}}>Assigned by {nameFromEmail(task.created_by)}</span>}
-                  {task.assigned_to&&task.created_by?.toLowerCase()===myEmail&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:6,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600}}>→ {nameFromEmail(task.assigned_to)}</span>}
-                  {task.status==="postponed"&&<span style={{fontSize:10,padding:"1px 6px",borderRadius:6,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:600}}>Postponed</span>}
+              <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
+                {/* Checkbox */}
+                <button onClick={()=>toggleTaskDone(task)} style={{
+                  width:24,height:24,borderRadius:8,border:`2px solid ${pc.color}`,background:task.status==="done"?pc.color:"transparent",
+                  display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,transition:"all .2s",marginTop:2,
+                }}>
+                  {task.status==="done"&&<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>}
+                </button>
+                {/* Content */}
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:14,fontWeight:600,letterSpacing:"-.2px",textDecoration:task.status==="done"?"line-through":"none",color:task.status==="done"?"var(--tx3)":"var(--tx)",marginBottom:6}}>{task.title}</div>
+                  {task.description&&<div style={{fontSize:12,color:"var(--tx2)",marginBottom:8,lineHeight:1.5,opacity:.85}}>{task.description}</div>}
+                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                    <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".3px"}}>{pc.label}</span>
+                    {task.eta_date&&<span style={{fontSize:11,color:isOverdue?"var(--red)":"var(--tx3)",fontWeight:isOverdue?600:400,display:"flex",alignItems:"center",gap:4}}>
+                      <Icon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={12}/>{isOverdue?"Overdue":"ETA"}: {new Date(task.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}
+                    </span>}
+                    {isAssignedToMe&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
+                      <Icon d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" size={10}/>Assigned by {nameFromEmail(task.created_by)}
+                    </span>}
+                    {task.assigned_to&&task.created_by?.toLowerCase()===myEmail&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600}}>→ {nameFromEmail(task.assigned_to)}</span>}
+                    {task.status==="postponed"&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:600}}>Postponed</span>}
+                  </div>
                 </div>
-                {task.description&&<div style={{fontSize:12,color:"var(--tx2)",marginTop:4,lineHeight:1.4}}>{task.description}</div>}
-              </div>
-              {/* Actions */}
-              <div style={{display:"flex",gap:4,flexShrink:0}}>
-                <button onClick={()=>setPostponeModal(task)} title="Postpone" style={{background:"none",border:"none",cursor:"pointer",padding:4,borderRadius:6,color:"var(--tx3)",transition:"color .15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.color="var(--amber)"} onMouseLeave={e=>e.currentTarget.style.color="var(--tx3)"}>
-                  <Icon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={16}/>
-                </button>
-                <button onClick={()=>{setEditingTask(task);setTaskForm({title:task.title,description:task.description||"",priority:task.priority,due_date:"",eta_date:task.eta_date||"",assigned_to:task.assigned_to||""});setShowTaskForm(true);}} title="Edit" style={{background:"none",border:"none",cursor:"pointer",padding:4,borderRadius:6,color:"var(--tx3)",transition:"color .15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.color="var(--tabby-purple,var(--accent-text))"} onMouseLeave={e=>e.currentTarget.style.color="var(--tx3)"}>
-                  <Icon d={icons.edit} size={16}/>
-                </button>
-                <button onClick={()=>deleteTask(task)} title="Delete" style={{background:"none",border:"none",cursor:"pointer",padding:4,borderRadius:6,color:"var(--tx3)",transition:"color .15s"}}
-                  onMouseEnter={e=>e.currentTarget.style.color="var(--red)"} onMouseLeave={e=>e.currentTarget.style.color="var(--tx3)"}>
-                  <Icon d={icons.trash} size={16}/>
-                </button>
+                {/* Actions */}
+                <div style={{display:"flex",gap:2,flexShrink:0}}>
+                  <button onClick={()=>setPostponeModal(task)} title="Postpone" style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:8,color:"var(--tx3)",transition:"all .15s"}}
+                    onMouseEnter={e=>{e.currentTarget.style.color="var(--amber)";e.currentTarget.style.background="var(--amber-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}>
+                    <Icon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={16}/>
+                  </button>
+                  <button onClick={()=>{setEditingTask(task);setTaskForm({title:task.title,description:task.description||"",priority:task.priority,due_date:"",eta_date:task.eta_date||"",assigned_to:task.assigned_to||""});setShowTaskForm(true);}} title="Edit" style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:8,color:"var(--tx3)",transition:"all .15s"}}
+                    onMouseEnter={e=>{e.currentTarget.style.color="var(--accent-text)";e.currentTarget.style.background="var(--accent-light)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}>
+                    <Icon d={icons.edit} size={16}/>
+                  </button>
+                  <button onClick={()=>deleteTask(task)} title="Delete" style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:8,color:"var(--tx3)",transition:"all .15s"}}
+                    onMouseEnter={e=>{e.currentTarget.style.color="var(--red)";e.currentTarget.style.background="var(--red-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}>
+                    <Icon d={icons.trash} size={16}/>
+                  </button>
+                </div>
               </div>
             </div>;
           })}
