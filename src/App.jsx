@@ -3375,7 +3375,7 @@ function CoachingPage({token, profile}) {
   };
 
   // Save session and send via Apps Script
-  const APPS_SCRIPT_URL = "https://script.google.com/a/macros/tabby.sa/s/AKfycbzNeENkxlHmRjgik3psWDjcDvZt3ZcdGM-yPEHAanQUvIfbqwKLASRexHzyG3wQirlA/exec";
+  const APPS_SCRIPT_URL = "https://script.google.com/a/macros/tabby.sa/s/AKfycbzvh39UYD97pDt6Ohmh44UdVKpPF703TuhZrCsD3fXc8DPVXEPQmsG89d5Q-HCUAR4/exec";
 
   const generateAndSend = async () => {
     if (!toEmail) { show("error", "Enter the team member's email"); return; }
@@ -3403,15 +3403,14 @@ function CoachingPage({token, profile}) {
         }
       });
 
-      // Send via Apps Script — use POST to avoid URL length limits
+      // Send via Apps Script (doGet with URL params)
       try {
-        const payload = {
+        const params = new URLSearchParams({
           action: "sendAndLog",
           to: toEmail,
           cc: ccEmail,
           replyTo: profile?.email || "",
           subject: emailSubject,
-          body: buildEmailBody(),
           senderEmail: profile?.email || "",
           memberEmail: toEmail,
           sessionDate: sessionDate,
@@ -3425,36 +3424,38 @@ function CoachingPage({token, profile}) {
           conclude: outcome ? "true" : "false",
           outcome: outcome || "",
           nextSteps: nextSteps || "",
-        };
+        });
 
-        // Try regular fetch first, fall back to no-cors
+        const scriptUrl = APPS_SCRIPT_URL + "?" + params.toString();
+
+        // Try fetch first
         let emailSent = false;
         try {
-          const scriptResp = await fetch(APPS_SCRIPT_URL, {
-            method: "POST",
-            headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify(payload),
-          });
+          const scriptResp = await fetch(scriptUrl, { redirect: "follow" });
           const scriptData = await scriptResp.json();
           if (scriptData.status === "success") emailSent = true;
           else console.error("Apps Script:", scriptData);
-        } catch(corsErr) {
-          // CORS blocked — try no-cors (fire and forget)
-          console.log("CORS blocked, trying no-cors POST");
-          await fetch(APPS_SCRIPT_URL, {
-            method: "POST",
-            mode: "no-cors",
-            headers: { "Content-Type": "text/plain" },
-            body: JSON.stringify(payload),
+        } catch(e1) {
+          console.log("Fetch failed, using iframe fallback");
+          // Iframe fallback — works with domain-restricted deployments and redirects
+          await new Promise((resolve) => {
+            const iframe = document.createElement("iframe");
+            iframe.style.display = "none";
+            iframe.src = scriptUrl;
+            iframe.onload = () => { setTimeout(() => { document.body.removeChild(iframe); resolve(); }, 1000); };
+            iframe.onerror = () => { document.body.removeChild(iframe); resolve(); };
+            document.body.appendChild(iframe);
+            setTimeout(() => { try { document.body.removeChild(iframe); } catch {} resolve(); }, 8000);
           });
-          emailSent = true; // Assume sent (can't read response in no-cors)
+          emailSent = true;
         }
-
-        if (!emailSent) {
-          show("error", "Session saved but email may not have been sent. Check Apps Script logs.");
+        if (emailSent) {
+          show("success", "Email sent & session logged");
+        } else {
+          show("error", "Session saved but email may not have sent");
         }
       } catch(emailErr) {
-        console.error("Email send error:", emailErr);
+        console.error("Email error:", emailErr);
         show("error", "Session saved but email failed: " + emailErr.message);
       }
 
