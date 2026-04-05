@@ -513,7 +513,7 @@ const GoogleLogo=()=>(<svg width="20" height="20" viewBox="0 0 48 48"><path fill
 /* ═══ PAGES ═══ */
 
 function DashboardPage({profile,token,gf}){
-  const[mtd,setMtd]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);
+  const[mtd,setMtd]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[appProfiles,setAppProfiles]=useState([]);
   const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
   const[apPlans,setApPlans]=useState([]);const[apWeeks,setApWeeks]=useState([]);const[apDetections,setApDetections]=useState([]);
   const[apDismissals,setApDismissals]=useState([]);const[dismissModal,setDismissModal]=useState(null);const[dismissReason,setDismissReason]=useState("");
@@ -564,7 +564,7 @@ function DashboardPage({profile,token,gf}){
       sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[]),
       sb.query("qa_roster",{select:"*",token}).catch(()=>[]),
       sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
-      sb.query("profiles",{select:"id,email,role,status",filters:"status=eq.active",token}).catch(()=>[]),
+      sb.query("profiles",{select:"id,email,display_name,role,status",filters:"status=eq.active",token}).catch(()=>[]),
       sb.query("action_plans",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
       sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
       sb.query("ap_dismissals",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
@@ -625,7 +625,7 @@ function DashboardPage({profile,token,gf}){
       if (!profEmails.has(tl) && profEmails.has(tlAlt)) return {...r, qa_tl: tlAlt};
       return r;
     });
-    setMtd(normalizedMtd2);setRoster(filteredRoster);setDamCount(damFlagsRaw.filter(f=>f.status==="pending").length);
+    setMtd(normalizedMtd2);setRoster(filteredRoster);setAppProfiles(profs);setDamCount(damFlagsRaw.filter(f=>f.status==="pending").length);
     setProfileCount({qas:filteredRoster.length,leads:[...new Set(filteredRoster.map(r=>r.manager_email).filter(Boolean))].length,active:profs.length});
     setApPlans(plans);setApWeeks(planWeeks);setApDismissals(dismissals);
 
@@ -887,7 +887,26 @@ function DashboardPage({profile,token,gf}){
           {isAdmin&&<div className="form-group">
             <label className="form-label">Assign to (email)</label>
             <SearchableSelect
-              options={roster.map(r=>({value:r.email,label:nameFromEmail(r.email)+` (${r.email.split("@")[1]})`}))}
+              options={(() => {
+                const seen = new Set();
+                const opts = [];
+                // Add all app profiles first (leads, supervisors, admins)
+                appProfiles.forEach(p => {
+                  const em = p.email?.toLowerCase();
+                  if (!em || seen.has(em)) return;
+                  seen.add(em);
+                  const roleLbl = ROLE_LABELS[p.role] || p.role;
+                  opts.push({ value: em, label: (p.display_name || nameFromEmail(em)) + ` (${roleLbl})` });
+                });
+                // Add roster QAs that aren't already in profiles
+                roster.forEach(r => {
+                  const em = r.email?.toLowerCase();
+                  if (!em || seen.has(em)) return;
+                  seen.add(em);
+                  opts.push({ value: em, label: nameFromEmail(em) + ` (${r.queue || "QA"})` });
+                });
+                return opts.sort((a, b) => a.label.localeCompare(b.label));
+              })()}
               value={taskForm.assigned_to}
               onChange={v=>setTaskForm({...taskForm,assigned_to:v})}
               placeholder="Assign to someone..."
