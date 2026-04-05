@@ -3375,7 +3375,7 @@ function CoachingPage({token, profile}) {
   };
 
   // Save session and send via Apps Script
-  const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwpQjACvkSQBkbJok5L00-jXNMJm9x8b5-cdd4c5imZXeXCD5eHu8_zCsRNgWIegzvZ/exec";
+  const APPS_SCRIPT_URL = "https://script.google.com/a/macros/tabby.sa/s/AKfycbzNeENkxlHmRjgik3psWDjcDvZt3ZcdGM-yPEHAanQUvIfbqwKLASRexHzyG3wQirlA/exec";
 
   const generateAndSend = async () => {
     if (!toEmail) { show("error", "Enter the team member's email"); return; }
