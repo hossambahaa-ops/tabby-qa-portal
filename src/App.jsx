@@ -370,7 +370,7 @@ const sb = {
     async getSession() { const s = localStorage.getItem("sb_session"); if (!s) return null; try { const p = JSON.parse(s); if (p.expires_at && Date.now()/1000 > p.expires_at-60) return sb.auth.refresh(p.refresh_token); return p; } catch { localStorage.removeItem("sb_session"); return null; } },
     async refresh(rt) { try { const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, { method:"POST", headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"}, body:JSON.stringify({refresh_token:rt}) }); if(!r.ok){localStorage.removeItem("sb_session");return null;} const d=await r.json(); const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user}; localStorage.setItem("sb_session",JSON.stringify(s)); return s; } catch{localStorage.removeItem("sb_session");return null;} },
     signInWithGoogle(){window.location.href=`${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin)}`;},
-    async handleCallback(){const h=window.location.hash;if(h&&h.includes("access_token")){const p=new URLSearchParams(h.substring(1));const s={access_token:p.get("access_token"),refresh_token:p.get("refresh_token"),expires_at:Number(p.get("expires_at")),user:null};try{const r=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_ANON,Authorization:`Bearer ${s.access_token}`}});if(r.ok)s.user=await r.json();}catch{}localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}const c=new URLSearchParams(window.location.search).get("code");if(c){try{const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=authorization_code`,{method:"POST",headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"},body:JSON.stringify({auth_code:c,code_verifier:sessionStorage.getItem("code_verifier")||""})});if(r.ok){const d=await r.json();const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user};localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}}catch{}}return null;},
+    async handleCallback(){const h=window.location.hash;if(h&&h.includes("access_token")){const p=new URLSearchParams(h.substring(1));const s={access_token:p.get("access_token"),refresh_token:p.get("refresh_token"),expires_at:Number(p.get("expires_at")),user:null};try{const r=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_ANON,Authorization:`Bearer ${s.access_token}`}});if(r.ok)s.user=await r.json();}catch{}localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}const urlParams=new URLSearchParams(window.location.search);const c=urlParams.get("code");const state=urlParams.get("state");/* Skip Gmail OAuth codes — they are handled by CoachingPage */if(c&&state==="gmail_oauth"){return null;}if(c){try{const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=authorization_code`,{method:"POST",headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"},body:JSON.stringify({auth_code:c,code_verifier:sessionStorage.getItem("code_verifier")||""})});if(r.ok){const d=await r.json();const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user};localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}}catch{}}return null;},
     signOut(){localStorage.removeItem("sb_session");sessionStorage.clear();window.location.href=window.location.origin;},
   },
 };
@@ -2981,6 +2981,85 @@ function CoachingPage({token, profile}) {
   const [planWeeks, setPlanWeeks] = useState([]);
   const {show, el} = useToast();
 
+  // Gmail OAuth state
+  const [gmailAuthorized, setGmailAuthorized] = useState(false);
+  const [gmailChecking, setGmailChecking] = useState(true);
+
+  const GMAIL_EDGE_FN = `${SUPABASE_URL}/functions/v1/gmail-auth`;
+
+  // Helper to call the gmail-auth edge function
+  const callGmailFn = async (body) => {
+    const r = await fetch(GMAIL_EDGE_FN, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON },
+      body: JSON.stringify(body),
+    });
+    return r.json();
+  };
+
+  // Check Gmail auth status on mount + handle OAuth callback
+  useEffect(() => {
+    (async () => {
+      // Check if returning from Gmail OAuth
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get("code");
+      const state = urlParams.get("state");
+      if (code && state === "gmail_oauth") {
+        // Exchange the code for tokens via edge function
+        try {
+          const result = await callGmailFn({ action: "exchange", code });
+          if (result.success) {
+            setGmailAuthorized(true);
+            show("success", "Gmail connected successfully! You can now send emails directly.");
+          } else {
+            show("error", "Gmail authorization failed: " + (result.error || "Unknown error"));
+          }
+        } catch (e) {
+          console.error("Gmail OAuth exchange:", e);
+          show("error", "Failed to complete Gmail authorization");
+        }
+        // Clean URL
+        window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+      }
+      // Check if user already has valid Gmail tokens
+      try {
+        const status = await callGmailFn({ action: "check" });
+        setGmailAuthorized(status.authorized === true);
+      } catch (e) {
+        console.error("Gmail check:", e);
+      }
+      setGmailChecking(false);
+    })();
+  }, [token]);
+
+  // Start Gmail OAuth flow
+  const connectGmail = async () => {
+    try {
+      const result = await callGmailFn({ action: "get_auth_url" });
+      if (result.authUrl) {
+        // Save current page hash so we return to coaching after OAuth
+        sessionStorage.setItem("gmail_oauth_return", "coaching");
+        window.location.href = result.authUrl;
+      } else {
+        show("error", "Could not get Gmail authorization URL");
+      }
+    } catch (e) {
+      show("error", "Failed to start Gmail authorization");
+    }
+  };
+
+  // Disconnect Gmail
+  const disconnectGmail = async () => {
+    if (!confirm("Disconnect Gmail? You'll need to re-authorize to send emails.")) return;
+    try {
+      await callGmailFn({ action: "disconnect" });
+      setGmailAuthorized(false);
+      show("success", "Gmail disconnected");
+    } catch (e) {
+      show("error", "Failed to disconnect Gmail");
+    }
+  };
+
   // Form state
   const [toEmail, setToEmail] = useState("");
   const [ccEmail, setCcEmail] = useState("");
@@ -3374,11 +3453,14 @@ function CoachingPage({token, profile}) {
     return lines.join("\n");
   };
 
-  // Save session and send via Apps Script
-  const APPS_SCRIPT_URL = "https://script.google.com/a/macros/tabby.sa/s/AKfycbzvh39UYD97pDt6Ohmh44UdVKpPF703TuhZrCsD3fXc8DPVXEPQmsG89d5Q-HCUAR4/exec";
-
+  // Save session and send via Gmail API (Edge Function)
   const generateAndSend = async () => {
     if (!toEmail) { show("error", "Enter the team member's email"); return; }
+    if (!gmailAuthorized) {
+      show("error", "Please connect your Gmail account first");
+      connectGmail();
+      return;
+    }
     setLoading(true);
     try {
       // Save to Supabase
@@ -3403,56 +3485,26 @@ function CoachingPage({token, profile}) {
         }
       });
 
-      // Send via Apps Script (doGet with URL params)
+      // Send via Gmail API through Edge Function
       try {
-        const params = new URLSearchParams({
-          action: "sendAndLog",
+        const htmlBody = buildEmailBody();
+        const result = await callGmailFn({
+          action: "send",
           to: toEmail,
           cc: ccEmail,
-          replyTo: profile?.email || "",
           subject: emailSubject,
-          senderEmail: profile?.email || "",
-          memberEmail: toEmail,
-          sessionDate: sessionDate,
-          meetingType: meetingType,
-          topics, strengths, weaknesses, goals, actions,
-          performance: perfRating,
-          sigName, sigTitle,
-          targetRows: isTargetType ? serializeTargets() : "",
-          followUp: "false",
-          threadId: "",
-          conclude: outcome ? "true" : "false",
-          outcome: outcome || "",
-          nextSteps: nextSteps || "",
+          htmlBody,
+          replyTo: profile?.email || "",
         });
 
-        const scriptUrl = APPS_SCRIPT_URL + "?" + params.toString();
-
-        // Try fetch first
-        let emailSent = false;
-        try {
-          const scriptResp = await fetch(scriptUrl, { redirect: "follow" });
-          const scriptData = await scriptResp.json();
-          if (scriptData.status === "success") emailSent = true;
-          else console.error("Apps Script:", scriptData);
-        } catch(e1) {
-          console.log("Fetch failed, using iframe fallback");
-          // Iframe fallback — works with domain-restricted deployments and redirects
-          await new Promise((resolve) => {
-            const iframe = document.createElement("iframe");
-            iframe.style.display = "none";
-            iframe.src = scriptUrl;
-            iframe.onload = () => { setTimeout(() => { document.body.removeChild(iframe); resolve(); }, 1000); };
-            iframe.onerror = () => { document.body.removeChild(iframe); resolve(); };
-            document.body.appendChild(iframe);
-            setTimeout(() => { try { document.body.removeChild(iframe); } catch {} resolve(); }, 8000);
-          });
-          emailSent = true;
-        }
-        if (emailSent) {
+        if (result.success) {
           show("success", "Email sent & session logged");
+        } else if (result.reauth) {
+          // Token expired / revoked — need re-authorization
+          setGmailAuthorized(false);
+          show("error", "Gmail authorization expired. Please reconnect Gmail and try again.");
         } else {
-          show("error", "Session saved but email may not have sent");
+          show("error", "Session saved but email failed: " + (result.error || "Unknown error"));
         }
       } catch(emailErr) {
         console.error("Email error:", emailErr);
@@ -3511,7 +3563,7 @@ function CoachingPage({token, profile}) {
       } else {
         show("success", "Email sent and session logged successfully!");
       }
-      logActivity(token, profile?.email, "coaching_session_created", "coaching_sessions", null, `Member: ${memberEmail}, Type: ${sessionType}`);
+      logActivity(token, profile?.email, "coaching_session_created", "coaching_sessions", null, `Member: ${toEmail}, Type: ${meetingType}`);
       setShowPreview(false);
     } catch (e) {
       show("error", e.message);
@@ -3535,7 +3587,19 @@ function CoachingPage({token, profile}) {
           <div className="page-title">Coaching sessions</div>
           <div className="page-subtitle">1:1 coaching email generator and session tracking</div>
         </div>
-        {sessions.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--primary-light)",color:"var(--primary-text,var(--tabby-purple))",fontSize:12,fontWeight:600}}>{sessions.length} sessions logged</span>}
+        <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+          {sessions.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--primary-light)",color:"var(--primary-text,var(--tabby-purple))",fontSize:12,fontWeight:600}}>{sessions.length} sessions logged</span>}
+          {!gmailChecking && (gmailAuthorized ?
+            <span onClick={disconnectGmail} title="Click to disconnect Gmail" style={{padding:"4px 12px",borderRadius:20,background:"var(--green-bg)",color:"var(--green)",fontSize:12,fontWeight:600,cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              Gmail connected
+            </span> :
+            <button onClick={connectGmail} style={{padding:"4px 12px",borderRadius:20,background:"var(--amber-bg)",color:"var(--amber)",fontSize:12,fontWeight:600,border:"none",cursor:"pointer",display:"flex",alignItems:"center",gap:4}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+              Connect Gmail
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="tab-bar" style={{marginBottom:16}}>
@@ -3771,8 +3835,8 @@ function CoachingPage({token, profile}) {
               <div style={{background:"#fff",color:"#1a1a1a",padding:"20px",borderRadius:8,fontSize:13,lineHeight:1.85,maxHeight:500,overflowY:"auto"}} dangerouslySetInnerHTML={{__html: buildEmailBody()}}/>
 
               <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--bd2)"}}>
-                <button className="btn btn-primary" onClick={generateAndSend} disabled={loading} style={{width:"100%",justifyContent:"center",padding:"12px"}}>
-                  {loading ? "Sending..." : <><Icon d={icons.coaching} size={16}/>Send email & log session</>}
+                <button className="btn btn-primary" onClick={generateAndSend} disabled={loading || gmailChecking} style={{width:"100%",justifyContent:"center",padding:"12px"}}>
+                  {loading ? "Sending via Gmail..." : gmailChecking ? "Checking Gmail..." : !gmailAuthorized ? <><Icon d={icons.coaching} size={16}/>Connect Gmail & send</> : <><Icon d={icons.coaching} size={16}/>Send email & log session</>}
                 </button>
                 <div style={{display:"flex",gap:8,marginTop:8}}>
                   <button className="btn btn-outline btn-sm" style={{flex:1}} onClick={()=>{
@@ -6222,7 +6286,7 @@ const NAV_ITEMS=[
 /* ═══ APP ═══ */
 export default function App(){
   const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);
-  const[page,setPage]=useState(()=>{const h=window.location.hash.replace("#","");return h||"dashboard";});
+  const[page,setPage]=useState(()=>{/* If returning from Gmail OAuth, go back to coaching page */const urlP=new URLSearchParams(window.location.search);if(urlP.get("state")==="gmail_oauth"){return "coaching";}const h=window.location.hash.replace("#","");return h||"dashboard";});
   const[sidebarOpen,setSidebarOpen]=useState(false);
   const[sidebarCollapsed,setSidebarCollapsed]=useState(()=>localStorage.getItem("sb_collapsed")==="true");
   const[viewAsRole,setViewAsRole]=useState("");
