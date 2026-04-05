@@ -3820,7 +3820,7 @@ function ActionPlanPage({ token, profile }) {
         email: flag.profiles?.email||flag.qa_email || email,
         name: flag.profiles?.display_name || nameFromEmail(email),
         reason: `DAM: ${ruleName} (${behaviorType}) — Occurrence #${flag.occurrence_number}: ${pipAction}`,
-        severity: flag.occurrence_number >= 4 ? "critical" : flag.occurrence_number >= 3 ? "high" : flag.occurrence_number >= 2 ? "medium" : "medium",
+        severity: flag.occurrence_number >= 3 ? "critical" : flag.occurrence_number >= 2 ? "warning" : "notice",
         totalScore, kpis, latestMonth,
         tl: row?.qa_tl,
         damFlagId: flag.id,
@@ -4281,7 +4281,7 @@ function ActionPlanPage({ token, profile }) {
             </div>
             {detections.map(d => (
               <div key={d.email} className="card" style={{
-                borderLeft: `4px solid ${d.severity === "critical" ? "var(--red)" : d.severity === "high" ? "var(--amber)" : "var(--blue)"}`,
+                borderLeft: `4px solid ${d.severity === "critical" ? "var(--red)" : d.severity === "warning" ? "var(--amber)" : "var(--blue)"}`,
               }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
@@ -4296,8 +4296,8 @@ function ActionPlanPage({ token, profile }) {
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{
                       padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600,
-                      background: d.severity === "critical" ? "var(--red-bg)" : d.severity === "high" ? "var(--amber-bg)" : "var(--green-bg)",
-                      color: d.severity === "critical" ? "var(--red)" : d.severity === "high" ? "var(--amber)" : "var(--green)",
+                      background: d.severity === "critical" ? "var(--red-bg)" : d.severity === "warning" ? "var(--amber-bg)" : "var(--green-bg)",
+                      color: d.severity === "critical" ? "var(--red)" : d.severity === "warning" ? "var(--amber)" : "var(--green)",
                     }}>{d.severity.toUpperCase()}</span>
                     <span style={{ fontSize: 18, fontWeight: 700, color: scoreColor(d.totalScore) }}>
                       {d.totalScore.toFixed(1)}<span style={{ fontSize: 12, fontWeight: 400, color: "var(--tx3)" }}> / 55</span>
@@ -4967,7 +4967,15 @@ function CoachingViolationsPage({token, profile, gf}) {
     setReviewModal(v);
     setReviewStatus(v.status === "pending" ? "" : (v.status === "invalid" ? "invalid" : "valid"));
     setReviewNotes(v.review_notes || "");
-    setSelDamRule("");
+    // Auto-detect DAM rule from violation type
+    const typeToRule = {
+      "> 4 Uses": "Same link for 4+",
+      "Multiple Days": "Same link on different days",
+      "Multiple Agents": "Same link for multiple agents",
+    };
+    const matchText = typeToRule[v.violation_type] || "";
+    const matched = damRules.find(r => r.name?.toLowerCase().includes(matchText.toLowerCase()));
+    setSelDamRule(matched?.id || "");
   };
 
   const submitReview = async () => {
@@ -5015,7 +5023,7 @@ function CoachingViolationsPage({token, profile, gf}) {
           const flagBody = {
             rule_id: selDamRule,
             qa_email: qaEmail,
-            severity: occurrence >= 4 ? "critical" : occurrence >= 3 ? "high" : occurrence >= 2 ? "medium" : "medium",
+            severity: occurrence >= 3 ? "critical" : occurrence >= 2 ? "warning" : "notice",
             status: "pending",
             notes: `Auto-created from coaching violation: ${reviewModal.violation_type}. Link: ${reviewModal.coaching_link}. Review notes: ${reviewNotes.trim()}`,
             occurrence_number: occurrence,
