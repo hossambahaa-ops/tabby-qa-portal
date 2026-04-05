@@ -532,15 +532,19 @@ function DashboardPage({profile,token,gf}){
     if(!annForm.title.trim()||!annForm.message.trim()){show("error","Title and message are required");return;}
     if(annForm.target_type!=="all"&&!annForm.target_value){show("error","Please select a target");return;}
     try{
-      await sb.query("announcements",{token,method:"POST",body:{
+      const result = await sb.query("announcements",{token,method:"POST",body:{
         title:annForm.title,message:annForm.message,priority:annForm.priority,
         target_type:annForm.target_type,target_value:annForm.target_type==="all"?null:annForm.target_value,
         sent_by:profile?.email,requires_ack:true,
       }});
       logActivity(token,profile?.email,"announcement_sent","announcements",null,`Title: ${annForm.title}, Target: ${annForm.target_type}${annForm.target_value?" ("+annForm.target_value+")":""}`);
-      show("success",`Announcement sent to ${annForm.target_type==="all"?"everyone":annForm.target_value}`);
-      setShowAnnForm(false);setAnnForm({title:"",message:"",priority:"normal",target_type:"all",target_value:""});
-    }catch(e){show("error",e.message);}
+      setShowAnnForm(false);
+      setAnnForm({title:"",message:"",priority:"normal",target_type:"all",target_value:""});
+      show("success","Announcement sent successfully!");
+    }catch(e){
+      console.error("Announcement error:", e);
+      show("error","Failed: " + (e.message || "Unknown error"));
+    }
   };
 
   const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};

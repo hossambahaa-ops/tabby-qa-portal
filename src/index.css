@@ -171,7 +171,7 @@ tr:hover td { background: var(--bg2); }
 .select:focus { outline: none; border-color: var(--tabby-purple); box-shadow: 0 0 0 3px rgba(106,44,121,.08); }
 
 /* ── Toast ── */
-.toast { position: fixed; bottom: 24px; right: 24px; padding: 14px 20px; border-radius: var(--radius); font-size: 13px; font-weight: 600; color: #FFF; z-index: 999; animation: toastIn .35s var(--ease-spring); box-shadow: var(--shadow-lg); backdrop-filter: blur(8px); }
+.toast { position: fixed; bottom: 24px; right: 24px; padding: 14px 20px; border-radius: var(--radius); font-size: 13px; font-weight: 600; color: #FFF; z-index: 99999; animation: toastIn .35s var(--ease-spring); box-shadow: var(--shadow-lg); backdrop-filter: blur(8px); }
 .toast-success { background: var(--green); }
 .toast-error { background: var(--red); }
 @keyframes toastIn { from { transform: translateY(20px) scale(.95); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
