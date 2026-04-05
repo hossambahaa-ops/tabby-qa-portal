@@ -828,10 +828,16 @@ function DashboardPage({profile,token,gf}){
     </div>}
     <div className="welcome-banner">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:16}}>
-        <div>
-          <h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2>
-          <p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p>
-          <div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div>
+        <div style={{display:"flex",gap:14,alignItems:"center"}}>
+          <div style={{width:48,height:48,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:"2px solid rgba(255,255,255,.2)"}}>
+            {profile?.avatar_url ? <img src={profile.avatar_url} alt="" style={{width:48,height:48,objectFit:"cover"}}/> :
+            <div style={{width:48,height:48,background:"linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-light))",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700}}>{(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>}
+          </div>
+          <div>
+            <h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2>
+            <p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p>
+            <div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div>
+          </div>
         </div>
         <div style={{display:"flex",gap:8,flexWrap:"wrap",position:"relative",zIndex:1}}>
           <button onClick={()=>nav("leaderboard")} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(255,255,255,.12)",background:"rgba(255,255,255,.06)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",backdropFilter:"blur(4px)"}}
@@ -4675,7 +4681,7 @@ function ActionPlanPage({ token, profile }) {
                       <div style={{ textAlign: "right" }}>
                         <div style={{ fontSize: 11, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Progress</div>
                         <div style={{ fontSize: 16, fontWeight: 700, color: prog.successRate >= 60 ? "var(--green)" : "var(--red)" }}>
-                          {prog.metWeeks}/{prog.elapsed} weeks met
+                          {prog.metWeeks}/{prog.elapsed} {targetsData.follow_up_mode === "monthly" ? "months" : "weeks"} met
                         </div>
                       </div>
                       {daysLeft !== null && <div style={{ textAlign: "right" }}>
@@ -4691,7 +4697,7 @@ function ActionPlanPage({ token, profile }) {
                     <div style={{ width: `${progressPct}%`, height: "100%", borderRadius: 3, background: prog.successRate >= 60 ? "var(--green)" : "var(--amber)", transition: "width .4s" }} />
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--tx3)", marginTop: 4 }}>
-                    <span>Week {prog.elapsed} of {prog.totalWeeks}</span>
+                    <span>{targetsData.follow_up_mode === "monthly" ? "Month" : "Week"} {prog.elapsed} of {prog.totalWeeks}</span>
                     <span>Success rate: {prog.successRate.toFixed(0)}%</span>
                   </div>
 
@@ -4863,8 +4869,12 @@ function ActionPlanPage({ token, profile }) {
             <tbody>
               {historyPlans.map(p => {
                 const prog = getPlanProgress(p);
-                return (
-                  <tr key={p.id}>
+                const isHistExp = expandedPlan === "h-" + p.id;
+                const hTargets = parseTargets(p.targets);
+                const hMetrics = hTargets.metrics;
+                const isMonthlyH = hTargets.follow_up_mode === "monthly";
+                return (<React.Fragment key={p.id}>
+                  <tr onClick={() => setExpandedPlan(isHistExp ? null : "h-" + p.id)} style={{ cursor: "pointer" }}>
                     <td style={{ fontWeight: 500 }}>{nameFromEmail(p.qa_email)}</td>
                     <td>
                       <span style={{
@@ -4873,16 +4883,16 @@ function ActionPlanPage({ token, profile }) {
                         color: p.type === "pip" ? "var(--red)" : "var(--amber)",
                       }}>{p.type.toUpperCase()}</span>
                     </td>
-                    <td style={{ fontSize: 12 }}>{p.duration_weeks}w</td>
+                    <td style={{ fontSize: 12 }}>{p.duration_weeks}{isMonthlyH ? "m" : "w"}</td>
                     <td style={{ textAlign: "center" }}>
                       <span style={{
                         padding: "3px 12px", borderRadius: 12, fontSize: 11, fontWeight: 700,
                         background: p.conclusion === "pass" ? "var(--green-bg)" : "var(--red-bg)",
                         color: p.conclusion === "pass" ? "var(--green)" : "var(--red)",
                       }}>
-                        {p.conclusion === "pass" ? "✅ Passed" : "❌ Failed"}
+                        {p.conclusion === "pass" ? "Passed" : "Failed"}
                       </span>
-                      <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{prog.metWeeks}/{prog.elapsed} weeks met</div>
+                      <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{prog.metWeeks}/{prog.elapsed} {isMonthlyH ? "months" : "weeks"} met</div>
                     </td>
                     <td style={{ fontSize: 12, color: "var(--tx2)" }}>{nameFromEmail(p.created_by)}</td>
                     <td style={{ fontSize: 12, color: "var(--tx2)" }}>
@@ -4893,8 +4903,9 @@ function ActionPlanPage({ token, profile }) {
                       {p.conclusion_notes || "—"}
                     </td>
                     {hasRole(profile?.role, "super_admin") && <td>
-                      <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async () => {
-                        if (!confirm(`Permanently delete this ${p.type.toUpperCase()} for ${nameFromEmail(p.qa_email)}? No trace will remain.`)) return;
+                      <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async (e) => {
+                        e.stopPropagation();
+                        if (!confirm(`Permanently delete this ${p.type.toUpperCase()} for ${nameFromEmail(p.qa_email)}?`)) return;
                         try {
                           await sb.query("action_plan_weeks", { token, method: "DELETE", filters: `plan_id=eq.${p.id}` });
                           await sb.query("action_plans", { token, method: "DELETE", filters: `id=eq.${p.id}` });
@@ -4904,7 +4915,47 @@ function ActionPlanPage({ token, profile }) {
                       }}><Icon d={icons.trash} size={14} /></button>
                     </td>}
                   </tr>
-                );
+                  {/* Expanded tracking detail */}
+                  {isHistExp && <tr><td colSpan={hasRole(profile?.role, "super_admin") ? 9 : 8} style={{ padding: "16px", background: "var(--bg)" }}>
+                    {p.reason && <div style={{ marginBottom: 12, fontSize: 13, color: "var(--tx2)" }}>
+                      <span style={{ fontWeight: 600, color: "var(--tx)" }}>Reason: </span>{p.reason}
+                    </div>}
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>{isMonthlyH ? "Monthly" : "Weekly"} tracking</div>
+                    <table style={{ fontSize: 12, width: "100%" }}>
+                      <thead><tr>
+                        <th>{isMonthlyH ? "Month" : "Week"}</th>
+                        <th>Date</th>
+                        {hMetrics.map(t => <th key={t.kpi_key || t.label} style={{ textAlign: "center" }}>{t.label}</th>)}
+                        <th style={{ textAlign: "center" }}>Met?</th>
+                      </tr></thead>
+                      <tbody>
+                        {prog.planWeeks.map(week => {
+                          const td = safeJson(week.target_data);
+                          const ad = safeJson(week.actual_data);
+                          const hasA = week.actual_data && Object.keys(ad).length > 0;
+                          return <tr key={week.id} style={{ background: hasA ? (week.met_targets ? "var(--green-bg)" : "var(--red-bg)") : "transparent" }}>
+                            <td style={{ fontWeight: 600 }}>{isMonthlyH ? "M" : "W"}{week.week_number}</td>
+                            <td style={{ fontSize: 11, color: "var(--tx3)" }}>{week.week_start ? new Date(week.week_start + "T00:00:00").toLocaleDateString("en-GB", { month: "short", day: "numeric" }) : "—"}</td>
+                            {hMetrics.map(t => {
+                              const tKey = t.kpi_key || t.label;
+                              const target = td[tKey];
+                              const actual = ad?.[tKey];
+                              const met = actual != null && target != null && Number(actual) >= Number(target);
+                              return <td key={tKey} style={{ textAlign: "center" }}>
+                                <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target != null ? target + "%" : "—"}</div>
+                                {hasA && <div style={{ fontSize: 12, fontWeight: 600, color: met ? "var(--green)" : "var(--red)" }}>A: {actual != null ? (typeof actual === "number" ? actual.toFixed(1) + "%" : actual) : "—"}</div>}
+                              </td>;
+                            })}
+                            <td style={{ textAlign: "center" }}>{hasA ? (week.met_targets ? <span style={{ color: "var(--green)", fontWeight: 700 }}>Yes</span> : <span style={{ color: "var(--red)", fontWeight: 700 }}>No</span>) : "—"}</td>
+                          </tr>;
+                        })}
+                      </tbody>
+                    </table>
+                    {p.conclusion_notes && <div style={{ marginTop: 12, padding: "8px 12px", background: "var(--bg3)", borderRadius: 6, fontSize: 12, color: "var(--tx2)" }}>
+                      <span style={{ fontWeight: 600 }}>Conclusion notes: </span>{p.conclusion_notes}
+                    </div>}
+                  </td></tr>}
+                </React.Fragment>);
               })}
             </tbody>
           </table></div>
@@ -4929,7 +4980,7 @@ function ActionPlanPage({ token, profile }) {
                 <span style={{ fontWeight: 600, color: rec === "pass" ? "var(--green)" : "var(--red)" }}>
                   Auto-recommendation: {rec === "pass" ? "✅ PASS" : "❌ FAIL"}
                 </span>
-                <span style={{ color: "var(--tx2)", marginLeft: 8 }}>({prog.metWeeks}/{prog.elapsed} weeks met targets — {prog.successRate.toFixed(0)}%)</span>
+                <span style={{ color: "var(--tx2)", marginLeft: 8 }}>({prog.metWeeks}/{prog.elapsed} periods met targets — {prog.successRate.toFixed(0)}%)</span>
               </div>
             ) : null;
           })()}
@@ -6207,7 +6258,24 @@ export default function App(){
           <option value="admin">Admin</option>
         </select>}
         <div style={{display:"flex",alignItems:"center",gap:10,marginLeft:8,paddingLeft:12,borderLeft:"1px solid var(--bd)"}}>
-          <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-light))",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,flexShrink:0}}>{(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>
+          <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0,cursor:"pointer",position:"relative"}} title="Change profile picture" onClick={()=>document.getElementById("avatar-upload")?.click()}>
+            {profile?.avatar_url ? <img src={profile.avatar_url} alt="" style={{width:32,height:32,objectFit:"cover",borderRadius:"50%"}}/> :
+            <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-light))",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>}
+          </div>
+          <input id="avatar-upload" type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
+            const file=e.target.files?.[0]; if(!file)return;
+            if(file.size>2*1024*1024){alert("Max 2MB");return;}
+            try{
+              const ext=file.name.split(".").pop();
+              const path=`${profile.id}.${ext}`;
+              const formData=new FormData();formData.append("file",file);
+              await fetch(`https://shuenqmzbrthiiokfzio.supabase.co/storage/v1/object/avatars/${path}`,{method:"POST",headers:{"Authorization":`Bearer ${session.access_token}`},body:formData});
+              const url=`https://shuenqmzbrthiiokfzio.supabase.co/storage/v1/object/public/avatars/${path}?t=${Date.now()}`;
+              await sb.query("profiles",{token:session.access_token,method:"PATCH",body:{avatar_url:url},filters:`id=eq.${profile.id}`});
+              setProfile({...profile,avatar_url:url});
+            }catch(err){console.error("Avatar upload:",err);}
+            e.target.value="";
+          }}/>
           <div style={{display:"flex",flexDirection:"column",lineHeight:1.2}}>
             <span style={{fontSize:13,fontWeight:600,color:"var(--tx)",letterSpacing:"-.2px"}}>{profile?.display_name||"User"}</span>
             <span className={`role-badge role-${viewAsRole||profile?.role}`} style={{fontSize:9,padding:"1px 6px",alignSelf:"flex-start"}}>{ROLE_LABELS[viewAsRole||profile?.role]||"QA"}{viewAsRole?" (viewing)":""}</span>
