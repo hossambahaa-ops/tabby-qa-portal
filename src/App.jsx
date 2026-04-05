@@ -1297,6 +1297,49 @@ function DashboardPage({profile,token,gf}){
         })()}
       </div>
 
+      {/* ── Peer Comparison — anonymous percentile rank ── */}
+      <div className="card" style={{marginBottom:20}}>
+        <div className="card-header"><span className="card-title">Peer comparison — {latestMonth}</span><span style={{fontSize:12,color:"var(--tx3)"}}>How you compare (anonymous)</span></div>
+        {(()=>{
+          const metrics = [
+            {key:"score",label:"Overall score",getValue:r=>getScore(r)},
+            {key:"occupancy",label:"Occupancy",getValue:r=>parseFloat(String(r.occupancy_pct||0).replace("%",""))||0},
+            {key:"coaching",label:"Coaching on-time",getValue:r=>parseFloat(String(r.ontime_coaching_pct||0).replace("%",""))||0},
+            {key:"calibration",label:"Calibration",getValue:r=>parseFloat(String(r.avg_calibration_match_rate||0).replace("%",""))||0},
+            {key:"observation",label:"Coaching observation",getValue:r=>parseFloat(String(r.avg_observation_score_pct||0).replace("%",""))||0},
+            {key:"rtr",label:"RTR score",getValue:r=>parseFloat(String(r.avg_rtr_score||0).replace("%",""))||0},
+            {key:"tpd",label:"Tickets/day",getValue:r=>parseFloat(r.ticket_per_day||0)||0},
+          ];
+          return <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {metrics.map(m=>{
+              const allVals=current.map(r=>m.getValue(r)).filter(v=>v>0).sort((a,b)=>a-b);
+              const myVal=m.getValue(myData);
+              if(allVals.length<15||myVal<=0) return null;
+              const belowMe=allVals.filter(v=>v<myVal).length;
+              const pct=Math.round((belowMe/allVals.length)*100);
+              const pctLabel=pct>=90?"Outstanding":pct>=75?"Above average":pct>=50?"Average":pct>=25?"Below average":"Needs improvement";
+              const pctColor=pct>=75?"var(--green)":pct>=50?"var(--blue)":pct>=25?"var(--amber)":"var(--red)";
+              return <div key={m.key} style={{padding:"8px 14px",background:"var(--bg)",borderRadius:8}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+                  <span style={{fontSize:13,fontWeight:500}}>{m.label}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:12,color:"var(--tx3)"}}>Top {100-pct}%</span>
+                    <span style={{fontSize:12,fontWeight:600,color:pctColor,padding:"2px 8px",borderRadius:10,background:pct>=75?"var(--green-bg)":pct>=50?"rgba(59,130,246,.1)":pct>=25?"var(--amber-bg)":"var(--red-bg)"}}>{pctLabel}</span>
+                  </div>
+                </div>
+                <div style={{height:6,background:"var(--bd2)",borderRadius:3,overflow:"hidden",position:"relative"}}>
+                  <div style={{width:`${pct}%`,height:"100%",borderRadius:3,background:pctColor,transition:"width .5s"}}/>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:11,color:"var(--tx3)"}}>
+                  <span>Your value: {m.key==="score"?myVal.toFixed(1):m.key==="tpd"?myVal.toFixed(1):myVal.toFixed(1)+"%"}</span>
+                  <span>Better than {pct}% of peers</span>
+                </div>
+              </div>;
+            }).filter(Boolean)}
+          </div>;
+        })()}
+      </div>
+
       {/* Sparkline trend */}
       {myHistory.length>1&&<div className="card" style={{marginBottom:20}}><div className="card-header"><span className="card-title">Score trend</span></div>
         <svg width="100%" height="100" viewBox={`0 0 ${myHistory.length*100} 100`} style={{overflow:"visible"}}><polyline fill="none" stroke="var(--accent-text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={myHistory.map((d,i)=>{const y=90-(d.score/maxScore)*70;return`${i*100+50},${Math.max(10,Math.min(90,y))}`;}).join(" ")}/>{myHistory.map((d,i)=>{const y=90-(d.score/maxScore)*70;const cy=Math.max(10,Math.min(90,y));return(<g key={i}><circle cx={i*100+50} cy={cy} r="4" fill="var(--accent-text)"/><text x={i*100+50} y={cy-12} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--tx)" fontFamily="var(--font)">{d.score.toFixed(1)}</text><text x={i*100+50} y={cy+18} textAnchor="middle" fontSize="10" fill="var(--tx3)" fontFamily="var(--font)">{d.month}</text></g>);})}</svg>
