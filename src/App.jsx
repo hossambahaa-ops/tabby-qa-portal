@@ -731,8 +731,14 @@ function DashboardPage({profile,token,gf}){
         logActivity(token,profile?.email,"task_updated","tasks",editingTask.id,`Title: ${taskForm.title}`);
         show("success","Task updated");
       }else{
-        const [created]=await sb.query("tasks",{token,method:"POST",body,select:"*"});
-        if(created) setUserTasks(prev=>[created,...prev]);
+        const result = await sb.query("tasks",{token,method:"POST",body});
+        const created = Array.isArray(result) ? result[0] : result;
+        if(created?.id) {
+          setUserTasks(prev=>[created,...prev]);
+        } else {
+          // Fallback: build task locally with temp id
+          setUserTasks(prev=>[{...body, id:"temp-"+Date.now(), status:"pending", created_at:new Date().toISOString()}, ...prev]);
+        }
         logActivity(token,profile?.email,"task_created","tasks",null,`Title: ${taskForm.title}${taskForm.assigned_to?", Assigned to: "+taskForm.assigned_to:""}`);
         show("success",taskForm.assigned_to?`Task created and assigned to ${nameFromEmail(taskForm.assigned_to)}`:"Task created");
       }
