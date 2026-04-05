@@ -3829,7 +3829,7 @@ function ActionPlanPage({ token, profile }) {
       });
     });
 
-    const sevOrder = { critical: 0, high: 1, medium: 2 };
+    const sevOrder = { critical: 0, warning: 1, notice: 2 };
     flagged.sort((a, b) => (sevOrder[a.severity] ?? 9) - (sevOrder[b.severity] ?? 9) || a.totalScore - b.totalScore);
     setDetections(flagged);
   };
@@ -5020,10 +5020,12 @@ function CoachingViolationsPage({token, profile, gf}) {
           } catch {}
 
           // Create DAM flag — with profile_id if available, otherwise just qa_email
+          const selectedRule = damRules.find(r => r.id === selDamRule);
           const flagBody = {
             rule_id: selDamRule,
             qa_email: qaEmail,
-            severity: occurrence >= 3 ? "critical" : occurrence >= 2 ? "warning" : "notice",
+            severity: selectedRule?.severity || (occurrence >= 3 ? "critical" : occurrence >= 2 ? "warning" : "notice"),
+            recommended_action: selectedRule?.recommended_action || "coaching",
             status: "pending",
             notes: `Auto-created from coaching violation: ${reviewModal.violation_type}. Link: ${reviewModal.coaching_link}. Review notes: ${reviewNotes.trim()}`,
             occurrence_number: occurrence,
