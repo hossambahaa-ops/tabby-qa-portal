@@ -340,6 +340,23 @@ const sb = {
     const opts = { method, headers: { ...this.headers(token), ...extra } };
     if (body) opts.body = JSON.stringify(body);
     const r = await fetch(url, opts);
+    // Auto-refresh on 401 (JWT expired) and retry once
+    if (r.status === 401) {
+      const session = await sb.auth.getSession();
+      if (session?.access_token && session.access_token !== token) {
+        // Update stored session and retry with new token
+        const retryOpts = { method, headers: { ...this.headers(session.access_token), ...extra } };
+        if (body) retryOpts.body = JSON.stringify(body);
+        const r2 = await fetch(url, retryOpts);
+        if (!r2.ok) { const e = await r2.json().catch(() => ({})); throw new Error(e.message || e.details || r2.statusText); }
+        if (r2.status === 204) return [];
+        // Notify app to update token
+        window.dispatchEvent(new CustomEvent("session-refreshed", { detail: session }));
+        return r2.json();
+      }
+      const e = await r.json().catch(() => ({}));
+      throw new Error("Session expired. Please sign in again.");
+    }
     if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || e.details || r.statusText); }
     if (r.status === 204) return [];
     return r.json();
@@ -910,13 +927,27 @@ function DashboardPage({profile,token,gf}){
         const allTasks = hideCompleted ? activeTasks : userTasks;
         const today = new Date(); today.setHours(0,0,0,0);
         const todayStr = today.getFullYear()+"-"+String(today.getMonth()+1).padStart(2,"0")+"-"+String(today.getDate()).padStart(2,"0");
-        const days = [];
-        for(let i=0;i<14;i++){
+        const fmtDate = (d) => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+
+        // Build 5 base days
+        const baseDays = [];
+        for(let i=0;i<5;i++){
           const d=new Date(today);d.setDate(d.getDate()+i);
-          const dateStr=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+          const dateStr=fmtDate(d);
           const dayTasks=allTasks.filter(t=>(t.eta_date||t.due_date)===dateStr);
-          days.push({date:d,dateStr,tasks:dayTasks,isToday:i===0});
+          baseDays.push({date:d,dateStr,tasks:dayTasks,isToday:i===0});
         }
+
+        // Find urgent/high tasks beyond 5 days (up to 30 days out)
+        const extraDays = [];
+        for(let i=5;i<30;i++){
+          const d=new Date(today);d.setDate(d.getDate()+i);
+          const dateStr=fmtDate(d);
+          const dayTasks=allTasks.filter(t=>(t.eta_date||t.due_date)===dateStr);
+          const hasUrgent=dayTasks.some(t=>t.priority==="urgent"||t.priority==="high");
+          if(hasUrgent) extraDays.push({date:d,dateStr,tasks:dayTasks,isToday:false,isExtra:true});
+        }
+
         const noDateTasks=allTasks.filter(t=>!t.eta_date&&!t.due_date);
         const overdueTasks=activeTasks.filter(t=>{const eta=t.eta_date||t.due_date;return eta&&eta<todayStr;});
         const renderMini=(task)=>{const pc=priorityConfig[task.priority]||priorityConfig.medium;const isDone=task.status==="done";return <div key={task.id} onClick={()=>setSelectedTask(task)} style={{padding:"6px 10px",borderRadius:8,background:isDone?"transparent":"var(--bg3)",borderLeft:`3px solid ${isDone?"var(--green)":pc.color}`,marginBottom:4,display:"flex",alignItems:"center",gap:8,opacity:isDone?.5:1,cursor:"pointer"}}>
@@ -929,14 +960,33 @@ function DashboardPage({profile,token,gf}){
         </div>;};
         return <div>
           {overdueTasks.length>0&&<div style={{marginBottom:12}}><div style={{fontSize:11,fontWeight:700,color:"var(--red)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:6,display:"flex",alignItems:"center",gap:6}}><Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" size={14}/>Overdue ({overdueTasks.length})</div>{overdueTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(renderMini)}</div>}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(7,1fr)",gap:6}}>
-            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d=><div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:"var(--tx3)",padding:"4px 0",textTransform:"uppercase",letterSpacing:".5px"}}>{d}</div>)}
-            {Array.from({length:days[0].date.getDay()}).map((_,i)=><div key={"pad-"+i}/>)}
-            {days.map(day=><div key={day.dateStr} style={{minHeight:80,padding:6,borderRadius:8,background:day.isToday?"var(--primary-light)":"var(--bg)",border:day.isToday?"1px solid var(--tabby-purple)":"1px solid var(--bd2)"}}>
-              <div style={{fontSize:11,fontWeight:day.isToday?700:500,color:day.isToday?"var(--tabby-purple,var(--primary-text))":"var(--tx2)",marginBottom:4}}>{day.date.toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
-              {day.tasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(t=>{const pc=priorityConfig[t.priority]||priorityConfig.medium;const isDone=t.status==="done";return <div key={t.id} onClick={()=>setSelectedTask(t)} style={{padding:"3px 6px",borderRadius:5,marginBottom:2,cursor:"pointer",background:isDone?"transparent":pc.bg,borderLeft:`2px solid ${isDone?"var(--green)":pc.color}`,fontSize:10,fontWeight:500,color:isDone?"var(--tx3)":"var(--tx)",textDecoration:isDone?"line-through":"none",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",opacity:isDone?.5:1}}>{t.title}</div>;})}
+
+          {/* 5-day strip */}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+            {baseDays.map(day=><div key={day.dateStr} style={{minHeight:90,padding:8,borderRadius:10,background:day.isToday?"var(--primary-light)":"var(--bg)",border:day.isToday?"1.5px solid var(--tabby-purple)":"1px solid var(--bd2)"}}>
+              <div style={{fontSize:12,fontWeight:day.isToday?700:500,color:day.isToday?"var(--tabby-purple,var(--primary-text))":"var(--tx2)",marginBottom:6}}>
+                <div style={{fontSize:10,color:day.isToday?"var(--tabby-purple,var(--primary-text))":"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>{day.date.toLocaleDateString("en-GB",{weekday:"short"})}</div>
+                {day.date.toLocaleDateString("en-GB",{day:"numeric",month:"short"})}
+              </div>
+              {day.tasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(t=>{const pc=priorityConfig[t.priority]||priorityConfig.medium;const isDone=t.status==="done";return <div key={t.id} onClick={()=>setSelectedTask(t)} style={{padding:"4px 8px",borderRadius:6,marginBottom:3,cursor:"pointer",background:isDone?"transparent":pc.bg,borderLeft:`3px solid ${isDone?"var(--green)":pc.color}`,fontSize:11,fontWeight:500,color:isDone?"var(--tx3)":"var(--tx)",textDecoration:isDone?"line-through":"none",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",opacity:isDone?.5:1}}>{t.title}</div>;})}
             </div>)}
           </div>
+
+          {/* Extra days with urgent tasks */}
+          {extraDays.length>0&&<div style={{marginTop:14}}>
+            <div style={{fontSize:11,fontWeight:700,color:"var(--amber)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8,display:"flex",alignItems:"center",gap:6}}>
+              <Icon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={14}/>Upcoming urgent ({extraDays.reduce((a,d)=>a+d.tasks.filter(t=>t.priority==="urgent"||t.priority==="high").length,0)})
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(180px,1fr))",gap:8}}>
+              {extraDays.map(day=><div key={day.dateStr} style={{padding:8,borderRadius:10,background:"var(--bg)",border:"1px solid var(--amber)",borderColor:"rgba(245,158,11,.3)"}}>
+                <div style={{fontSize:11,fontWeight:600,color:"var(--tx2)",marginBottom:6}}>
+                  {day.date.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}
+                </div>
+                {day.tasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(t=>{const pc=priorityConfig[t.priority]||priorityConfig.medium;const isDone=t.status==="done";return <div key={t.id} onClick={()=>setSelectedTask(t)} style={{padding:"4px 8px",borderRadius:6,marginBottom:3,cursor:"pointer",background:isDone?"transparent":pc.bg,borderLeft:`3px solid ${isDone?"var(--green)":pc.color}`,fontSize:11,fontWeight:500,color:isDone?"var(--tx3)":"var(--tx)",textDecoration:isDone?"line-through":"none",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",opacity:isDone?.5:1}}>{t.title}</div>;})}
+              </div>)}
+            </div>
+          </div>}
+
           {noDateTasks.length>0&&<div style={{marginTop:12}}><div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>No date set ({noDateTasks.length})</div>{noDateTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(renderMini)}</div>}
           {doneTasks.length>0&&<div style={{marginTop:12}}><button onClick={()=>setHideCompleted(!hideCompleted)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--tx3)",fontWeight:500,fontFamily:"var(--font)",padding:0}}>{hideCompleted?"Show":"Hide"} {doneTasks.length} completed</button></div>}
         </div>;
@@ -6173,6 +6223,20 @@ export default function App(){
   useEffect(()=>{document.documentElement.classList.toggle("dark",darkMode);localStorage.setItem("dark_mode",darkMode);},[darkMode]);
   // Keyboard shortcut: Cmd/Ctrl+K for search
   useEffect(()=>{const handler=(e)=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();setShowSearch(true);}};document.addEventListener("keydown",handler);return()=>document.removeEventListener("keydown",handler);},[]);
+  // Auto-refresh JWT every 10 minutes to prevent expiry
+  useEffect(()=>{
+    if(!session?.refresh_token)return;
+    const interval=setInterval(async()=>{
+      try{const s=await sb.auth.getSession();if(s){setSession(s);}}catch{}
+    },10*60*1000);
+    return()=>clearInterval(interval);
+  },[session?.refresh_token]);
+  // Listen for session refresh from sb.query 401 handler
+  useEffect(()=>{
+    const handler=(e)=>{if(e.detail)setSession(e.detail);};
+    window.addEventListener("session-refreshed",handler);
+    return()=>window.removeEventListener("session-refreshed",handler);
+  },[]);
   useEffect(()=>{const handler=(e)=>setPage(e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[]);
   useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{
     // First try by Auth UUID
