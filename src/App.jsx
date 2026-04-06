@@ -883,9 +883,11 @@ function DashboardPage({profile,token,gf}){
     {/* ── User Task Management ── */}
     <div className="card" style={{marginBottom:20}}>
       <div className="card-header">
-        <span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}>
-          <span style={{fontSize:18}}>✅</span> My Tasks
-          {activeTasks.length>0&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:12,background:"var(--primary-light)",color:"var(--tabby-purple,var(--primary-text))",fontWeight:700}}>{activeTasks.length}</span>}
+        <span className="card-title" style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:32,height:32,borderRadius:10,background:"linear-gradient(135deg,var(--tabby-purple),#8B5CF6)",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
+          My Tasks
+          {activeTasks.length>0&&<span style={{fontSize:12,padding:"3px 10px",borderRadius:10,background:"var(--primary-light)",color:"var(--tabby-purple,var(--primary-text))",fontWeight:700}}>{activeTasks.length}</span>}
+          {activeTasks.filter(t=>{const eta=t.eta_date||t.due_date;const today=new Date().toISOString().split("T")[0];return eta&&eta<today;}).length>0&&<span style={{fontSize:10,padding:"3px 10px",borderRadius:10,background:"var(--red-bg)",color:"var(--red)",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 8v4m0 4h.01"/></svg>{activeTasks.filter(t=>{const eta=t.eta_date||t.due_date;const today=new Date().toISOString().split("T")[0];return eta&&eta<today;}).length} overdue</span>}
         </span>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           <div style={{display:"flex",borderRadius:8,border:"1px solid var(--bd)",overflow:"hidden"}}>
@@ -950,25 +952,36 @@ function DashboardPage({profile,token,gf}){
 
         const noDateTasks=allTasks.filter(t=>!t.eta_date&&!t.due_date);
         const overdueTasks=activeTasks.filter(t=>{const eta=t.eta_date||t.due_date;return eta&&eta<todayStr;});
-        const renderMini=(task)=>{const pc=priorityConfig[task.priority]||priorityConfig.medium;const isDone=task.status==="done";return <div key={task.id} onClick={()=>setSelectedTask(task)} style={{padding:"6px 10px",borderRadius:8,background:isDone?"transparent":"var(--bg3)",borderLeft:`3px solid ${isDone?"var(--green)":pc.color}`,marginBottom:4,display:"flex",alignItems:"center",gap:8,opacity:isDone?.5:1,cursor:"pointer"}}>
-          <button onClick={(e)=>{e.stopPropagation();toggleTaskDone(task);}} style={{width:18,height:18,borderRadius:5,border:`2px solid ${isDone?"var(--green)":pc.color}`,background:isDone?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,padding:0}}>
-            {isDone&&<svg width="10" height="10" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/></svg>}
+        const renderMini=(task)=>{const pc=priorityConfig[task.priority]||priorityConfig.medium;const isDone=task.status==="done";const isOverdue=!isDone&&task.eta_date&&task.eta_date<todayStr;return <div key={task.id} onClick={()=>setSelectedTask(task)} style={{padding:"10px 14px",borderRadius:10,background:isDone?"transparent":isOverdue?"rgba(239,68,68,.06)":"var(--bg3)",border:`1px solid ${isDone?"var(--bd)":isOverdue?"rgba(239,68,68,.15)":"var(--bd2)"}`,borderLeft:`4px solid ${isDone?"var(--green)":pc.color}`,marginBottom:6,display:"flex",alignItems:"center",gap:10,opacity:isDone?.45:1,cursor:"pointer",transition:"all .15s ease"}}>
+          <button onClick={(e)=>{e.stopPropagation();toggleTaskDone(task);}} style={{width:22,height:22,borderRadius:7,border:`2px solid ${isDone?"var(--green)":pc.color}`,background:isDone?"var(--green)":"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,padding:0,transition:"all .15s ease"}}>
+            {isDone&&<svg width="11" height="11" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/></svg>}
           </button>
-          <div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:500,textDecoration:isDone?"line-through":"none",color:isDone?"var(--tx3)":"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{task.title}</div>
-            {task.assigned_to&&task.created_by?.toLowerCase()===myEmail&&<div style={{fontSize:10,color:"var(--accent-text)",marginTop:1}}>→ {nameFromEmail(task.assigned_to)}</div>}
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:600,textDecoration:isDone?"line-through":"none",color:isDone?"var(--tx3)":"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{task.title}</div>
+            <div style={{display:"flex",gap:6,alignItems:"center",marginTop:3,flexWrap:"wrap"}}>
+              {task.assigned_to&&task.created_by?.toLowerCase()===myEmail&&<span style={{fontSize:10,color:"var(--accent-text)",fontWeight:500,display:"flex",alignItems:"center",gap:3}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>{nameFromEmail(task.assigned_to)}</span>}
+              {isOverdue&&task.eta_date&&<span style={{fontSize:10,color:"var(--red)",fontWeight:600}}>{Math.ceil((new Date(todayStr)-new Date(task.eta_date))/(1000*60*60*24))}d overdue</span>}
+              {!isOverdue&&task.eta_date&&<span style={{fontSize:10,color:"var(--tx3)"}}>{new Date(task.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>}
+              <span style={{fontSize:9,padding:"1px 6px",borderRadius:6,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".3px"}}>{pc.label}</span>
+            </div>
           </div>
         </div>;};
         return <div>
-          {overdueTasks.length>0&&<div style={{marginBottom:12}}><div style={{fontSize:11,fontWeight:700,color:"var(--red)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:6,display:"flex",alignItems:"center",gap:6}}><Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" size={14}/>Overdue ({overdueTasks.length})</div>{overdueTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(renderMini)}</div>}
+          {overdueTasks.length>0&&<div style={{marginBottom:16,padding:14,borderRadius:12,background:"rgba(239,68,68,.04)",border:"1px solid rgba(239,68,68,.12)"}}><div style={{fontSize:12,fontWeight:700,color:"var(--red)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:10,display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:8,background:"rgba(239,68,68,.12)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" size={16}/></div>Overdue <span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:"var(--red)",color:"#fff",fontWeight:700}}>{overdueTasks.length}</span></div>{overdueTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(renderMini)}</div>}
 
           {/* 5-day strip */}
-          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
-            {baseDays.map(day=><div key={day.dateStr} style={{minHeight:90,padding:8,borderRadius:10,background:day.isToday?"var(--primary-light)":"var(--bg)",border:day.isToday?"1.5px solid var(--tabby-purple)":"1px solid var(--bd2)"}}>
-              <div style={{fontSize:12,fontWeight:day.isToday?700:500,color:day.isToday?"var(--tabby-purple,var(--primary-text))":"var(--tx2)",marginBottom:6}}>
-                <div style={{fontSize:10,color:day.isToday?"var(--tabby-purple,var(--primary-text))":"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>{day.date.toLocaleDateString("en-GB",{weekday:"short"})}</div>
-                {day.date.toLocaleDateString("en-GB",{day:"numeric",month:"short"})}
+          <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10}}>
+            {baseDays.map(day=><div key={day.dateStr} style={{minHeight:100,padding:10,borderRadius:12,background:day.isToday?"var(--primary-light)":"var(--bg)",border:day.isToday?"2px solid var(--tabby-purple)":"1px solid var(--bd2)",position:"relative",overflow:"hidden"}}>
+              {day.isToday&&<div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"var(--tabby-purple)",borderRadius:"12px 12px 0 0"}}/>}
+              <div style={{marginBottom:8,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div>
+                  <div style={{fontSize:10,color:day.isToday?"var(--tabby-purple,var(--primary-text))":"var(--tx3)",textTransform:"uppercase",letterSpacing:".8px",fontWeight:700}}>{day.date.toLocaleDateString("en-GB",{weekday:"short"})}</div>
+                  <div style={{fontSize:14,fontWeight:day.isToday?800:600,color:day.isToday?"var(--tabby-purple,var(--primary-text))":"var(--tx2)",lineHeight:1.2}}>{day.date.toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
+                </div>
+                {day.tasks.length>0&&<span style={{fontSize:10,width:20,height:20,borderRadius:6,background:day.isToday?"var(--tabby-purple)":"var(--bg3)",color:day.isToday?"#fff":"var(--tx3)",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>{day.tasks.length}</span>}
               </div>
-              {day.tasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(t=>{const pc=priorityConfig[t.priority]||priorityConfig.medium;const isDone=t.status==="done";return <div key={t.id} onClick={()=>setSelectedTask(t)} style={{padding:"4px 8px",borderRadius:6,marginBottom:3,cursor:"pointer",background:isDone?"transparent":pc.bg,borderLeft:`3px solid ${isDone?"var(--green)":pc.color}`,fontSize:11,fontWeight:500,color:isDone?"var(--tx3)":"var(--tx)",textDecoration:isDone?"line-through":"none",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",opacity:isDone?.5:1}}>{t.title}</div>;})}
+              {day.tasks.length===0&&<div style={{fontSize:11,color:"var(--tx3)",opacity:.4,textAlign:"center",paddingTop:8}}>—</div>}
+              {day.tasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(t=>{const pc=priorityConfig[t.priority]||priorityConfig.medium;const isDone=t.status==="done";return <div key={t.id} onClick={()=>setSelectedTask(t)} style={{padding:"5px 8px",borderRadius:7,marginBottom:4,cursor:"pointer",background:isDone?"transparent":pc.bg,borderLeft:`3px solid ${isDone?"var(--green)":pc.color}`,fontSize:11,fontWeight:600,color:isDone?"var(--tx3)":"var(--tx)",textDecoration:isDone?"line-through":"none",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",opacity:isDone?.4:1,transition:"all .15s ease"}}>{t.title}</div>;})}
             </div>)}
           </div>
 
@@ -987,7 +1000,7 @@ function DashboardPage({profile,token,gf}){
             </div>
           </div>}
 
-          {noDateTasks.length>0&&<div style={{marginTop:12}}><div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>No date set ({noDateTasks.length})</div>{noDateTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(renderMini)}</div>}
+          {noDateTasks.length>0&&<div style={{marginTop:16,padding:14,borderRadius:12,background:"var(--bg)",border:"1px dashed var(--bd2)"}}><div style={{fontSize:12,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:10,display:"flex",alignItems:"center",gap:8}}><div style={{width:28,height:28,borderRadius:8,background:"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center"}}><Icon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={14}/></div>No date set <span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:"var(--bg3)",color:"var(--tx3)",fontWeight:700}}>{noDateTasks.length}</span></div>{noDateTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(renderMini)}</div>}
           {doneTasks.length>0&&<div style={{marginTop:12}}><button onClick={()=>setHideCompleted(!hideCompleted)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--tx3)",fontWeight:500,fontFamily:"var(--font)",padding:0}}>{hideCompleted?"Show":"Hide"} {doneTasks.length} completed</button></div>}
         </div>;
       })()}
@@ -998,25 +1011,25 @@ function DashboardPage({profile,token,gf}){
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {activeTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(task=>{
             const pc=priorityConfig[task.priority]||priorityConfig.medium;const isOverdue=task.eta_date&&new Date(task.eta_date)<new Date()&&task.status!=="done";const isAssignedToMe=task.assigned_to?.toLowerCase()===myEmail&&task.created_by?.toLowerCase()!==myEmail;
-            return <div key={task.id} style={{padding:"14px 18px",borderRadius:12,background:"var(--bg3)",border:"1px solid var(--bd2)",borderLeft:`4px solid ${isOverdue?"var(--red)":pc.color}`}}>
-              <div style={{display:"flex",alignItems:"flex-start",gap:12}}>
-                <button onClick={()=>toggleTaskDone(task)} style={{width:24,height:24,borderRadius:8,border:`2px solid ${pc.color}`,background:task.status==="done"?pc.color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:2}}>
-                  {task.status==="done"&&<svg width="12" height="12" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>}
+            return <div key={task.id} style={{padding:"16px 20px",borderRadius:14,background:isOverdue?"rgba(239,68,68,.03)":"var(--bg3)",border:`1px solid ${isOverdue?"rgba(239,68,68,.15)":"var(--bd2)"}`,borderLeft:`4px solid ${isOverdue?"var(--red)":pc.color}`,transition:"all .15s ease"}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
+                <button onClick={()=>toggleTaskDone(task)} style={{width:26,height:26,borderRadius:8,border:`2.5px solid ${pc.color}`,background:task.status==="done"?pc.color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:1,transition:"all .15s ease"}}>
+                  {task.status==="done"&&<svg width="13" height="13" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>}
                 </button>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:600,textDecoration:task.status==="done"?"line-through":"none",color:task.status==="done"?"var(--tx3)":"var(--tx)",marginBottom:6}}>{task.title}</div>
-                  {task.description&&<div style={{fontSize:12,color:"var(--tx2)",marginBottom:8,lineHeight:1.5,opacity:.85}}>{task.description}</div>}
+                  <div style={{fontSize:15,fontWeight:700,textDecoration:task.status==="done"?"line-through":"none",color:task.status==="done"?"var(--tx3)":"var(--tx)",marginBottom:4,letterSpacing:"-.01em"}}>{task.title}</div>
+                  {task.description&&<div style={{fontSize:12,color:"var(--tx2)",marginBottom:10,lineHeight:1.6,opacity:.8}}>{task.description}</div>}
                   <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                    <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase"}}>{pc.label}</span>
-                    {task.eta_date&&<span style={{fontSize:11,color:isOverdue?"var(--red)":"var(--tx3)",fontWeight:isOverdue?600:400,display:"flex",alignItems:"center",gap:4}}><Icon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={12}/>{isOverdue?"Overdue":"ETA"}: {new Date(task.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>}
-                    {isAssignedToMe&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:600}}>Assigned by {nameFromEmail(task.created_by)}</span>}
-                    {task.assigned_to&&task.created_by?.toLowerCase()===myEmail&&<span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600}}>→ {nameFromEmail(task.assigned_to)}</span>}
+                    <span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".3px"}}>{pc.label}</span>
+                    {task.eta_date&&<span style={{fontSize:11,color:isOverdue?"var(--red)":"var(--tx3)",fontWeight:isOverdue?700:400,display:"flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:8,background:isOverdue?"rgba(239,68,68,.08)":"transparent"}}><Icon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={12}/>{isOverdue?`${Math.ceil((new Date()-new Date(task.eta_date+"T00:00:00"))/(1000*60*60*24))}d overdue`:`ETA: ${new Date(task.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`}</span>}
+                    {isAssignedToMe&&<span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:600,display:"flex",alignItems:"center",gap:3}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>From {nameFromEmail(task.created_by)}</span>}
+                    {task.assigned_to&&task.created_by?.toLowerCase()===myEmail&&<span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600,display:"flex",alignItems:"center",gap:3}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>{nameFromEmail(task.assigned_to)}</span>}
                   </div>
                 </div>
-                <div style={{display:"flex",gap:2,flexShrink:0}}>
-                  <button onClick={()=>setPostponeModal(task)} title="Postpone" style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:8,color:"var(--tx3)"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--amber)";e.currentTarget.style.background="var(--amber-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}><Icon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={16}/></button>
-                  <button onClick={()=>{setEditingTask(task);setTaskForm({title:task.title,description:task.description||"",priority:task.priority,due_date:"",eta_date:task.eta_date||"",assigned_to:task.assigned_to||""});setShowTaskForm(true);}} title="Edit" style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:8,color:"var(--tx3)"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--accent-text)";e.currentTarget.style.background="var(--accent-light)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}><Icon d={icons.edit} size={16}/></button>
-                  <button onClick={()=>deleteTask(task)} title="Delete" style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:8,color:"var(--tx3)"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--red)";e.currentTarget.style.background="var(--red-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}><Icon d={icons.trash} size={16}/></button>
+                <div style={{display:"flex",gap:4,flexShrink:0}}>
+                  <button onClick={()=>setPostponeModal(task)} title="Postpone" style={{background:"none",border:"none",cursor:"pointer",padding:7,borderRadius:8,color:"var(--tx3)",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--amber)";e.currentTarget.style.background="var(--amber-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}><Icon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={16}/></button>
+                  <button onClick={()=>{setEditingTask(task);setTaskForm({title:task.title,description:task.description||"",priority:task.priority,due_date:"",eta_date:task.eta_date||"",assigned_to:task.assigned_to||""});setShowTaskForm(true);}} title="Edit" style={{background:"none",border:"none",cursor:"pointer",padding:7,borderRadius:8,color:"var(--tx3)",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--accent-text)";e.currentTarget.style.background="var(--accent-light)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}><Icon d={icons.edit} size={16}/></button>
+                  <button onClick={()=>deleteTask(task)} title="Delete" style={{background:"none",border:"none",cursor:"pointer",padding:7,borderRadius:8,color:"var(--tx3)",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--red)";e.currentTarget.style.background="var(--red-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}><Icon d={icons.trash} size={16}/></button>
                 </div>
               </div>
             </div>;
