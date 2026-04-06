@@ -542,21 +542,22 @@ function DashboardPage({profile,token,gf}){
   const isLead=hasRole(profile?.role,"qa_lead");
   const isAdmin=hasRole(profile?.role,"admin");
   const isSupervisor=hasRole(profile?.role,"qa_supervisor");
-  const canAnnounce=isAdmin||isSupervisor;
+  const canAnnounce=hasRole(profile?.role,"senior_qa");
   const{show,el:toastEl}=useToast();
 
   const sendAnnouncement=async()=>{
     if(!annForm.title.trim()||!annForm.message.trim()){show("error","Title and message are required");return;}
-    if(annForm.target_type!=="all"&&!annForm.target_value){show("error","Please select a target");return;}
+    if(annForm.target_type!=="all"&&annForm.target_type!=="my_team"&&!annForm.target_value){show("error","Please select a target");return;}
     try{
+      const targetValue = annForm.target_type==="all"?null:annForm.target_type==="my_team"?profile?.email:annForm.target_value;
       const result = await sb.query("announcements",{token,method:"POST",body:{
         title:annForm.title,message:annForm.message,priority:annForm.priority,
-        target_type:annForm.target_type,target_value:annForm.target_type==="all"?null:annForm.target_value,
+        target_type:annForm.target_type,target_value:targetValue,
         sent_by:profile?.email,requires_ack:true,
       }});
-      logActivity(token,profile?.email,"announcement_sent","announcements",null,`Title: ${annForm.title}, Target: ${annForm.target_type}${annForm.target_value?" ("+annForm.target_value+")":""}`);
+      logActivity(token,profile?.email,"announcement_sent","announcements",null,`Title: ${annForm.title}, Target: ${annForm.target_type}${targetValue?" ("+targetValue+")":""}`);
       setShowAnnForm(false);
-      setAnnForm({title:"",message:"",priority:"normal",target_type:"all",target_value:""});
+      setAnnForm({title:"",message:"",priority:"normal",target_type:"my_team",target_value:""});
       show("success","Announcement sent successfully!");
     }catch(e){
       console.error("Announcement error:", e);
@@ -833,7 +834,12 @@ function DashboardPage({profile,token,gf}){
         </div>
         <div className="form-group">
           <label className="form-label">Send to</label>
-          <SearchableSelect options={[{value:"all",label:"Everyone"},{value:"domain",label:"Specific domain"},{value:"team",label:"Specific team"},{value:"individual",label:"Individual person"}]} value={annForm.target_type} onChange={v=>setAnnForm({...annForm,target_type:v,target_value:""})} placeholder="Everyone"/>
+          <SearchableSelect options={[
+            ...(hasRole(profile?.role,"qa_supervisor")?[{value:"all",label:"Everyone"},{value:"domain",label:"Specific domain"}]:[]),
+            {value:"my_team",label:"My team"},
+            {value:"team",label:"Specific team"},
+            {value:"individual",label:"Individual person"},
+          ]} value={annForm.target_type} onChange={v=>setAnnForm({...annForm,target_type:v,target_value:""})} placeholder="Select audience"/>
         </div>
         {annForm.target_type==="domain"&&<div className="form-group">
           <label className="form-label">Domain</label>
@@ -6373,8 +6379,13 @@ export default function App(){
     setGlobalRoster(r);
     // Build roster map for global filter team lookups
     const rm = {};
-    r.forEach(x => { if (x.email && x.queue) rm[x.email.toLowerCase()] = x.queue; });
+    const rmMgr = {};
+    r.forEach(x => { 
+      if (x.email && x.queue) rm[x.email.toLowerCase()] = x.queue;
+      if (x.email && x.manager_email) rmMgr[x.email.toLowerCase()] = x.manager_email.toLowerCase();
+    });
     window.__gfRoster = rm;
+    window.__gfRosterMgr = rmMgr;
     const uniqueMonths=sortMonthsDesc([...new Set(m.map(x=>x.month).filter(Boolean))]);
     setGlobalMonths(uniqueMonths);
   }catch(e){console.error("Global filters:",e);}})();},[session]);
@@ -6395,6 +6406,12 @@ export default function App(){
       if(a.target_type==="domain")return myEmail.endsWith("@"+a.target_value);
       if(a.target_type==="team")return myQueue===a.target_value;
       if(a.target_type==="individual")return myEmail===a.target_value?.toLowerCase();
+      if(a.target_type==="my_team"){
+        // Show to QAs whose manager matches target_value, OR to the sender themselves
+        const myMgr=(window.__gfRosterMgr||{})[myEmail]||"";
+        const targetLead=a.target_value?.toLowerCase()||"";
+        return myEmail===targetLead || myMgr===targetLead || (targetLead.split("@")[0]&&myMgr.split("@")[0]===targetLead.split("@")[0]);
+      }
       return false;
     });
     setPendingAnnouncements(pending);
