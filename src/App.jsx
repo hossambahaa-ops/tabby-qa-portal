@@ -887,7 +887,7 @@ function DashboardPage({profile,token,gf}){
           <div style={{width:32,height:32,borderRadius:10,background:"linear-gradient(135deg,var(--tabby-purple),#8B5CF6)",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
           My Tasks
           {activeTasks.length>0&&<span style={{fontSize:12,padding:"3px 10px",borderRadius:10,background:"var(--primary-light)",color:"var(--tabby-purple,var(--primary-text))",fontWeight:700}}>{activeTasks.length}</span>}
-          {activeTasks.filter(t=>{const eta=t.eta_date||t.due_date;const today=new Date().toISOString().split("T")[0];return eta&&eta<today;}).length>0&&<span style={{fontSize:10,padding:"3px 10px",borderRadius:10,background:"var(--red-bg)",color:"var(--red)",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 8v4m0 4h.01"/></svg>{activeTasks.filter(t=>{const eta=t.eta_date||t.due_date;const today=new Date().toISOString().split("T")[0];return eta&&eta<today;}).length} overdue</span>}
+          {(()=>{const td=new Date();td.setHours(0,0,0,0);const todayLocal=td.getFullYear()+"-"+String(td.getMonth()+1).padStart(2,"0")+"-"+String(td.getDate()).padStart(2,"0");const cnt=activeTasks.filter(t=>{const eta=t.eta_date||t.due_date;return eta&&eta<todayLocal;}).length;return cnt>0?<span style={{fontSize:10,padding:"3px 10px",borderRadius:10,background:"var(--red-bg)",color:"var(--red)",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 8v4m0 4h.01"/></svg>{cnt} overdue</span>:null;})()}
         </span>
         <div style={{display:"flex",gap:6,alignItems:"center"}}>
           <div style={{display:"flex",borderRadius:8,border:"1px solid var(--bd)",overflow:"hidden"}}>
@@ -1010,7 +1010,7 @@ function DashboardPage({profile,token,gf}){
       {activeTasks.length===0&&!showTaskForm?<div style={{textAlign:"center",padding:"24px 0",color:"var(--tx3)",fontSize:13}}>No active tasks</div>:
         <div style={{display:"flex",flexDirection:"column",gap:8}}>
           {activeTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(task=>{
-            const pc=priorityConfig[task.priority]||priorityConfig.medium;const isOverdue=task.eta_date&&new Date(task.eta_date)<new Date()&&task.status!=="done";const isAssignedToMe=task.assigned_to?.toLowerCase()===myEmail&&task.created_by?.toLowerCase()!==myEmail;
+            const pc=priorityConfig[task.priority]||priorityConfig.medium;const todayDate=new Date();todayDate.setHours(0,0,0,0);const etaDate=task.eta_date?new Date(task.eta_date+"T00:00:00"):null;const isOverdue=etaDate&&etaDate<todayDate&&task.status!=="done";const isAssignedToMe=task.assigned_to?.toLowerCase()===myEmail&&task.created_by?.toLowerCase()!==myEmail;
             return <div key={task.id} style={{padding:"16px 20px",borderRadius:14,background:isOverdue?"rgba(239,68,68,.03)":"var(--bg3)",border:`1px solid ${isOverdue?"rgba(239,68,68,.15)":"var(--bd2)"}`,borderLeft:`4px solid ${isOverdue?"var(--red)":pc.color}`,transition:"all .15s ease"}}>
               <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
                 <button onClick={()=>toggleTaskDone(task)} style={{width:26,height:26,borderRadius:8,border:`2.5px solid ${pc.color}`,background:task.status==="done"?pc.color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:1,transition:"all .15s ease"}}>
@@ -1059,7 +1059,7 @@ function DashboardPage({profile,token,gf}){
       const t=userTasks.find(x=>x.id===selectedTask.id)||selectedTask;
       const pc=priorityConfig[t.priority]||priorityConfig.medium;
       const isDone=t.status==="done";
-      const isOverdue=t.eta_date&&new Date(t.eta_date+"T00:00:00")<new Date()&&!isDone;
+      const isOverdue=(()=>{if(!t.eta_date||isDone)return false;const td=new Date();td.setHours(0,0,0,0);return new Date(t.eta_date+"T00:00:00")<td;})();
       return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget)setSelectedTask(null);}}>
         <div className="card" style={{width:"100%",maxWidth:440,margin:20}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
