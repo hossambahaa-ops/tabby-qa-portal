@@ -1953,7 +1953,25 @@ function ScoreEntryPage({token,profile,gf}){
 }
 
 function AdminUsersPage({token,teams,profile}){
-  const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const[editTeamIds,setEditTeamIds]=useState([]);const[userTeamsMap,setUserTeamsMap]=useState({});const{show,el}=useToast();
+  const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const[editTeamIds,setEditTeamIds]=useState([]);const[userTeamsMap,setUserTeamsMap]=useState({});const[deletingId,setDeletingId]=useState(null);const{show,el}=useToast();
+  const isSuperAdmin=profile?.role==="super_admin";
+  const deleteUser=async(u)=>{
+    if(!confirm(`Are you sure you want to permanently delete ${u.display_name||u.email}?\n\nThis will remove their profile, auth account, Gmail tokens, team memberships, coaching sessions, and DAM flags.\n\nThis action cannot be undone.`))return;
+    setDeletingId(u.id);
+    try{
+      const resp=await fetch(`https://shuenqmzbrthiiokfzio.supabase.co/functions/v1/user-management`,{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},
+        body:JSON.stringify({action:"delete_user",target_user_id:u.id,target_email:u.email}),
+      });
+      const data=await resp.json();
+      if(!resp.ok||data.error){show("error",data.error||"Failed to delete user");setDeletingId(null);return;}
+      setUsers(prev=>prev.filter(x=>x.id!==u.id));
+      show("success",`${u.display_name||u.email} deleted`);
+      logActivity(token,profile?.email,"user_deleted","profiles",u.id,`Deleted: ${u.email}`);
+    }catch(e){show("error",e.message);}
+    setDeletingId(null);
+  };
   const load=useCallback(async()=>{try{
     const[d,r,ut]=await Promise.all([
       sb.query("profiles",{select:"id,email,display_name,role,domain,operational_domain,team_id,status",token}),
@@ -1999,7 +2017,7 @@ function AdminUsersPage({token,teams,profile}){
         <td>{editingId===u.id?<SearchableSelect options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]} value={editOpDomain} onChange={setEditOpDomain} placeholder="Domain"/>:<span className={`domain-badge domain-${getOpDomain(u)==="tabby.ai"?"ai":"sa"}`}>{getOpDomain(u)}</span>}</td>
         <td>{editingId===u.id?<SearchableSelect options={teams.map(t=>({value:t.id,label:`${t.name} (${t.domain})`}))} value={editTeamIds} onChange={setEditTeamIds} placeholder="Select teams..." multi/>:uTeams.length>0?<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{uTeams.map((n,i)=><span key={i} className="team-tag">{n}</span>)}</div>:<span style={{fontSize:13,color:"var(--tx3)"}}>—</span>}</td>
         <td><span className={`status-badge status-${u.status}`}>{u.status}</span></td>
-        <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditOpDomain(getOpDomain(u));setEditTeamIds(userTeamsMap[u.id]||[]);}}>Edit</button>}</td></tr>);})}
+        <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<div style={{display:"flex",gap:6}}><button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditOpDomain(getOpDomain(u));setEditTeamIds(userTeamsMap[u.id]||[]);}}>Edit</button>{isSuperAdmin&&u.id!==profile?.id&&<button className="btn btn-sm" disabled={deletingId===u.id} onClick={()=>deleteUser(u)} style={{background:"var(--red-bg,#fef2f2)",color:"var(--red,#ef4444)",border:"1px solid var(--red,#ef4444)",fontSize:11,opacity:deletingId===u.id?.5:1}}>{deletingId===u.id?"...":"Delete"}</button>}</div>}</td></tr>);})}
       </tbody></table></div>}</div>{el}
   </div>);
 }
