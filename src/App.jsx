@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
+import DOMPurify from "dompurify";
 import "./index.css";
 
 // Style overrides — topbar, collapsible sidebar, dark mode, notifications, search
@@ -377,6 +378,7 @@ const sb = {
 
 const monday=(d)=>{const dt=new Date(d);const day=dt.getDay();const diff=dt.getDate()-day+(day===0?-6:1);dt.setDate(diff);return dt.toISOString().split("T")[0];};
 const fmtWeek=(d)=>{if(!d)return"—";const dt=new Date(d+"T00:00:00");return`Week of ${dt.toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;};
+const safeError=(e)=>{const m=e?.message||String(e);console.error("Error:",m);if(m.includes("duplicate key"))return"This record already exists.";if(m.includes("violates foreign key"))return"Related record not found.";if(m.includes("permission denied")||m.includes("new row violates"))return"You don't have permission for this action.";if(m.includes("JWT expired")||m.includes("Invalid JWT"))return"Session expired. Please refresh the page.";if(m.length>100)return"Something went wrong. Please try again.";return m;};
 
 function useToast(){const[t,setT]=useState(null);const show=(type,msg)=>{setT({type,msg});setTimeout(()=>setT(null),3500);};const el=t?<div className={`toast toast-${t.type}`}>{t.msg}</div>:null;return{show,el};}
 
@@ -761,7 +763,7 @@ function DashboardPage({profile,token,gf}){
         show("success",taskForm.assigned_to?`Task created and assigned to ${nameFromEmail(taskForm.assigned_to)}`:"Task created");
       }
       setShowTaskForm(false);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});
-    }catch(e){show("error",e.message);}
+    }catch(e){show("error",safeError(e));}
   };
   const toggleTaskDone=async(task)=>{
     const newStatus=task.status==="done"?"pending":"done";
@@ -769,7 +771,7 @@ function DashboardPage({profile,token,gf}){
     try{
       await sb.query("tasks",{token,method:"PATCH",body:{status:newStatus,completed_at:newStatus==="done"?new Date().toISOString():null,updated_at:new Date().toISOString()},filters:`id=eq.${task.id}`});
       logActivity(token,profile?.email,newStatus==="done"?"task_completed":"task_reopened","tasks",task.id,`Title: ${task.title}`);
-    }catch(e){show("error",e.message);setUserTasks(prev=>prev.map(t=>t.id===task.id?{...t,status:task.status}:t));}
+    }catch(e){show("error",safeError(e));setUserTasks(prev=>prev.map(t=>t.id===task.id?{...t,status:task.status}:t));}
   };
   const postponeTask=async()=>{
     if(!postponeDate){show("error","Select a new date");return;}
@@ -778,7 +780,7 @@ function DashboardPage({profile,token,gf}){
       setUserTasks(prev=>prev.map(t=>t.id===postponeModal.id?{...t,status:"postponed",eta_date:postponeDate}:t));
       logActivity(token,profile?.email,"task_postponed","tasks",postponeModal.id,`Title: ${postponeModal.title}, New date: ${postponeDate}`);
       show("success","Task postponed");setPostponeModal(null);setPostponeDate("");setPostponeReason("");
-    }catch(e){show("error",e.message);}
+    }catch(e){show("error",safeError(e));}
   };
   const deleteTask=async(task)=>{
     if(!confirm("Delete this task?"))return;
@@ -787,7 +789,7 @@ function DashboardPage({profile,token,gf}){
       await sb.query("tasks",{token,method:"DELETE",filters:`id=eq.${task.id}`});
       logActivity(token,profile?.email,"task_deleted","tasks",task.id,`Title: ${task.title}`);
       show("success","Task deleted");
-    }catch(e){show("error",e.message);loadTasks();}
+    }catch(e){show("error",safeError(e));loadTasks();}
   };
   const priorityConfig={urgent:{label:"Urgent",color:"var(--red)",bg:"var(--red-bg)"},high:{label:"High",color:"var(--amber)",bg:"var(--amber-bg)"},medium:{label:"Medium",color:"var(--tabby-purple)",bg:"var(--primary-light)"},low:{label:"Low",color:"var(--tx3)",bg:"var(--bg2)"}};
   const activeTasks=userTasks.filter(t=>t.status!=="done");
@@ -1571,9 +1573,9 @@ function TeamManagementPage({token,profile}){
   const getMemberCount=(teamName)=>roster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain))).length;
   const getTeamMembers=(teamName)=>roster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain)));
 
-  const save=async()=>{try{const b={name:form.name,domain:form.domain,lead_id:form.lead_id||null,supervisor_id:form.supervisor_id||null};if(editId){await sb.query("teams",{token,method:"PATCH",body:b,filters:`id=eq.${editId}`});logActivity(token,profile?.email,"team_updated","teams",editId,`Name: ${form.name}`);show("success","Team updated");}else{await sb.query("teams",{token,method:"POST",body:b});logActivity(token,profile?.email,"team_created","teams",null,`Name: ${form.name}, Domain: ${form.domain}`);show("success","Team created");}setShowForm(false);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});load();}catch(e){show("error",e.message);}};
+  const save=async()=>{try{const b={name:form.name,domain:form.domain,lead_id:form.lead_id||null,supervisor_id:form.supervisor_id||null};if(editId){await sb.query("teams",{token,method:"PATCH",body:b,filters:`id=eq.${editId}`});logActivity(token,profile?.email,"team_updated","teams",editId,`Name: ${form.name}`);show("success","Team updated");}else{await sb.query("teams",{token,method:"POST",body:b});logActivity(token,profile?.email,"team_created","teams",null,`Name: ${form.name}, Domain: ${form.domain}`);show("success","Team created");}setShowForm(false);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});load();}catch(e){show("error",safeError(e));}};
   const startEdit=(t)=>{setForm({name:t.name,domain:t.domain,lead_id:t.lead_id||"",supervisor_id:t.supervisor_id||""});setEditId(t.id);setShowForm(true);};
-  const del=async(id)=>{if(!confirm("Delete this team?"))return;try{const t=teams.find(x=>x.id===id);await sb.query("teams",{token,method:"DELETE",filters:`id=eq.${id}`});logActivity(token,profile?.email,"team_deleted","teams",id,`Name: ${t?.name||"?"}`);show("success","Deleted");load();}catch(e){show("error",e.message);}};
+  const del=async(id)=>{if(!confirm("Delete this team?"))return;try{const t=teams.find(x=>x.id===id);await sb.query("teams",{token,method:"DELETE",filters:`id=eq.${id}`});logActivity(token,profile?.email,"team_deleted","teams",id,`Name: ${t?.name||"?"}`);show("success","Deleted");load();}catch(e){show("error",safeError(e));}};
 
   const [expandedTeam, setExpandedTeam] = useState(null);
   const [filterDomain, setFilterDomain] = useState("");
@@ -2273,7 +2275,7 @@ function AdminUsersPage({token,teams,profile}){
       setUsers(prev=>prev.filter(x=>x.id!==u.id));
       show("success",`${u.display_name||u.email} deleted`);
       logActivity(token,profile?.email,"user_deleted","profiles",u.id,`Deleted: ${u.email}`);
-    }catch(e){show("error",e.message);}
+    }catch(e){show("error",safeError(e));}
     setDeletingId(null);
   };
   const load=useCallback(async()=>{try{
@@ -2310,7 +2312,7 @@ function AdminUsersPage({token,teams,profile}){
     logActivity(token, profile?.email, "user_updated", "profiles", uid, `${u?.email}: role=${editRole}, domain=${editOpDomain}, teams=${editTeamIds.length}`);
     setUsers(prev=>prev.map(x=>x.id===uid?{...x,role:editRole,operational_domain:editOpDomain,team_id:editTeamIds[0]||null}:x));
     setEditingId(null);show("success","Updated");
-  }catch(e){show("error",e.message);}};
+  }catch(e){show("error",safeError(e));}};
   return(<div className="page">
     <div className="page-header"><div className="page-title">User management</div><div className="page-subtitle">{users.length} users</div></div>
     <div className="card">{loading?<div className="loading-spinner"><div className="spinner"/></div>:
@@ -2338,7 +2340,7 @@ function AdminFeedbackPage({token}){
     await sb.query("feedback",{token,method:"PATCH",body:{status},filters:`id=eq.${id}`});
     setItems(prev=>prev.map(x=>x.id===id?{...x,status}:x));
     show("success","Updated");
-  }catch(e){show("error",e.message);}};
+  }catch(e){show("error",safeError(e));}};
   const catIcon={bug:"🐛",feature:"💡",improvement:"✨",general:"💬"};
   const catLabel={bug:"Bug",feature:"Feature",improvement:"Improvement",general:"General"};
   const statusColor={new:{bg:"var(--blue-bg)",color:"var(--blue)"},reviewed:{bg:"var(--amber-bg)",color:"var(--amber)"},planned:{bg:"var(--primary-light)",color:"var(--tabby-purple,#6A2C79)"},done:{bg:"var(--green-bg)",color:"var(--green)"},dismissed:{bg:"var(--bg2)",color:"var(--tx3)"}};
@@ -2456,7 +2458,7 @@ function DAMPage({token,profile,gf}){
       show("success",`Flag created — occurrence #${occ}${step?": "+step.action:""}`);
       logActivity(token, profile?.email, "dam_flag_created", "dam_flags", selProfile, `Rule: ${rules.find(r=>r.id===selRule)?.name}, Occurrence: #${occ}`);
       setShowCreate(false);setSelRule("");setSelProfile("");setFlagNotes("");load();
-    }catch(e){show("error",e.message);}
+    }catch(e){show("error",safeError(e));}
   };
 
   const updateFlagStatus=async(flagId,status)=>{
@@ -2465,7 +2467,7 @@ function DAMPage({token,profile,gf}){
       await sb.query("dam_flags",{token,method:"PATCH",body:{status,reviewed_by:profile.id,reviewed_at:new Date().toISOString()},filters:`id=eq.${flagId}`});
       logActivity(token, profile?.email, `dam_flag_${status}`, "dam_flags", flagId, `Status changed to: ${status}`);
       show("success","Flag updated");
-    }catch(e){show("error",e.message);load();}
+    }catch(e){show("error",safeError(e));load();}
   };
 
   const behaviorTypes=[{key:"manipulation",label:"Manipulation",color:"var(--red)"},{key:"performance_management",label:"Performance management",color:"var(--amber)"},{key:"completion_attainment",label:"Completion & attainment",color:"var(--accent-text)"}];
@@ -2571,7 +2573,7 @@ function DAMPage({token,profile,gf}){
       {hasRole(profile?.role,"super_admin")&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
         <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{
           if(!confirm(`Permanently delete ALL ${flags.length} DAM flag records? This cannot be undone.`))return;
-          try{for(const f of flags){await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});}show("success","All DAM flags deleted");setFlags([]);}catch(e){show("error",e.message);}
+          try{for(const f of flags){await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});}show("success","All DAM flags deleted");setFlags([]);}catch(e){show("error",safeError(e));}
         }}><Icon d={icons.trash} size={14}/>Clear all history</button>
       </div>}
       <div className="table-wrap"><table><thead><tr><th>Person</th><th>Behavior</th><th>Occ.</th><th>Status</th><th>Date</th><th>Notes</th>{hasRole(profile?.role,"super_admin")&&<th></th>}</tr></thead><tbody>
@@ -2585,7 +2587,7 @@ function DAMPage({token,profile,gf}){
           {hasRole(profile?.role,"super_admin")&&<td>
             <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{
               if(!confirm("Delete this flag permanently?"))return;
-              try{await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});show("success","Flag deleted");setFlags(prev=>prev.filter(x=>x.id!==f.id));}catch(e){show("error",e.message);}
+              try{await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});show("success","Flag deleted");setFlags(prev=>prev.filter(x=>x.id!==f.id));}catch(e){show("error",safeError(e));}
             }}><Icon d={icons.trash} size={14}/></button>
           </td>}
         </tr>))}
@@ -3913,7 +3915,7 @@ function CoachingPage({token, profile, gf}) {
       logActivity(token, profile?.email, "coaching_session_created", "coaching_sessions", null, `Member: ${toEmail}, Type: ${meetingType}`);
       setShowPreview(false);
     } catch (e) {
-      show("error", e.message);
+      show("error", safeError(e));
     }
     setLoading(false);
   };
@@ -4179,7 +4181,7 @@ function CoachingPage({token, profile, gf}) {
               {ccEmail && <div style={{fontSize:13,marginBottom:4}}><span style={{color:"var(--tx3)",fontWeight:600,fontSize:11}}>CC:</span> {ccEmail}</div>}
               <div style={{fontSize:13,marginBottom:4}}><span style={{color:"var(--tx3)",fontWeight:600,fontSize:11}}>FROM:</span> {profile?.email}</div>
               <div style={{fontWeight:700,fontSize:15,padding:"12px 0",borderTop:"1px solid var(--bd2)",borderBottom:"1px solid var(--bd2)",margin:"10px 0 14px"}}>{emailSubject}</div>
-              <div style={{background:"#fff",color:"#1a1a1a",padding:"20px",borderRadius:8,fontSize:13,lineHeight:1.85,maxHeight:500,overflowY:"auto"}} dangerouslySetInnerHTML={{__html: buildEmailBody()}}/>
+              <div style={{background:"#fff",color:"#1a1a1a",padding:"20px",borderRadius:8,fontSize:13,lineHeight:1.85,maxHeight:500,overflowY:"auto"}} dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(buildEmailBody())}}/>
 
               <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--bd2)"}}>
                 <button className="btn btn-primary" onClick={generateAndSend} disabled={loading || gmailChecking} style={{width:"100%",justifyContent:"center",padding:"12px"}}>
@@ -4262,7 +4264,7 @@ function CoachingPage({token, profile, gf}) {
                         await sb.query("coaching_sessions",{token,method:"DELETE",filters:`id=eq.${s.id}`});
                         setSessions(sessions.filter(x=>x.id!==s.id));
                         show("success","Session deleted");
-                      }catch(err){show("error",err.message);}
+                      }catch(err){show("error",safeError(err));}
                     }}><Icon d={icons.trash} size={14}/></button>
                   </td>}
                   <td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
@@ -4622,7 +4624,7 @@ function ActionPlanPage({ token, profile }) {
       // Reload to get new plan with ID
       load();
     } catch (e) {
-      show("error", e.message);
+      show("error", safeError(e));
     }
     setLoading(false);
   };
@@ -4691,7 +4693,7 @@ function ActionPlanPage({ token, profile }) {
       show("success", "Actuals updated from MTD (" + latestMonth + ")");
       // Optimistic update
       setWeeks(prev => prev.map(w => w.id === weekId ? { ...w, actual_data: JSON.stringify(actualData), met_targets: metTargets, updated_at: new Date().toISOString() } : w));
-    } catch (e) { show("error", e.message); }
+    } catch (e) { show("error", safeError(e)); }
   };
 
   // ── Conclude plan ──
@@ -4794,7 +4796,7 @@ function ActionPlanPage({ token, profile }) {
       // Optimistic update
       const newStatus = conclusionOutcome === "pass" ? "completed_pass" : "completed_fail";
       setPlans(prev => prev.map(p => p.id === concludingPlan.id ? { ...p, status: newStatus, conclusion: conclusionOutcome, conclusion_notes: conclusionNotes, concluded_by: profile?.email, concluded_at: new Date().toISOString() } : p));
-    } catch (e) { show("error", e.message); }
+    } catch (e) { show("error", safeError(e)); }
     setLoading(false);
   };
 
@@ -4810,7 +4812,7 @@ function ActionPlanPage({ token, profile }) {
       }});
       setDetections(prev => prev.filter(d => d.email !== email));
       show("success", "Detection dismissed for " + nameFromEmail(email));
-    } catch (e) { show("error", e.message); }
+    } catch (e) { show("error", safeError(e)); }
   };
 
   // ── Helper: parse JSON safely ──
@@ -5406,7 +5408,7 @@ function ActionPlanPage({ token, profile }) {
                           show("success", "Plan permanently deleted");
                           setPlans(prev => prev.filter(p => p.id !== plan.id));
                           setWeeks(prev => prev.filter(w => w.plan_id !== plan.id));
-                        } catch (err) { show("error", err.message); }
+                        } catch (err) { show("error", safeError(err)); }
                       }}>
                         <Icon d={icons.trash} size={14} />Delete
                       </button>}
@@ -5490,7 +5492,7 @@ function ActionPlanPage({ token, profile }) {
                           show("success", "Plan permanently deleted");
                           setPlans(prev => prev.filter(x => x.id !== p.id));
                           setWeeks(prev => prev.filter(w => w.plan_id !== p.id));
-                        } catch (err) { show("error", err.message); }
+                        } catch (err) { show("error", safeError(err)); }
                       }}><Icon d={icons.trash} size={14} /></button>
                     </td>}
                   </tr>
@@ -5738,7 +5740,7 @@ function CoachingViolationsPage({token, profile, gf}) {
       // Optimistic update
       const newStatus = reviewStatus === "valid" ? "dam_created" : "invalid";
       setViolations(prev => prev.map(v => v.id === reviewModal.id ? { ...v, status: newStatus, reviewed_by: profile?.email, reviewed_at: new Date().toISOString(), review_notes: reviewNotes.trim() } : v));
-    } catch (e) { show("error", e.message); }
+    } catch (e) { show("error", safeError(e)); }
   };
 
   const violationColor = (type) => {
@@ -5884,7 +5886,7 @@ function CoachingViolationsPage({token, profile, gf}) {
                             await sb.query("coaching_violations", { token, method: "DELETE", filters: `id=eq.${v.id}` });
                             show("success", "Deleted");
                             load();
-                          } catch (e) { show("error", e.message); }
+                          } catch (e) { show("error", safeError(e)); }
                         }}><Icon d={icons.trash} size={14} /></button>}
                       </div>
                     </td>
@@ -6189,7 +6191,7 @@ function EscalationsPage({ token, profile, gf }) {
       setAttachments([]);
       // Optimistic: reload to get new escalation with ID
       load();
-    } catch (e) { show("error", e.message); }
+    } catch (e) { show("error", safeError(e)); }
     setUploading(false);
   };
 
@@ -6205,7 +6207,7 @@ function EscalationsPage({ token, profile, gf }) {
       setEscalations(prev => prev.map(e => e.id === escId ? { ...e, response: responseText.trim(), responded_by: myEmail, responded_at: new Date().toISOString(), status: "in_progress" } : e));
       setResponseText("");
       setViewEsc(null);
-    } catch (e) { show("error", e.message); }
+    } catch (e) { show("error", safeError(e)); }
   };
 
   const resolveEscalation = async (escId) => {
@@ -6219,7 +6221,7 @@ function EscalationsPage({ token, profile, gf }) {
       setEscalations(prev => prev.map(e => e.id === escId ? { ...e, status: "resolved", resolution_note: resolutionNote.trim() || null, resolved_at: new Date().toISOString() } : e));
       setResolutionNote("");
       setViewEsc(null);
-    } catch (e) { show("error", e.message); }
+    } catch (e) { show("error", safeError(e)); }
   };
 
   const statusColor = (s) => {
@@ -6438,7 +6440,7 @@ function EscalationsPage({ token, profile, gf }) {
                     show("success", "Dismissed");
                     setViewEsc(null);
                     load();
-                  } catch (e) { show("error", e.message); }
+                  } catch (e) { show("error", safeError(e)); }
                 }}>Dismiss</button>}
               </div>
             </div>
@@ -6453,7 +6455,7 @@ function EscalationsPage({ token, profile, gf }) {
                 show("success", "Deleted");
                 setViewEsc(null);
                 load();
-              } catch (e) { show("error", e.message); }
+              } catch (e) { show("error", safeError(e)); }
             }}><Icon d={icons.trash} size={14} /> Delete permanently</button>
           </div>}
 
