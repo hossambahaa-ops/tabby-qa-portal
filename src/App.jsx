@@ -2098,7 +2098,7 @@ function ScoreEntryPage({token,profile,gf}){
 
     {/* Upload Data Modal */}
     {showUpload&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={e=>{if(e.target===e.currentTarget)setShowUpload(false);}}>
-      <div className="card" style={{width:"100%",maxWidth:720,maxHeight:"85vh",overflow:"auto"}}>
+      <div className="card" style={{width:"100%",maxWidth:720,maxHeight:"85vh",overflow:"auto",background:"var(--card-bg,var(--bg2))",boxShadow:"0 20px 60px rgba(0,0,0,.4)"}}>
         <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}><Icon d={icons.upload} size={18}/>Upload data to MPR</span>
           <button className="btn btn-outline btn-sm" onClick={()=>setShowUpload(false)} style={{padding:"4px 8px"}}><Icon d="M6 18L18 6M6 6l12 12" size={16}/></button>
