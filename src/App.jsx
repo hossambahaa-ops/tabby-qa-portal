@@ -851,7 +851,7 @@ function DashboardPage({profile,token,gf}){
         </div>}
         {annForm.target_type==="individual"&&<div className="form-group">
           <label className="form-label">Person</label>
-          <SearchableSelect options={roster.map(r=>({value:r.email,label:nameFromEmail(r.email)+` (${r.email.split("@")[1]})`}))} value={annForm.target_value} onChange={v=>setAnnForm({...annForm,target_value:v})} placeholder="Select person"/>
+          <SearchableSelect options={roster.map(r=>({value:r.email,label:r.email+` (${nameFromEmail(r.email)})`}))} value={annForm.target_value} onChange={v=>setAnnForm({...annForm,target_value:v})} placeholder="Select person"/>
         </div>}
       </div>
       <div style={{display:"flex",gap:8,marginTop:16}}>
@@ -920,7 +920,7 @@ function DashboardPage({profile,token,gf}){
           </div>
           {isAdmin&&<div className="form-group">
             <label className="form-label">Assign to</label>
-            <SearchableSelect options={(()=>{const seen=new Set();const opts=[];appProfiles.forEach(p=>{const em=p.email?.toLowerCase();if(!em||seen.has(em))return;seen.add(em);opts.push({value:em,label:(p.display_name||nameFromEmail(em))+` (${ROLE_LABELS[p.role]||p.role})`});});roster.forEach(r=>{const em=r.email?.toLowerCase();if(!em||seen.has(em))return;seen.add(em);opts.push({value:em,label:nameFromEmail(em)+` (${r.queue||"QA"})`});});return opts.sort((a,b)=>a.label.localeCompare(b.label));})()}
+            <SearchableSelect options={(()=>{const seen=new Set();const opts=[];appProfiles.forEach(p=>{const em=p.email?.toLowerCase();if(!em||seen.has(em))return;seen.add(em);opts.push({value:em,label:em+` — ${p.display_name||nameFromEmail(em)} (${ROLE_LABELS[p.role]||p.role})`});});roster.forEach(r=>{const em=r.email?.toLowerCase();if(!em||seen.has(em))return;seen.add(em);opts.push({value:em,label:em+` — ${nameFromEmail(em)} (${r.queue||"QA"})`});});return opts.sort((a,b)=>a.label.localeCompare(b.label));})()}
               value={taskForm.assigned_to} onChange={v=>setTaskForm({...taskForm,assigned_to:v})} placeholder="Assign to someone..."/>
           </div>}
         </div>
@@ -1593,8 +1593,8 @@ function TeamManagementPage({token,profile}){
     {showForm&&<div className="card" style={{marginBottom:20}}><div className="card-header"><span className="card-title">{editId?"Edit team":"Create team"}</span></div>
       <div className="form-grid"><div className="form-group"><label className="form-label">Team name</label><input className="form-input" value={form.name} onChange={e=>setForm({...form,name:e.target.value})} placeholder="e.g. Payments QA"/></div>
       <div className="form-group"><label className="form-label">Domain</label><select className="select form-input" value={form.domain} onChange={e=>setForm({...form,domain:e.target.value})}><option value="tabby.ai">tabby.ai</option><option value="tabby.sa">tabby.sa</option></select></div>
-      <div className="form-group"><label className="form-label">Lead</label><select className="select form-input" value={form.lead_id} onChange={e=>setForm({...form,lead_id:e.target.value})}><option value="">— Select —</option>{leads.map(u=><option key={u.id} value={u.id}>{u.display_name||u.email}</option>)}</select></div>
-      <div className="form-group"><label className="form-label">Supervisor</label><select className="select form-input" value={form.supervisor_id} onChange={e=>setForm({...form,supervisor_id:e.target.value})}><option value="">— Select —</option>{supervisors.map(u=><option key={u.id} value={u.id}>{u.display_name||u.email}</option>)}</select></div></div>
+      <div className="form-group"><label className="form-label">Lead</label><select className="select form-input" value={form.lead_id} onChange={e=>setForm({...form,lead_id:e.target.value})}><option value="">— Select —</option>{leads.map(u=><option key={u.id} value={u.id}>{u.email}</option>)}</select></div>
+      <div className="form-group"><label className="form-label">Supervisor</label><select className="select form-input" value={form.supervisor_id} onChange={e=>setForm({...form,supervisor_id:e.target.value})}><option value="">— Select —</option>{supervisors.map(u=><option key={u.id} value={u.id}>{u.email}</option>)}</select></div></div>
       <div style={{display:"flex",gap:8,marginTop:16}}><button className="btn btn-primary" onClick={save}><Icon d={icons.check} size={16}/>{editId?"Update":"Create"}</button><button className="btn btn-outline" onClick={()=>{setShowForm(false);setEditId(null);}}>Cancel</button></div>
     </div>}
     <div className="card">{loading?<div className="loading-spinner"><div className="spinner"/></div>:teams.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No teams yet. Teams are auto-created from the roster.</p></div>:
@@ -1993,7 +1993,7 @@ function ScoreEntryPage({token,profile,gf}){
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">QA Lead</label>
           <SearchableSelect
-            options={tlEmails.map(e=>({value:e,label:nameFromEmail(e)}))}
+            options={tlEmails.map(e=>({value:e,label:e+` (${nameFromEmail(e)})`}))}
             value={selTL}
             onChange={v=>{setSelTL(v);setSelQA([]);}}
             placeholder={`All leads (${tlEmails.length})`}
@@ -2002,7 +2002,7 @@ function ScoreEntryPage({token,profile,gf}){
         <div className="form-group" style={{flex:1}}>
           <label className="form-label">Specialist</label>
           <SearchableSelect
-            options={[...new Set(filtered.map(r=>r.qa_email))].sort().map(e=>({value:e,label:nameFromEmail(e)+" ("+e.split("@")[1]+")"}))}
+            options={[...new Set(filtered.map(r=>r.qa_email))].sort().map(e=>({value:e,label:e+" ("+nameFromEmail(e)+")"}))}
             value={selQA}
             onChange={setSelQA}
             placeholder={`All (${filtered.length})`}
@@ -2496,7 +2496,7 @@ function DAMPage({token,profile,gf}){
       <div style={{display:"grid",gridTemplateColumns:"1fr",gap:12}}>
         <div className="form-group"><label className="form-label">Person</label>
           <SearchableSelect
-            options={profiles.filter(p=>p.role==="qa"||p.role==="senior_qa"||p.role==="qa_lead").map(p=>({value:p.id,label:(p.display_name||p.email)+` (${ROLE_LABELS[p.role]})`}))}
+            options={profiles.filter(p=>p.role==="qa"||p.role==="senior_qa"||p.role==="qa_lead").map(p=>({value:p.id,label:p.email+` (${ROLE_LABELS[p.role]})`}))}
             value={selProfile}
             onChange={setSelProfile}
             placeholder="Select person..."
@@ -3980,9 +3980,9 @@ function CoachingPage({token, profile, gf}) {
                   const matches = roster.filter(r => (r.email||"").toLowerCase().includes(q) || (r.display_name||"").toLowerCase().includes(q)).slice(0, 8);
                   if (!matches.length) return null;
                   return <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:"0 0 var(--radius) var(--radius)",boxShadow:"var(--shadow-lg)",maxHeight:200,overflowY:"auto"}}>
-                    {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email);const mgr=r.manager_email;if(mgr)setCcEmail(mgr);}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                      <span style={{fontWeight:500}}>{r.display_name || nameFromEmail(r.email)}</span>
-                      <span style={{color:"var(--tx3)",fontSize:12}}>{r.email}</span>
+                    {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email);const mgr=r.manager_email;if(mgr)setCcEmail(mgr);}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <span style={{fontWeight:500}}>{r.email}</span>
+                      <span style={{color:"var(--tx3)",fontSize:11}}>{r.display_name || nameFromEmail(r.email)}</span>
                     </div>)}
                   </div>;
                 })()}
@@ -5008,9 +5008,9 @@ function ActionPlanPage({ token, profile }) {
                 const matches = roster.filter(r => (r.email || "").toLowerCase().includes(q) || (r.display_name || "").toLowerCase().includes(q)).slice(0, 8);
                 if (!matches.length) return null;
                 return <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, background: "var(--bg3)", border: "1px solid var(--bd)", borderRadius: "0 0 var(--radius) var(--radius)", boxShadow: "var(--shadow-lg)", maxHeight: 200, overflowY: "auto" }}>
-                  {matches.map(r => <div key={r.email} onClick={() => handleQaEmailChange(r.email)} style={{ padding: "8px 12px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid var(--bd2)", display: "flex", justifyContent: "space-between" }} onMouseEnter={e => e.currentTarget.style.background = "var(--bg)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <span style={{ fontWeight: 500 }}>{r.display_name || nameFromEmail(r.email)}</span>
-                    <span style={{ color: "var(--tx3)", fontSize: 12 }}>{r.email}</span>
+                  {matches.map(r => <div key={r.email} onClick={() => handleQaEmailChange(r.email)} style={{ padding: "8px 12px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid var(--bd2)", display: "flex", justifyContent: "space-between", alignItems: "center" }} onMouseEnter={e => e.currentTarget.style.background = "var(--bg)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <span style={{ fontWeight: 500 }}>{r.email}</span>
+                    <span style={{ color: "var(--tx3)", fontSize: 11 }}>{r.display_name || nameFromEmail(r.email)}</span>
                   </div>)}
                 </div>;
               })()}
@@ -6028,14 +6028,14 @@ function smartRoute(aboutEmail, roster, supervisors, allProfiles) {
     const leadDomain = profileMatch.operational_domain || (profileMatch.email?.includes("tabby.sa") ? "tabby.sa" : "tabby.ai");
     const sv = supervisors.find(s => s.operational_domain === leadDomain);
     return sv
-      ? { label: `${sv.display_name || nameFromEmail(sv.email)} (Supervisor)`, email: sv.email }
+      ? { label: `${sv.email} (Supervisor)`, email: sv.email }
       : AMANDA;
   }
 
   // About a QA → route to their team lead (from roster manager_email)
   const rosterMatch = roster.find(r => r.email?.toLowerCase() === ap);
   if (rosterMatch && rosterMatch.manager_email) {
-    return { label: `${nameFromEmail(rosterMatch.manager_email)} (Team Lead)`, email: rosterMatch.manager_email.toLowerCase() };
+    return { label: `${rosterMatch.manager_email} (Team Lead)`, email: rosterMatch.manager_email.toLowerCase() };
   }
 
   // QA found in profiles but not in roster → fallback to Amanda
@@ -6255,7 +6255,7 @@ function EscalationsPage({ token, profile, gf }) {
             <SearchableSelect
               options={[
                 ...roster.filter(r => r.email?.toLowerCase() !== myEmail).map(r => ({
-                  value: r.email, label: `${nameFromEmail(r.email)} — QA`
+                  value: r.email, label: `${r.email} — QA`
                 })),
                 ...allProfiles.filter(p =>
                   (p.role === "qa_lead" || p.role === "qa_supervisor" || p.role === "admin" || p.role === "super_admin")
@@ -6263,7 +6263,7 @@ function EscalationsPage({ token, profile, gf }) {
                   && !p.email?.toLowerCase().includes("imad.moussa")
                   && !roster.find(rr => rr.email?.toLowerCase() === p.email?.toLowerCase())
                 ).map(p => ({
-                  value: p.email, label: `${p.display_name || nameFromEmail(p.email)} — ${ROLE_LABELS[p.role] || p.role}`
+                  value: p.email, label: `${p.email} — ${ROLE_LABELS[p.role] || p.role}`
                 }))
               ].sort((a,b) => a.label.localeCompare(b.label))}
               value={aboutPerson}
