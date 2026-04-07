@@ -1827,28 +1827,46 @@ function ScoreEntryPage({token,profile,gf}){
 
   const executeUpload = async () => {
     setUploading(true);
-    let rowsAffected = 0, rowsCreated = 0;
+    let rowsAffected = 0, rowsCreated = 0, errors = [];
     try {
       for (const row of uploadPreview) {
-        const body = {};
-        const manualFields = {};
-        Object.entries(row.changes).forEach(([col, { new: val }]) => {
-          body[col] = val; manualFields[col] = true;
-        });
-        const existing = data.find(d => d.qa_email?.toLowerCase() === row.qa_email?.toLowerCase() && d.month === uploadMonth);
-        if (existing) {
-          const existingManual = existing.manual_fields || {};
-          body.manual_fields = JSON.stringify({ ...existingManual, ...manualFields });
-          await sb.query("mtd_scores", { token, method: "PATCH", body, filters: `id=eq.${existing.id}` });
-          rowsAffected++;
-        } else {
-          const rosterEntry = roster.find(r => r.email?.toLowerCase() === row.qa_email?.toLowerCase());
-          body.qa_email = row.qa_email;
-          body.month = uploadMonth;
-          body.qa_tl = rosterEntry?.manager_email || "";
-          body.manual_fields = JSON.stringify(manualFields);
-          await sb.query("mtd_scores", { token, method: "POST", body });
-          rowsCreated++;
+        try {
+          const body = {};
+          const manualFields = {};
+          Object.entries(row.changes).forEach(([col, { new: val }]) => {
+            body[col] = val; manualFields[col] = true;
+          });
+          const existing = data.find(d => d.qa_email?.toLowerCase() === row.qa_email?.toLowerCase() && d.month === uploadMonth);
+          if (existing) {
+            const existingManual = existing.manual_fields || {};
+            body.manual_fields = JSON.stringify({ ...existingManual, ...manualFields });
+            await sb.query("mtd_scores", { token, method: "PATCH", body, filters: `id=eq.${existing.id}` });
+            rowsAffected++;
+          } else {
+            // Use upsert via PostgREST Prefer header to handle duplicates
+            const rosterEntry = roster.find(r => r.email?.toLowerCase() === row.qa_email?.toLowerCase());
+            body.qa_email = row.qa_email;
+            body.month = uploadMonth;
+            body.qa_tl = rosterEntry?.manager_email || "";
+            body.manual_fields = JSON.stringify(manualFields);
+            const resp = await fetch(`${SUPABASE_URL}/rest/v1/mtd_scores`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "apikey": SUPABASE_ANON,
+                "Authorization": `Bearer ${token}`,
+                "Prefer": "resolution=merge-duplicates,return=minimal",
+              },
+              body: JSON.stringify(body),
+            });
+            if (!resp.ok) {
+              const errText = await resp.text();
+              throw new Error(errText);
+            }
+            rowsCreated++;
+          }
+        } catch (rowErr) {
+          errors.push(`${row.qa_email}: ${rowErr.message?.slice(0,80)}`);
         }
       }
       await sb.query("mtd_upload_log", { token, method: "POST", body: {
@@ -1857,8 +1875,12 @@ function ScoreEntryPage({token,profile,gf}){
         overwrite_enabled: uploadOverwrite, filename: uploadFile?.name || "unknown",
       }});
       logActivity(token, profile?.email, "mtd_csv_upload", "mtd_scores", null, 
-        `Month: ${uploadMonth}, Columns: ${uploadCols.join(",")}, Updated: ${rowsAffected}, Created: ${rowsCreated}`);
-      setUploadResult({ success: true, rowsAffected, rowsCreated });
+        `Month: ${uploadMonth}, Columns: ${uploadCols.join(",")}, Updated: ${rowsAffected}, Created: ${rowsCreated}${errors.length>0?`, Errors: ${errors.length}`:""}`);
+      if (errors.length > 0 && (rowsAffected + rowsCreated) === 0) {
+        setUploadResult({ success: false, error: `All rows failed. First error: ${errors[0]}` });
+      } else {
+        setUploadResult({ success: true, rowsAffected, rowsCreated, errors: errors.length > 0 ? errors : null });
+      }
       setUploadStep("done");
       const newRows = await sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token});
       setData(newRows);
@@ -2181,7 +2203,7 @@ function ScoreEntryPage({token,profile,gf}){
           </div>
           {uploadPreview.length===0?<div className="placeholder" style={{padding:30}}><p style={{color:"var(--tx3)"}}>No changes to apply. {uploadOverwrite?"All values are identical.":"All cells already have values. Enable 'Overwrite existing values' to replace them."}</p></div>:
           <div style={{maxHeight:400,overflow:"auto",border:"1px solid var(--bd2)",borderRadius:8,marginBottom:16}}>
-            <table><thead><tr><th>QA</th><th>Status</th>{uploadCols.map(c=><th key={c}>{COL_LABELS[c]||c}</th>)}</tr></thead>
+            <table><thead><tr><th>QA</th><th>Status</th>{uploadCols.map(c=><th key={c}>{COL_LABELS[c]||c}</th>)}<th style={{width:40}}></th></tr></thead>
             <tbody>{uploadPreview.map(row=>(
               <tr key={row.qa_email}>
                 <td style={{fontWeight:500,fontSize:13}}>{row.name}</td>
@@ -2197,6 +2219,7 @@ function ScoreEntryPage({token,profile,gf}){
                     </div>:<span style={{color:"var(--tx3)"}}>—</span>}
                   </td>;
                 })}
+                <td><button className="btn btn-outline btn-sm" style={{padding:"2px 6px",color:"var(--red)"}} onClick={()=>setUploadPreview(prev=>prev.filter(r=>r.qa_email!==row.qa_email))} title="Remove from upload"><Icon d={icons.trash} size={12}/></button></td>
               </tr>
             ))}</tbody></table>
           </div>}
@@ -2214,7 +2237,11 @@ function ScoreEntryPage({token,profile,gf}){
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round"><path d={icons.check}/></svg>
             </div>
             <div style={{fontSize:16,fontWeight:600,marginBottom:4}}>Upload complete</div>
-            <div style={{fontSize:13,color:"var(--tx2)",marginBottom:16}}>{uploadResult.rowsAffected} row{uploadResult.rowsAffected!==1?"s":""} updated{uploadResult.rowsCreated>0?`, ${uploadResult.rowsCreated} new row${uploadResult.rowsCreated!==1?"s":""} created`:""}</div>
+            <div style={{fontSize:13,color:"var(--tx2)",marginBottom:8}}>{uploadResult.rowsAffected} row{uploadResult.rowsAffected!==1?"s":""} updated{uploadResult.rowsCreated>0?`, ${uploadResult.rowsCreated} new row${uploadResult.rowsCreated!==1?"s":""} created`:""}</div>
+            {uploadResult.errors&&<div style={{textAlign:"left",maxHeight:120,overflow:"auto",background:"var(--amber-bg)",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:"var(--amber)"}}>
+              <div style={{fontWeight:600,marginBottom:4}}>{uploadResult.errors.length} row{uploadResult.errors.length!==1?"s":""} had issues:</div>
+              {uploadResult.errors.map((e,i)=><div key={i} style={{marginBottom:2}}>{e}</div>)}
+            </div>}
           </>:<>
             <div style={{width:48,height:48,borderRadius:"50%",background:"var(--red-bg)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth="2.5" strokeLinecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg>
