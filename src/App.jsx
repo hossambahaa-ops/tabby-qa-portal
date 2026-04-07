@@ -1658,6 +1658,18 @@ function ScoreEntryPage({token,profile,gf}){
   const [selTL, setSelTL] = useState("");
   const [selDomain, setSelDomain] = useState("");
   const [selTeam, setSelTeam] = useState("");
+  // Upload modal state
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadStep, setUploadStep] = useState("config"); // config | preview | done
+  const [uploadMonth, setUploadMonth] = useState("");
+  const [uploadCols, setUploadCols] = useState([]);
+  const [uploadOverwrite, setUploadOverwrite] = useState(false);
+  const [uploadPreview, setUploadPreview] = useState([]);
+  const [uploadFile, setUploadFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState(null);
+  const [uploadLogs, setUploadLogs] = useState([]);
+  const isUploadAllowed = hasRole(profile?.role,"admin");
 
   useEffect(() => {
     (async () => {
@@ -1738,6 +1750,135 @@ function ScoreEntryPage({token,profile,gf}){
     return n.toFixed(1) + "%";
   };
 
+  // === UPLOAD DATA LOGIC ===
+  const SYSTEM_COLS = ["id","synced_at","manual_fields","qa_email","month","qa_tl"];
+  const allMtdCols = data.length > 0 ? Object.keys(data[0]).filter(k => !SYSTEM_COLS.includes(k)).sort() : 
+    ["sbs","non_sbs","dsat","late_count","never_count","valid_count","invalid_count","side_tasks_duration_mins",
+     "coaching_sessions","total_coachings_by_coaching_created_date","total_coachings_by_eval_created_date",
+     "total_ontime_coachings","coaching_eligibility_count","not_coached","rtr_count","avg_rtr_score",
+     "observed_coaching_count","avg_observation_score_pct","calibration_count","avg_calibration_match_rate",
+     "coaching_completion_pct","ontime_coaching_pct","jkq_score","jkq_result","jkq_episode",
+     "working_days","ramadan_wds","occupancy_pct","coaching_ontime_score","ticket_per_day",
+     "occupancy_score","calibration_score","coaching_observation_score","rtr_score","final_performance"];
+
+  const COL_LABELS = {sbs:"SBS",non_sbs:"Non-SBS",dsat:"DSAT",late_count:"Late count",never_count:"Never count",
+    valid_count:"Valid count",invalid_count:"Invalid count",side_tasks_duration_mins:"Side tasks (mins)",
+    coaching_sessions:"Coaching sessions",total_coachings_by_coaching_created_date:"Total coachings (by coaching date)",
+    total_coachings_by_eval_created_date:"Total coachings (by eval date)",total_ontime_coachings:"On-time coachings",
+    coaching_eligibility_count:"Coaching eligibility",not_coached:"Not coached",rtr_count:"RTR count",
+    avg_rtr_score:"RTR score",observed_coaching_count:"Observed coaching count",
+    avg_observation_score_pct:"Coaching observation %",calibration_count:"Calibration count",
+    avg_calibration_match_rate:"Calibration match rate",coaching_completion_pct:"Coaching completion %",
+    ontime_coaching_pct:"On-time coaching %",jkq_score:"JKQ score",jkq_result:"JKQ result",jkq_episode:"JKQ episode",
+    working_days:"Working days",ramadan_wds:"Ramadan WDs",occupancy_pct:"Occupancy %",
+    coaching_ontime_score:"Coaching on-time score",ticket_per_day:"Tickets/day",occupancy_score:"Occupancy score",
+    calibration_score:"Calibration score",coaching_observation_score:"CO score",rtr_score:"RTR score (calc)",
+    final_performance:"Final performance"};
+
+  const downloadTemplate = () => {
+    if (!uploadMonth || uploadCols.length === 0) return;
+    const allEmails = [...new Set(roster.map(r => r.email?.toLowerCase()).filter(Boolean))].sort();
+    const header = ["qa_email", ...uploadCols].join(",");
+    const rows = allEmails.map(email => [email, ...uploadCols.map(() => "")].join(","));
+    const csv = [header, ...rows].join("\n");
+    const blob = new Blob([csv], {type:"text/csv"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `mtd_upload_${uploadMonth}_${uploadCols.join("-")}.csv`; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const parseCSV = (text) => {
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) return [];
+    const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
+    return lines.slice(1).map(line => {
+      const vals = line.split(",");
+      const obj = {};
+      headers.forEach((h, i) => { obj[h] = vals[i]?.trim() || ""; });
+      return obj;
+    }).filter(r => r.qa_email);
+  };
+
+  const handleFileUpload = (file) => {
+    if (!file) return;
+    setUploadFile(file);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const parsed = parseCSV(e.target.result);
+      const preview = parsed.map(row => {
+        const existing = data.find(d => d.qa_email?.toLowerCase() === row.qa_email?.toLowerCase() && d.month === uploadMonth);
+        const changes = {};
+        let hasChanges = false;
+        uploadCols.forEach(col => {
+          const newVal = row[col];
+          if (newVal === "" || newVal === undefined) return;
+          const oldVal = existing ? existing[col] : null;
+          const willUpdate = uploadOverwrite || oldVal === null || oldVal === "" || oldVal === 0 || oldVal === "0";
+          if (willUpdate) { changes[col] = { old: oldVal, new: newVal }; hasChanges = true; }
+        });
+        return { qa_email: row.qa_email, name: nameFromEmail(row.qa_email), existing: !!existing, changes, hasChanges, raw: row };
+      }).filter(r => r.hasChanges);
+      setUploadPreview(preview);
+      setUploadStep("preview");
+    };
+    reader.readAsText(file);
+  };
+
+  const executeUpload = async () => {
+    setUploading(true);
+    let rowsAffected = 0, rowsCreated = 0;
+    try {
+      for (const row of uploadPreview) {
+        const body = {};
+        const manualFields = {};
+        Object.entries(row.changes).forEach(([col, { new: val }]) => {
+          body[col] = val; manualFields[col] = true;
+        });
+        const existing = data.find(d => d.qa_email?.toLowerCase() === row.qa_email?.toLowerCase() && d.month === uploadMonth);
+        if (existing) {
+          const existingManual = existing.manual_fields || {};
+          body.manual_fields = JSON.stringify({ ...existingManual, ...manualFields });
+          await sb.query("mtd_scores", { token, method: "PATCH", body, filters: `id=eq.${existing.id}` });
+          rowsAffected++;
+        } else {
+          const rosterEntry = roster.find(r => r.email?.toLowerCase() === row.qa_email?.toLowerCase());
+          body.qa_email = row.qa_email;
+          body.month = uploadMonth;
+          body.qa_tl = rosterEntry?.manager_email || "";
+          body.manual_fields = JSON.stringify(manualFields);
+          await sb.query("mtd_scores", { token, method: "POST", body });
+          rowsCreated++;
+        }
+      }
+      await sb.query("mtd_upload_log", { token, method: "POST", body: {
+        uploaded_by: profile?.email, month: uploadMonth, columns_updated: `{${uploadCols.join(",")}}`,
+        rows_affected: rowsAffected, rows_created: rowsCreated,
+        overwrite_enabled: uploadOverwrite, filename: uploadFile?.name || "unknown",
+      }});
+      logActivity(token, profile?.email, "mtd_csv_upload", "mtd_scores", null, 
+        `Month: ${uploadMonth}, Columns: ${uploadCols.join(",")}, Updated: ${rowsAffected}, Created: ${rowsCreated}`);
+      setUploadResult({ success: true, rowsAffected, rowsCreated });
+      setUploadStep("done");
+      const newRows = await sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token});
+      setData(newRows);
+    } catch (e) {
+      setUploadResult({ success: false, error: e.message });
+      setUploadStep("done");
+    }
+    setUploading(false);
+  };
+
+  const loadUploadLogs = async () => {
+    try { const logs = await sb.query("mtd_upload_log", {select:"*",filters:"order=created_at.desc&limit=20",token}); setUploadLogs(logs); } catch(e) { console.error(e); }
+  };
+
+  const resetUpload = () => {
+    setUploadStep("config"); setUploadCols([]); setUploadOverwrite(false);
+    setUploadPreview([]); setUploadFile(null); setUploadResult(null); setUploadLogs([]);
+    setUploadMonth(selMonth || (months.length > 0 ? months[0] : ""));
+  };
+
   // Format general values
   const fmt = (val) => {
     if (val === null || val === undefined || val === "") return "—";
@@ -1771,9 +1912,14 @@ function ScoreEntryPage({token,profile,gf}){
 
   return (<div className="page">
     <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
-      <div>
-        <div className="page-title">Monthly Performance Review</div>
-        <div className="page-subtitle">MTD performance data — synced from Metabase hourly</div>
+      <div style={{display:"flex",alignItems:"center",gap:12}}>
+        <div>
+          <div className="page-title">Monthly Performance Review</div>
+          <div className="page-subtitle">MTD performance data — synced from Metabase hourly</div>
+        </div>
+        {isUploadAllowed&&<button className="btn btn-outline btn-sm" onClick={()=>{resetUpload();setShowUpload(true);loadUploadLogs();}} style={{fontSize:12,marginLeft:8}}>
+          <Icon d={icons.upload} size={14}/>Upload data
+        </button>}
       </div>
       {sorted.length>0&&<div style={{display:"flex",gap:16,alignItems:"center"}}>
         <div style={{textAlign:"center"}}>
@@ -1949,6 +2095,137 @@ function ScoreEntryPage({token,profile,gf}){
         </div>
       </div>
     )}
+
+    {/* Upload Data Modal */}
+    {showUpload&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={()=>setShowUpload(false)}>
+      <div className="card" style={{width:"100%",maxWidth:720,maxHeight:"85vh",overflow:"auto"}} onClick={e=>e.stopPropagation()}>
+        <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}><Icon d={icons.upload} size={18}/>Upload data to MPR</span>
+          <button className="btn btn-outline btn-sm" onClick={()=>setShowUpload(false)} style={{padding:"4px 8px"}}><Icon d="M6 18L18 6M6 6l12 12" size={16}/></button>
+        </div>
+
+        {uploadStep==="config"&&<div style={{padding:16}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+            <div className="form-group">
+              <label className="form-label">Month</label>
+              <SearchableSelect options={months} value={uploadMonth} onChange={setUploadMonth} placeholder="Select month"/>
+            </div>
+            <div className="form-group">
+              <label className="form-label" style={{display:"flex",alignItems:"center",gap:6}}>Overwrite existing values
+                <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,background:uploadOverwrite?"var(--red-bg)":"var(--bg3)",color:uploadOverwrite?"var(--red)":"var(--tx3)",fontWeight:600}}>{uploadOverwrite?"ON":"OFF"}</span>
+              </label>
+              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,color:"var(--tx2)"}}>
+                <input type="checkbox" checked={uploadOverwrite} onChange={e=>setUploadOverwrite(e.target.checked)} style={{width:16,height:16}}/>
+                {uploadOverwrite?"Will replace existing synced data":"Only fills empty/null cells (safe mode)"}
+              </label>
+            </div>
+          </div>
+
+          <div className="form-group" style={{marginBottom:16}}>
+            <label className="form-label">Columns to update (pick one or more)</label>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:240,overflow:"auto",padding:8,border:"1px solid var(--bd2)",borderRadius:8,background:"var(--bg)"}}>
+              {allMtdCols.map(col=>(
+                <label key={col} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12,color:uploadCols.includes(col)?"var(--tx)":"var(--tx3)",padding:"4px 6px",borderRadius:6,background:uploadCols.includes(col)?"var(--accent-light)":"transparent"}}>
+                  <input type="checkbox" checked={uploadCols.includes(col)} onChange={e=>{
+                    if(e.target.checked)setUploadCols([...uploadCols,col]);
+                    else setUploadCols(uploadCols.filter(c=>c!==col));
+                  }} style={{width:14,height:14}}/>
+                  {COL_LABELS[col]||col}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{display:"flex",gap:8,marginBottom:20}}>
+            <button className="btn btn-primary" disabled={!uploadMonth||uploadCols.length===0} onClick={downloadTemplate}>
+              <Icon d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" size={16}/>Download CSV template
+            </button>
+            <label className="btn btn-outline" style={{cursor:!uploadMonth||uploadCols.length===0?"not-allowed":"pointer",opacity:!uploadMonth||uploadCols.length===0?.5:1}}>
+              <Icon d={icons.upload} size={16}/>Upload filled CSV
+              <input type="file" accept=".csv" style={{display:"none"}} disabled={!uploadMonth||uploadCols.length===0}
+                onChange={e=>{if(e.target.files[0])handleFileUpload(e.target.files[0]);e.target.value="";}}/>
+            </label>
+          </div>
+
+          {/* Upload history */}
+          {uploadLogs.length>0&&<div>
+            <div style={{fontSize:12,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Recent uploads</div>
+            <div style={{fontSize:12,border:"1px solid var(--bd2)",borderRadius:8,overflow:"hidden"}}>
+              {uploadLogs.map((log,i)=>(
+                <div key={log.id} style={{padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:i<uploadLogs.length-1?"1px solid var(--bd)":"none",background:i%2===0?"var(--bg)":"transparent"}}>
+                  <div>
+                    <span style={{fontWeight:500,color:"var(--tx)"}}>{nameFromEmail(log.uploaded_by)}</span>
+                    <span style={{color:"var(--tx3)",margin:"0 6px"}}>uploaded</span>
+                    <span style={{fontWeight:500,color:"var(--accent-text)"}}>{(log.columns_updated||[]).join(", ")}</span>
+                    <span style={{color:"var(--tx3)",margin:"0 6px"}}>for</span>
+                    <span style={{fontWeight:500}}>{log.month}</span>
+                  </div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:11,color:"var(--tx3)"}}>{log.rows_affected} updated{log.rows_created>0?`, ${log.rows_created} created`:""}</span>
+                    {log.overwrite_enabled&&<span style={{fontSize:9,padding:"1px 5px",borderRadius:4,background:"var(--red-bg)",color:"var(--red)",fontWeight:600}}>OVERWRITE</span>}
+                    <span style={{fontSize:11,color:"var(--tx3)"}}>{new Date(log.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>}
+        </div>}
+
+        {uploadStep==="preview"&&<div style={{padding:16}}>
+          <div style={{marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div>
+              <div style={{fontSize:14,fontWeight:600,color:"var(--tx)"}}>Preview — {uploadPreview.length} row{uploadPreview.length!==1?"s":""} will be {uploadOverwrite?"updated":"filled in"}</div>
+              <div style={{fontSize:12,color:"var(--tx3)"}}>Month: {uploadMonth} | Columns: {uploadCols.map(c=>COL_LABELS[c]||c).join(", ")}{uploadOverwrite?" | Overwrite: ON":""}</div>
+            </div>
+            <button className="btn btn-outline btn-sm" onClick={()=>setUploadStep("config")}>Back</button>
+          </div>
+          {uploadPreview.length===0?<div className="placeholder" style={{padding:30}}><p style={{color:"var(--tx3)"}}>No changes to apply. {uploadOverwrite?"All values are identical.":"All cells already have values. Enable 'Overwrite existing values' to replace them."}</p></div>:
+          <div style={{maxHeight:400,overflow:"auto",border:"1px solid var(--bd2)",borderRadius:8,marginBottom:16}}>
+            <table><thead><tr><th>QA</th><th>Status</th>{uploadCols.map(c=><th key={c}>{COL_LABELS[c]||c}</th>)}</tr></thead>
+            <tbody>{uploadPreview.map(row=>(
+              <tr key={row.qa_email}>
+                <td style={{fontWeight:500,fontSize:13}}>{row.name}</td>
+                <td><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,
+                  background:row.existing?"var(--green-bg)":"var(--blue-bg)",color:row.existing?"var(--green)":"var(--blue)"
+                }}>{row.existing?"Update":"New"}</span></td>
+                {uploadCols.map(col=>{
+                  const ch = row.changes[col];
+                  return <td key={col} style={{fontSize:12}}>
+                    {ch?<div>
+                      {ch.old!=null&&ch.old!==""&&<span style={{textDecoration:"line-through",color:"var(--tx3)",marginRight:4}}>{ch.old}</span>}
+                      <span style={{color:"var(--green)",fontWeight:600}}>{ch.new}</span>
+                    </div>:<span style={{color:"var(--tx3)"}}>—</span>}
+                  </td>;
+                })}
+              </tr>
+            ))}</tbody></table>
+          </div>}
+          {uploadPreview.length>0&&<div style={{display:"flex",gap:8}}>
+            <button className="btn btn-primary" disabled={uploading} onClick={executeUpload}>
+              {uploading?<><div className="spinner" style={{width:14,height:14,borderWidth:2,marginRight:6}}/>Uploading...</>:"Confirm & apply changes"}
+            </button>
+            <button className="btn btn-outline" onClick={()=>setUploadStep("config")}>Cancel</button>
+          </div>}
+        </div>}
+
+        {uploadStep==="done"&&<div style={{padding:24,textAlign:"center"}}>
+          {uploadResult?.success?<>
+            <div style={{width:48,height:48,borderRadius:"50%",background:"var(--green-bg)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round"><path d={icons.check}/></svg>
+            </div>
+            <div style={{fontSize:16,fontWeight:600,marginBottom:4}}>Upload complete</div>
+            <div style={{fontSize:13,color:"var(--tx2)",marginBottom:16}}>{uploadResult.rowsAffected} row{uploadResult.rowsAffected!==1?"s":""} updated{uploadResult.rowsCreated>0?`, ${uploadResult.rowsCreated} new row${uploadResult.rowsCreated!==1?"s":""} created`:""}</div>
+          </>:<>
+            <div style={{width:48,height:48,borderRadius:"50%",background:"var(--red-bg)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth="2.5" strokeLinecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg>
+            </div>
+            <div style={{fontSize:16,fontWeight:600,color:"var(--red)",marginBottom:4}}>Upload failed</div>
+            <div style={{fontSize:13,color:"var(--tx2)",marginBottom:16}}>{uploadResult?.error||"Unknown error"}</div>
+          </>}
+          <button className="btn btn-primary" onClick={()=>setShowUpload(false)}>Done</button>
+        </div>}
+      </div>
+    </div>}
   </div>);
 }
 
