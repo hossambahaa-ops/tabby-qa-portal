@@ -6761,13 +6761,24 @@ function QAProfilePage({token, profile, gf}) {
     : visibleQAs;
 
   const qa = allQAs.find(r => r.email?.toLowerCase() === selectedQA?.toLowerCase());
-  const qaMtd = mtd.filter(m => m.qa_email?.toLowerCase() === selectedQA?.toLowerCase());
+  // Cross-domain match helper: "name@tabby.ai" should also match "name@tabby.sa"
+  const matchQA = (email) => {
+    if (!email || !selectedQA) return false;
+    const em = email.toLowerCase();
+    const sel = selectedQA.toLowerCase();
+    if (em === sel) return true;
+    const emLocal = em.split("@")[0];
+    const selLocal = sel.split("@")[0];
+    return emLocal === selLocal;
+  };
+
+  const qaMtd = mtd.filter(m => matchQA(m.qa_email));
   // Use the latest month that has data (first in desc-sorted array)
   const latestMtd = qaMtd.length > 0 ? qaMtd[0] : null;
-  const qaSessions = sessions.filter(s => s.member_email?.toLowerCase() === selectedQA?.toLowerCase()).slice(0, 10);
-  const qaPlans = plans.filter(p => p.qa_email?.toLowerCase() === selectedQA?.toLowerCase());
-  const qaTasks = tasks.filter(t => t.assigned_to?.toLowerCase() === selectedQA?.toLowerCase() || (t.created_by?.toLowerCase() === selectedQA?.toLowerCase() && !t.assigned_to));
-  const qaFlags = flags.filter(f => f.qa_email?.toLowerCase() === selectedQA?.toLowerCase());
+  const qaSessions = sessions.filter(s => matchQA(s.member_email)).slice(0, 10);
+  const qaPlans = plans.filter(p => matchQA(p.qa_email));
+  const qaTasks = tasks.filter(t => matchQA(t.assigned_to) || (matchQA(t.created_by) && !t.assigned_to));
+  const qaFlags = flags.filter(f => matchQA(f.qa_email));
 
   const fmtPct = (val) => {
     if (val === null || val === undefined || val === "") return "—";
