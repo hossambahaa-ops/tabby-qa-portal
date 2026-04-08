@@ -600,29 +600,34 @@ function DashboardPage({profile,token,gf}){
       if (em.endsWith("@tabby.ai")) blacklistD.add(local + "@tabby.sa");
       if (em.endsWith("@tabby.sa")) blacklistD.add(local + "@tabby.ai");
     });
-    // Build valid manager set — only QA Lead+ emails (both domain variants)
-    const validManagers = new Set();
-    profs.filter(p => p.role !== "qa").forEach(p => {
+    // Build valid QA lead set — ONLY qa_lead role profiles (not supervisors/admins)
+    const qaLeadEmails = new Set();
+    profs.filter(p => p.role === "qa_lead").forEach(p => {
       const em = p.email?.toLowerCase(); if (!em) return;
-      validManagers.add(em);
+      qaLeadEmails.add(em);
       const local = em.split("@")[0];
-      if (em.endsWith("@tabby.ai")) validManagers.add(local + "@tabby.sa");
-      if (em.endsWith("@tabby.sa")) validManagers.add(local + "@tabby.ai");
-      // Also add without domain for partial matches (roster stores "name" not "name@domain")
-      validManagers.add(local);
+      if (em.endsWith("@tabby.ai")) qaLeadEmails.add(local + "@tabby.sa");
+      if (em.endsWith("@tabby.sa")) qaLeadEmails.add(local + "@tabby.ai");
+      qaLeadEmails.add(local);
     });
-    // Filter roster: exclude non-QA profiles AND exclude entries with unknown managers
+    // Filter roster: exclude non-QA profiles AND only include entries managed by actual QA leads
     const filteredRoster = rosterRows.filter(r => {
       if (blacklistD.has(r.email?.toLowerCase())) return false;
       const mgr = r.manager_email?.toLowerCase();
-      if (!mgr) return false; // No manager = external/unassigned
-      // Check if manager_email matches a known lead (full email or local part)
-      if (validManagers.has(mgr)) return true;
+      if (!mgr) return false;
+      if (qaLeadEmails.has(mgr)) return true;
       const mgrLocal = mgr.split("@")[0];
-      if (validManagers.has(mgrLocal)) return true;
+      if (qaLeadEmails.has(mgrLocal)) return true;
       return false;
     });
-    const filteredMtd = mtdRows.filter(r => !blacklistD.has(r.qa_email?.toLowerCase()));
+    const filteredMtd = mtdRows.filter(r => {
+      const em = r.qa_email?.toLowerCase();
+      if (blacklistD.has(em)) return false;
+      // Also filter by qa_tl: must be a known QA lead
+      const tl = r.qa_tl?.toLowerCase();
+      if (!tl) return true; // keep rows without TL for safety
+      return qaLeadEmails.has(tl) || qaLeadEmails.has(tl.split("@")[0]);
+    });
     // Normalize cross-domain: if a QA exists in roster as @tabby.ai, normalize their @tabby.sa MTD records to @tabby.ai (and vice versa)
     const rosterEmailSet = new Set(filteredRoster.map(r=>r.email?.toLowerCase()));
     const normalizedMtd = filteredMtd.map(r => {
@@ -1685,31 +1690,42 @@ function ScoreEntryPage({token,profile,gf}){
         // Build blacklist: exclude both domain variants of non-QA users
         const nonQaProfiles = profRows.filter(p => p.role !== "qa");
         const blacklist = new Set();
-        const validMgrs = new Set();
+        // Only qa_lead role counts as valid manager (not supervisors/admins)
+        const qaLeadSet = new Set();
+        profRows.filter(p => p.role === "qa_lead").forEach(p => {
+          const email = p.email?.toLowerCase();
+          if (!email) return;
+          qaLeadSet.add(email);
+          const local = email.split("@")[0];
+          if (email.endsWith("@tabby.ai")) qaLeadSet.add(local + "@tabby.sa");
+          if (email.endsWith("@tabby.sa")) qaLeadSet.add(local + "@tabby.ai");
+          qaLeadSet.add(local);
+        });
         nonQaProfiles.forEach(p => {
           const email = p.email?.toLowerCase();
           if (!email) return;
           blacklist.add(email);
-          validMgrs.add(email);
           const local = email.split("@")[0];
-          if (email.endsWith("@tabby.ai")) { blacklist.add(local + "@tabby.sa"); validMgrs.add(local + "@tabby.sa"); }
-          if (email.endsWith("@tabby.sa")) { blacklist.add(local + "@tabby.ai"); validMgrs.add(local + "@tabby.ai"); }
-          validMgrs.add(local);
+          if (email.endsWith("@tabby.ai")) blacklist.add(local + "@tabby.sa");
+          if (email.endsWith("@tabby.sa")) blacklist.add(local + "@tabby.ai");
         });
-        // Filter MTD: exclude non-QA profiles AND entries managed by unknown managers
+        // Filter MTD: exclude non-QA profiles AND entries NOT managed by a QA lead
         const rosterMgrValid = new Set(rosterRows.filter(r => {
           const mgr = r.manager_email?.toLowerCase();
           if (!mgr) return false;
-          return validMgrs.has(mgr) || validMgrs.has(mgr.split("@")[0]);
+          return qaLeadSet.has(mgr) || qaLeadSet.has(mgr.split("@")[0]);
         }).map(r => r.email?.toLowerCase()));
         const filtered = rows.filter(r => {
           const em = r.qa_email?.toLowerCase();
           if (blacklist.has(em)) return false;
-          // If email is in roster, check if their manager is valid
+          // Check qa_tl: must be a known QA lead
+          const tl = r.qa_tl?.toLowerCase();
+          if (tl && !qaLeadSet.has(tl) && !qaLeadSet.has(tl.split("@")[0])) return false;
+          // If email is in roster, check if their manager is a QA lead
           if (rosterRows.some(x => x.email?.toLowerCase() === em)) {
             return rosterMgrValid.has(em);
           }
-          return true; // MTD entries not in roster pass through
+          return true;
         });
         setData(filtered);
         const uniqueMonths = sortMonthsDesc([...new Set(filtered.map(r => r.month))]);
@@ -6678,13 +6694,14 @@ function QAProfilePage({token, profile, gf}) {
   useEffect(() => {
     (async () => {
       try {
-        const [r, m, s, ap, t, f] = await Promise.all([
+        const [r, m, s, ap, t, f, profs] = await Promise.all([
           sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country,hiring_date",token}).catch(()=>[]),
           sb.query("mtd_scores", {select:"*",filters:"order=month.desc",token}).catch(()=>[]),
           sb.query("coaching_sessions", {select:"id,member_email,sender_email,meeting_type,session_date,performance_rating,outcome",filters:"order=session_date.desc",token}).catch(()=>[]),
           sb.query("action_plans", {select:"id,qa_email,type,status,start_date,end_date,conclusion",token}).catch(()=>[]),
           sb.query("tasks", {select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
           sb.query("dam_flags", {select:"id,qa_email,severity,status,triggered_at,dam_rules(name,behavior_type)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
+          sb.query("profiles", {select:"email,role",token}).catch(()=>[]),
         ]);
         setRoster(Array.isArray(r) ? r : []);
         setMtd(Array.isArray(m) ? m : []);
@@ -6692,19 +6709,40 @@ function QAProfilePage({token, profile, gf}) {
         setPlans(Array.isArray(ap) ? ap : []);
         setTasks(Array.isArray(t) ? t : []);
         setFlags(Array.isArray(f) ? f : []);
+        // Store qa_lead emails for filtering
+        const leads = (Array.isArray(profs)?profs:[]).filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase());
+        window.__qaLeadEmails = new Set(leads);
         if (isQA) setSelectedQA(myEmail);
       } catch(e) { console.error("QA Profile load:", e); }
       setLoading(false);
     })();
   }, [token]);
 
-  // Build full list: roster + anyone in MTD not in roster
+  // Build QA lead set for filtering
+  const qaLeadSet = window.__qaLeadEmails || new Set();
+
+  // Build full list: roster + anyone in MTD not in roster — only QAs under the 9 leads
   const allQAs = (() => {
     const map = new Map();
-    roster.forEach(r => { if (r.email) map.set(r.email.toLowerCase(), r); });
+    // Non-QA emails to exclude
+    const nonQaEmails = new Set();
+    (window.__qaLeadEmails || new Set()).forEach(em => { nonQaEmails.add(em); });
+    roster.forEach(r => {
+      const em = r.email?.toLowerCase();
+      if (!em || nonQaEmails.has(em)) return;
+      const mgr = r.manager_email?.toLowerCase();
+      if (!mgr) return;
+      if (qaLeadSet.has(mgr) || qaLeadSet.has(mgr.split("@")[0])) {
+        map.set(em, r);
+      }
+    });
     mtd.forEach(m => {
       const em = m.qa_email?.toLowerCase();
-      if (em && !map.has(em)) map.set(em, { email: em, manager_email: m.qa_tl, queue: null, country: null });
+      if (!em || map.has(em) || nonQaEmails.has(em)) return;
+      const tl = m.qa_tl?.toLowerCase();
+      if (tl && (qaLeadSet.has(tl) || qaLeadSet.has(tl.split("@")[0]))) {
+        map.set(em, { email: em, manager_email: m.qa_tl, queue: null, country: null });
+      }
     });
     return [...map.values()];
   })();
