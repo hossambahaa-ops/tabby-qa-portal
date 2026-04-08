@@ -1954,7 +1954,7 @@ function ScoreEntryPage({token,profile,gf}){
     <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <div>
-          <div className="page-title">Monthly Performance Review</div>
+          <div className="page-title">MTD Scores</div>
           <div className="page-subtitle">MTD performance data — synced from Metabase hourly</div>
         </div>
         {isUploadAllowed&&<button className="btn btn-outline btn-sm" onClick={()=>{resetUpload();setShowUpload(true);loadUploadLogs();}} style={{fontSize:12,marginLeft:8}}>
