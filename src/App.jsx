@@ -7142,6 +7142,14 @@ function QAProfilePage({token, profile, gf}) {
                     {t.created_by && <span>By: {nameFromEmail(t.created_by)}</span>}
                     {t.assigned_to && <span>Assigned: {nameFromEmail(t.assigned_to)}</span>}
                   </div>
+                  {t.template_id && <div style={{fontSize:10,color:"var(--accent-text)",marginTop:4,display:"flex",alignItems:"center",gap:4}}>
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 4h16v16H4z"/><path d="M4 9h16"/><path d="M9 4v16"/></svg>
+                    Auto-generated from template
+                  </div>}
+                  {t.target_metric && t.target_value && <div style={{marginTop:6,padding:"6px 10px",background:"var(--amber-bg)",borderRadius:6,fontSize:11}}>
+                    <span style={{color:"var(--amber)",fontWeight:600}}>Target: {t.target_value}x {t.target_metric.replace(/_/g," ")}</span>
+                    {t.auto_close && <span style={{color:"var(--tx3)",marginLeft:8}}>(auto-closes when met)</span>}
+                  </div>}
                   {t.completed_at && <div style={{fontSize:11,color:"var(--green)",marginTop:4}}>Completed: {new Date(t.completed_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>}
                 </div>}
               </div>;
