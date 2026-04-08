@@ -539,6 +539,8 @@ function DashboardPage({profile,token,gf}){
   const[userTasks,setUserTasks]=useState([]);const[showTaskForm,setShowTaskForm]=useState(false);const[taskView,setTaskView]=useState("calendar");const[hideCompleted,setHideCompleted]=useState(false);
   const[taskForm,setTaskForm]=useState({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});
   const[editingTask,setEditingTask]=useState(null);const[postponeModal,setPostponeModal]=useState(null);const[postponeDate,setPostponeDate]=useState("");const[postponeReason,setPostponeReason]=useState("");const[selectedTask,setSelectedTask]=useState(null);
+  const[taskTemplates,setTaskTemplates]=useState([]);const[showTemplateForm,setShowTemplateForm]=useState(false);const[showTemplates,setShowTemplates]=useState(false);
+  const[tplForm,setTplForm]=useState({title:"",description:"",priority:"medium",frequency:"daily",assign_to_type:"my_team",assign_to_value:"",target_metric:"",target_value:""});
   const[showAnnForm,setShowAnnForm]=useState(false);
   const[annForm,setAnnForm]=useState({title:"",message:"",priority:"normal",target_type:"all",target_value:""});
   const isLead=hasRole(profile?.role,"qa_lead");
@@ -698,8 +700,68 @@ function DashboardPage({profile,token,gf}){
     // Show tasks created by me OR assigned to me
     const mine=t.filter(tk=>tk.created_by?.toLowerCase()===myEmail||tk.assigned_to?.toLowerCase()===myEmail);
     setUserTasks(mine);
+    // Load templates too
+    if(hasRole(profile?.role,"qa_lead")){
+      const tpls=await sb.query("task_templates",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]);
+      setTaskTemplates(Array.isArray(tpls)?tpls:[]);
+    }
   }catch(e){console.error("Tasks:",e);}},[token,profile?.email]);
   useEffect(()=>{if(profile?.email)loadTasks();},[loadTasks,profile?.email]);
+
+  // Create template
+  const saveTemplate=async()=>{
+    if(!tplForm.title.trim()){show("error","Template title is required");return;}
+    try{
+      const body={title:tplForm.title,description:tplForm.description||null,priority:tplForm.priority,frequency:tplForm.frequency,
+        created_by:profile?.email,assign_to_type:tplForm.assign_to_type,assign_to_value:tplForm.assign_to_type==="specific_person"?tplForm.assign_to_value:null,
+        target_metric:tplForm.target_metric||null,target_value:tplForm.target_value?Number(tplForm.target_value):null,is_active:true};
+      await sb.query("task_templates",{token,method:"POST",body});
+      show("success","Template created");setShowTemplateForm(false);
+      setTplForm({title:"",description:"",priority:"medium",frequency:"daily",assign_to_type:"my_team",assign_to_value:"",target_metric:"",target_value:""});
+      loadTasks();
+    }catch(e){show("error",safeError(e));}
+  };
+
+  // Generate tasks from template
+  const generateFromTemplate=async(tpl)=>{
+    try{
+      const myEmail=profile?.email?.toLowerCase();
+      let assignees=[];
+      if(tpl.assign_to_type==="specific_person"&&tpl.assign_to_value){
+        assignees=[tpl.assign_to_value.toLowerCase()];
+      }else if(tpl.assign_to_type==="my_team"){
+        assignees=roster.filter(r=>r.manager_email?.toLowerCase()===myEmail).map(r=>r.email?.toLowerCase()).filter(Boolean);
+      }else{
+        assignees=roster.map(r=>r.email?.toLowerCase()).filter(Boolean);
+      }
+      if(assignees.length===0){show("error","No QAs found to assign");return;}
+      const today=new Date().toISOString().split("T")[0];
+      let created=0;
+      for(const em of assignees){
+        const body={title:tpl.title,description:tpl.description||null,priority:tpl.priority,created_by:profile?.email,assigned_to:em,
+          due_date:today,status:"pending",template_id:tpl.id,target_metric:tpl.target_metric||null,target_value:tpl.target_value||null,
+          auto_close:!!tpl.target_metric,updated_at:new Date().toISOString()};
+        await sb.query("tasks",{token,method:"POST",body});
+        created++;
+      }
+      // Update last_generated_at
+      await sb.query("task_templates",{token,method:"PATCH",body:{last_generated_at:new Date().toISOString()},filters:`id=eq.${tpl.id}`});
+      show("success",`Created ${created} task${created!==1?"s":""} for ${tpl.assign_to_type==="specific_person"?nameFromEmail(tpl.assign_to_value):"your team"}`);
+      logActivity(token,profile?.email,"tasks_generated","task_templates",tpl.id,`Template: ${tpl.title}, Assignees: ${created}`);
+      loadTasks();
+    }catch(e){show("error",safeError(e));}
+  };
+
+  // Delete template
+  const deleteTemplate=async(id)=>{
+    if(!confirm("Delete this template?"))return;
+    try{await sb.query("task_templates",{token,method:"DELETE",filters:`id=eq.${id}`});show("success","Template deleted");loadTasks();}catch(e){show("error",safeError(e));}
+  };
+
+  // Toggle template active/inactive
+  const toggleTemplate=async(tpl)=>{
+    try{await sb.query("task_templates",{token,method:"PATCH",body:{is_active:!tpl.is_active,updated_at:new Date().toISOString()},filters:`id=eq.${tpl.id}`});loadTasks();}catch(e){show("error",safeError(e));}
+  };
 
   const months=sortMonthsDesc([...new Set(mtd.map(r=>r.month))]);
   const latestMonth=months[0]||"—";
@@ -910,6 +972,9 @@ function DashboardPage({profile,token,gf}){
           <button className="btn btn-primary btn-sm" onClick={()=>{setShowTaskForm(true);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});}}>
             <Icon d={icons.plus} size={14}/>New task
           </button>
+          {hasRole(profile?.role,"qa_lead")&&<button className="btn btn-outline btn-sm" onClick={()=>setShowTemplates(!showTemplates)} style={{fontSize:11}}>
+            {showTemplates?"Hide":"Templates"}
+          </button>}
         </div>
       </div>
 
@@ -1064,6 +1129,94 @@ function DashboardPage({profile,token,gf}){
           </div>)}
         </div>}
       </div>}
+
+      {/* ── Task Templates Section ── */}
+      {showTemplates&&hasRole(profile?.role,"qa_lead")&&<div style={{borderTop:"1px solid var(--bd2)",padding:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+          <div style={{fontSize:14,fontWeight:700,color:"var(--tx)"}}>Task Templates</div>
+          <button className="btn btn-primary btn-sm" onClick={()=>setShowTemplateForm(true)}><Icon d={icons.plus} size={14}/>New template</button>
+        </div>
+
+        {showTemplateForm&&<div style={{padding:14,background:"var(--bg)",borderRadius:10,border:"1px solid var(--bd2)",marginBottom:12}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div className="form-group"><label className="form-label">Title</label>
+              <input className="form-input" placeholder="e.g. Complete 3 SBS evaluations" value={tplForm.title} onChange={e=>setTplForm({...tplForm,title:e.target.value})}/>
+            </div>
+            <div className="form-group"><label className="form-label">Frequency</label>
+              <select className="select form-input" value={tplForm.frequency} onChange={e=>setTplForm({...tplForm,frequency:e.target.value})}>
+                <option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option>
+              </select>
+            </div>
+            <div className="form-group"><label className="form-label">Priority</label>
+              <select className="select form-input" value={tplForm.priority} onChange={e=>setTplForm({...tplForm,priority:e.target.value})}>
+                <option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option>
+              </select>
+            </div>
+            <div className="form-group"><label className="form-label">Assign to</label>
+              <select className="select form-input" value={tplForm.assign_to_type} onChange={e=>setTplForm({...tplForm,assign_to_type:e.target.value,assign_to_value:""})}>
+                <option value="my_team">My entire team</option><option value="specific_person">Specific person</option>
+                {hasRole(profile?.role,"qa_supervisor")&&<option value="all_qa">All QAs</option>}
+              </select>
+            </div>
+            {tplForm.assign_to_type==="specific_person"&&<div className="form-group"><label className="form-label">Person</label>
+              <SearchableSelect options={roster.filter(r=>r.manager_email?.toLowerCase()===profile?.email?.toLowerCase()).map(r=>({value:r.email,label:r.email+" — "+nameFromEmail(r.email)}))}
+                value={tplForm.assign_to_value} onChange={v=>setTplForm({...tplForm,assign_to_value:v})} placeholder="Select person..."/>
+            </div>}
+            <div className="form-group"><label className="form-label">Description (optional)</label>
+              <input className="form-input" placeholder="Details about the task..." value={tplForm.description} onChange={e=>setTplForm({...tplForm,description:e.target.value})}/>
+            </div>
+            <div className="form-group"><label className="form-label">Target metric (optional)</label>
+              <select className="select form-input" value={tplForm.target_metric} onChange={e=>setTplForm({...tplForm,target_metric:e.target.value})}>
+                <option value="">None (manual close)</option>
+                <option value="sbs">SBS evaluations</option>
+                <option value="non_sbs">Non-SBS evaluations</option>
+                <option value="coaching_sessions">Coaching sessions</option>
+                <option value="rtr_count">RTR count</option>
+                <option value="calibration_count">Calibration count</option>
+              </select>
+            </div>
+            {tplForm.target_metric&&<div className="form-group"><label className="form-label">Target value</label>
+              <input className="form-input" type="number" min="1" placeholder="e.g. 3" value={tplForm.target_value} onChange={e=>setTplForm({...tplForm,target_value:e.target.value})}/>
+            </div>}
+          </div>
+          <div style={{display:"flex",gap:8,marginTop:10}}>
+            <button className="btn btn-primary btn-sm" onClick={saveTemplate}>Create template</button>
+            <button className="btn btn-outline btn-sm" onClick={()=>setShowTemplateForm(false)}>Cancel</button>
+          </div>
+        </div>}
+
+        {taskTemplates.length > 0 ? <div>
+          {taskTemplates.map(tpl=>(
+            <div key={tpl.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid var(--bd)"}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontSize:13,fontWeight:600,color:tpl.is_active?"var(--tx)":"var(--tx3)",textDecoration:tpl.is_active?"none":"line-through"}}>{tpl.title}</span>
+                  <span style={{fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:600,
+                    background:tpl.frequency==="daily"?"var(--blue-bg)":tpl.frequency==="weekly"?"var(--accent-light)":"var(--green-bg)",
+                    color:tpl.frequency==="daily"?"var(--blue)":tpl.frequency==="weekly"?"var(--accent-text)":"var(--green)"
+                  }}>{tpl.frequency}</span>
+                  <span style={{fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:600,background:"var(--bg3)",color:"var(--tx3)"}}>
+                    {tpl.assign_to_type==="my_team"?"Team":tpl.assign_to_type==="specific_person"?nameFromEmail(tpl.assign_to_value):"All QAs"}
+                  </span>
+                  {tpl.target_metric&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:600,background:"var(--amber-bg)",color:"var(--amber)"}}>{tpl.target_value}x {tpl.target_metric.replace(/_/g," ")}</span>}
+                </div>
+                {tpl.last_generated_at&&<div style={{fontSize:10,color:"var(--tx3)",marginTop:2}}>Last run: {new Date(tpl.last_generated_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div>}
+              </div>
+              <div style={{display:"flex",gap:4}}>
+                <button className="btn btn-primary btn-sm" style={{fontSize:10,padding:"4px 8px"}} onClick={()=>generateFromTemplate(tpl)} title="Generate tasks now">
+                  <Icon d={icons.plus} size={12}/>Run
+                </button>
+                <button className="btn btn-outline btn-sm" style={{padding:"4px 6px"}} onClick={()=>toggleTemplate(tpl)} title={tpl.is_active?"Pause":"Activate"}>
+                  {tpl.is_active?<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                  :<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="5,3 19,12 5,21"/></svg>}
+                </button>
+                <button className="btn btn-outline btn-sm" style={{padding:"4px 6px",color:"var(--red)"}} onClick={()=>deleteTemplate(tpl.id)} title="Delete"><Icon d={icons.trash} size={12}/></button>
+              </div>
+            </div>
+          ))}
+        </div> : <div style={{textAlign:"center",padding:12,color:"var(--tx3)",fontSize:12}}>No templates yet — create one to generate recurring tasks for your team</div>}
+      </div>}
+
       </>}
     </div>
 
