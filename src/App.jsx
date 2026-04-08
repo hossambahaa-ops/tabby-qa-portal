@@ -6856,7 +6856,7 @@ function QAProfilePage({token, profile, gf}) {
           sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country,hiring_date",token}).catch(()=>[]),
           sb.query("mtd_scores", {select:"*",filters:"order=month.desc",token}).catch(()=>[]),
           sb.query("coaching_sessions", {select:"id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass",filters:"order=session_date.desc",token}).catch(()=>[]),
-          sb.query("action_plans", {select:"id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,trigger_source,action_plan_weeks(id,week_number,week_start,targets,actuals,passed,notes)",token}).catch(()=>[]),
+          sb.query("action_plans", {select:"id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,targets,actuals,passed,notes)",token}).catch(()=>[]),
           sb.query("tasks", {select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
           sb.query("dam_flags", {select:"id,qa_email,severity,status,triggered_at,occurrence_number,reviewed_by,reviewed_at,notes,dam_rules(name,behavior_type,recommended_action)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
           sb.query("profiles", {select:"email,role",token}).catch(()=>[]),
@@ -7180,7 +7180,7 @@ function QAProfilePage({token, profile, gf}) {
                 </div>
                 {isExp && <div style={{padding:10,margin:"4px 0 8px",background:"var(--bg)",borderRadius:8,fontSize:12}}>
                   {p.created_by && <div style={{fontSize:11,color:"var(--tx3)",marginBottom:6}}>Created by: {nameFromEmail(p.created_by)}</div>}
-                  {p.trigger_source && <div style={{fontSize:11,color:"var(--tx3)",marginBottom:6}}>Trigger: {p.trigger_source}</div>}
+                  {p.reason && <div style={{fontSize:11,color:"var(--tx3)",marginBottom:6}}>Reason: {p.reason}</div>}
                   {p.conclusion && <div style={{fontSize:11,color:p.conclusion.includes("pass")?"var(--green)":"var(--red)",marginBottom:8,fontWeight:600}}>Conclusion: {p.conclusion}</div>}
                   {weeks.length > 0 && <div>
                     <div style={{fontSize:10,fontWeight:600,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>Weekly progress</div>
