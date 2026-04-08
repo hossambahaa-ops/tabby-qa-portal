@@ -6669,6 +6669,12 @@ function QAProfilePage({token, profile, gf}) {
   const isLead = hasRole(profile?.role, "qa_lead");
   const myEmail = profile?.email?.toLowerCase() || "";
 
+  const nameFromEmail = (email) => {
+    if (!email) return "—";
+    const local = email.split("@")[0];
+    return local.split(".").map(p => { const c = p.replace(/[\d]+$/, ""); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ""; }).filter(Boolean).join(" ");
+  };
+
   useEffect(() => {
     (async () => {
       try {
@@ -6686,41 +6692,43 @@ function QAProfilePage({token, profile, gf}) {
         setPlans(Array.isArray(ap) ? ap : []);
         setTasks(Array.isArray(t) ? t : []);
         setFlags(Array.isArray(f) ? f : []);
-        // If QA role, auto-select self
         if (isQA) setSelectedQA(myEmail);
       } catch(e) { console.error("QA Profile load:", e); }
       setLoading(false);
     })();
   }, [token]);
 
-  const nameFromEmail = (email) => {
-    if (!email) return "—";
-    const local = email.split("@")[0];
-    return local.split(".").map(p => {
-      const clean = p.replace(/[\d]+$/, "");
-      return clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : "";
-    }).filter(Boolean).join(" ");
-  };
+  // Build full list: roster + anyone in MTD not in roster
+  const allQAs = (() => {
+    const map = new Map();
+    roster.forEach(r => { if (r.email) map.set(r.email.toLowerCase(), r); });
+    mtd.forEach(m => {
+      const em = m.qa_email?.toLowerCase();
+      if (em && !map.has(em)) map.set(em, { email: em, manager_email: m.qa_tl, queue: null, country: null });
+    });
+    return [...map.values()];
+  })();
 
   // Scope: QAs see only themselves, leads see their team, supervisors+ see all
   const visibleQAs = (() => {
-    if (isQA) return roster.filter(r => r.email?.toLowerCase() === myEmail);
+    if (isQA) return allQAs.filter(r => r.email?.toLowerCase() === myEmail);
     if (hasRole(profile?.role, "qa_lead") && !hasRole(profile?.role, "qa_supervisor")) {
-      return roster.filter(r => r.manager_email?.toLowerCase() === myEmail);
+      return allQAs.filter(r => r.manager_email?.toLowerCase() === myEmail);
     }
-    return roster;
+    return allQAs;
   })();
 
   const filteredQAs = searchQuery
     ? visibleQAs.filter(r => r.email?.toLowerCase().includes(searchQuery.toLowerCase()) || nameFromEmail(r.email).toLowerCase().includes(searchQuery.toLowerCase()))
     : visibleQAs;
 
-  const qa = roster.find(r => r.email?.toLowerCase() === selectedQA?.toLowerCase());
+  const qa = allQAs.find(r => r.email?.toLowerCase() === selectedQA?.toLowerCase());
   const qaMtd = mtd.filter(m => m.qa_email?.toLowerCase() === selectedQA?.toLowerCase());
+  // Use the latest month that has data (first in desc-sorted array)
   const latestMtd = qaMtd.length > 0 ? qaMtd[0] : null;
   const qaSessions = sessions.filter(s => s.member_email?.toLowerCase() === selectedQA?.toLowerCase()).slice(0, 10);
   const qaPlans = plans.filter(p => p.qa_email?.toLowerCase() === selectedQA?.toLowerCase());
-  const qaTasks = tasks.filter(t => t.assigned_to?.toLowerCase() === selectedQA?.toLowerCase() || t.created_by?.toLowerCase() === selectedQA?.toLowerCase());
+  const qaTasks = tasks.filter(t => t.assigned_to?.toLowerCase() === selectedQA?.toLowerCase() || (t.created_by?.toLowerCase() === selectedQA?.toLowerCase() && !t.assigned_to));
   const qaFlags = flags.filter(f => f.qa_email?.toLowerCase() === selectedQA?.toLowerCase());
 
   const fmtPct = (val) => {
@@ -6735,226 +6743,229 @@ function QAProfilePage({token, profile, gf}) {
 
   if (loading) return <div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
 
+  // ═══ LIST VIEW (no QA selected, or QA role sees own profile directly) ═══
+  if (!selectedQA && !isQA) return (
+    <div className="page">
+      <div className="page-header">
+        <div className="page-title">QA Profiles</div>
+        <div className="page-subtitle">{visibleQAs.length} team members</div>
+      </div>
+      <div className="card" style={{padding:16}}>
+        <div style={{position:"relative",marginBottom:16}}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input className="form-input" placeholder="Search by name or email..." value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} style={{paddingLeft:34,fontSize:13}}/>
+        </div>
+        <div style={{maxHeight:"calc(100vh - 260px)",overflowY:"auto"}}>
+          <table><thead><tr><th>QA</th><th>Email</th><th>Team</th><th>Lead</th><th>Country</th></tr></thead>
+          <tbody>{filteredQAs.sort((a,b)=>(a.email||"").localeCompare(b.email||"")).map(r => {
+            const em = r.email?.toLowerCase();
+            return <tr key={em} onClick={()=>setSelectedQA(em)} style={{cursor:"pointer"}}>
+              <td style={{fontWeight:500}}>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <div style={{width:28,height:28,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:700,color:"var(--accent-text)",flexShrink:0}}>
+                    {nameFromEmail(em).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+                  </div>
+                  {nameFromEmail(em)}
+                </div>
+              </td>
+              <td style={{fontSize:12,color:"var(--tx2)"}}>{em}</td>
+              <td style={{fontSize:12}}>{r.queue || "—"}</td>
+              <td style={{fontSize:12}}>{r.manager_email ? nameFromEmail(r.manager_email) : "—"}</td>
+              <td style={{fontSize:12}}>{r.country || "—"}</td>
+            </tr>;
+          })}</tbody></table>
+        </div>
+      </div>
+    </div>
+  );
+
+  // ═══ PROFILE VIEW (QA selected) ═══
   return (
     <div className="page">
-      <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
-        <div>
-          <div className="page-title">QA Profile</div>
-          <div className="page-subtitle">{isQA ? "Your performance overview" : `${visibleQAs.length} team members`}</div>
+      {/* Back button for non-QA roles */}
+      {!isQA && <button className="btn btn-outline" onClick={()=>{setSelectedQA("");setSearchQuery("");}} style={{marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Back to list
+      </button>}
+
+      {/* Header card */}
+      <div className="card" style={{marginBottom:16,padding:20}}>
+        <div style={{display:"flex",alignItems:"center",gap:16}}>
+          <div style={{width:56,height:56,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,color:"var(--accent-text)"}}>
+            {nameFromEmail(selectedQA).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+          </div>
+          <div>
+            <div style={{fontSize:20,fontWeight:700}}>{nameFromEmail(selectedQA)}</div>
+            <div style={{fontSize:13,color:"var(--tx2)"}}>{selectedQA}</div>
+            <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
+              {qa?.queue && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600}}>{qa.queue}</span>}
+              {qa?.country && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--bg3)",color:"var(--tx3)",fontWeight:600}}>{qa.country}</span>}
+              {qa?.manager_email && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--green-bg)",color:"var(--green)",fontWeight:600}}>Lead: {nameFromEmail(qa.manager_email)}</span>}
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* QA Selector — leads/supervisors pick a QA, QAs see themselves */}
-      {!isQA && <div className="card" style={{marginBottom:16,padding:16}}>
-        <div style={{position:"relative"}}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{position:"absolute",left:10,top:"50%",transform:"translateY(-50%)"}}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <input className="form-input" placeholder="Search by name or email..." value={searchQuery} onChange={e=>{setSearchQuery(e.target.value);setSelectedQA("");}} style={{paddingLeft:34,fontSize:13}}/>
+      {/* KPI cards row */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
+        {/* Today's evaluations — placeholder for daily report */}
+        <div className="card" style={{padding:16,textAlign:"center"}}>
+          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Today's evaluations</div>
+          <div style={{position:"relative",width:64,height:64,margin:"0 auto 8px"}}>
+            <svg width="64" height="64" viewBox="0 0 64 64">
+              <circle cx="32" cy="32" r="28" fill="none" stroke="var(--bd2)" strokeWidth="5"/>
+              <circle cx="32" cy="32" r="28" fill="none" stroke="var(--accent-text)" strokeWidth="5" strokeLinecap="round"
+                strokeDasharray="0 176" transform="rotate(-90 32 32)"/>
+            </svg>
+            <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"var(--tx3)"}}>—</div>
+          </div>
+          <div style={{fontSize:11,color:"var(--tx3)"}}>Daily report pending</div>
         </div>
-        {(searchQuery || !selectedQA) && <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(220px,1fr))",gap:8,marginTop:12,maxHeight:240,overflowY:"auto"}}>
-          {filteredQAs.slice(0, 20).map(r => (
-            <div key={r.email} onClick={()=>{setSelectedQA(r.email?.toLowerCase());setSearchQuery("");}} style={{padding:"10px 12px",borderRadius:8,cursor:"pointer",border:"1px solid "+(selectedQA===r.email?.toLowerCase()?"var(--accent-text)":"var(--bd2)"),background:selectedQA===r.email?.toLowerCase()?"var(--accent-light)":"var(--bg)",display:"flex",alignItems:"center",gap:10}}>
-              <div style={{width:32,height:32,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:600,color:"var(--accent-text)",flexShrink:0}}>
-                {nameFromEmail(r.email).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+
+        {/* Occupancy */}
+        <div className="card" style={{padding:16,textAlign:"center"}}>
+          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Occupancy</div>
+          <div style={{fontSize:28,fontWeight:800,color:latestMtd?.occupancy_pct?"var(--tx)":"var(--tx3)"}}>{latestMtd ? fmtPct(latestMtd.occupancy_pct) : "—"}</div>
+          <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>{latestMtd?.month || "No data"}</div>
+        </div>
+
+        {/* Final Performance */}
+        <div className="card" style={{padding:16,textAlign:"center"}}>
+          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Final score</div>
+          <div style={{fontSize:28,fontWeight:800,color:latestMtd?((latestMtd.final_performance||0)>=0.4?"var(--green)":(latestMtd.final_performance||0)>=0.25?"var(--amber)":"var(--red)"):"var(--tx3)"}}>
+            {latestMtd ? ((latestMtd.final_performance||0)*100).toFixed(1)+"%" : "—"}
+          </div>
+          <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>{latestMtd?.month || "No data"}</div>
+        </div>
+
+        {/* Tasks */}
+        <div className="card" style={{padding:16,textAlign:"center"}}>
+          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Tasks</div>
+          <div style={{display:"flex",justifyContent:"center",gap:16}}>
+            <div><div style={{fontSize:22,fontWeight:800,color:"var(--amber)"}}>{qaTasks.filter(t=>t.status==="pending"||t.status==="in_progress").length}</div><div style={{fontSize:10,color:"var(--tx3)"}}>Open</div></div>
+            <div><div style={{fontSize:22,fontWeight:800,color:"var(--green)"}}>{qaTasks.filter(t=>t.status==="done").length}</div><div style={{fontSize:10,color:"var(--tx3)"}}>Done</div></div>
+          </div>
+        </div>
+      </div>
+
+      {/* Two-column layout: Performance + Coaching */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+        {/* Latest MTD metrics */}
+        <div className="card">
+          <div className="card-header"><span className="card-title">Performance — {latestMtd?.month || "No data"}</span></div>
+          {latestMtd ? <div style={{padding:"0 16px 16px"}}>
+            {[
+              ["SBS", latestMtd.sbs],["Non-SBS", latestMtd.non_sbs],["DSAT", latestMtd.dsat],
+              ["RTR Score", fmtPct(latestMtd.avg_rtr_score)],["Calibration", fmtPct(latestMtd.avg_calibration_match_rate)],
+              ["CO Score", fmtPct(latestMtd.avg_observation_score_pct)],["Coaching on-time", fmtPct(latestMtd.ontime_coaching_pct)],
+              ["Tickets/day", latestMtd.ticket_per_day ? Number(latestMtd.ticket_per_day).toFixed(1) : "—"],
+              ["Occupancy", fmtPct(latestMtd.occupancy_pct)],["JKQ", latestMtd.jkq_score || "—"],
+            ].map(([label, val], i) => (
+              <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<9?"1px solid var(--bd)":"none"}}>
+                <span style={{fontSize:13,color:"var(--tx2)"}}>{label}</span>
+                <span style={{fontSize:13,fontWeight:600,color:label==="DSAT"&&val>0?"var(--red)":"var(--tx)"}}>{val ?? "—"}</span>
               </div>
-              <div style={{overflow:"hidden"}}>
-                <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nameFromEmail(r.email)}</div>
-                <div style={{fontSize:11,color:"var(--tx3)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.email}</div>
+            ))}
+          </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No MTD data available</div>}
+        </div>
+
+        {/* Coaching history */}
+        <div className="card">
+          <div className="card-header"><span className="card-title">Coaching sessions ({qaSessions.length})</span></div>
+          {qaSessions.length > 0 ? <div style={{padding:"0 16px 16px"}}>
+            {qaSessions.map(s => (
+              <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--bd)"}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:600,color:"var(--tx)"}}>{new Date(s.session_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
+                  <div style={{fontSize:11,color:"var(--tx3)"}}>{s.meeting_type?.replace(/_/g," ")} — by {nameFromEmail(s.sender_email)}</div>
+                </div>
+                {s.performance_rating && <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,
+                  background:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green-bg)":"var(--amber-bg)",
+                  color:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green)":"var(--amber)"
+                }}>{s.performance_rating}</span>}
               </div>
-            </div>
-          ))}
-        </div>}
-      </div>}
+            ))}
+          </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No coaching sessions yet</div>}
+        </div>
+      </div>
 
-      {/* Profile content — only shows when a QA is selected */}
-      {selectedQA && <>
-        {/* Header card */}
-        <div className="card" style={{marginBottom:16,padding:20}}>
-          <div style={{display:"flex",alignItems:"center",gap:16}}>
-            <div style={{width:56,height:56,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,color:"var(--accent-text)"}}>
-              {nameFromEmail(selectedQA).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
-            </div>
-            <div>
-              <div style={{fontSize:20,fontWeight:700}}>{nameFromEmail(selectedQA)}</div>
-              <div style={{fontSize:13,color:"var(--tx2)"}}>{selectedQA}</div>
-              <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
-                {qa?.queue && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600}}>{qa.queue}</span>}
-                {qa?.country && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--bg3)",color:"var(--tx3)",fontWeight:600}}>{qa.country}</span>}
-                {qa?.manager_email && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--green-bg)",color:"var(--green)",fontWeight:600}}>Lead: {nameFromEmail(qa.manager_email)}</span>}
+      {/* Bottom row: Tasks + AP/PIP + DAM */}
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
+        {/* Tasks */}
+        <div className="card">
+          <div className="card-header"><span className="card-title">Tasks ({qaTasks.length})</span></div>
+          {qaTasks.length > 0 ? <div style={{padding:"0 16px 16px",maxHeight:200,overflowY:"auto"}}>
+            {qaTasks.slice(0, 10).map(t => (
+              <div key={t.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--bd)"}}>
+                <div style={{fontSize:12,color:t.status==="done"?"var(--tx3)":"var(--tx)",textDecoration:t.status==="done"?"line-through":"none",fontWeight:500}}>{t.title}</div>
+                <span style={{fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:600,flexShrink:0,
+                  background:t.status==="done"?"var(--green-bg)":t.status==="pending"?"var(--amber-bg)":"var(--blue-bg)",
+                  color:t.status==="done"?"var(--green)":t.status==="pending"?"var(--amber)":"var(--blue)"
+                }}>{t.status}</span>
               </div>
-            </div>
-          </div>
+            ))}
+          </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No tasks</div>}
         </div>
 
-        {/* KPI cards row */}
-        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
-          {/* Today's evaluations — placeholder for daily report */}
-          <div className="card" style={{padding:16,textAlign:"center"}}>
-            <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Today's evaluations</div>
-            <div style={{position:"relative",width:64,height:64,margin:"0 auto 8px"}}>
-              <svg width="64" height="64" viewBox="0 0 64 64">
-                <circle cx="32" cy="32" r="28" fill="none" stroke="var(--bd2)" strokeWidth="5"/>
-                <circle cx="32" cy="32" r="28" fill="none" stroke="var(--accent-text)" strokeWidth="5" strokeLinecap="round"
-                  strokeDasharray="0 176" transform="rotate(-90 32 32)"/>
-              </svg>
-              <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"var(--tx3)"}}>—</div>
-            </div>
-            <div style={{fontSize:11,color:"var(--tx3)"}}>Daily report pending</div>
-          </div>
-
-          {/* Occupancy */}
-          <div className="card" style={{padding:16,textAlign:"center"}}>
-            <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Occupancy</div>
-            <div style={{fontSize:28,fontWeight:800,color:latestMtd?.occupancy_pct?"var(--tx)":"var(--tx3)"}}>{latestMtd ? fmtPct(latestMtd.occupancy_pct) : "—"}</div>
-            <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>{latestMtd?.month || "No data"}</div>
-          </div>
-
-          {/* Final Performance */}
-          <div className="card" style={{padding:16,textAlign:"center"}}>
-            <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Final score</div>
-            <div style={{fontSize:28,fontWeight:800,color:latestMtd?((latestMtd.final_performance||0)>=0.4?"var(--green)":(latestMtd.final_performance||0)>=0.25?"var(--amber)":"var(--red)"):"var(--tx3)"}}>
-              {latestMtd ? ((latestMtd.final_performance||0)*100).toFixed(1)+"%" : "—"}
-            </div>
-            <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>{latestMtd?.month || "No data"}</div>
-          </div>
-
-          {/* Tasks */}
-          <div className="card" style={{padding:16,textAlign:"center"}}>
-            <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Tasks</div>
-            <div style={{display:"flex",justifyContent:"center",gap:16}}>
-              <div><div style={{fontSize:22,fontWeight:800,color:"var(--amber)"}}>{qaTasks.filter(t=>t.status==="pending"||t.status==="in_progress").length}</div><div style={{fontSize:10,color:"var(--tx3)"}}>Open</div></div>
-              <div><div style={{fontSize:22,fontWeight:800,color:"var(--green)"}}>{qaTasks.filter(t=>t.status==="done").length}</div><div style={{fontSize:10,color:"var(--tx3)"}}>Done</div></div>
-            </div>
-          </div>
+        {/* AP/PIP */}
+        <div className="card">
+          <div className="card-header"><span className="card-title">Action Plans</span></div>
+          {qaPlans.length > 0 ? <div style={{padding:"0 16px 16px"}}>
+            {qaPlans.map(p => (
+              <div key={p.id} style={{padding:"8px 0",borderBottom:"1px solid var(--bd)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:12,fontWeight:600,color:p.type==="pip"?"var(--red)":"var(--amber)"}}>{p.type.toUpperCase()}</span>
+                  <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,
+                    background:p.status==="active"?"var(--blue-bg)":p.status.includes("pass")?"var(--green-bg)":"var(--red-bg)",
+                    color:p.status==="active"?"var(--blue)":p.status.includes("pass")?"var(--green)":"var(--red)"
+                  }}>{p.status}</span>
+                </div>
+                <div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>{new Date(p.start_date).toLocaleDateString("en-GB",{day:"numeric",month:"short"})} — {new Date(p.end_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
+              </div>
+            ))}
+          </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No plans</div>}
         </div>
 
-        {/* Two-column layout: Performance + Coaching */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-          {/* Latest MTD metrics */}
-          <div className="card">
-            <div className="card-header"><span className="card-title">Performance — {latestMtd?.month || "No data"}</span></div>
-            {latestMtd ? <div style={{padding:"0 16px 16px"}}>
-              {[
-                ["SBS", latestMtd.sbs],["Non-SBS", latestMtd.non_sbs],["DSAT", latestMtd.dsat],
-                ["RTR Score", fmtPct(latestMtd.avg_rtr_score)],["Calibration", fmtPct(latestMtd.avg_calibration_match_rate)],
-                ["CO Score", fmtPct(latestMtd.avg_observation_score_pct)],["Coaching on-time", fmtPct(latestMtd.ontime_coaching_pct)],
-                ["Tickets/day", latestMtd.ticket_per_day ? Number(latestMtd.ticket_per_day).toFixed(1) : "—"],
-                ["Occupancy", fmtPct(latestMtd.occupancy_pct)],["JKQ", latestMtd.jkq_score || "—"],
-              ].map(([label, val], i) => (
-                <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<9?"1px solid var(--bd)":"none"}}>
-                  <span style={{fontSize:13,color:"var(--tx2)"}}>{label}</span>
-                  <span style={{fontSize:13,fontWeight:600,color:label==="DSAT"&&val>0?"var(--red)":"var(--tx)"}}>{val ?? "—"}</span>
+        {/* DAM Flags */}
+        <div className="card">
+          <div className="card-header"><span className="card-title">DAM Flags ({qaFlags.length})</span></div>
+          {qaFlags.length > 0 ? <div style={{padding:"0 16px 16px"}}>
+            {qaFlags.slice(0, 5).map(f => (
+              <div key={f.id} style={{padding:"8px 0",borderBottom:"1px solid var(--bd)"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:12,fontWeight:500,color:"var(--tx)"}}>{f.dam_rules?.name || "—"}</span>
+                  <span style={{fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:600,
+                    background:f.severity==="critical"?"var(--red-bg)":f.severity==="warning"?"var(--amber-bg)":"var(--blue-bg)",
+                    color:f.severity==="critical"?"var(--red)":f.severity==="warning"?"var(--amber)":"var(--blue)"
+                  }}>{f.severity}</span>
                 </div>
-              ))}
-            </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No MTD data available</div>}
-          </div>
+                <div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>{f.status} — {new Date(f.triggered_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
+              </div>
+            ))}
+          </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No flags</div>}
+        </div>
+      </div>
 
-          {/* Coaching history */}
-          <div className="card">
-            <div className="card-header"><span className="card-title">Coaching sessions ({qaSessions.length})</span></div>
-            {qaSessions.length > 0 ? <div style={{padding:"0 16px 16px"}}>
-              {qaSessions.map(s => (
-                <div key={s.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--bd)"}}>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:600,color:"var(--tx)"}}>{new Date(s.session_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
-                    <div style={{fontSize:11,color:"var(--tx3)"}}>{s.meeting_type?.replace(/_/g," ")} — by {nameFromEmail(s.sender_email)}</div>
+      {/* Score history */}
+      {qaMtd.length > 1 && <div className="card" style={{marginTop:16}}>
+        <div className="card-header"><span className="card-title">Score trend</span></div>
+        <div style={{padding:"0 16px 16px"}}>
+          <div style={{display:"flex",gap:12,overflowX:"auto",padding:"8px 0"}}>
+            {qaMtd.slice(0,6).reverse().map(m => {
+              const score = (m.final_performance||0)*100;
+              const color = score >= 40 ? "var(--green)" : score >= 25 ? "var(--amber)" : "var(--red)";
+              return (
+                <div key={m.month} style={{textAlign:"center",minWidth:60}}>
+                  <div style={{height:80,display:"flex",alignItems:"flex-end",justifyContent:"center",marginBottom:4}}>
+                    <div style={{width:32,borderRadius:"4px 4px 0 0",background:color,height:`${Math.max(8,score*1.5)}px`,transition:"height .3s"}}/>
                   </div>
-                  <div style={{display:"flex",gap:6}}>
-                    {s.performance_rating && <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,
-                      background:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green-bg)":"var(--amber-bg)",
-                      color:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green)":"var(--amber)"
-                    }}>{s.performance_rating}</span>}
-                    {s.outcome && <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,
-                      background:s.outcome==="pass"?"var(--green-bg)":"var(--red-bg)",color:s.outcome==="pass"?"var(--green)":"var(--red)"
-                    }}>{s.outcome}</span>}
-                  </div>
+                  <div style={{fontSize:13,fontWeight:700,color}}>{score.toFixed(1)}%</div>
+                  <div style={{fontSize:10,color:"var(--tx3)"}}>{m.month}</div>
                 </div>
-              ))}
-            </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No coaching sessions yet</div>}
+              );
+            })}
           </div>
         </div>
-
-        {/* Bottom row: Tasks + AP/PIP + DAM */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:16}}>
-          {/* Tasks */}
-          <div className="card">
-            <div className="card-header"><span className="card-title">Tasks ({qaTasks.length})</span></div>
-            {qaTasks.length > 0 ? <div style={{padding:"0 16px 16px",maxHeight:200,overflowY:"auto"}}>
-              {qaTasks.slice(0, 10).map(t => (
-                <div key={t.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--bd)"}}>
-                  <div style={{fontSize:12,color:t.status==="done"?"var(--tx3)":"var(--tx)",textDecoration:t.status==="done"?"line-through":"none",fontWeight:500}}>{t.title}</div>
-                  <span style={{fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:600,flexShrink:0,
-                    background:t.status==="done"?"var(--green-bg)":t.status==="pending"?"var(--amber-bg)":"var(--blue-bg)",
-                    color:t.status==="done"?"var(--green)":t.status==="pending"?"var(--amber)":"var(--blue)"
-                  }}>{t.status}</span>
-                </div>
-              ))}
-            </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No tasks</div>}
-          </div>
-
-          {/* AP/PIP */}
-          <div className="card">
-            <div className="card-header"><span className="card-title">Action Plans</span></div>
-            {qaPlans.length > 0 ? <div style={{padding:"0 16px 16px"}}>
-              {qaPlans.map(p => (
-                <div key={p.id} style={{padding:"8px 0",borderBottom:"1px solid var(--bd)"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span style={{fontSize:12,fontWeight:600,color:p.type==="pip"?"var(--red)":"var(--amber)"}}>{p.type.toUpperCase()}</span>
-                    <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,
-                      background:p.status==="active"?"var(--blue-bg)":p.status.includes("pass")?"var(--green-bg)":"var(--red-bg)",
-                      color:p.status==="active"?"var(--blue)":p.status.includes("pass")?"var(--green)":"var(--red)"
-                    }}>{p.status}</span>
-                  </div>
-                  <div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>{new Date(p.start_date).toLocaleDateString("en-GB",{day:"numeric",month:"short"})} — {new Date(p.end_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
-                </div>
-              ))}
-            </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No plans</div>}
-          </div>
-
-          {/* DAM Flags */}
-          <div className="card">
-            <div className="card-header"><span className="card-title">DAM Flags ({qaFlags.length})</span></div>
-            {qaFlags.length > 0 ? <div style={{padding:"0 16px 16px"}}>
-              {qaFlags.slice(0, 5).map(f => (
-                <div key={f.id} style={{padding:"8px 0",borderBottom:"1px solid var(--bd)"}}>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span style={{fontSize:12,fontWeight:500,color:"var(--tx)"}}>{f.dam_rules?.name || "—"}</span>
-                    <span style={{fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:600,
-                      background:f.severity==="critical"?"var(--red-bg)":f.severity==="warning"?"var(--amber-bg)":"var(--blue-bg)",
-                      color:f.severity==="critical"?"var(--red)":f.severity==="warning"?"var(--amber)":"var(--blue)"
-                    }}>{f.severity}</span>
-                  </div>
-                  <div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>{f.status} — {new Date(f.triggered_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
-                </div>
-              ))}
-            </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No flags</div>}
-          </div>
-        </div>
-
-        {/* Score history */}
-        {qaMtd.length > 1 && <div className="card" style={{marginTop:16}}>
-          <div className="card-header"><span className="card-title">Score trend</span></div>
-          <div style={{padding:"0 16px 16px"}}>
-            <div style={{display:"flex",gap:12,overflowX:"auto",padding:"8px 0"}}>
-              {qaMtd.slice(0,6).reverse().map(m => {
-                const score = (m.final_performance||0)*100;
-                const color = score >= 40 ? "var(--green)" : score >= 25 ? "var(--amber)" : "var(--red)";
-                return (
-                  <div key={m.month} style={{textAlign:"center",minWidth:60}}>
-                    <div style={{height:80,display:"flex",alignItems:"flex-end",justifyContent:"center",marginBottom:4}}>
-                      <div style={{width:32,borderRadius:"4px 4px 0 0",background:color,height:`${Math.max(8,score*1.5)}px`,transition:"height .3s"}}/>
-                    </div>
-                    <div style={{fontSize:13,fontWeight:700,color}}>{score.toFixed(1)}%</div>
-                    <div style={{fontSize:10,color:"var(--tx3)"}}>{m.month}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>}
-      </>}
-
-      {!selectedQA && !isQA && <div className="card" style={{padding:40,textAlign:"center"}}>
-        <div style={{fontSize:14,color:"var(--tx3)"}}>Select a team member above to view their profile</div>
       </div>}
     </div>
   );
