@@ -7504,7 +7504,63 @@ function SchedulePage({token, profile, gf}) {
   const [bulkPerson, setBulkPerson] = useState("");
   const [bulkDayFilter, setBulkDayFilter] = useState("all");
   const [editCell, setEditCell] = useState(null);
+  const [undoStack, setUndoStack] = useState([]);
+  const [redoStack, setRedoStack] = useState([]);
   const {show, el: toastEl} = useToast();
+
+  // Undo/Redo keyboard handler
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        setUndoStack(prev => {
+          if (prev.length === 0) return prev;
+          const last = prev[prev.length - 1];
+          const rest = prev.slice(0, -1);
+          // Restore the old state
+          (async () => {
+            try {
+              if (last.oldStatus) {
+                await sb.query("qa_attendance", {token, method: "PATCH", body: {status: last.oldStatus, updated_at: new Date().toISOString()}, filters: `email=eq.${last.email}&date=eq.${last.date}`});
+              } else {
+                // Was a new entry — delete it
+                await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${last.email}&date=eq.${last.date}`, {
+                  method: "DELETE", headers: {"apikey": SUPABASE_ANON, "Authorization": `Bearer ${token}`}
+                });
+              }
+              setRedoStack(p => [...p, last]);
+              loadData();
+              show("success", "Undone");
+            } catch (err) { show("error", "Undo failed"); }
+          })();
+          return rest;
+        });
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+        e.preventDefault();
+        setRedoStack(prev => {
+          if (prev.length === 0) return prev;
+          const last = prev[prev.length - 1];
+          const rest = prev.slice(0, -1);
+          (async () => {
+            try {
+              const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
+                method: "POST", headers: {"Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${token}`, "Prefer": "resolution=merge-duplicates,return=minimal"},
+                body: JSON.stringify({email: last.email, date: last.date, status: last.newStatus, created_by: myEmail})
+              });
+              if (!resp.ok) throw new Error();
+              setUndoStack(p => [...p, last]);
+              loadData();
+              show("success", "Redone");
+            } catch (err) { show("error", "Redo failed"); }
+          })();
+          return rest;
+        });
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [token, myEmail]);
 
   const myEmail = profile?.email?.toLowerCase() || "";
   const isQA = profile?.role === "qa" || profile?.role === "senior_qa";
@@ -7572,6 +7628,7 @@ function SchedulePage({token, profile, gf}) {
     const dateStr = `${selMonth}-${String(dayNum).padStart(2,"0")}`;
     try {
       const existing = getAtt(email, dayNum);
+      const oldStatus = existing?.status || null;
       if (existing) {
         if (status === existing.status) { setEditCell(null); return; }
         await sb.query("qa_attendance", {token, method:"PATCH", body:{status, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
@@ -7582,6 +7639,9 @@ function SchedulePage({token, profile, gf}) {
         });
         if (!resp.ok) throw new Error(await resp.text());
       }
+      // Push to undo stack
+      setUndoStack(prev => [...prev.slice(-50), {email: email.toLowerCase(), date: dateStr, oldStatus, newStatus: status}]);
+      setRedoStack([]);
       setAttendance(prev => {
         const filtered = prev.filter(a => !(a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr));
         return [...filtered, {email:email.toLowerCase(), date:dateStr, status, id:existing?.id||"new-"+Date.now(), created_by:myEmail}];
@@ -7734,7 +7794,15 @@ function SchedulePage({token, profile, gf}) {
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center"}}>
           <input type="month" className="form-input" style={{width:160,fontSize:12}} value={selMonth} onChange={e=>setSelMonth(e.target.value)}/>
-          {isLead&&<button className="btn btn-primary btn-sm" onClick={()=>{setBulkModal(true);setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>
+          <div style={{display:"flex",gap:2}}>
+            <button className="btn btn-outline btn-sm" style={{padding:"6px 8px",opacity:undoStack.length>0?1:0.3}} disabled={undoStack.length===0} onClick={()=>{const e=new KeyboardEvent("keydown",{key:"z",ctrlKey:true});document.dispatchEvent(e);}} title="Undo (Ctrl+Z)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 10h10a5 5 0 015 5v2"/><path d="M3 10l4-4M3 10l4 4"/></svg>
+            </button>
+            <button className="btn btn-outline btn-sm" style={{padding:"6px 8px",opacity:redoStack.length>0?1:0.3}} disabled={redoStack.length===0} onClick={()=>{const e=new KeyboardEvent("keydown",{key:"y",ctrlKey:true});document.dispatchEvent(e);}} title="Redo (Ctrl+Y)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 10H11a5 5 0 00-5 5v2"/><path d="M21 10l-4-4M21 10l-4 4"/></svg>
+            </button>
+          </div>
+          {isLead&&<button className="btn btn-primary btn-sm" onClick={()=>{setBulkModal(true);setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);setBulkStatus("P");setBulkDayFilter("all");}}>
             <Icon d={icons.plus} size={14}/>Bulk set
           </button>}
           {isLead&&<button className="btn btn-outline btn-sm" onClick={downloadCsvTemplate} style={{fontSize:11}}>
@@ -7878,8 +7946,8 @@ function SchedulePage({token, profile, gf}) {
 
           {/* Quick actions */}
           <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-            <button className="btn btn-sm" style={{fontSize:11,background:"var(--green-bg)",color:"var(--green)",border:"1px solid var(--green)",fontWeight:600}} onClick={()=>{setBulkStatus("P");setBulkDayFilter("weekdays");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>Set P for Sun–Thu</button>
-            <button className="btn btn-sm" style={{fontSize:11,background:"rgba(156,163,175,0.1)",color:"var(--tx3)",border:"1px solid var(--bd)",fontWeight:600}} onClick={()=>{setBulkStatus("OFF");setBulkDayFilter("weekends");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>Set OFF for Fri–Sat</button>
+            <button className="btn btn-sm" style={{fontSize:11,background:bulkStatus==="P"&&bulkDayFilter==="weekdays"?"var(--green)":"var(--green-bg)",color:bulkStatus==="P"&&bulkDayFilter==="weekdays"?"#fff":"var(--green)",border:"1px solid var(--green)",fontWeight:600,transition:"all .15s"}} onClick={()=>{setBulkStatus("P");setBulkDayFilter("weekdays");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>Set P for Sun–Thu</button>
+            <button className="btn btn-sm" style={{fontSize:11,background:bulkStatus==="OFF"&&bulkDayFilter==="weekends"?"var(--tx3)":"rgba(156,163,175,0.1)",color:bulkStatus==="OFF"&&bulkDayFilter==="weekends"?"#fff":"var(--tx3)",border:"1px solid var(--bd)",fontWeight:600,transition:"all .15s"}} onClick={()=>{setBulkStatus("OFF");setBulkDayFilter("weekends");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>Set OFF for Fri–Sat</button>
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
