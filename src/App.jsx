@@ -7668,7 +7668,7 @@ function SchedulePage({token, profile, gf}) {
       const dow = d.getDay(); // 0=Sun,5=Fri,6=Sat
       if (bulkDayFilter === "weekdays" && (dow === 5 || dow === 6)) continue;
       if (bulkDayFilter === "weekends" && dow !== 5 && dow !== 6) continue;
-      const dateStr = d.toISOString().split("T")[0];
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
       for (const em of targets) {
         rows.push({email: em, date: dateStr, status: bulkStatus, created_by: myEmail});
       }
@@ -7812,6 +7812,20 @@ function SchedulePage({token, profile, gf}) {
           </button>}
           {isLead&&<button className="btn btn-outline btn-sm" onClick={()=>setCsvUpload(true)} style={{fontSize:11}}>
             <Icon d={icons.upload} size={13}/>Upload CSV
+          </button>}
+          {profile?.role==="super_admin"&&<button className="btn btn-outline btn-sm" style={{fontSize:11,color:"var(--red)",borderColor:"var(--red)"}} onClick={async()=>{
+            if(!confirm("Are you sure you want to delete ALL attendance data for "+new Date(year,month-1).toLocaleDateString("en-US",{month:"long",year:"numeric"})+"? This cannot be undone."))return;
+            try{
+              const startDate=`${selMonth}-01`;const endDate=`${year}-${String(month+1>12?1:month+1).padStart(2,"0")}-01`;
+              const resp=await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?date=gte.${startDate}&date=lt.${endDate}`,{
+                method:"DELETE",headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`}
+              });
+              if(!resp.ok)throw new Error(await resp.text());
+              show("success","All attendance data deleted for this month");
+              loadData();
+            }catch(e){show("error",safeError(e));}
+          }}>
+            <Icon d={icons.trash} size={13}/>Delete month
           </button>}
         </div>
       </div>
