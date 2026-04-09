@@ -1030,7 +1030,7 @@ function DashboardPage({profile,token,gf}){
           </div>}
         </div>
         <div style={{display:"flex",gap:8,marginTop:12}}>
-          <button className="btn btn-primary btn-sm" onClick={saveTask}>{editingTask?"Update":"Create"}</button>
+          <button className="btn btn-primary btn-sm" onClick={()=>saveTask(false)}>{editingTask?"Update":"Create"}</button>
           <button className="btn btn-outline btn-sm" onClick={()=>{setShowTaskForm(false);setEditingTask(null);}}>Cancel</button>
         </div>
       </div>}
@@ -7502,6 +7502,7 @@ function SchedulePage({token, profile, gf}) {
   const [bulkTo, setBulkTo] = useState("");
   const [bulkScope, setBulkScope] = useState("my_team");
   const [bulkPerson, setBulkPerson] = useState("");
+  const [bulkDayFilter, setBulkDayFilter] = useState("all");
   const [editCell, setEditCell] = useState(null);
   const {show, el: toastEl} = useToast();
 
@@ -7595,26 +7596,33 @@ function SchedulePage({token, profile, gf}) {
     let targets = [];
     if (bulkScope === "my_team") targets = visibleQAs.map(r => r.email?.toLowerCase());
     else if (bulkScope === "specific" && bulkPerson) targets = [bulkPerson.toLowerCase()];
-    else if (bulkScope === "all") targets = visibleQAs.map(r => r.email?.toLowerCase());
+    else targets = visibleQAs.map(r => r.email?.toLowerCase());
     if (targets.length === 0) { show("error", "No QAs selected"); return; }
 
     const start = new Date(bulkFrom + "T00:00:00");
     const end = new Date(bulkTo + "T00:00:00");
     const rows = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dow = d.getDay(); // 0=Sun,5=Fri,6=Sat
+      if (bulkDayFilter === "weekdays" && (dow === 5 || dow === 6)) continue;
+      if (bulkDayFilter === "weekends" && dow !== 5 && dow !== 6) continue;
       const dateStr = d.toISOString().split("T")[0];
       for (const em of targets) {
         rows.push({email: em, date: dateStr, status: bulkStatus, created_by: myEmail});
       }
     }
-    if (rows.length === 0) { show("error", "No dates in range"); return; }
+    if (rows.length === 0) { show("error", "No matching days in range"); return; }
     try {
-      const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
-        method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
-        body:JSON.stringify(rows)
-      });
-      if (!resp.ok) throw new Error(await resp.text());
-      show("success", `Set ${bulkStatus} for ${targets.length} QA${targets.length>1?"s":""} × ${rows.length/targets.length} days`);
+      const batchSize = 200;
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
+          method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
+          body:JSON.stringify(batch)
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+      }
+      show("success", `Set ${bulkStatus} for ${targets.length} QA${targets.length>1?"s":""} × ${Math.round(rows.length/targets.length)} days`);
       setBulkModal(false);
       loadData();
     } catch(e) { show("error", safeError(e)); }
@@ -7870,12 +7878,8 @@ function SchedulePage({token, profile, gf}) {
 
           {/* Quick actions */}
           <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-            <button className="btn btn-sm" style={{fontSize:11,background:"var(--green-bg)",color:"var(--green)",border:"1px solid var(--green)",fontWeight:600}} onClick={()=>{setBulkStatus("P");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);document.getElementById("bulk-days")&&(document.getElementById("bulk-days").value="weekdays");}}>
-              Set P for Sun–Thu (whole month)
-            </button>
-            <button className="btn btn-sm" style={{fontSize:11,background:"rgba(156,163,175,0.1)",color:"var(--tx3)",border:"1px solid var(--bd)",fontWeight:600}} onClick={()=>{setBulkStatus("OFF");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);document.getElementById("bulk-days")&&(document.getElementById("bulk-days").value="weekends");}}>
-              Set OFF for Fri–Sat (whole month)
-            </button>
+            <button className="btn btn-sm" style={{fontSize:11,background:"var(--green-bg)",color:"var(--green)",border:"1px solid var(--green)",fontWeight:600}} onClick={()=>{setBulkStatus("P");setBulkDayFilter("weekdays");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>Set P for Sun–Thu</button>
+            <button className="btn btn-sm" style={{fontSize:11,background:"rgba(156,163,175,0.1)",color:"var(--tx3)",border:"1px solid var(--bd)",fontWeight:600}} onClick={()=>{setBulkStatus("OFF");setBulkDayFilter("weekends");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>Set OFF for Fri–Sat</button>
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
@@ -7891,7 +7895,7 @@ function SchedulePage({token, profile, gf}) {
               </select>
             </div>
             <div className="form-group"><label className="form-label">Apply on days</label>
-              <select id="bulk-days" className="select form-input" defaultValue="all">
+              <select className="select form-input" value={bulkDayFilter} onChange={e=>setBulkDayFilter(e.target.value)}>
                 <option value="all">All days in range</option>
                 <option value="weekdays">Sun–Thu only</option>
                 <option value="weekends">Fri–Sat only</option>
@@ -7909,38 +7913,7 @@ function SchedulePage({token, profile, gf}) {
             </div>}
           </div>
           <div style={{display:"flex",gap:8}}>
-            <button className="btn btn-primary btn-sm" onClick={()=>{
-              const dayFilter=document.getElementById("bulk-days")?.value||"all";
-              // Override applyBulk with day filter
-              (async()=>{
-                if(!bulkFrom||!bulkTo){show("error","Select date range");return;}
-                let targets=[];
-                if(bulkScope==="my_team")targets=visibleQAs.map(r=>r.email?.toLowerCase());
-                else if(bulkScope==="specific"&&bulkPerson)targets=[bulkPerson.toLowerCase()];
-                else targets=visibleQAs.map(r=>r.email?.toLowerCase());
-                if(targets.length===0){show("error","No QAs selected");return;}
-                const start=new Date(bulkFrom+"T00:00:00");const end=new Date(bulkTo+"T00:00:00");
-                const rows=[];
-                for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
-                  const dow=d.getDay(); // 0=Sun,5=Fri,6=Sat
-                  if(dayFilter==="weekdays"&&(dow===5||dow===6))continue;
-                  if(dayFilter==="weekends"&&dow!==5&&dow!==6)continue;
-                  const dateStr=d.toISOString().split("T")[0];
-                  for(const em of targets)rows.push({email:em,date:dateStr,status:bulkStatus,created_by:myEmail});
-                }
-                if(rows.length===0){show("error","No matching days in range");return;}
-                try{
-                  const batchSize=100;
-                  for(let i=0;i<rows.length;i+=batchSize){
-                    const batch=rows.slice(i,i+batchSize);
-                    const resp=await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(batch)});
-                    if(!resp.ok)throw new Error(await resp.text());
-                  }
-                  show("success",`Set ${bulkStatus} for ${targets.length} QA${targets.length>1?"s":""} × ${rows.length/targets.length} days`);
-                  setBulkModal(false);loadData();
-                }catch(e){show("error",safeError(e));}
-              })();
-            }}>Apply</button>
+            <button className="btn btn-primary btn-sm" onClick={applyBulk}>Apply</button>
             <button className="btn btn-outline btn-sm" onClick={()=>setBulkModal(false)}>Cancel</button>
           </div>
         </div>
