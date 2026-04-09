@@ -7769,6 +7769,7 @@ function SchedulePage({token, profile, gf}) {
                           {ATTENDANCE_TYPES.map(t => (
                             <button key={t.code} onClick={(e)=>{e.stopPropagation();setAtt(em,d.num,t.code);}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"none",cursor:"pointer",background:t.bg,color:t.color,fontWeight:700,fontFamily:"var(--font)"}} title={t.label}>{t.code}</button>
                           ))}
+                          {st&&<button onClick={async(e)=>{e.stopPropagation();const existing=getAtt(em,d.num);if(existing?.id&&!existing.id.startsWith("new")){try{await sb.query("qa_attendance",{token,method:"DELETE",filters:`id=eq.${existing.id}`});setAttendance(prev=>prev.filter(a=>a.id!==existing.id));setEditCell(null);show("success","Removed");}catch(err){show("error",safeError(err));}}else{setEditCell(null);}}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"1px solid var(--red)",cursor:"pointer",background:"var(--red-bg)",color:"var(--red)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginTop:2}} title="Remove entry">✕ Clear</button>}
                         </div>}
                       </td>
                     );
@@ -7829,38 +7830,88 @@ function SchedulePage({token, profile, gf}) {
         </div>
       </div>}
 
-      {/* Bulk set modal */}
-      {bulkModal&&<div className="modal-overlay" onClick={()=>setBulkModal(false)}>
-        <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:420}}>
-          <div className="card-header"><span className="card-title">Bulk set attendance</span></div>
-          <div style={{padding:16}}>
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-              <div className="form-group"><label className="form-label">From</label>
-                <input type="date" className="form-input" value={bulkFrom} onChange={e=>setBulkFrom(e.target.value)}/>
-              </div>
-              <div className="form-group"><label className="form-label">To</label>
-                <input type="date" className="form-input" value={bulkTo} onChange={e=>setBulkTo(e.target.value)}/>
-              </div>
-              <div className="form-group"><label className="form-label">Status</label>
-                <select className="select form-input" value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)}>
-                  {ATTENDANCE_TYPES.map(t => <option key={t.code} value={t.code}>{t.code} — {t.label}</option>)}
-                </select>
-              </div>
-              <div className="form-group"><label className="form-label">Apply to</label>
-                <select className="select form-input" value={bulkScope} onChange={e=>setBulkScope(e.target.value)}>
-                  <option value="my_team">{isLead&&!hasRole(profile?.role,"qa_supervisor")?"My team":"All QAs"}</option>
-                  <option value="specific">Specific person</option>
-                </select>
-              </div>
-              {bulkScope==="specific"&&<div className="form-group" style={{gridColumn:"1/-1"}}><label className="form-label">Person</label>
-                <SearchableSelect options={visibleQAs.map(r=>({value:r.email,label:r.email+" — "+nameFromEmail(r.email)}))}
-                  value={bulkPerson} onChange={setBulkPerson} placeholder="Select person..."/>
-              </div>}
+      {/* Bulk set popup — positioned at top */}
+      {bulkModal&&<div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(0,0,0,0.5)",display:"flex",justifyContent:"center",alignItems:"flex-start",paddingTop:60}} onClick={()=>setBulkModal(false)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"var(--shadow-lg)",width:"100%",maxWidth:520,padding:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{fontSize:16,fontWeight:700,color:"var(--tx)"}}>Bulk set attendance</div>
+            <button onClick={()=>setBulkModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"var(--tx3)"}}>×</button>
+          </div>
+
+          {/* Quick actions */}
+          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
+            <button className="btn btn-sm" style={{fontSize:11,background:"var(--green-bg)",color:"var(--green)",border:"1px solid var(--green)",fontWeight:600}} onClick={()=>{setBulkStatus("P");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);document.getElementById("bulk-days")&&(document.getElementById("bulk-days").value="weekdays");}}>
+              Set P for Sun–Thu (whole month)
+            </button>
+            <button className="btn btn-sm" style={{fontSize:11,background:"rgba(156,163,175,0.1)",color:"var(--tx3)",border:"1px solid var(--bd)",fontWeight:600}} onClick={()=>{setBulkStatus("OFF");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);document.getElementById("bulk-days")&&(document.getElementById("bulk-days").value="weekends");}}>
+              Set OFF for Fri–Sat (whole month)
+            </button>
+          </div>
+
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+            <div className="form-group"><label className="form-label">From</label>
+              <input type="date" className="form-input" value={bulkFrom} onChange={e=>setBulkFrom(e.target.value)}/>
             </div>
-            <div style={{display:"flex",gap:8}}>
-              <button className="btn btn-primary btn-sm" onClick={applyBulk}>Apply</button>
-              <button className="btn btn-outline btn-sm" onClick={()=>setBulkModal(false)}>Cancel</button>
+            <div className="form-group"><label className="form-label">To</label>
+              <input type="date" className="form-input" value={bulkTo} onChange={e=>setBulkTo(e.target.value)}/>
             </div>
+            <div className="form-group"><label className="form-label">Status</label>
+              <select className="select form-input" value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)}>
+                {ATTENDANCE_TYPES.map(t => <option key={t.code} value={t.code}>{t.code} — {t.label}</option>)}
+              </select>
+            </div>
+            <div className="form-group"><label className="form-label">Apply on days</label>
+              <select id="bulk-days" className="select form-input" defaultValue="all">
+                <option value="all">All days in range</option>
+                <option value="weekdays">Sun–Thu only</option>
+                <option value="weekends">Fri–Sat only</option>
+              </select>
+            </div>
+            <div className="form-group"><label className="form-label">Apply to</label>
+              <select className="select form-input" value={bulkScope} onChange={e=>setBulkScope(e.target.value)}>
+                <option value="my_team">{isLead&&!hasRole(profile?.role,"qa_supervisor")?"My team":"All QAs"}</option>
+                <option value="specific">Specific person</option>
+              </select>
+            </div>
+            {bulkScope==="specific"&&<div className="form-group"><label className="form-label">Person</label>
+              <SearchableSelect options={visibleQAs.map(r=>({value:r.email,label:r.email+" — "+nameFromEmail(r.email)}))}
+                value={bulkPerson} onChange={setBulkPerson} placeholder="Select person..."/>
+            </div>}
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn btn-primary btn-sm" onClick={()=>{
+              const dayFilter=document.getElementById("bulk-days")?.value||"all";
+              // Override applyBulk with day filter
+              (async()=>{
+                if(!bulkFrom||!bulkTo){show("error","Select date range");return;}
+                let targets=[];
+                if(bulkScope==="my_team")targets=visibleQAs.map(r=>r.email?.toLowerCase());
+                else if(bulkScope==="specific"&&bulkPerson)targets=[bulkPerson.toLowerCase()];
+                else targets=visibleQAs.map(r=>r.email?.toLowerCase());
+                if(targets.length===0){show("error","No QAs selected");return;}
+                const start=new Date(bulkFrom+"T00:00:00");const end=new Date(bulkTo+"T00:00:00");
+                const rows=[];
+                for(let d=new Date(start);d<=end;d.setDate(d.getDate()+1)){
+                  const dow=d.getDay(); // 0=Sun,5=Fri,6=Sat
+                  if(dayFilter==="weekdays"&&(dow===5||dow===6))continue;
+                  if(dayFilter==="weekends"&&dow!==5&&dow!==6)continue;
+                  const dateStr=d.toISOString().split("T")[0];
+                  for(const em of targets)rows.push({email:em,date:dateStr,status:bulkStatus,created_by:myEmail});
+                }
+                if(rows.length===0){show("error","No matching days in range");return;}
+                try{
+                  const batchSize=100;
+                  for(let i=0;i<rows.length;i+=batchSize){
+                    const batch=rows.slice(i,i+batchSize);
+                    const resp=await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`,{method:"POST",headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},body:JSON.stringify(batch)});
+                    if(!resp.ok)throw new Error(await resp.text());
+                  }
+                  show("success",`Set ${bulkStatus} for ${targets.length} QA${targets.length>1?"s":""} × ${rows.length/targets.length} days`);
+                  setBulkModal(false);loadData();
+                }catch(e){show("error",safeError(e));}
+              })();
+            }}>Apply</button>
+            <button className="btn btn-outline btn-sm" onClick={()=>setBulkModal(false)}>Cancel</button>
           </div>
         </div>
       </div>}
