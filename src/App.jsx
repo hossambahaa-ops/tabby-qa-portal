@@ -536,7 +536,7 @@ function DashboardPage({profile,token,gf}){
   const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
   const[apPlans,setApPlans]=useState([]);const[apWeeks,setApWeeks]=useState([]);const[apDetections,setApDetections]=useState([]);
   const[apDismissals,setApDismissals]=useState([]);const[dismissModal,setDismissModal]=useState(null);const[dismissReason,setDismissReason]=useState("");
-  const[userTasks,setUserTasks]=useState([]);const[showTaskForm,setShowTaskForm]=useState(false);const[taskView,setTaskView]=useState("calendar");const[hideCompleted,setHideCompleted]=useState(false);
+  const[userTasks,setUserTasks]=useState([]);const[showTaskForm,setShowTaskForm]=useState(false);const[taskView,setTaskView]=useState("list");const[hideCompleted,setHideCompleted]=useState(false);
   const[taskForm,setTaskForm]=useState({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});
   const[editingTask,setEditingTask]=useState(null);const[postponeModal,setPostponeModal]=useState(null);const[postponeDate,setPostponeDate]=useState("");const[postponeReason,setPostponeReason]=useState("");const[selectedTask,setSelectedTask]=useState(null);
   const[taskTemplates,setTaskTemplates]=useState([]);const[showTemplateForm,setShowTemplateForm]=useState(false);const[showTemplates,setShowTemplates]=useState(false);
@@ -726,15 +726,25 @@ function DashboardPage({profile,token,gf}){
   const generateFromTemplate=async(tpl)=>{
     try{
       const myEmail=profile?.email?.toLowerCase();
+      // Build set of QA lead emails for filtering
+      const leadProfs=appProfiles.filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase()).filter(Boolean);
+      const leadSet=new Set(leadProfs);
       let assignees=[];
       if(tpl.assign_to_type==="specific_person"&&tpl.assign_to_value){
         assignees=[tpl.assign_to_value.toLowerCase()];
       }else if(tpl.assign_to_type==="my_team"){
-        assignees=roster.filter(r=>r.manager_email?.toLowerCase()===myEmail).map(r=>r.email?.toLowerCase()).filter(Boolean);
-      }else{
-        assignees=roster.map(r=>r.email?.toLowerCase()).filter(Boolean);
+        // For leads: QAs under them. For admins/supervisors: still "my team" but fallback to all QAs under any lead
+        const myTeam=roster.filter(r=>r.manager_email?.toLowerCase()===myEmail).map(r=>r.email?.toLowerCase()).filter(Boolean);
+        if(myTeam.length>0){
+          assignees=myTeam;
+        }else if(hasRole(profile?.role,"admin")){
+          // Admin has no direct reports — treat as all QAs
+          assignees=roster.filter(r=>leadSet.has(r.manager_email?.toLowerCase())).map(r=>r.email?.toLowerCase()).filter(Boolean);
+        }
+      }else if(tpl.assign_to_type==="all_qa"){
+        assignees=roster.filter(r=>leadSet.has(r.manager_email?.toLowerCase())).map(r=>r.email?.toLowerCase()).filter(Boolean);
       }
-      if(assignees.length===0){show("error","No QAs found to assign");return;}
+      if(assignees.length===0){show("error","No QAs found to assign. Make sure you have team members or select 'All QAs'.");return;}
       const today=new Date().toISOString().split("T")[0];
       let created=0;
       for(const em of assignees){
@@ -744,9 +754,8 @@ function DashboardPage({profile,token,gf}){
         await sb.query("tasks",{token,method:"POST",body});
         created++;
       }
-      // Update last_generated_at
       await sb.query("task_templates",{token,method:"PATCH",body:{last_generated_at:new Date().toISOString()},filters:`id=eq.${tpl.id}`});
-      show("success",`Created ${created} task${created!==1?"s":""} for ${tpl.assign_to_type==="specific_person"?nameFromEmail(tpl.assign_to_value):"your team"}`);
+      show("success",`Created ${created} task${created!==1?"s":""} for ${tpl.assign_to_type==="all_qa"?"all QAs":tpl.assign_to_type==="specific_person"?nameFromEmail(tpl.assign_to_value):"your team"}`);
       logActivity(token,profile?.email,"tasks_generated","task_templates",tpl.id,`Template: ${tpl.title}, Assignees: ${created}`);
       loadTasks();
     }catch(e){show("error",safeError(e));}
@@ -976,8 +985,9 @@ function DashboardPage({profile,token,gf}){
           <button className="btn btn-primary btn-sm" onClick={()=>{setShowTaskForm(true);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});}}>
             <Icon d={icons.plus} size={14}/>New task
           </button>
-          {hasRole(profile?.role,"qa_lead")&&<button className="btn btn-outline btn-sm" onClick={()=>setShowTemplates(!showTemplates)} style={{fontSize:11}}>
-            {showTemplates?"Hide":"Templates"}
+          {hasRole(profile?.role,"qa_lead")&&<button className="btn btn-sm" onClick={()=>setShowTemplates(!showTemplates)} style={{fontSize:11,padding:"6px 12px",background:showTemplates?"var(--tabby-purple)":"rgba(106,44,121,0.15)",color:showTemplates?"#fff":"var(--tabby-purple)",border:"1px solid var(--tabby-purple)",fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+            Templates {taskTemplates.length>0&&`(${taskTemplates.length})`}
           </button>}
         </div>
       </div>
@@ -1160,6 +1170,7 @@ function DashboardPage({profile,token,gf}){
               <select className="select form-input" value={tplForm.assign_to_type} onChange={e=>setTplForm({...tplForm,assign_to_type:e.target.value,assign_to_value:""})}>
                 <option value="my_team">My entire team</option><option value="specific_person">Specific person</option>
                 {hasRole(profile?.role,"qa_supervisor")&&<option value="all_qa">All QAs</option>}
+                {hasRole(profile?.role,"admin")&&!hasRole(profile?.role,"qa_supervisor")&&<option value="all_qa">All QAs</option>}
               </select>
             </div>
             {tplForm.assign_to_type==="specific_person"&&<div className="form-group"><label className="form-label">Person</label>
