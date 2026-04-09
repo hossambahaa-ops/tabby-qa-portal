@@ -981,7 +981,7 @@ function DashboardPage({profile,token,gf}){
           <div style={{display:"flex",borderRadius:8,border:"1px solid var(--bd)",overflow:"hidden"}}>
             <button onClick={()=>setTaskView("calendar")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:taskView==="calendar"?"var(--tabby-purple)":"transparent",color:taskView==="calendar"?"#fff":"var(--tx3)"}}>Calendar</button>
             <button onClick={()=>setTaskView("list")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:taskView==="list"?"var(--tabby-purple)":"transparent",color:taskView==="list"?"#fff":"var(--tx3)"}}>List</button>
-            {hasRole(profile?.role,"qa_lead")&&<button onClick={()=>setTaskView("templates")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:taskView==="templates"?"var(--tabby-purple)":"transparent",color:taskView==="templates"?"#fff":"var(--tx3)"}}>Templates{taskTemplates.length>0?` (${taskTemplates.length})`:""}</button>}
+            {hasRole(profile?.role,"qa_lead")&&<button onClick={()=>setTaskView("templates")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:taskView==="templates"?"var(--tabby-purple)":"transparent",color:taskView==="templates"?"#fff":"var(--tx3)"}}>Recurring{taskTemplates.length>0?` (${taskTemplates.length})`:""}</button>}
           </div>
           <button className="btn btn-primary btn-sm" onClick={()=>{setShowTaskForm(true);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});}}>
             <Icon d={icons.plus} size={14}/>New task
@@ -1158,8 +1158,8 @@ function DashboardPage({profile,token,gf}){
           })()}
         </div>}
 
-      {/* Completed tasks — collapsed by default */}
-      {doneTasks.length>0&&<div style={{marginTop:12}}>
+      {/* Completed tasks — collapsed by default, only in list/calendar */}
+      {taskView!=="templates"&&doneTasks.length>0&&<div style={{marginTop:12}}>
         <button onClick={()=>setHideCompleted(!hideCompleted)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--green)",fontWeight:600,fontFamily:"var(--font)",padding:"8px 14px",display:"flex",alignItems:"center",gap:6,width:"100%",borderRadius:8,background:hideCompleted?"transparent":"var(--bg)"}}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d={icons.check}/></svg>
           {doneTasks.length} completed task{doneTasks.length!==1?"s":""}
@@ -1181,8 +1181,8 @@ function DashboardPage({profile,token,gf}){
       {taskView==="templates"&&hasRole(profile?.role,"qa_lead")&&<div style={{padding:16}}>
         <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
           <div>
-            <div style={{fontSize:16,fontWeight:700,color:"var(--tx)"}}>Task Templates</div>
-            <div style={{fontSize:12,color:"var(--tx3)",marginTop:2}}>Create recurring tasks that auto-assign to your team</div>
+            <div style={{fontSize:16,fontWeight:700,color:"var(--tx)"}}>Recurring Tasks</div>
+            <div style={{fontSize:12,color:"var(--tx3)",marginTop:2}}>Set up tasks that auto-assign to your team on a schedule</div>
           </div>
           <button className="btn btn-primary btn-sm" onClick={()=>setShowTemplateForm(true)}><Icon d={icons.plus} size={14}/>New template</button>
         </div>
@@ -6721,6 +6721,8 @@ async function logActivity(token, actor, action, targetType, targetId, details) 
 function NotificationBell({ token, profile, onNavigate }) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
+  const [showAllHistory, setShowAllHistory] = useState(false);
+  const [historyMonth, setHistoryMonth] = useState("");
   const [dismissed, setDismissed] = useState(() => {
     try { return JSON.parse(localStorage.getItem("notif_dismissed") || "[]"); } catch { return []; }
   });
@@ -6835,13 +6837,17 @@ function NotificationBell({ token, profile, onNavigate }) {
             {visible.length > 5 && <div style={{padding:"8px 16px",textAlign:"center"}}><span style={{fontSize:11,color:"var(--accent-text)",cursor:"pointer",fontWeight:600}} onClick={()=>{}}>+{visible.length-5} more</span></div>}
           </>
         }
-        {/* Recent history — last 5 dismissed */}
+        {/* Recent history + View All */}
         {(()=>{
-          const history = items.filter(i => dismissed.includes(i.id)).slice(0, 5);
-          if (history.length === 0) return null;
+          const allHistory = items.filter(i => dismissed.includes(i.id));
+          const recentHistory = allHistory.slice(0, 5);
+          if (recentHistory.length === 0 && !showAllHistory) return null;
           return <div style={{borderTop:"1px solid var(--bd)",paddingTop:8}}>
-            <div style={{padding:"4px 16px",fontSize:10,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Recent history</div>
-            {history.map(item => {
+            <div style={{padding:"4px 16px 4px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:10,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>History</span>
+              <button onClick={()=>setShowAllHistory(!showAllHistory)} style={{fontSize:10,color:"var(--accent-text)",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>{showAllHistory?"Show less":"View all"}</button>
+            </div>
+            {!showAllHistory && recentHistory.map(item => {
               const tc = typeColor[item.type] || {};
               return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8,opacity:0.5}}>
                 <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); }}>
@@ -6853,6 +6859,29 @@ function NotificationBell({ token, profile, onNavigate }) {
                 </div>
               </div>;
             })}
+            {showAllHistory && <div>
+              <div style={{padding:"4px 16px 8px"}}>
+                <select className="select form-input" style={{fontSize:11,padding:"4px 8px",width:"auto"}} value={historyMonth} onChange={e=>setHistoryMonth(e.target.value)}>
+                  <option value="">All months</option>
+                  {[...new Set(allHistory.map(i=>{const d=new Date(i.time);return d.toLocaleDateString("en-GB",{month:"short",year:"numeric"});}))].map(m=><option key={m} value={m}>{m}</option>)}
+                </select>
+              </div>
+              <div style={{maxHeight:300,overflowY:"auto"}}>
+                {allHistory.filter(i=>{if(!historyMonth)return true;const d=new Date(i.time);return d.toLocaleDateString("en-GB",{month:"short",year:"numeric"})===historyMonth;}).map(item => {
+                  const tc = typeColor[item.type] || {};
+                  return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8,opacity:0.6}}>
+                    <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                        <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
+                        <span style={{ fontWeight: 500, fontSize: 12 }}>{item.title}</span>
+                      </div>
+                      <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{item.sub} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
+                    </div>
+                  </div>;
+                })}
+                {allHistory.filter(i=>{if(!historyMonth)return true;const d=new Date(i.time);return d.toLocaleDateString("en-GB",{month:"short",year:"numeric"})===historyMonth;}).length===0&&<div style={{padding:12,textAlign:"center",color:"var(--tx3)",fontSize:11}}>No notifications in this period</div>}
+              </div>
+            </div>}
           </div>;
         })()}
       </div>}
@@ -7023,8 +7052,12 @@ function QAProfilePage({token, profile, gf}) {
     return emLocal === selLocal;
   };
 
-  const qaMtd = mtd.filter(m => matchQA(m.qa_email));
-  // Use the latest month that has data (first in desc-sorted array)
+  const qaMtd = (() => {
+    const raw = mtd.filter(m => matchQA(m.qa_email));
+    const months = sortMonthsDesc([...new Set(raw.map(m=>m.month))]);
+    return months.map(mo => raw.find(m=>m.month===mo)).filter(Boolean);
+  })();
+  // Use the latest month that has data (first in chronologically sorted array)
   const latestMtd = qaMtd.length > 0 ? qaMtd[0] : null;
   const qaSessions = sessions.filter(s => matchQA(s.member_email)).slice(0, 10);
   const qaPlans = plans.filter(p => matchQA(p.qa_email));
