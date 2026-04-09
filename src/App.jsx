@@ -542,6 +542,7 @@ function DashboardPage({profile,token,gf}){
   const[editingTask,setEditingTask]=useState(null);const[postponeModal,setPostponeModal]=useState(null);const[postponeDate,setPostponeDate]=useState("");const[postponeReason,setPostponeReason]=useState("");const[selectedTask,setSelectedTask]=useState(null);
   const[taskTemplates,setTaskTemplates]=useState([]);const[showTemplateForm,setShowTemplateForm]=useState(false);const[showTemplates,setShowTemplates]=useState(false);
   const[tplForm,setTplForm]=useState({title:"",description:"",priority:"medium",frequency:"daily",assign_to_type:"my_team",assign_to_value:"",target_metric:"",target_value:""});
+  const[attWarning,setAttWarning]=useState(null);
   const[showAnnForm,setShowAnnForm]=useState(false);
   const[annForm,setAnnForm]=useState({title:"",message:"",priority:"normal",target_type:"all",target_value:""});
   const isLead=hasRole(profile?.role,"qa_lead");
@@ -824,10 +825,10 @@ function DashboardPage({profile,token,gf}){
   const nav=(page)=>window.dispatchEvent(new CustomEvent("navigate",{detail:page}));
 
   // Task CRUD — optimistic updates
-  const saveTask=async()=>{
+  const saveTask=async(forceAssign)=>{
     if(!taskForm.title.trim()){show("error","Task title is required");return;}
-    // Check if assignee is off/on leave today
-    if(taskForm.assigned_to&&!editingTask){
+    // Check if assignee is off/on leave today (skip if force)
+    if(taskForm.assigned_to&&!editingTask&&!forceAssign){
       try{
         const todayStr=new Date().toISOString().split("T")[0];
         const absentStatuses=new Set(["AL","Paid SL","ML","UL","NSNC","OFF","X"]);
@@ -835,7 +836,8 @@ function DashboardPage({profile,token,gf}){
         const att=Array.isArray(attCheck)&&attCheck.length>0?attCheck[0]:null;
         if(att&&absentStatuses.has(att.status)){
           const statusLabel=ATTENDANCE_TYPES?.find(t=>t.code===att.status)?.label||att.status;
-          if(!confirm(`${nameFromEmail(taskForm.assigned_to)} is marked as "${statusLabel}" today. Assign task anyway?`))return;
+          setAttWarning({name:nameFromEmail(taskForm.assigned_to),status:statusLabel});
+          return;
         }
       }catch{}
     }
@@ -1307,6 +1309,21 @@ function DashboardPage({profile,token,gf}){
       </div>}
 
     </div>
+
+    {/* ── Attendance warning modal ── */}
+    {attWarning&&<div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(0,0,0,0.5)",display:"flex",justifyContent:"center",alignItems:"flex-start",paddingTop:80}} onClick={()=>setAttWarning(null)}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"var(--shadow-lg)",width:"100%",maxWidth:400,padding:24,textAlign:"center"}}>
+        <div style={{width:48,height:48,borderRadius:"50%",background:"var(--amber-bg)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2.5" strokeLinecap="round"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+        </div>
+        <div style={{fontSize:16,fontWeight:700,marginBottom:8,color:"var(--tx)"}}>{attWarning.name}</div>
+        <div style={{fontSize:13,color:"var(--tx2)",marginBottom:20}}>is marked as <span style={{fontWeight:700,color:"var(--amber)"}}>{attWarning.status}</span> today. Do you still want to assign this task?</div>
+        <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+          <button className="btn btn-primary btn-sm" onClick={()=>{setAttWarning(null);saveTask(true);}}>Assign anyway</button>
+          <button className="btn btn-outline btn-sm" onClick={()=>setAttWarning(null)}>Cancel</button>
+        </div>
+      </div>
+    </div>}
 
     {/* ── Task Detail Modal ── */}
     {selectedTask&&(()=>{
@@ -7771,12 +7788,12 @@ function SchedulePage({token, profile, gf}) {
                     const isEditing = editCell === cellKey;
                     const canEdit = isLead || em === myEmail;
                     return (
-                      <td key={d.num} style={{textAlign:"center",padding:1,background:d.isWeekend?"rgba(156,163,175,0.05)":"transparent",position:"relative"}}
-                        onClick={()=>canEdit&&setEditCell(isEditing?null:cellKey)}>
+                      <td key={d.num} style={{textAlign:"center",padding:1,background:d.isWeekend?"rgba(156,163,175,0.05)":"transparent",position:"relative",cursor:canEdit?"pointer":"default"}}
+                        onClick={()=>{if(canEdit){setEditCell(isEditing?null:cellKey);}}}>
                         {st ? (
-                          <span style={{fontSize:9,padding:"2px 3px",borderRadius:3,background:attType?.bg||"var(--bg3)",color:attType?.color||"var(--tx3)",fontWeight:700,cursor:canEdit?"pointer":"default",display:"inline-block",minWidth:20}}>{st}</span>
+                          <span style={{fontSize:9,padding:"2px 3px",borderRadius:3,background:attType?.bg||"var(--bg3)",color:attType?.color||"var(--tx3)",fontWeight:700,display:"inline-block",minWidth:20,pointerEvents:"none"}}>{st}</span>
                         ) : (
-                          <span style={{fontSize:10,color:"var(--bd2)",cursor:canEdit?"pointer":"default"}}>·</span>
+                          <span style={{fontSize:10,color:"var(--bd2)",pointerEvents:"none"}}>·</span>
                         )}
                         {isEditing && <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:8,padding:4,boxShadow:"var(--shadow-lg)",display:"flex",flexWrap:"wrap",gap:2,width:160}}>
                           {ATTENDANCE_TYPES.map(t => (
