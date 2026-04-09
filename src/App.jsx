@@ -826,6 +826,19 @@ function DashboardPage({profile,token,gf}){
   // Task CRUD — optimistic updates
   const saveTask=async()=>{
     if(!taskForm.title.trim()){show("error","Task title is required");return;}
+    // Check if assignee is off/on leave today
+    if(taskForm.assigned_to&&!editingTask){
+      try{
+        const todayStr=new Date().toISOString().split("T")[0];
+        const absentStatuses=new Set(["AL","Paid SL","ML","UL","NSNC","OFF","X"]);
+        const attCheck=await sb.query("qa_attendance",{select:"status",filters:`email=eq.${taskForm.assigned_to.toLowerCase()}&date=eq.${todayStr}`,token}).catch(()=>[]);
+        const att=Array.isArray(attCheck)&&attCheck.length>0?attCheck[0]:null;
+        if(att&&absentStatuses.has(att.status)){
+          const statusLabel=ATTENDANCE_TYPES?.find(t=>t.code===att.status)?.label||att.status;
+          if(!confirm(`${nameFromEmail(taskForm.assigned_to)} is marked as "${statusLabel}" today. Assign task anyway?`))return;
+        }
+      }catch{}
+    }
     try{
       const body={title:taskForm.title,description:taskForm.description||null,priority:taskForm.priority,due_date:taskForm.due_date||null,eta_date:taskForm.eta_date||null,created_by:profile?.email,assigned_to:taskForm.assigned_to||null,updated_at:new Date().toISOString()};
       if(editingTask){
