@@ -536,7 +536,7 @@ function DashboardPage({profile,token,gf}){
   const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
   const[apPlans,setApPlans]=useState([]);const[apWeeks,setApWeeks]=useState([]);const[apDetections,setApDetections]=useState([]);
   const[apDismissals,setApDismissals]=useState([]);const[dismissModal,setDismissModal]=useState(null);const[dismissReason,setDismissReason]=useState("");
-  const[userTasks,setUserTasks]=useState([]);const[showTaskForm,setShowTaskForm]=useState(false);const[taskView,setTaskView]=useState("list");const[hideCompleted,setHideCompleted]=useState(false);
+  const[userTasks,setUserTasks]=useState([]);const[showTaskForm,setShowTaskForm]=useState(false);const[taskView,setTaskView]=useState("list");const[hideCompleted,setHideCompleted]=useState(true);
   const[taskForm,setTaskForm]=useState({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});
   const[editingTask,setEditingTask]=useState(null);const[postponeModal,setPostponeModal]=useState(null);const[postponeDate,setPostponeDate]=useState("");const[postponeReason,setPostponeReason]=useState("");const[selectedTask,setSelectedTask]=useState(null);
   const[taskTemplates,setTaskTemplates]=useState([]);const[showTemplateForm,setShowTemplateForm]=useState(false);const[showTemplates,setShowTemplates]=useState(false);
@@ -981,14 +981,11 @@ function DashboardPage({profile,token,gf}){
           <div style={{display:"flex",borderRadius:8,border:"1px solid var(--bd)",overflow:"hidden"}}>
             <button onClick={()=>setTaskView("calendar")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:taskView==="calendar"?"var(--tabby-purple)":"transparent",color:taskView==="calendar"?"#fff":"var(--tx3)"}}>Calendar</button>
             <button onClick={()=>setTaskView("list")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:taskView==="list"?"var(--tabby-purple)":"transparent",color:taskView==="list"?"#fff":"var(--tx3)"}}>List</button>
+            {hasRole(profile?.role,"qa_lead")&&<button onClick={()=>setTaskView("templates")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:taskView==="templates"?"var(--tabby-purple)":"transparent",color:taskView==="templates"?"#fff":"var(--tx3)"}}>Templates{taskTemplates.length>0?` (${taskTemplates.length})`:""}</button>}
           </div>
           <button className="btn btn-primary btn-sm" onClick={()=>{setShowTaskForm(true);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});}}>
             <Icon d={icons.plus} size={14}/>New task
           </button>
-          {hasRole(profile?.role,"qa_lead")&&<button className="btn btn-sm" onClick={()=>setShowTemplates(!showTemplates)} style={{fontSize:11,padding:"6px 12px",background:showTemplates?"var(--tabby-purple)":"rgba(106,44,121,0.15)",color:showTemplates?"#fff":"var(--tabby-purple)",border:"1px solid var(--tabby-purple)",fontWeight:600,display:"flex",alignItems:"center",gap:4}}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
-            Templates {taskTemplates.length>0&&`(${taskTemplates.length})`}
-          </button>}
         </div>
       </div>
 
@@ -1100,59 +1097,99 @@ function DashboardPage({profile,token,gf}){
       {/* ── LIST VIEW ── */}
       {taskView==="list"&&<>
       {activeTasks.length===0&&!showTaskForm?<div style={{textAlign:"center",padding:"24px 0",color:"var(--tx3)",fontSize:13}}>No active tasks</div>:
-        <div style={{display:"flex",flexDirection:"column",gap:8}}>
-          {activeTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(task=>{
-            const pc=priorityConfig[task.priority]||priorityConfig.medium;const todayDate=new Date();todayDate.setHours(0,0,0,0);const etaDate=task.eta_date?new Date(task.eta_date+"T00:00:00"):null;const isOverdue=etaDate&&etaDate<todayDate&&task.status!=="done";const isAssignedToMe=task.assigned_to?.toLowerCase()===myEmail&&task.created_by?.toLowerCase()!==myEmail;
-            return <div key={task.id} style={{padding:"16px 20px",borderRadius:14,background:isOverdue?"rgba(239,68,68,.03)":"var(--bg3)",border:`1px solid ${isOverdue?"rgba(239,68,68,.15)":"var(--bd2)"}`,borderLeft:`4px solid ${isOverdue?"var(--red)":pc.color}`,transition:"all .15s ease"}}>
-              <div style={{display:"flex",alignItems:"flex-start",gap:14}}>
-                <button onClick={()=>toggleTaskDone(task)} style={{width:26,height:26,borderRadius:8,border:`2.5px solid ${pc.color}`,background:task.status==="done"?pc.color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0,marginTop:1,transition:"all .15s ease"}}>
-                  {task.status==="done"&&<svg width="13" height="13" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>}
+        <div>
+          {/* Group tasks: My tasks vs Assigned to others */}
+          {(()=>{
+            const myOwnTasks=activeTasks.filter(t=>!t.assigned_to||t.assigned_to?.toLowerCase()===myEmail);
+            const assignedOut=activeTasks.filter(t=>t.assigned_to&&t.assigned_to?.toLowerCase()!==myEmail&&t.created_by?.toLowerCase()===myEmail);
+            const assignedToMe=activeTasks.filter(t=>t.assigned_to?.toLowerCase()===myEmail&&t.created_by?.toLowerCase()!==myEmail);
+            // Group assigned-out tasks by person
+            const byPerson={};
+            assignedOut.forEach(t=>{const to=t.assigned_to?.toLowerCase()||"";if(!byPerson[to])byPerson[to]=[];byPerson[to].push(t);});
+
+            const renderTask=(task)=>{
+              const pc=priorityConfig[task.priority]||priorityConfig.medium;const todayDate=new Date();todayDate.setHours(0,0,0,0);const etaDate=task.eta_date?new Date(task.eta_date+"T00:00:00"):null;const isOverdue=etaDate&&etaDate<todayDate&&task.status!=="done";
+              return <div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",borderRadius:10,background:isOverdue?"rgba(239,68,68,.04)":"transparent",borderBottom:"1px solid var(--bd)"}}>
+                <button onClick={()=>toggleTaskDone(task)} style={{width:22,height:22,borderRadius:6,border:`2px solid ${pc.color}`,background:task.status==="done"?pc.color:"transparent",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+                  {task.status==="done"&&<svg width="11" height="11" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>}
                 </button>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:15,fontWeight:700,textDecoration:task.status==="done"?"line-through":"none",color:task.status==="done"?"var(--tx3)":"var(--tx)",marginBottom:4,letterSpacing:"-.01em"}}>{task.title}</div>
-                  {task.description&&<div style={{fontSize:12,color:"var(--tx2)",marginBottom:10,lineHeight:1.6,opacity:.8}}>{task.description}</div>}
-                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
-                    <span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".3px"}}>{pc.label}</span>
-                    {task.eta_date&&<span style={{fontSize:11,color:isOverdue?"var(--red)":"var(--tx3)",fontWeight:isOverdue?700:400,display:"flex",alignItems:"center",gap:4,padding:"2px 8px",borderRadius:8,background:isOverdue?"rgba(239,68,68,.08)":"transparent"}}><Icon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={12}/>{isOverdue?`${Math.ceil((new Date()-new Date(task.eta_date+"T00:00:00"))/(1000*60*60*24))}d overdue`:`ETA: ${new Date(task.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`}</span>}
-                    {isAssignedToMe&&<span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:600,display:"flex",alignItems:"center",gap:3}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="8.5" cy="7" r="4"/></svg>From {nameFromEmail(task.created_by)}</span>}
-                    {task.assigned_to&&task.created_by?.toLowerCase()===myEmail&&<span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600,display:"flex",alignItems:"center",gap:3}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>{nameFromEmail(task.assigned_to)}</span>}
+                <div style={{flex:1,minWidth:0,cursor:"pointer"}} onClick={()=>setSelectedTask(task)}>
+                  <div style={{fontSize:13,fontWeight:600,color:"var(--tx)",marginBottom:2}}>{task.title}</div>
+                  <div style={{display:"flex",gap:6,alignItems:"center",flexWrap:"wrap"}}>
+                    <span style={{fontSize:9,padding:"2px 6px",borderRadius:6,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase"}}>{pc.label}</span>
+                    {task.eta_date&&<span style={{fontSize:10,color:isOverdue?"var(--red)":"var(--tx3)"}}>{isOverdue?`${Math.ceil((new Date()-new Date(task.eta_date+"T00:00:00"))/(1000*60*60*24))}d overdue`:new Date(task.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>}
+                    {task.template_id&&<span style={{fontSize:9,color:"var(--accent-text)"}}>auto</span>}
                   </div>
                 </div>
-                <div style={{display:"flex",gap:4,flexShrink:0}}>
-                  <button onClick={()=>setPostponeModal(task)} title="Postpone" style={{background:"none",border:"none",cursor:"pointer",padding:7,borderRadius:8,color:"var(--tx3)",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--amber)";e.currentTarget.style.background="var(--amber-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}><Icon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={16}/></button>
-                  <button onClick={()=>{setEditingTask(task);setTaskForm({title:task.title,description:task.description||"",priority:task.priority,due_date:"",eta_date:task.eta_date||"",assigned_to:task.assigned_to||""});setShowTaskForm(true);}} title="Edit" style={{background:"none",border:"none",cursor:"pointer",padding:7,borderRadius:8,color:"var(--tx3)",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--accent-text)";e.currentTarget.style.background="var(--accent-light)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}><Icon d={icons.edit} size={16}/></button>
-                  <button onClick={()=>deleteTask(task)} title="Delete" style={{background:"none",border:"none",cursor:"pointer",padding:7,borderRadius:8,color:"var(--tx3)",transition:"all .15s"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--red)";e.currentTarget.style.background="var(--red-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}><Icon d={icons.trash} size={16}/></button>
+                <div style={{display:"flex",gap:2,flexShrink:0}}>
+                  <button onClick={()=>{setEditingTask(task);setTaskForm({title:task.title,description:task.description||"",priority:task.priority,due_date:"",eta_date:task.eta_date||"",assigned_to:task.assigned_to||""});setShowTaskForm(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:5,borderRadius:6,color:"var(--tx3)"}} title="Edit"><Icon d={icons.edit} size={14}/></button>
+                  <button onClick={()=>deleteTask(task)} style={{background:"none",border:"none",cursor:"pointer",padding:5,borderRadius:6,color:"var(--tx3)"}} title="Delete"><Icon d={icons.trash} size={14}/></button>
                 </div>
-              </div>
-            </div>;
-          })}
+              </div>;
+            };
+
+            return <>
+              {/* Tasks assigned TO me by others */}
+              {assignedToMe.length>0&&<div style={{marginBottom:16}}>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--amber)",textTransform:"uppercase",letterSpacing:".5px",padding:"0 14px",marginBottom:6}}>Assigned to me ({assignedToMe.length})</div>
+                {assignedToMe.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(renderTask)}
+              </div>}
+
+              {/* My own tasks */}
+              {myOwnTasks.length>0&&<div style={{marginBottom:16}}>
+                {(assignedToMe.length>0||Object.keys(byPerson).length>0)&&<div style={{fontSize:11,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",padding:"0 14px",marginBottom:6}}>My tasks ({myOwnTasks.length})</div>}
+                {myOwnTasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(renderTask)}
+              </div>}
+
+              {/* Tasks I assigned to others — grouped by person */}
+              {Object.keys(byPerson).length>0&&<div>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px",padding:"0 14px",marginBottom:6}}>Assigned to team ({assignedOut.length})</div>
+                {Object.entries(byPerson).sort((a,b)=>a[0].localeCompare(b[0])).map(([person,tasks])=>(
+                  <div key={person} style={{marginBottom:8}}>
+                    <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)",padding:"6px 14px",background:"var(--bg)",display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{width:20,height:20,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:"var(--accent-text)"}}>{nameFromEmail(person).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
+                      {nameFromEmail(person)} <span style={{fontSize:10,color:"var(--tx3)"}}>({tasks.length})</span>
+                    </div>
+                    {tasks.sort((a,b)=>{const po={urgent:0,high:1,medium:2,low:3};return(po[a.priority]??9)-(po[b.priority]??9);}).map(renderTask)}
+                  </div>
+                ))}
+              </div>}
+            </>;
+          })()}
         </div>}
+
+      {/* Completed tasks — collapsed by default */}
       {doneTasks.length>0&&<div style={{marginTop:12}}>
-        <button onClick={()=>setHideCompleted(!hideCompleted)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--tx3)",fontWeight:500,fontFamily:"var(--font)",padding:"4px 0",display:"flex",alignItems:"center",gap:4}}>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:hideCompleted?"rotate(-90deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg>
+        <button onClick={()=>setHideCompleted(!hideCompleted)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--green)",fontWeight:600,fontFamily:"var(--font)",padding:"8px 14px",display:"flex",alignItems:"center",gap:6,width:"100%",borderRadius:8,background:hideCompleted?"transparent":"var(--bg)"}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d={icons.check}/></svg>
           {doneTasks.length} completed task{doneTasks.length!==1?"s":""}
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{marginLeft:"auto",transition:"transform .2s",transform:hideCompleted?"rotate(-90deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg>
         </button>
         {!hideCompleted&&<div style={{marginTop:4}}>
-          {doneTasks.map(task=><div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 14px",opacity:.5}}>
-            <button onClick={()=>toggleTaskDone(task)} style={{width:20,height:20,borderRadius:6,border:"2px solid var(--green)",background:"var(--green)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
-              <svg width="10" height="10" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/></svg>
+          {doneTasks.map(task=><div key={task.id} style={{display:"flex",alignItems:"center",gap:10,padding:"6px 14px",opacity:.5}}>
+            <button onClick={()=>toggleTaskDone(task)} style={{width:18,height:18,borderRadius:5,border:"2px solid var(--green)",background:"var(--green)",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",flexShrink:0}}>
+              <svg width="9" height="9" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"/></svg>
             </button>
-            <span style={{flex:1,fontSize:13,textDecoration:"line-through",color:"var(--tx3)"}}>{task.title}</span>
-            <span style={{fontSize:11,color:"var(--tx3)"}}>{task.completed_at?new Date(task.completed_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}</span>
-            <button onClick={()=>deleteTask(task)} style={{background:"none",border:"none",cursor:"pointer",padding:4,color:"var(--tx3)"}}><Icon d={icons.trash} size={14}/></button>
+            <span style={{flex:1,fontSize:12,textDecoration:"line-through",color:"var(--tx3)"}}>{task.title}</span>
+            {task.assigned_to&&task.assigned_to?.toLowerCase()!==myEmail&&<span style={{fontSize:10,color:"var(--tx3)"}}>{nameFromEmail(task.assigned_to)}</span>}
+            <span style={{fontSize:10,color:"var(--tx3)"}}>{task.completed_at?new Date(task.completed_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}</span>
           </div>)}
         </div>}
       </div>}
 
       {/* ── Task Templates Section ── */}
-      {showTemplates&&hasRole(profile?.role,"qa_lead")&&<div style={{borderTop:"1px solid var(--bd2)",padding:16}}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-          <div style={{fontSize:14,fontWeight:700,color:"var(--tx)"}}>Task Templates</div>
+      {taskView==="templates"&&hasRole(profile?.role,"qa_lead")&&<div style={{padding:16}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div>
+            <div style={{fontSize:16,fontWeight:700,color:"var(--tx)"}}>Task Templates</div>
+            <div style={{fontSize:12,color:"var(--tx3)",marginTop:2}}>Create recurring tasks that auto-assign to your team</div>
+          </div>
           <button className="btn btn-primary btn-sm" onClick={()=>setShowTemplateForm(true)}><Icon d={icons.plus} size={14}/>New template</button>
         </div>
 
-        {showTemplateForm&&<div style={{padding:14,background:"var(--bg)",borderRadius:10,border:"1px solid var(--bd2)",marginBottom:12}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+        {showTemplateForm&&<div style={{padding:16,background:"var(--bg)",borderRadius:12,border:"1px solid var(--bd2)",marginBottom:16}}>
+          <div style={{fontSize:13,fontWeight:600,marginBottom:12,color:"var(--tx)"}}>Create new template</div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}}>
             <div className="form-group"><label className="form-label">Title</label>
               <input className="form-input" placeholder="e.g. Complete 3 SBS evaluations" value={tplForm.title} onChange={e=>setTplForm({...tplForm,title:e.target.value})}/>
             </div>
@@ -1194,42 +1231,58 @@ function DashboardPage({profile,token,gf}){
               <input className="form-input" type="number" min="1" placeholder="e.g. 3" value={tplForm.target_value} onChange={e=>setTplForm({...tplForm,target_value:e.target.value})}/>
             </div>}
           </div>
-          <div style={{display:"flex",gap:8,marginTop:10}}>
+          <div style={{display:"flex",gap:8,marginTop:12}}>
             <button className="btn btn-primary btn-sm" onClick={saveTemplate}>Create template</button>
             <button className="btn btn-outline btn-sm" onClick={()=>setShowTemplateForm(false)}>Cancel</button>
           </div>
         </div>}
 
-        {taskTemplates.length > 0 ? <div>
+        {taskTemplates.length > 0 ? <div style={{display:"grid",gap:12}}>
           {taskTemplates.map(tpl=>(
-            <div key={tpl.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid var(--bd)"}}>
-              <div style={{flex:1}}>
-                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-                  <span style={{fontSize:13,fontWeight:600,color:tpl.is_active?"var(--tx)":"var(--tx3)",textDecoration:tpl.is_active?"none":"line-through"}}>{tpl.title}</span>
-                  <span style={{fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:600,
-                    background:tpl.frequency==="daily"?"var(--blue-bg)":tpl.frequency==="weekly"?"var(--accent-light)":"var(--green-bg)",
-                    color:tpl.frequency==="daily"?"var(--blue)":tpl.frequency==="weekly"?"var(--accent-text)":"var(--green)"
-                  }}>{tpl.frequency}</span>
-                  <span style={{fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:600,background:"var(--bg3)",color:"var(--tx3)"}}>
-                    {tpl.assign_to_type==="my_team"?"Team":tpl.assign_to_type==="specific_person"?nameFromEmail(tpl.assign_to_value):"All QAs"}
-                  </span>
-                  {tpl.target_metric&&<span style={{fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:600,background:"var(--amber-bg)",color:"var(--amber)"}}>{tpl.target_value}x {tpl.target_metric.replace(/_/g," ")}</span>}
+            <div key={tpl.id} style={{padding:16,background:"var(--bg)",borderRadius:12,border:"1px solid var(--bd2)"}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                <div>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6,flexWrap:"wrap"}}>
+                    <span style={{fontSize:15,fontWeight:700,color:tpl.is_active?"var(--tx)":"var(--tx3)",textDecoration:tpl.is_active?"none":"line-through"}}>{tpl.title}</span>
+                    <span style={{fontSize:10,padding:"3px 8px",borderRadius:8,fontWeight:600,
+                      background:tpl.frequency==="daily"?"var(--blue-bg)":tpl.frequency==="weekly"?"var(--accent-light)":"var(--green-bg)",
+                      color:tpl.frequency==="daily"?"var(--blue)":tpl.frequency==="weekly"?"var(--accent-text)":"var(--green)"
+                    }}>{tpl.frequency}</span>
+                    {!tpl.is_active&&<span style={{fontSize:10,padding:"3px 8px",borderRadius:8,fontWeight:600,background:"var(--red-bg)",color:"var(--red)"}}>Paused</span>}
+                  </div>
+                  <div style={{display:"flex",gap:8,flexWrap:"wrap",fontSize:12,color:"var(--tx2)"}}>
+                    <span style={{display:"flex",alignItems:"center",gap:4}}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4-4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg>
+                      {tpl.assign_to_type==="my_team"?"My team":tpl.assign_to_type==="specific_person"?nameFromEmail(tpl.assign_to_value):"All QAs"}
+                    </span>
+                    {tpl.target_metric&&<span style={{display:"flex",alignItems:"center",gap:4,color:"var(--amber)"}}>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                      {tpl.target_value}× {tpl.target_metric.replace(/_/g," ")}
+                    </span>}
+                    {tpl.description&&<span style={{color:"var(--tx3)"}}>{tpl.description}</span>}
+                  </div>
+                  {tpl.last_generated_at&&<div style={{fontSize:11,color:"var(--tx3)",marginTop:6}}>Last run: {new Date(tpl.last_generated_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div>}
                 </div>
-                {tpl.last_generated_at&&<div style={{fontSize:10,color:"var(--tx3)",marginTop:2}}>Last run: {new Date(tpl.last_generated_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</div>}
-              </div>
-              <div style={{display:"flex",gap:4}}>
-                <button className="btn btn-primary btn-sm" style={{fontSize:10,padding:"4px 8px"}} onClick={()=>generateFromTemplate(tpl)} title="Generate tasks now">
-                  <Icon d={icons.plus} size={12}/>Run
-                </button>
-                <button className="btn btn-outline btn-sm" style={{padding:"4px 6px"}} onClick={()=>toggleTemplate(tpl)} title={tpl.is_active?"Pause":"Activate"}>
-                  {tpl.is_active?<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                  :<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="5,3 19,12 5,21"/></svg>}
-                </button>
-                <button className="btn btn-outline btn-sm" style={{padding:"4px 6px",color:"var(--red)"}} onClick={()=>deleteTemplate(tpl.id)} title="Delete"><Icon d={icons.trash} size={12}/></button>
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <button className="btn btn-primary btn-sm" style={{fontSize:11}} onClick={()=>generateFromTemplate(tpl)} title="Generate tasks now">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="5,3 19,12 5,21"/></svg>
+                    Run now
+                  </button>
+                  <button className="btn btn-outline btn-sm" style={{padding:"6px 8px"}} onClick={()=>toggleTemplate(tpl)} title={tpl.is_active?"Pause template":"Activate template"}>
+                    {tpl.is_active?<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                    :<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5"><polygon points="5,3 19,12 5,21"/></svg>}
+                  </button>
+                  <button className="btn btn-outline btn-sm" style={{padding:"6px 8px",color:"var(--red)"}} onClick={()=>deleteTemplate(tpl.id)} title="Delete template"><Icon d={icons.trash} size={14}/></button>
+                </div>
               </div>
             </div>
           ))}
-        </div> : <div style={{textAlign:"center",padding:12,color:"var(--tx3)",fontSize:12}}>No templates yet — create one to generate recurring tasks for your team</div>}
+        </div> : !showTemplateForm&&<div style={{textAlign:"center",padding:"40px 20px",color:"var(--tx3)"}}>
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="1.5" style={{marginBottom:12,opacity:0.5}}><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          <div style={{fontSize:14,fontWeight:600,marginBottom:4}}>No templates yet</div>
+          <div style={{fontSize:12,marginBottom:16}}>Create a template to auto-generate recurring tasks for your team</div>
+          <button className="btn btn-primary btn-sm" onClick={()=>setShowTemplateForm(true)}><Icon d={icons.plus} size={14}/>Create your first template</button>
+        </div>}
       </div>}
 
       </>}
@@ -6758,25 +6811,50 @@ function NotificationBell({ token, profile, onNavigate }) {
         <div className="notif-header">
           <span>Notifications</span>
           <div style={{display:"flex",alignItems:"center",gap:8}}>
-            <span style={{ fontSize: 11, color: "var(--tx3)" }}>{count} pending</span>
+            <span style={{ fontSize: 11, color: "var(--tx3)" }}>{count} new</span>
             {count > 0 && <button onClick={dismissAll} style={{fontSize:10,color:"var(--accent)",background:"none",border:"none",cursor:"pointer",fontWeight:600}}>Clear all</button>}
           </div>
         </div>
-        {visible.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>All clear!</div> :
-          visible.slice(0, 8).map(item => {
-            const tc = typeColor[item.type] || {};
-            return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8}}>
-              <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); dismiss(item.id); }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
-                  <span style={{ fontWeight: 500, fontSize: 12 }}>{item.title}</span>
+        {/* Pending notifications */}
+        {visible.length === 0 && dismissed.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>No notifications yet</div> :
+          <>
+            {visible.length === 0 && <div style={{ padding: 12, textAlign: "center", color: "var(--tx3)", fontSize: 12 }}>All caught up!</div>}
+            {visible.slice(0, 5).map(item => {
+              const tc = typeColor[item.type] || {};
+              return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8}}>
+                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); dismiss(item.id); }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
+                    <span style={{ fontWeight: 500, fontSize: 12 }}>{item.title}</span>
+                  </div>
+                  <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{item.sub} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
                 </div>
-                <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{item.sub} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
-              </div>
-              <button onClick={(e) => { e.stopPropagation(); dismiss(item.id); }} title="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,padding:"2px",lineHeight:1,flexShrink:0,marginTop:2}}>×</button>
-            </div>;
-          })
+                <button onClick={(e) => { e.stopPropagation(); dismiss(item.id); }} title="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,padding:"2px",lineHeight:1,flexShrink:0,marginTop:2}}>×</button>
+              </div>;
+            })}
+            {visible.length > 5 && <div style={{padding:"8px 16px",textAlign:"center"}}><span style={{fontSize:11,color:"var(--accent-text)",cursor:"pointer",fontWeight:600}} onClick={()=>{}}>+{visible.length-5} more</span></div>}
+          </>
         }
+        {/* Recent history — last 5 dismissed */}
+        {(()=>{
+          const history = items.filter(i => dismissed.includes(i.id)).slice(0, 5);
+          if (history.length === 0) return null;
+          return <div style={{borderTop:"1px solid var(--bd)",paddingTop:8}}>
+            <div style={{padding:"4px 16px",fontSize:10,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Recent history</div>
+            {history.map(item => {
+              const tc = typeColor[item.type] || {};
+              return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8,opacity:0.5}}>
+                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
+                    <span style={{ fontWeight: 500, fontSize: 12 }}>{item.title}</span>
+                  </div>
+                  <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{item.sub} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
+                </div>
+              </div>;
+            })}
+          </div>;
+        })()}
       </div>}
     </div>
   );
