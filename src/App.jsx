@@ -7388,10 +7388,302 @@ function QAProfilePage({token, profile, gf}) {
   );
 }
 
+/* ═══ SCHEDULE / ATTENDANCE PAGE ═══ */
+const ATTENDANCE_TYPES = [
+  {code:"P",label:"Present",color:"#22C55E",bg:"#22C55E20"},
+  {code:"H",label:"Work from Home",color:"#3B82F6",bg:"#3B82F620"},
+  {code:"L",label:"Late Arrival",color:"#F97316",bg:"#F9731620"},
+  {code:"PH",label:"Public Holiday",color:"#8B5CF6",bg:"#8B5CF620"},
+  {code:"EL",label:"Early Leave",color:"#EAB308",bg:"#EAB30820"},
+  {code:"AL",label:"Annual Leave",color:"#EF4444",bg:"#EF444420"},
+  {code:"Paid SL",label:"Sick Leave",color:"#B91C1C",bg:"#B91C1C20"},
+  {code:"ML",label:"Maternity Leave",color:"#EC4899",bg:"#EC489920"},
+  {code:"UL",label:"Unpaid Leave",color:"#6B7280",bg:"#6B728020"},
+  {code:"NSNC",label:"No Show No Call",color:"#111827",bg:"#11182720"},
+  {code:"OFF",label:"Weekend / Holiday",color:"#9CA3AF",bg:"#9CA3AF15"},
+  {code:"X",label:"Not Employed",color:"#6B7280",bg:"#6B728010"},
+];
+const ATT_MAP = {};
+ATTENDANCE_TYPES.forEach(t => { ATT_MAP[t.code] = t; });
+
+function SchedulePage({token, profile, gf}) {
+  const [attendance, setAttendance] = useState([]);
+  const [roster, setRoster] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selMonth, setSelMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+  });
+  const [bulkModal, setBulkModal] = useState(false);
+  const [bulkStatus, setBulkStatus] = useState("OFF");
+  const [bulkFrom, setBulkFrom] = useState("");
+  const [bulkTo, setBulkTo] = useState("");
+  const [bulkScope, setBulkScope] = useState("my_team");
+  const [bulkPerson, setBulkPerson] = useState("");
+  const [editCell, setEditCell] = useState(null);
+  const {show, el: toastEl} = useToast();
+
+  const myEmail = profile?.email?.toLowerCase() || "";
+  const isQA = profile?.role === "qa" || profile?.role === "senior_qa";
+  const isLead = hasRole(profile?.role, "qa_lead");
+
+  const nameFromEmail = (email) => {
+    if (!email) return "—";
+    const local = email.split("@")[0];
+    return local.split(".").map(p => { const c = p.replace(/[\d]+$/, ""); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ""; }).filter(Boolean).join(" ");
+  };
+
+  const loadData = useCallback(async () => {
+    try {
+      const [year, month] = selMonth.split("-").map(Number);
+      const startDate = `${selMonth}-01`;
+      const endDate = `${year}-${String(month + 1 > 12 ? 1 : month + 1).padStart(2, "0")}-01`;
+      const [r, a] = await Promise.all([
+        sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country",token}).catch(()=>[]),
+        sb.query("qa_attendance", {select:"*",filters:`date=gte.${startDate}&date=lt.${endDate}&order=date.asc`,token}).catch(()=>[]),
+      ]);
+      setRoster(Array.isArray(r) ? r : []);
+      setAttendance(Array.isArray(a) ? a : []);
+    } catch(e) { console.error("Schedule load:", e); }
+    setLoading(false);
+  }, [token, selMonth]);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // Get QA lead emails for filtering
+  const [profiles, setProfiles] = useState([]);
+  useEffect(() => {
+    sb.query("profiles", {select:"email,role",token}).then(p => setProfiles(Array.isArray(p)?p:[])).catch(()=>{});
+  }, [token]);
+  const qaLeadSet = new Set(profiles.filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase()));
+
+  // Visible QAs — scoped by role
+  const visibleQAs = (() => {
+    const allQAs = roster.filter(r => {
+      const mgr = r.manager_email?.toLowerCase();
+      return mgr && (qaLeadSet.has(mgr) || qaLeadSet.has(mgr?.split("@")[0]));
+    });
+    if (isQA) return allQAs.filter(r => r.email?.toLowerCase() === myEmail);
+    if (isLead && !hasRole(profile?.role, "qa_supervisor")) {
+      return allQAs.filter(r => r.manager_email?.toLowerCase() === myEmail);
+    }
+    return allQAs;
+  })();
+
+  // Days in selected month
+  const [year, month] = selMonth.split("-").map(Number);
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const days = Array.from({length: daysInMonth}, (_, i) => {
+    const d = new Date(year, month - 1, i + 1);
+    return { num: i + 1, date: d, dayName: d.toLocaleDateString("en-US", {weekday: "short"}), isWeekend: d.getDay() === 5 || d.getDay() === 6 };
+  });
+
+  // Get attendance for a QA on a specific date
+  const getAtt = (email, dayNum) => {
+    const dateStr = `${selMonth}-${String(dayNum).padStart(2,"0")}`;
+    return attendance.find(a => a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr);
+  };
+
+  // Set attendance for a single cell
+  const setAtt = async (email, dayNum, status) => {
+    const dateStr = `${selMonth}-${String(dayNum).padStart(2,"0")}`;
+    try {
+      const existing = getAtt(email, dayNum);
+      if (existing) {
+        if (status === existing.status) { setEditCell(null); return; }
+        await sb.query("qa_attendance", {token, method:"PATCH", body:{status, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
+      } else {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
+          method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
+          body:JSON.stringify({email:email.toLowerCase(), date:dateStr, status, created_by:myEmail})
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+      }
+      setAttendance(prev => {
+        const filtered = prev.filter(a => !(a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr));
+        return [...filtered, {email:email.toLowerCase(), date:dateStr, status, id:existing?.id||"new-"+Date.now(), created_by:myEmail}];
+      });
+      setEditCell(null);
+    } catch(e) { show("error", safeError(e)); }
+  };
+
+  // Bulk set
+  const applyBulk = async () => {
+    if (!bulkFrom || !bulkTo) { show("error", "Select date range"); return; }
+    let targets = [];
+    if (bulkScope === "my_team") targets = visibleQAs.map(r => r.email?.toLowerCase());
+    else if (bulkScope === "specific" && bulkPerson) targets = [bulkPerson.toLowerCase()];
+    else if (bulkScope === "all") targets = visibleQAs.map(r => r.email?.toLowerCase());
+    if (targets.length === 0) { show("error", "No QAs selected"); return; }
+
+    const start = new Date(bulkFrom + "T00:00:00");
+    const end = new Date(bulkTo + "T00:00:00");
+    const rows = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split("T")[0];
+      for (const em of targets) {
+        rows.push({email: em, date: dateStr, status: bulkStatus, created_by: myEmail});
+      }
+    }
+    if (rows.length === 0) { show("error", "No dates in range"); return; }
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
+        method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
+        body:JSON.stringify(rows)
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      show("success", `Set ${bulkStatus} for ${targets.length} QA${targets.length>1?"s":""} × ${rows.length/targets.length} days`);
+      setBulkModal(false);
+      loadData();
+    } catch(e) { show("error", safeError(e)); }
+  };
+
+  // Counters per QA
+  const countByStatus = (email) => {
+    const qa = attendance.filter(a => a.email?.toLowerCase() === email?.toLowerCase());
+    const counts = {};
+    qa.forEach(a => { counts[a.status] = (counts[a.status] || 0) + 1; });
+    return counts;
+  };
+
+  if (loading) return <div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
+
+  return (
+    <div className="page">
+      {toastEl}
+      <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+        <div>
+          <div className="page-title">Schedule & Attendance</div>
+          <div className="page-subtitle">{visibleQAs.length} team members — {new Date(year, month-1).toLocaleDateString("en-US",{month:"long",year:"numeric"})}</div>
+        </div>
+        <div style={{display:"flex",gap:8,alignItems:"center"}}>
+          <input type="month" className="form-input" style={{width:160,fontSize:12}} value={selMonth} onChange={e=>setSelMonth(e.target.value)}/>
+          {isLead&&<button className="btn btn-primary btn-sm" onClick={()=>{setBulkModal(true);setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>
+            <Icon d={icons.plus} size={14}/>Bulk set
+          </button>}
+        </div>
+      </div>
+
+      {/* Legend */}
+      <div className="card" style={{padding:"10px 16px",marginBottom:16}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+          <span style={{fontSize:11,color:"var(--tx3)",fontWeight:600}}>Legend:</span>
+          {ATTENDANCE_TYPES.map(t => (
+            <span key={t.code} style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:t.bg,color:t.color,fontWeight:700,border:`1px solid ${t.color}30`}}>{t.code}</span>
+          ))}
+        </div>
+      </div>
+
+      {/* Calendar grid */}
+      <div className="card" style={{overflow:"auto"}}>
+        <table style={{fontSize:11,whiteSpace:"nowrap",minWidth:800}}>
+          <thead>
+            <tr>
+              <th style={{position:"sticky",left:0,background:"var(--bg3)",zIndex:2,minWidth:140}}>QA</th>
+              {days.map(d => (
+                <th key={d.num} style={{textAlign:"center",padding:"4px 2px",minWidth:36,background:d.isWeekend?"rgba(156,163,175,0.1)":"transparent"}}>
+                  <div style={{fontSize:9,color:d.isWeekend?"var(--tx3)":"var(--tx2)"}}>{d.dayName}</div>
+                  <div style={{fontSize:11,fontWeight:600,color:d.isWeekend?"var(--tx3)":"var(--tx)"}}>{d.num}</div>
+                </th>
+              ))}
+              <th style={{textAlign:"center",minWidth:30,fontSize:10}}>P</th>
+              <th style={{textAlign:"center",minWidth:30,fontSize:10}}>AL</th>
+              <th style={{textAlign:"center",minWidth:30,fontSize:10}}>SL</th>
+              <th style={{textAlign:"center",minWidth:30,fontSize:10}}>OFF</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibleQAs.sort((a,b)=>(a.email||"").localeCompare(b.email||"")).map(qa => {
+              const em = qa.email?.toLowerCase();
+              const counts = countByStatus(em);
+              return (
+                <tr key={em}>
+                  <td style={{position:"sticky",left:0,background:"var(--bg3)",zIndex:1,fontWeight:600,fontSize:12,padding:"6px 8px",borderRight:"1px solid var(--bd)"}}>
+                    <div style={{display:"flex",alignItems:"center",gap:6}}>
+                      <div style={{width:22,height:22,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:"var(--accent-text)",flexShrink:0}}>
+                        {nameFromEmail(em).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+                      </div>
+                      <span style={{overflow:"hidden",textOverflow:"ellipsis"}}>{nameFromEmail(em)}</span>
+                    </div>
+                  </td>
+                  {days.map(d => {
+                    const att = getAtt(em, d.num);
+                    const st = att?.status || (d.isWeekend ? null : null);
+                    const attType = st ? ATT_MAP[st] : null;
+                    const cellKey = `${em}-${d.num}`;
+                    const isEditing = editCell === cellKey;
+                    const canEdit = isLead || em === myEmail;
+                    return (
+                      <td key={d.num} style={{textAlign:"center",padding:1,background:d.isWeekend?"rgba(156,163,175,0.05)":"transparent",position:"relative"}}
+                        onClick={()=>canEdit&&setEditCell(isEditing?null:cellKey)}>
+                        {st ? (
+                          <span style={{fontSize:9,padding:"2px 3px",borderRadius:3,background:attType?.bg||"var(--bg3)",color:attType?.color||"var(--tx3)",fontWeight:700,cursor:canEdit?"pointer":"default",display:"inline-block",minWidth:20}}>{st}</span>
+                        ) : (
+                          <span style={{fontSize:10,color:"var(--bd2)",cursor:canEdit?"pointer":"default"}}>·</span>
+                        )}
+                        {isEditing && <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:8,padding:4,boxShadow:"var(--shadow-lg)",display:"flex",flexWrap:"wrap",gap:2,width:160}}>
+                          {ATTENDANCE_TYPES.map(t => (
+                            <button key={t.code} onClick={(e)=>{e.stopPropagation();setAtt(em,d.num,t.code);}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"none",cursor:"pointer",background:t.bg,color:t.color,fontWeight:700,fontFamily:"var(--font)"}} title={t.label}>{t.code}</button>
+                          ))}
+                        </div>}
+                      </td>
+                    );
+                  })}
+                  <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"var(--green)"}}>{counts["P"]||0}</td>
+                  <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"var(--red)"}}>{counts["AL"]||0}</td>
+                  <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"#B91C1C"}}>{counts["Paid SL"]||0}</td>
+                  <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"var(--tx3)"}}>{counts["OFF"]||0}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Bulk set modal */}
+      {bulkModal&&<div className="modal-overlay" onClick={()=>setBulkModal(false)}>
+        <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:420}}>
+          <div className="card-header"><span className="card-title">Bulk set attendance</span></div>
+          <div style={{padding:16}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+              <div className="form-group"><label className="form-label">From</label>
+                <input type="date" className="form-input" value={bulkFrom} onChange={e=>setBulkFrom(e.target.value)}/>
+              </div>
+              <div className="form-group"><label className="form-label">To</label>
+                <input type="date" className="form-input" value={bulkTo} onChange={e=>setBulkTo(e.target.value)}/>
+              </div>
+              <div className="form-group"><label className="form-label">Status</label>
+                <select className="select form-input" value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)}>
+                  {ATTENDANCE_TYPES.map(t => <option key={t.code} value={t.code}>{t.code} — {t.label}</option>)}
+                </select>
+              </div>
+              <div className="form-group"><label className="form-label">Apply to</label>
+                <select className="select form-input" value={bulkScope} onChange={e=>setBulkScope(e.target.value)}>
+                  <option value="my_team">{isLead&&!hasRole(profile?.role,"qa_supervisor")?"My team":"All QAs"}</option>
+                  <option value="specific">Specific person</option>
+                </select>
+              </div>
+              {bulkScope==="specific"&&<div className="form-group" style={{gridColumn:"1/-1"}}><label className="form-label">Person</label>
+                <SearchableSelect options={visibleQAs.map(r=>({value:r.email,label:r.email+" — "+nameFromEmail(r.email)}))}
+                  value={bulkPerson} onChange={setBulkPerson} placeholder="Select person..."/>
+              </div>}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn btn-primary btn-sm" onClick={applyBulk}>Apply</button>
+              <button className="btn btn-outline btn-sm" onClick={()=>setBulkModal(false)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      </div>}
+    </div>
+  );
+}
+
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
   {key:"leaderboard",label:"Leaderboard",icon:icons.leaderboard},
   {key:"profile",label:"QA Profile",icon:icons.hr},
+  {key:"schedule",label:"Schedule",icon:icons.coaching},
   {key:"scores",label:"MTD",icon:icons.scores,section:"Performance"},
   {key:"dam",label:"DAM flags",icon:icons.dam,minRole:"qa_lead"},
   {key:"plans",label:"AP / PIP",icon:icons.plan,minRole:"qa_lead"},
@@ -7564,6 +7856,7 @@ export default function App(){
     case"hr":return<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>;
     case"escalations":return<EscalationsPage token={t} profile={p} gf={gf}/>;
     case"profile":return<QAProfilePage token={t} profile={p} gf={gf}/>;
+    case"schedule":return<SchedulePage token={t} profile={p} gf={gf}/>;
     default:return<DashboardPage profile={p} token={t} gf={gf}/>;
   }};
   return(<div className="app-layout">
