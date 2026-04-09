@@ -7520,17 +7520,24 @@ function SchedulePage({token, profile, gf}) {
 
   const loadData = useCallback(async () => {
     try {
-      const [year, month] = selMonth.split("-").map(Number);
-      const startDate = `${selMonth}-01`;
-      const endDate = `${year}-${String(month + 1 > 12 ? 1 : month + 1).padStart(2, "0")}-01`;
-      const [r, attResp] = await Promise.all([
+      const [yr, mo] = selMonth.split("-").map(Number);
+      const dim = new Date(yr, mo, 0).getDate();
+      // Fetch attendance in 3 chunks to bypass 1000 row limit
+      const chunk1End = Math.min(10, dim);
+      const chunk2End = Math.min(20, dim);
+      const chunk3End = dim;
+      const fmtD = (d) => `${selMonth}-${String(d).padStart(2,"0")}`;
+      const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
+      const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status`;
+      const [r, a1, a2, a3] = await Promise.all([
         sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country",token}).catch(()=>[]),
-        fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status&date=gte.${startDate}&date=lt.${endDate}&order=date.asc&limit=5000`, {
-          headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`}
-        }).then(r=>r.json()).catch(()=>[]),
+        fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(chunk1End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
+        chunk1End < dim ? fetch(`${base}&date=gte.${fmtD(chunk1End+1)}&date=lte.${fmtD(chunk2End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]) : Promise.resolve([]),
+        chunk2End < dim ? fetch(`${base}&date=gte.${fmtD(chunk2End+1)}&date=lte.${fmtD(chunk3End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]) : Promise.resolve([]),
       ]);
       setRoster(Array.isArray(r) ? r : []);
-      setAttendance(Array.isArray(attResp) ? attResp : []);
+      const allAtt = [...(Array.isArray(a1)?a1:[]), ...(Array.isArray(a2)?a2:[]), ...(Array.isArray(a3)?a3:[])];
+      setAttendance(allAtt);
     } catch(e) { console.error("Schedule load:", e); }
     setLoading(false);
   }, [token, selMonth]);
