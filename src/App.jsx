@@ -534,6 +534,7 @@ const GoogleLogo=()=>(<svg width="20" height="20" viewBox="0 0 48 48"><path fill
 function DashboardPage({profile,token,gf}){
   const[mtd,setMtd]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[appProfiles,setAppProfiles]=useState([]);
   const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
+  const[todayAttendance,setTodayAttendance]=useState([]);
   const[apPlans,setApPlans]=useState([]);const[apWeeks,setApWeeks]=useState([]);const[apDetections,setApDetections]=useState([]);
   const[apDismissals,setApDismissals]=useState([]);const[dismissModal,setDismissModal]=useState(null);const[dismissReason,setDismissReason]=useState("");
   const[userTasks,setUserTasks]=useState([]);const[showTaskForm,setShowTaskForm]=useState(false);const[taskView,setTaskView]=useState("list");const[hideCompleted,setHideCompleted]=useState(true);
@@ -655,6 +656,8 @@ function DashboardPage({profile,token,gf}){
     setMtd(normalizedMtd2);setRoster(filteredRoster);setAppProfiles(profs);setDamCount(damFlagsRaw.filter(f=>f.status==="pending").length);
     setProfileCount({qas:filteredRoster.length,leads:[...new Set(filteredRoster.map(r=>r.manager_email).filter(Boolean))].length,active:profs.length});
     setApPlans(plans);setApWeeks(planWeeks);setApDismissals(dismissals);
+    // Load today's attendance
+    try{const todayStr=new Date().toISOString().split("T")[0];const att=await sb.query("qa_attendance",{select:"email,status",filters:`date=eq.${todayStr}`,token}).catch(()=>[]);setTodayAttendance(Array.isArray(att)?att:[]);}catch{}
 
     // Auto-detection for TL dashboard alert — DAM-driven
     if(hasRole(profile?.role,"qa_lead")){
@@ -726,28 +729,32 @@ function DashboardPage({profile,token,gf}){
   const generateFromTemplate=async(tpl)=>{
     try{
       const myEmail=profile?.email?.toLowerCase();
-      // Build set of QA lead emails for filtering
       const leadProfs=appProfiles.filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase()).filter(Boolean);
       const leadSet=new Set(leadProfs);
       let assignees=[];
       if(tpl.assign_to_type==="specific_person"&&tpl.assign_to_value){
         assignees=[tpl.assign_to_value.toLowerCase()];
       }else if(tpl.assign_to_type==="my_team"){
-        // For leads: QAs under them. For admins/supervisors: still "my team" but fallback to all QAs under any lead
         const myTeam=roster.filter(r=>r.manager_email?.toLowerCase()===myEmail).map(r=>r.email?.toLowerCase()).filter(Boolean);
         if(myTeam.length>0){
           assignees=myTeam;
         }else if(hasRole(profile?.role,"admin")){
-          // Admin has no direct reports — treat as all QAs
           assignees=roster.filter(r=>leadSet.has(r.manager_email?.toLowerCase())).map(r=>r.email?.toLowerCase()).filter(Boolean);
         }
       }else if(tpl.assign_to_type==="all_qa"){
         assignees=roster.filter(r=>leadSet.has(r.manager_email?.toLowerCase())).map(r=>r.email?.toLowerCase()).filter(Boolean);
       }
       if(assignees.length===0){show("error","No QAs found to assign. Make sure you have team members or select 'All QAs'.");return;}
+      // Check attendance — skip QAs who are on leave/off today
       const today=new Date().toISOString().split("T")[0];
+      const absentStatuses=new Set(["AL","Paid SL","ML","UL","NSNC","OFF","X"]);
+      let todayAtt=[];
+      try{todayAtt=await sb.query("qa_attendance",{select:"email,status",filters:`date=eq.${today}`,token}).catch(()=>[]);}catch{}
+      const absentSet=new Set((Array.isArray(todayAtt)?todayAtt:[]).filter(a=>absentStatuses.has(a.status)).map(a=>a.email?.toLowerCase()));
+      const available=assignees.filter(em=>!absentSet.has(em));
+      const skipped=assignees.length-available.length;
       let created=0;
-      for(const em of assignees){
+      for(const em of available){
         const body={title:tpl.title,description:tpl.description||null,priority:tpl.priority,created_by:profile?.email,assigned_to:em,
           due_date:today,status:"pending",template_id:tpl.id,target_metric:tpl.target_metric||null,target_value:tpl.target_value||null,
           auto_close:!!tpl.target_metric,updated_at:new Date().toISOString()};
@@ -755,8 +762,8 @@ function DashboardPage({profile,token,gf}){
         created++;
       }
       await sb.query("task_templates",{token,method:"PATCH",body:{last_generated_at:new Date().toISOString()},filters:`id=eq.${tpl.id}`});
-      show("success",`Created ${created} task${created!==1?"s":""} for ${tpl.assign_to_type==="all_qa"?"all QAs":tpl.assign_to_type==="specific_person"?nameFromEmail(tpl.assign_to_value):"your team"}`);
-      logActivity(token,profile?.email,"tasks_generated","task_templates",tpl.id,`Template: ${tpl.title}, Assignees: ${created}`);
+      show("success",`Created ${created} task${created!==1?"s":""}${skipped>0?` (${skipped} skipped — on leave/off)`:""}`);
+      logActivity(token,profile?.email,"tasks_generated","task_templates",tpl.id,`Template: ${tpl.title}, Created: ${created}, Skipped: ${skipped}`);
       loadTasks();
     }catch(e){show("error",safeError(e));}
   };
@@ -1528,6 +1535,27 @@ function DashboardPage({profile,token,gf}){
           </div>
         </div>
       </div>
+      {/* Team availability today */}
+      {(()=>{
+        const presentStatuses=new Set(["P","H","L","EL","PH"]);
+        const absentStatuses=new Set(["AL","Paid SL","ML","UL","NSNC"]);
+        const teamAtt=todayAttendance.filter(a=>allTeamEmails.includes(a.email?.toLowerCase()));
+        const present=teamAtt.filter(a=>presentStatuses.has(a.status)).length;
+        const absent=teamAtt.filter(a=>absentStatuses.has(a.status)).length;
+        const off=teamAtt.filter(a=>a.status==="OFF").length;
+        const noData=allTeamEmails.length-teamAtt.length;
+        if(allTeamEmails.length===0)return null;
+        return <div className="card" style={{padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>Today's availability</div>
+            <span style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:"var(--green-bg)",color:"var(--green)",fontWeight:700}}>{present} Present</span>
+            {absent>0&&<span style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:"var(--red-bg)",color:"var(--red)",fontWeight:700}}>{absent} On leave</span>}
+            {off>0&&<span style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:"var(--bg3)",color:"var(--tx3)",fontWeight:700}}>{off} Off</span>}
+            {noData>0&&<span style={{fontSize:11,color:"var(--tx3)"}}>{noData} no schedule</span>}
+          </div>
+          <button className="btn btn-outline btn-sm" onClick={()=>nav("schedule")} style={{fontSize:11}}>Schedule →</button>
+        </div>;
+      })()}
 
       {/* Team members table */}
       {teamSorted.length>0&&<div className="card" style={{marginBottom:20}}>
@@ -6952,6 +6980,7 @@ function QAProfilePage({token, profile, gf}) {
   const [plans, setPlans] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [flags, setFlags] = useState([]);
+  const [qaAttendance, setQaAttendance] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedQA, setSelectedQA] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -6974,7 +7003,8 @@ function QAProfilePage({token, profile, gf}) {
   useEffect(() => {
     (async () => {
       try {
-        const [r, m, s, ap, t, f, profs] = await Promise.all([
+        const curMonth = new Date().toISOString().slice(0,7);
+        const [r, m, s, ap, t, f, profs, att] = await Promise.all([
           sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country,hiring_date",token}).catch(()=>[]),
           sb.query("mtd_scores", {select:"*",filters:"order=month.desc",token}).catch(()=>[]),
           sb.query("coaching_sessions", {select:"id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass",filters:"order=session_date.desc",token}).catch(()=>[]),
@@ -6982,6 +7012,7 @@ function QAProfilePage({token, profile, gf}) {
           sb.query("tasks", {select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
           sb.query("dam_flags", {select:"id,qa_email,severity,status,triggered_at,occurrence_number,reviewed_by,reviewed_at,notes,dam_rules(name,behavior_type,recommended_action)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
           sb.query("profiles", {select:"email,role",token}).catch(()=>[]),
+          sb.query("qa_attendance", {select:"email,date,status",filters:`date=gte.${curMonth}-01&order=date.asc`,token}).catch(()=>[]),
         ]);
         setRoster(Array.isArray(r) ? r : []);
         setMtd(Array.isArray(m) ? m : []);
@@ -6989,6 +7020,7 @@ function QAProfilePage({token, profile, gf}) {
         setPlans(Array.isArray(ap) ? ap : []);
         setTasks(Array.isArray(t) ? t : []);
         setFlags(Array.isArray(f) ? f : []);
+        setQaAttendance(Array.isArray(att) ? att : []);
         // Store qa_lead emails for filtering
         const leads = (Array.isArray(profs)?profs:[]).filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase());
         window.__qaLeadEmails = new Set(leads);
@@ -7141,18 +7173,34 @@ function QAProfilePage({token, profile, gf}) {
 
       {/* KPI cards row */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
-        {/* Today's evaluations — placeholder for daily report */}
+        {/* Attendance this month */}
         <div className="card" style={{padding:16,textAlign:"center"}}>
-          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Today's evaluations</div>
-          <div style={{position:"relative",width:64,height:64,margin:"0 auto 8px"}}>
-            <svg width="64" height="64" viewBox="0 0 64 64">
-              <circle cx="32" cy="32" r="28" fill="none" stroke="var(--bd2)" strokeWidth="5"/>
-              <circle cx="32" cy="32" r="28" fill="none" stroke="var(--accent-text)" strokeWidth="5" strokeLinecap="round"
-                strokeDasharray="0 176" transform="rotate(-90 32 32)"/>
-            </svg>
-            <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:"var(--tx3)"}}>—</div>
-          </div>
-          <div style={{fontSize:11,color:"var(--tx3)"}}>Daily report pending</div>
+          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Attendance</div>
+          {(()=>{
+            const myAtt = qaAttendance.filter(a => matchQA(a.email));
+            const present = myAtt.filter(a => ["P","H","L","EL","PH"].includes(a.status)).length;
+            const leave = myAtt.filter(a => ["AL","Paid SL","ML","UL"].includes(a.status)).length;
+            const off = myAtt.filter(a => a.status === "OFF").length;
+            const total = present + leave + off;
+            const pct = total > 0 ? Math.round((present / (present + leave)) * 100) : 0;
+            const circumference = 2 * Math.PI * 28;
+            const dashArray = total > 0 ? `${(present/(present+leave||1))*circumference} ${circumference}` : `0 ${circumference}`;
+            return <>
+              <div style={{position:"relative",width:64,height:64,margin:"0 auto 8px"}}>
+                <svg width="64" height="64" viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="var(--bd2)" strokeWidth="5"/>
+                  <circle cx="32" cy="32" r="28" fill="none" stroke="var(--green)" strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray={dashArray} transform="rotate(-90 32 32)"/>
+                </svg>
+                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:total>0?"var(--green)":"var(--tx3)"}}>{total>0?`${pct}%`:"—"}</div>
+              </div>
+              <div style={{display:"flex",justifyContent:"center",gap:10,fontSize:10}}>
+                <span style={{color:"var(--green)",fontWeight:600}}>{present}P</span>
+                {leave>0&&<span style={{color:"var(--red)",fontWeight:600}}>{leave}L</span>}
+                <span style={{color:"var(--tx3)"}}>{off}OFF</span>
+              </div>
+            </>;
+          })()}
         </div>
 
         {/* Occupancy */}
@@ -7416,6 +7464,10 @@ function SchedulePage({token, profile, gf}) {
   });
   const [bulkModal, setBulkModal] = useState(false);
   const [bulkStatus, setBulkStatus] = useState("OFF");
+  const [csvUpload, setCsvUpload] = useState(false);
+  const [csvFile, setCsvFile] = useState(null);
+  const [csvPreview, setCsvPreview] = useState([]);
+  const [csvUploading, setCsvUploading] = useState(false);
   const [bulkFrom, setBulkFrom] = useState("");
   const [bulkTo, setBulkTo] = useState("");
   const [bulkScope, setBulkScope] = useState("my_team");
@@ -7539,6 +7591,92 @@ function SchedulePage({token, profile, gf}) {
   };
 
   // Counters per QA
+  // CSV template download
+  const downloadCsvTemplate = () => {
+    const [y, mo] = selMonth.split("-").map(Number);
+    const daysCount = new Date(y, mo, 0).getDate();
+    const headers = ["email"];
+    for (let d = 1; d <= daysCount; d++) {
+      const dt = new Date(y, mo - 1, d);
+      headers.push(`${dt.toLocaleDateString("en-US",{weekday:"short"})}_${d}`);
+    }
+    const rows = visibleQAs.sort((a,b)=>(a.email||"").localeCompare(b.email||"")).map(qa => {
+      const em = qa.email?.toLowerCase();
+      const cols = [em];
+      for (let d = 1; d <= daysCount; d++) {
+        const att = getAtt(em, d);
+        const dt = new Date(y, mo - 1, d);
+        const isWknd = dt.getDay() === 5 || dt.getDay() === 6;
+        cols.push(att?.status || (isWknd ? "OFF" : ""));
+      }
+      return cols.join(",");
+    });
+    const csv = headers.join(",") + "\n" + rows.join("\n");
+    const blob = new Blob([csv], {type:"text/csv"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `attendance_${selMonth}.csv`;
+    a.click();
+  };
+
+  // CSV upload parse
+  const parseCsvUpload = (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) { show("error", "CSV has no data rows"); return; }
+      const headers = lines[0].split(",");
+      const dayHeaders = headers.slice(1); // "Mon_1", "Tue_2", etc.
+      const dayNums = dayHeaders.map(h => parseInt(h.split("_").pop()));
+      const preview = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(",");
+        const email = cols[0]?.trim().toLowerCase();
+        if (!email || !email.includes("@")) continue;
+        const entries = [];
+        for (let j = 0; j < dayNums.length; j++) {
+          const val = cols[j + 1]?.trim().toUpperCase();
+          if (val && ATTENDANCE_TYPES.some(t => t.code === val)) {
+            entries.push({ day: dayNums[j], status: val });
+          }
+        }
+        if (entries.length > 0) preview.push({ email, entries });
+      }
+      setCsvPreview(preview);
+    };
+    reader.readAsText(file);
+  };
+
+  // CSV upload execute
+  const executeCsvUpload = async () => {
+    setCsvUploading(true);
+    try {
+      const rows = [];
+      csvPreview.forEach(p => {
+        p.entries.forEach(e => {
+          const dateStr = `${selMonth}-${String(e.day).padStart(2,"0")}`;
+          rows.push({ email: p.email, date: dateStr, status: e.status, created_by: myEmail });
+        });
+      });
+      // Batch upsert
+      const batchSize = 100;
+      for (let i = 0; i < rows.length; i += batchSize) {
+        const batch = rows.slice(i, i + batchSize);
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${token}`, "Prefer": "resolution=merge-duplicates,return=minimal" },
+          body: JSON.stringify(batch)
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+      }
+      show("success", `Uploaded ${rows.length} attendance records for ${csvPreview.length} QAs`);
+      setCsvUpload(false); setCsvFile(null); setCsvPreview([]);
+      loadData();
+    } catch (e) { show("error", safeError(e)); }
+    setCsvUploading(false);
+  };
+
   const countByStatus = (email) => {
     const qa = attendance.filter(a => a.email?.toLowerCase() === email?.toLowerCase());
     const counts = {};
@@ -7560,6 +7698,12 @@ function SchedulePage({token, profile, gf}) {
           <input type="month" className="form-input" style={{width:160,fontSize:12}} value={selMonth} onChange={e=>setSelMonth(e.target.value)}/>
           {isLead&&<button className="btn btn-primary btn-sm" onClick={()=>{setBulkModal(true);setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>
             <Icon d={icons.plus} size={14}/>Bulk set
+          </button>}
+          {isLead&&<button className="btn btn-outline btn-sm" onClick={downloadCsvTemplate} style={{fontSize:11}}>
+            <Icon d={icons.upload} size={13}/>Download CSV
+          </button>}
+          {isLead&&<button className="btn btn-outline btn-sm" onClick={()=>setCsvUpload(true)} style={{fontSize:11}}>
+            <Icon d={icons.upload} size={13}/>Upload CSV
           </button>}
         </div>
       </div>
@@ -7639,6 +7783,51 @@ function SchedulePage({token, profile, gf}) {
           </tbody>
         </table>
       </div>
+
+      {/* CSV Upload modal */}
+      {csvUpload&&<div className="modal-overlay" onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}}>
+        <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:600,maxHeight:"80vh",overflow:"auto"}}>
+          <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span className="card-title">Upload attendance CSV</span>
+            <button onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"var(--tx3)"}}>×</button>
+          </div>
+          <div style={{padding:16}}>
+            {csvPreview.length===0?<>
+              <div style={{fontSize:12,color:"var(--tx2)",marginBottom:12,lineHeight:1.6}}>
+                Download the CSV template first, fill in the attendance codes, then upload it here.
+                Valid codes: {ATTENDANCE_TYPES.map(t=>t.code).join(", ")}
+              </div>
+              <div style={{display:"flex",gap:8,marginBottom:16}}>
+                <button className="btn btn-outline btn-sm" onClick={downloadCsvTemplate}>Download template for {selMonth}</button>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Upload filled CSV</label>
+                <input type="file" accept=".csv" className="form-input" onChange={e=>{const f=e.target.files[0];if(f){setCsvFile(f);parseCsvUpload(f);}}}/>
+              </div>
+            </>:<>
+              <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Preview — {csvPreview.length} QAs, {csvPreview.reduce((a,p)=>a+p.entries.length,0)} records</div>
+              <div style={{fontSize:12,color:"var(--tx3)",marginBottom:12}}>Month: {selMonth}</div>
+              <div style={{maxHeight:300,overflow:"auto",border:"1px solid var(--bd2)",borderRadius:8,marginBottom:16}}>
+                <table><thead><tr><th>QA</th><th>Records</th><th>Sample</th></tr></thead>
+                <tbody>{csvPreview.map(p=>(
+                  <tr key={p.email}>
+                    <td style={{fontSize:12,fontWeight:500}}>{p.email}</td>
+                    <td style={{fontSize:12}}>{p.entries.length} days</td>
+                    <td style={{fontSize:11}}>{p.entries.slice(0,5).map(e=>{const at=ATT_MAP[e.status];return <span key={e.day} style={{padding:"1px 4px",borderRadius:3,background:at?.bg,color:at?.color,fontWeight:700,fontSize:9,marginRight:2}}>{e.day}:{e.status}</span>})}{p.entries.length>5&&<span style={{color:"var(--tx3)"}}>+{p.entries.length-5}</span>}</td>
+                  </tr>
+                ))}</tbody></table>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button className="btn btn-primary btn-sm" disabled={csvUploading} onClick={executeCsvUpload}>
+                  {csvUploading?"Uploading...":"Confirm & upload"}
+                </button>
+                <button className="btn btn-outline btn-sm" onClick={()=>{setCsvPreview([]);setCsvFile(null);}}>Back</button>
+                <button className="btn btn-outline btn-sm" onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}}>Cancel</button>
+              </div>
+            </>}
+          </div>
+        </div>
+      </div>}
 
       {/* Bulk set modal */}
       {bulkModal&&<div className="modal-overlay" onClick={()=>setBulkModal(false)}>
