@@ -946,6 +946,10 @@ function DashboardPage({profile,token,gf}){
             onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,.12)";e.currentTarget.style.borderColor="rgba(59,255,157,.3)";}}
             onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.06)";e.currentTarget.style.borderColor="rgba(255,255,255,.12)";}}
           >Leaderboard →</button>
+          <button onClick={()=>nav("profile")} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(59,255,157,.25)",background:"rgba(59,255,157,.08)",color:"#3BFF9D",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",backdropFilter:"blur(4px)"}}
+            onMouseEnter={e=>{e.currentTarget.style.background="rgba(59,255,157,.16)";e.currentTarget.style.borderColor="rgba(59,255,157,.4)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="rgba(59,255,157,.08)";e.currentTarget.style.borderColor="rgba(59,255,157,.25)";}}
+          >{isLead?"Team Profiles →":"My Profile →"}</button>
           {isLead&&<button onClick={()=>nav("scores")} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(255,255,255,.12)",background:"rgba(255,255,255,.06)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",backdropFilter:"blur(4px)"}}
             onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,.12)";e.currentTarget.style.borderColor="rgba(59,255,157,.3)";}}
             onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.06)";e.currentTarget.style.borderColor="rgba(255,255,255,.12)";}}
