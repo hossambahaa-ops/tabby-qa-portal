@@ -7525,8 +7525,8 @@ function SchedulePage({token, profile, gf}) {
       const endDate = `${year}-${String(month + 1 > 12 ? 1 : month + 1).padStart(2, "0")}-01`;
       const [r, attResp] = await Promise.all([
         sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country",token}).catch(()=>[]),
-        fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status&date=gte.${startDate}&date=lt.${endDate}&order=date.asc`, {
-          headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Range":"0-9999"}
+        fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status&date=gte.${startDate}&date=lt.${endDate}&order=date.asc&limit=5000`, {
+          headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`}
         }).then(r=>r.json()).catch(()=>[]),
       ]);
       setRoster(Array.isArray(r) ? r : []);
