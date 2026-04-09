@@ -382,6 +382,29 @@ const safeError=(e)=>{const m=e?.message||String(e);console.error("Error:",m);if
 
 function useToast(){const[t,setT]=useState(null);const show=(type,msg)=>{setT({type,msg});setTimeout(()=>setT(null),3500);};const el=t?<div className={`toast toast-${t.type}`}>{t.msg}</div>:null;return{show,el};}
 
+// In-app confirmation modal hook
+function useConfirm(){
+  const[state,setState]=useState(null);
+  const ask=(title,message,onYes,yesLabel="Confirm",yesColor="var(--tabby-purple)")=>{
+    setState({title,message,onYes,yesLabel,yesColor});
+  };
+  const close=()=>setState(null);
+  const el=state?<div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,0.55)",display:"flex",justifyContent:"center",alignItems:"flex-start",paddingTop:80}} onClick={close}>
+    <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"var(--shadow-lg)",width:"100%",maxWidth:400,padding:24,textAlign:"center"}}>
+      <div style={{width:44,height:44,borderRadius:"50%",background:"var(--amber-bg)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2.5" strokeLinecap="round"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
+      </div>
+      <div style={{fontSize:15,fontWeight:700,marginBottom:6,color:"var(--tx)"}}>{state.title}</div>
+      <div style={{fontSize:13,color:"var(--tx2)",marginBottom:20,lineHeight:1.6}}>{state.message}</div>
+      <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+        <button className="btn btn-sm" style={{background:state.yesColor,color:"#fff",border:"none",fontWeight:600}} onClick={()=>{close();state.onYes();}}>{state.yesLabel}</button>
+        <button className="btn btn-outline btn-sm" onClick={close}>Cancel</button>
+      </div>
+    </div>
+  </div>:null;
+  return{ask,el};
+}
+
 /* ═══ GLOBAL FILTER HELPERS ═══ */
 // Apply global filters to MTD/roster data — call this in each page
 function applyGF(rows, gf, emailField = "qa_email") {
@@ -550,6 +573,7 @@ function DashboardPage({profile,token,gf}){
   const isSupervisor=hasRole(profile?.role,"qa_supervisor");
   const canAnnounce=hasRole(profile?.role,"senior_qa");
   const{show,el:toastEl}=useToast();
+  const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   const sendAnnouncement=async()=>{
     if(!annForm.title.trim()||!annForm.message.trim()){show("error","Title and message are required");return;}
@@ -770,12 +794,31 @@ function DashboardPage({profile,token,gf}){
   };
 
   // Delete template
-  const deleteTemplate=async(id)=>{
-    if(!confirm("Delete this template?"))return;
-    try{await sb.query("task_templates",{token,method:"DELETE",filters:`id=eq.${id}`});show("success","Template deleted");loadTasks();}catch(e){show("error",safeError(e));}
+  const deleteTemplate=(id)=>{
+    const tpl=taskTemplates.find(t=>t.id===id);
+    confirmAsk("Delete template?",`Delete "${tpl?.title||"this template"}"? This won't delete tasks already generated from it.`,async()=>{
+      try{await sb.query("task_templates",{token,method:"DELETE",filters:`id=eq.${id}`});show("success","Template deleted");loadTasks();}catch(e){show("error",safeError(e));}
+    },"Delete","var(--red)");
   };
 
-  // Toggle template active/inactive
+  // Delete all tasks I assigned to others (not myself)
+  const deleteAllAssignedTasks=()=>{
+    const myEmail=profile?.email?.toLowerCase();
+    const assignedOut=userTasks.filter(t=>t.created_by?.toLowerCase()===myEmail&&t.assigned_to&&t.assigned_to?.toLowerCase()!==myEmail&&t.status!=="done");
+    if(assignedOut.length===0){show("error","No assigned tasks to delete");return;}
+    confirmAsk("Delete all assigned tasks?",`This will delete ${assignedOut.length} task${assignedOut.length!==1?"s":""} you assigned to other people. Tasks assigned to yourself will be kept.`,async()=>{
+      try{
+        let deleted=0;
+        for(const t of assignedOut){
+          await sb.query("tasks",{token,method:"DELETE",filters:`id=eq.${t.id}`});
+          deleted++;
+        }
+        logActivity(token,profile?.email,"bulk_tasks_deleted","tasks",null,`Deleted ${deleted} assigned tasks`);
+        show("success",`Deleted ${deleted} assigned task${deleted!==1?"s":""}`);
+        loadTasks();
+      }catch(e){show("error",safeError(e));}
+    },"Delete all","var(--red)");
+  };
   const toggleTemplate=async(tpl)=>{
     try{await sb.query("task_templates",{token,method:"PATCH",body:{is_active:!tpl.is_active,updated_at:new Date().toISOString()},filters:`id=eq.${tpl.id}`});loadTasks();}catch(e){show("error",safeError(e));}
   };
@@ -880,14 +923,15 @@ function DashboardPage({profile,token,gf}){
       show("success","Task postponed");setPostponeModal(null);setPostponeDate("");setPostponeReason("");
     }catch(e){show("error",safeError(e));}
   };
-  const deleteTask=async(task)=>{
-    if(!confirm("Delete this task?"))return;
-    setUserTasks(prev=>prev.filter(t=>t.id!==task.id));
-    try{
-      await sb.query("tasks",{token,method:"DELETE",filters:`id=eq.${task.id}`});
-      logActivity(token,profile?.email,"task_deleted","tasks",task.id,`Title: ${task.title}`);
-      show("success","Task deleted");
-    }catch(e){show("error",safeError(e));loadTasks();}
+  const deleteTask=(task)=>{
+    confirmAsk("Delete task?",`Are you sure you want to delete "${task.title}"?`,async()=>{
+      setUserTasks(prev=>prev.filter(t=>t.id!==task.id));
+      try{
+        await sb.query("tasks",{token,method:"DELETE",filters:`id=eq.${task.id}`});
+        logActivity(token,profile?.email,"task_deleted","tasks",task.id,`Title: ${task.title}`);
+        show("success","Task deleted");
+      }catch(e){show("error",safeError(e));loadTasks();}
+    },"Delete","var(--red)");
   };
   const priorityConfig={urgent:{label:"Urgent",color:"var(--red)",bg:"var(--red-bg)"},high:{label:"High",color:"var(--amber)",bg:"var(--amber-bg)"},medium:{label:"Medium",color:"var(--tabby-purple)",bg:"var(--primary-light)"},low:{label:"Low",color:"var(--tx3)",bg:"var(--bg2)"}};
   const activeTasks=userTasks.filter(t=>t.status!=="done");
@@ -1165,7 +1209,10 @@ function DashboardPage({profile,token,gf}){
 
               {/* Tasks I assigned to others — grouped by person */}
               {Object.keys(byPerson).length>0&&<div>
-                <div style={{fontSize:11,fontWeight:700,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px",padding:"0 14px",marginBottom:6}}>Assigned to team ({assignedOut.length})</div>
+                <div style={{fontSize:11,fontWeight:700,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px",padding:"0 14px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span>Assigned to team ({assignedOut.length})</span>
+                  <button onClick={deleteAllAssignedTasks} style={{fontSize:10,color:"var(--red)",background:"none",border:"none",cursor:"pointer",fontWeight:600,fontFamily:"var(--font)",padding:"2px 6px",borderRadius:4}} onMouseEnter={e=>e.currentTarget.style.background="var(--red-bg)"} onMouseLeave={e=>e.currentTarget.style.background="none"}>Delete all assigned</button>
+                </div>
                 {Object.entries(byPerson).sort((a,b)=>a[0].localeCompare(b[0])).map(([person,tasks])=>(
                   <div key={person} style={{marginBottom:8}}>
                     <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)",padding:"6px 14px",background:"var(--bg)",display:"flex",alignItems:"center",gap:6}}>
@@ -1818,6 +1865,7 @@ function DashboardPage({profile,token,gf}){
 
     </>}
     {toastEl}
+    {confirmEl}
   </div>);
 }
 
@@ -7507,6 +7555,7 @@ function SchedulePage({token, profile, gf}) {
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
   const {show, el: toastEl} = useToast();
+  const {ask: confirmAsk, el: confirmEl} = useConfirm();
 
   const myEmail = profile?.email?.toLowerCase() || "";
   const isQA = profile?.role === "qa" || profile?.role === "senior_qa";
@@ -7798,6 +7847,7 @@ function SchedulePage({token, profile, gf}) {
   return (
     <div className="page">
       {toastEl}
+      {confirmEl}
       <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
         <div>
           <div className="page-title">Schedule & Attendance</div>
@@ -7822,17 +7872,19 @@ function SchedulePage({token, profile, gf}) {
           {isLead&&<button className="btn btn-outline btn-sm" onClick={()=>setCsvUpload(true)} style={{fontSize:11}}>
             <Icon d={icons.upload} size={13}/>Upload CSV
           </button>}
-          {profile?.role==="super_admin"&&<button className="btn btn-outline btn-sm" style={{fontSize:11,color:"var(--red)",borderColor:"var(--red)"}} onClick={async()=>{
-            if(!confirm("Are you sure you want to delete ALL attendance data for "+new Date(year,month-1).toLocaleDateString("en-US",{month:"long",year:"numeric"})+"? This cannot be undone."))return;
-            try{
-              const startDate=`${selMonth}-01`;const endDate=`${year}-${String(month+1>12?1:month+1).padStart(2,"0")}-01`;
-              const resp=await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?date=gte.${startDate}&date=lt.${endDate}`,{
-                method:"DELETE",headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`}
-              });
-              if(!resp.ok)throw new Error(await resp.text());
-              show("success","All attendance data deleted for this month");
-              loadData();
-            }catch(e){show("error",safeError(e));}
+          {profile?.role==="super_admin"&&<button className="btn btn-outline btn-sm" style={{fontSize:11,color:"var(--red)",borderColor:"var(--red)"}} onClick={()=>{
+            const monthLabel=new Date(year,month-1).toLocaleDateString("en-US",{month:"long",year:"numeric"});
+            confirmAsk("Delete all attendance?",`Delete ALL attendance data for ${monthLabel}? This cannot be undone.`,async()=>{
+              try{
+                const startDate=`${selMonth}-01`;const endDate=`${year}-${String(month+1>12?1:month+1).padStart(2,"0")}-01`;
+                const resp=await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?date=gte.${startDate}&date=lt.${endDate}`,{
+                  method:"DELETE",headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`}
+                });
+                if(!resp.ok)throw new Error(await resp.text());
+                show("success","All attendance data deleted for this month");
+                loadData();
+              }catch(e){show("error",safeError(e));}
+            },"Delete all","var(--red)");
           }}>
             <Icon d={icons.trash} size={13}/>Delete month
           </button>}
