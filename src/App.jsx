@@ -7523,12 +7523,14 @@ function SchedulePage({token, profile, gf}) {
       const [year, month] = selMonth.split("-").map(Number);
       const startDate = `${selMonth}-01`;
       const endDate = `${year}-${String(month + 1 > 12 ? 1 : month + 1).padStart(2, "0")}-01`;
-      const [r, a] = await Promise.all([
+      const [r, attResp] = await Promise.all([
         sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country",token}).catch(()=>[]),
-        sb.query("qa_attendance", {select:"*",filters:`date=gte.${startDate}&date=lt.${endDate}&order=date.asc`,token}).catch(()=>[]),
+        fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status&date=gte.${startDate}&date=lt.${endDate}&order=date.asc`, {
+          headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Range":"0-9999"}
+        }).then(r=>r.json()).catch(()=>[]),
       ]);
       setRoster(Array.isArray(r) ? r : []);
-      setAttendance(Array.isArray(a) ? a : []);
+      setAttendance(Array.isArray(attResp) ? attResp : []);
     } catch(e) { console.error("Schedule load:", e); }
     setLoading(false);
   }, [token, selMonth]);
