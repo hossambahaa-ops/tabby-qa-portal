@@ -7575,7 +7575,7 @@ function SchedulePage({token, profile, gf}) {
           const rest = prev.slice(0, -1);
           (async () => {
             try {
-              await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
+              await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
                 method: "POST", headers: {"Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${tokenRef.current}`, "Prefer": "resolution=merge-duplicates,return=minimal"},
                 body: JSON.stringify({email: last.email, date: last.date, status: last.newStatus, created_by: myEmailRef.current})
               });
@@ -7635,7 +7635,7 @@ function SchedulePage({token, profile, gf}) {
         if (status === existing.status) { setEditCell(null); return; }
         await sb.query("qa_attendance", {token, method:"PATCH", body:{status, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
       } else {
-        const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
           method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
           body:JSON.stringify({email:email.toLowerCase(), date:dateStr, status, created_by:myEmail})
         });
@@ -7678,7 +7678,7 @@ function SchedulePage({token, profile, gf}) {
       const batchSize = 200;
       for (let i = 0; i < rows.length; i += batchSize) {
         const batch = rows.slice(i, i + batchSize);
-        const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
           method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
           body:JSON.stringify(batch)
         });
@@ -7763,7 +7763,7 @@ function SchedulePage({token, profile, gf}) {
       const batchSize = 100;
       for (let i = 0; i < rows.length; i += batchSize) {
         const batch = rows.slice(i, i + batchSize);
-        const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${token}`, "Prefer": "resolution=merge-duplicates,return=minimal" },
           body: JSON.stringify(batch)
@@ -7907,48 +7907,49 @@ function SchedulePage({token, profile, gf}) {
         </table>
       </div>
 
-      {/* CSV Upload modal */}
-      {csvUpload&&<div className="modal-overlay" onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}}>
-        <div className="modal" onClick={e=>e.stopPropagation()} style={{maxWidth:600,maxHeight:"80vh",overflow:"auto"}}>
-          <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span className="card-title">Upload attendance CSV</span>
-            <button onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:18,color:"var(--tx3)"}}>×</button>
+      {/* CSV Upload popup — positioned at top */}
+      {csvUpload&&<div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(0,0,0,0.5)",display:"flex",justifyContent:"center",alignItems:"flex-start",paddingTop:60}} onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}}>
+        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"var(--shadow-lg)",width:"100%",maxWidth:600,padding:20,maxHeight:"80vh",overflow:"auto"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div style={{fontSize:16,fontWeight:700,color:"var(--tx)"}}>Upload attendance CSV</div>
+            <button onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"var(--tx3)"}}>×</button>
           </div>
-          <div style={{padding:16}}>
-            {csvPreview.length===0?<>
-              <div style={{fontSize:12,color:"var(--tx2)",marginBottom:12,lineHeight:1.6}}>
-                Download the CSV template first, fill in the attendance codes, then upload it here.
-                Valid codes: {ATTENDANCE_TYPES.map(t=>t.code).join(", ")}
-              </div>
-              <div style={{display:"flex",gap:8,marginBottom:16}}>
-                <button className="btn btn-outline btn-sm" onClick={downloadCsvTemplate}>Download template for {selMonth}</button>
-              </div>
-              <div className="form-group">
-                <label className="form-label">Upload filled CSV</label>
-                <input type="file" accept=".csv" className="form-input" onChange={e=>{const f=e.target.files[0];if(f){setCsvFile(f);parseCsvUpload(f);}}}/>
-              </div>
-            </>:<>
-              <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Preview — {csvPreview.length} QAs, {csvPreview.reduce((a,p)=>a+p.entries.length,0)} records</div>
-              <div style={{fontSize:12,color:"var(--tx3)",marginBottom:12}}>Month: {selMonth}</div>
-              <div style={{maxHeight:300,overflow:"auto",border:"1px solid var(--bd2)",borderRadius:8,marginBottom:16}}>
-                <table><thead><tr><th>QA</th><th>Records</th><th>Sample</th></tr></thead>
-                <tbody>{csvPreview.map(p=>(
-                  <tr key={p.email}>
-                    <td style={{fontSize:12,fontWeight:500}}>{p.email}</td>
-                    <td style={{fontSize:12}}>{p.entries.length} days</td>
-                    <td style={{fontSize:11}}>{p.entries.slice(0,5).map(e=>{const at=ATT_MAP[e.status];return <span key={e.day} style={{padding:"1px 4px",borderRadius:3,background:at?.bg,color:at?.color,fontWeight:700,fontSize:9,marginRight:2}}>{e.day}:{e.status}</span>})}{p.entries.length>5&&<span style={{color:"var(--tx3)"}}>+{p.entries.length-5}</span>}</td>
-                  </tr>
-                ))}</tbody></table>
-              </div>
-              <div style={{display:"flex",gap:8}}>
-                <button className="btn btn-primary btn-sm" disabled={csvUploading} onClick={executeCsvUpload}>
-                  {csvUploading?"Uploading...":"Confirm & upload"}
-                </button>
-                <button className="btn btn-outline btn-sm" onClick={()=>{setCsvPreview([]);setCsvFile(null);}}>Back</button>
-                <button className="btn btn-outline btn-sm" onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}}>Cancel</button>
-              </div>
-            </>}
-          </div>
+          {csvPreview.length===0?<>
+            <div style={{fontSize:12,color:"var(--tx2)",marginBottom:12,lineHeight:1.6}}>
+              Download the CSV template, fill in the attendance codes, then upload here. Existing data will be overwritten.
+            </div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+              {ATTENDANCE_TYPES.map(t=><span key={t.code} style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:t.bg,color:t.color,fontWeight:700}}>{t.code}</span>)}
+            </div>
+            <div style={{display:"flex",gap:8,marginBottom:16}}>
+              <button className="btn btn-outline btn-sm" onClick={downloadCsvTemplate}>Download template for {selMonth}</button>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Upload filled CSV</label>
+              <input type="file" accept=".csv" className="form-input" onChange={e=>{const f=e.target.files[0];if(f){setCsvFile(f);parseCsvUpload(f);}}}/>
+            </div>
+          </>:<>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Preview — {csvPreview.length} QAs, {csvPreview.reduce((a,p)=>a+p.entries.length,0)} records</div>
+            <div style={{fontSize:12,color:"var(--tx3)",marginBottom:4}}>Month: {selMonth}</div>
+            <div style={{fontSize:11,color:"var(--amber)",marginBottom:12}}>Existing records will be overwritten.</div>
+            <div style={{maxHeight:280,overflow:"auto",border:"1px solid var(--bd2)",borderRadius:8,marginBottom:16}}>
+              <table><thead><tr><th>QA</th><th>Records</th><th>Sample</th></tr></thead>
+              <tbody>{csvPreview.map(p=>(
+                <tr key={p.email}>
+                  <td style={{fontSize:12,fontWeight:500}}>{p.email}</td>
+                  <td style={{fontSize:12}}>{p.entries.length} days</td>
+                  <td style={{fontSize:11}}>{p.entries.slice(0,5).map(e=>{const at=ATT_MAP[e.status];return <span key={e.day} style={{padding:"1px 4px",borderRadius:3,background:at?.bg,color:at?.color,fontWeight:700,fontSize:9,marginRight:2}}>{e.day}:{e.status}</span>})}{p.entries.length>5&&<span style={{color:"var(--tx3)"}}>+{p.entries.length-5}</span>}</td>
+                </tr>
+              ))}</tbody></table>
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button className="btn btn-primary btn-sm" disabled={csvUploading} onClick={executeCsvUpload}>
+                {csvUploading?"Uploading...":"Confirm & upload"}
+              </button>
+              <button className="btn btn-outline btn-sm" onClick={()=>{setCsvPreview([]);setCsvFile(null);}}>Back</button>
+              <button className="btn btn-outline btn-sm" onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}}>Cancel</button>
+            </div>
+          </>}
         </div>
       </div>}
 
