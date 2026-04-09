@@ -6856,7 +6856,7 @@ function QAProfilePage({token, profile, gf}) {
           sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country,hiring_date",token}).catch(()=>[]),
           sb.query("mtd_scores", {select:"*",filters:"order=month.desc",token}).catch(()=>[]),
           sb.query("coaching_sessions", {select:"id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass",filters:"order=session_date.desc",token}).catch(()=>[]),
-          sb.query("action_plans", {select:"id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,targets,actuals,passed,notes)",token}).catch(()=>[]),
+          sb.query("action_plans", {select:"id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)",token}).catch(()=>[]),
           sb.query("tasks", {select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
           sb.query("dam_flags", {select:"id,qa_email,severity,status,triggered_at,occurrence_number,reviewed_by,reviewed_at,notes,dam_rules(name,behavior_type,recommended_action)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
           sb.query("profiles", {select:"email,role",token}).catch(()=>[]),
@@ -7188,9 +7188,9 @@ function QAProfilePage({token, profile, gf}) {
                       <div key={w.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"4px 0",borderBottom:"1px solid var(--bd2)",fontSize:11}}>
                         <span style={{color:"var(--tx2)"}}>Week {w.week_number}</span>
                         <div style={{display:"flex",gap:8,alignItems:"center"}}>
-                          {w.targets && <span style={{color:"var(--tx3)"}}>T: {typeof w.targets==="object"?JSON.stringify(w.targets):w.targets}</span>}
-                          {w.actuals && <span style={{color:"var(--tx2)"}}>A: {typeof w.actuals==="object"?JSON.stringify(w.actuals):w.actuals}</span>}
-                          {w.passed !== null && <span style={{fontSize:9,padding:"1px 5px",borderRadius:4,fontWeight:600,background:w.passed?"var(--green-bg)":"var(--red-bg)",color:w.passed?"var(--green)":"var(--red)"}}>{w.passed?"Pass":"Fail"}</span>}
+                          {w.target_data && <span style={{color:"var(--tx3)"}}>T: {typeof w.target_data==="object"?JSON.stringify(w.target_data):w.target_data}</span>}
+                          {w.actual_data && <span style={{color:"var(--tx2)"}}>A: {typeof w.actual_data==="object"?JSON.stringify(w.actual_data):w.actual_data}</span>}
+                          {w.met_targets !== null && <span style={{fontSize:9,padding:"1px 5px",borderRadius:4,fontWeight:600,background:w.met_targets?"var(--green-bg)":"var(--red-bg)",color:w.met_targets?"var(--green)":"var(--red)"}}>{w.met_targets?"Pass":"Fail"}</span>}
                         </div>
                       </div>
                     ))}
