@@ -7508,60 +7508,6 @@ function SchedulePage({token, profile, gf}) {
   const [redoStack, setRedoStack] = useState([]);
   const {show, el: toastEl} = useToast();
 
-  // Undo/Redo keyboard handler
-  useEffect(() => {
-    const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
-        e.preventDefault();
-        setUndoStack(prev => {
-          if (prev.length === 0) return prev;
-          const last = prev[prev.length - 1];
-          const rest = prev.slice(0, -1);
-          // Restore the old state
-          (async () => {
-            try {
-              if (last.oldStatus) {
-                await sb.query("qa_attendance", {token, method: "PATCH", body: {status: last.oldStatus, updated_at: new Date().toISOString()}, filters: `email=eq.${last.email}&date=eq.${last.date}`});
-              } else {
-                // Was a new entry — delete it
-                await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${last.email}&date=eq.${last.date}`, {
-                  method: "DELETE", headers: {"apikey": SUPABASE_ANON, "Authorization": `Bearer ${token}`}
-                });
-              }
-              setRedoStack(p => [...p, last]);
-              loadData();
-              show("success", "Undone");
-            } catch (err) { show("error", "Undo failed"); }
-          })();
-          return rest;
-        });
-      }
-      if ((e.metaKey || e.ctrlKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
-        e.preventDefault();
-        setRedoStack(prev => {
-          if (prev.length === 0) return prev;
-          const last = prev[prev.length - 1];
-          const rest = prev.slice(0, -1);
-          (async () => {
-            try {
-              const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
-                method: "POST", headers: {"Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${token}`, "Prefer": "resolution=merge-duplicates,return=minimal"},
-                body: JSON.stringify({email: last.email, date: last.date, status: last.newStatus, created_by: myEmail})
-              });
-              if (!resp.ok) throw new Error();
-              setUndoStack(p => [...p, last]);
-              loadData();
-              show("success", "Redone");
-            } catch (err) { show("error", "Redo failed"); }
-          })();
-          return rest;
-        });
-      }
-    };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [token, myEmail]);
-
   const myEmail = profile?.email?.toLowerCase() || "";
   const isQA = profile?.role === "qa" || profile?.role === "senior_qa";
   const isLead = hasRole(profile?.role, "qa_lead");
@@ -7588,6 +7534,62 @@ function SchedulePage({token, profile, gf}) {
   }, [token, selMonth]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Undo/Redo keyboard handler
+  const tokenRef = useRef(token);
+  const myEmailRef = useRef(myEmail);
+  const loadDataRef = useRef(loadData);
+  useEffect(() => { tokenRef.current = token; myEmailRef.current = myEmail; loadDataRef.current = loadData; });
+  useEffect(() => {
+    const handler = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        setUndoStack(prev => {
+          if (prev.length === 0) return prev;
+          const last = prev[prev.length - 1];
+          const rest = prev.slice(0, -1);
+          (async () => {
+            try {
+              if (last.oldStatus) {
+                await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(last.email)}&date=eq.${last.date}`, {
+                  method: "PATCH", headers: {"Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${tokenRef.current}`},
+                  body: JSON.stringify({status: last.oldStatus, updated_at: new Date().toISOString()})
+                });
+              } else {
+                await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(last.email)}&date=eq.${last.date}`, {
+                  method: "DELETE", headers: {"apikey": SUPABASE_ANON, "Authorization": `Bearer ${tokenRef.current}`}
+                });
+              }
+              setRedoStack(p => [...p, last]);
+              loadDataRef.current();
+            } catch (err) { console.error("Undo failed", err); }
+          })();
+          return rest;
+        });
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+        e.preventDefault();
+        setRedoStack(prev => {
+          if (prev.length === 0) return prev;
+          const last = prev[prev.length - 1];
+          const rest = prev.slice(0, -1);
+          (async () => {
+            try {
+              await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance`, {
+                method: "POST", headers: {"Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${tokenRef.current}`, "Prefer": "resolution=merge-duplicates,return=minimal"},
+                body: JSON.stringify({email: last.email, date: last.date, status: last.newStatus, created_by: myEmailRef.current})
+              });
+              setUndoStack(p => [...p, last]);
+              loadDataRef.current();
+            } catch (err) { console.error("Redo failed", err); }
+          })();
+          return rest;
+        });
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
 
   // Get QA lead emails for filtering
   const [profiles, setProfiles] = useState([]);
