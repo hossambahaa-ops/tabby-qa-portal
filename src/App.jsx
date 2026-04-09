@@ -1157,6 +1157,7 @@ function DashboardPage({profile,token,gf}){
             </>;
           })()}
         </div>}
+      </>}
 
       {/* Completed tasks — collapsed by default, only in list/calendar */}
       {taskView!=="templates"&&doneTasks.length>0&&<div style={{marginTop:12}}>
@@ -1285,7 +1286,6 @@ function DashboardPage({profile,token,gf}){
         </div>}
       </div>}
 
-      </>}
     </div>
 
     {/* ── Task Detail Modal ── */}
