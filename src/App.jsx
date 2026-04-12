@@ -8301,6 +8301,7 @@ function TargetsPage({token, profile}) {
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selTeam, setSelTeam] = useState("Default");
+  const [selDomain, setSelDomain] = useState("all");
   const [editing, setEditing] = useState(null);
   const [editValue, setEditValue] = useState("");
   const {show, el: toastEl} = useToast();
@@ -8343,11 +8344,24 @@ function TargetsPage({token, profile}) {
     return [...names].sort();
   })();
 
-  // Get targets for selected team, falling back to Default
+  // Get targets: team+domain → team+all → Default+domain → Default+all
   const getTarget = (metric) => {
-    const teamTarget = targets.find(t => t.team_name === selTeam && t.metric === metric);
-    if (teamTarget) return teamTarget;
-    if (selTeam !== "Default") return targets.find(t => t.team_name === "Default" && t.metric === metric);
+    const find = (team, dom) => targets.find(t => t.team_name === team && t.domain === dom && t.metric === metric);
+    // Try exact match first
+    const exact = find(selTeam, selDomain);
+    if (exact) return { ...exact, source: "exact" };
+    // Try team + all domains
+    if (selDomain !== "all") {
+      const teamAll = find(selTeam, "all");
+      if (teamAll) return { ...teamAll, source: "team-all" };
+    }
+    // Try Default + domain
+    if (selTeam !== "Default") {
+      const defDom = find("Default", selDomain);
+      if (defDom) return { ...defDom, source: "default-domain" };
+      const defAll = find("Default", "all");
+      if (defAll) return { ...defAll, source: "default" };
+    }
     return null;
   };
 
@@ -8355,14 +8369,14 @@ function TargetsPage({token, profile}) {
     const val = parseFloat(editValue);
     if (isNaN(val)) { show("error", "Invalid number"); return; }
     try {
-      const existing = targets.find(t => t.team_name === selTeam && t.metric === metric);
+      const existing = targets.find(t => t.team_name === selTeam && t.domain === selDomain && t.metric === metric);
       if (existing) {
         await sb.query("team_targets", {token, method:"PATCH", body:{target_value:val, updated_by:myEmail, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
       } else {
         const label = TARGET_METRICS.find(m=>m.key===metric)?.label || metric;
-        await fetch(`${SUPABASE_URL}/rest/v1/team_targets?on_conflict=team_name,metric`, {
+        await fetch(`${SUPABASE_URL}/rest/v1/team_targets?on_conflict=team_name,domain,metric`, {
           method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
-          body:JSON.stringify({team_name:selTeam, metric, target_value:val, target_label:label, updated_by:myEmail})
+          body:JSON.stringify({team_name:selTeam, domain:selDomain, metric, target_value:val, target_label:label, updated_by:myEmail})
         });
       }
       show("success", "Target updated");
@@ -8372,14 +8386,14 @@ function TargetsPage({token, profile}) {
   };
 
   const copyFromDefault = async () => {
-    if (selTeam === "Default") return;
-    confirmAsk("Copy defaults?", `Copy all Default targets to "${selTeam}"? Existing custom targets for this team will be overwritten.`, async () => {
+    if (selTeam === "Default" && selDomain === "all") return;
+    confirmAsk("Copy defaults?", `Copy Default targets to "${selTeam}" (${selDomain})? Existing custom targets will be overwritten.`, async () => {
       try {
-        const defaults = targets.filter(t => t.team_name === "Default");
+        const defaults = targets.filter(t => t.team_name === "Default" && (t.domain === "all" || t.domain === selDomain));
         for (const d of defaults) {
-          await fetch(`${SUPABASE_URL}/rest/v1/team_targets?on_conflict=team_name,metric`, {
+          await fetch(`${SUPABASE_URL}/rest/v1/team_targets?on_conflict=team_name,domain,metric`, {
             method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
-            body:JSON.stringify({team_name:selTeam, metric:d.metric, target_value:d.target_value, target_label:d.target_label, updated_by:myEmail})
+            body:JSON.stringify({team_name:selTeam, domain:selDomain, metric:d.metric, target_value:d.target_value, target_label:d.target_label, updated_by:myEmail})
           });
         }
         show("success", `Copied ${defaults.length} targets to ${selTeam}`);
@@ -8398,37 +8412,55 @@ function TargetsPage({token, profile}) {
         <div className="page-subtitle">Set KPI targets per team — changes apply across the app</div>
       </div>
 
-      {/* Team selector */}
+      {/* Team & Domain selector */}
       <div className="card" style={{padding:"12px 16px",marginBottom:16}}>
-        <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
-          <span style={{fontSize:12,fontWeight:600,color:"var(--tx2)"}}>Team:</span>
-          {teamNames.map(tn => (
-            <button key={tn} onClick={() => setSelTeam(tn)} style={{
-              padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid var(--bd)",fontFamily:"var(--font)",
-              background:selTeam===tn?"var(--tabby-purple)":"transparent",color:selTeam===tn?"#fff":"var(--tx2)",transition:"all .15s"
-            }}>{tn}</button>
-          ))}
-          {selTeam !== "Default" && <button className="btn btn-outline btn-sm" style={{fontSize:10,marginLeft:"auto"}} onClick={copyFromDefault}>Copy from Default</button>}
+        <div style={{display:"flex",gap:16,alignItems:"flex-start",flexWrap:"wrap"}}>
+          <div>
+            <div style={{fontSize:10,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>Team</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {teamNames.map(tn => (
+                <button key={tn} onClick={() => setSelTeam(tn)} style={{
+                  padding:"5px 12px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid var(--bd)",fontFamily:"var(--font)",
+                  background:selTeam===tn?"var(--tabby-purple)":"transparent",color:selTeam===tn?"#fff":"var(--tx2)",transition:"all .15s"
+                }}>{tn}</button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:10,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>Domain</div>
+            <div style={{display:"flex",gap:6}}>
+              {["all","tabby.ai","tabby.sa"].map(d => (
+                <button key={d} onClick={() => setSelDomain(d)} style={{
+                  padding:"5px 12px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid var(--bd)",fontFamily:"var(--font)",
+                  background:selDomain===d?"var(--tabby-purple)":"transparent",color:selDomain===d?"#fff":"var(--tx2)",transition:"all .15s"
+                }}>{d === "all" ? "All domains" : d}</button>
+              ))}
+            </div>
+          </div>
+          {(selTeam !== "Default" || selDomain !== "all") && <button className="btn btn-outline btn-sm" style={{fontSize:10,alignSelf:"flex-end"}} onClick={copyFromDefault}>Copy from Default</button>}
         </div>
       </div>
 
       {/* Targets grid */}
       <div className="card">
         <div className="card-header">
-          <span className="card-title">{selTeam} targets</span>
-          {selTeam !== "Default" && <span style={{fontSize:11,color:"var(--tx3)"}}>Custom values override Default. Unset metrics fall back to Default.</span>}
+          <span className="card-title">{selTeam} targets {selDomain !== "all" ? `(${selDomain})` : ""}</span>
+          {(selTeam !== "Default" || selDomain !== "all") && <span style={{fontSize:11,color:"var(--tx3)"}}>Custom values override Default. Unset metrics fall back to Default.</span>}
         </div>
         <div style={{padding:"0 16px 16px"}}>
           {TARGET_METRICS.map(m => {
             const target = getTarget(m.key);
-            const isCustom = targets.some(t => t.team_name === selTeam && t.metric === m.key);
-            const isDefault = !isCustom && selTeam !== "Default";
+            const isCustom = targets.some(t => t.team_name === selTeam && t.domain === selDomain && t.metric === m.key);
+            const isDefault = !isCustom && (selTeam !== "Default" || selDomain !== "all");
+            const source = target?.source;
             const isEdit = editing === m.key;
             return (
               <div key={m.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid var(--bd)"}}>
                 <div>
                   <div style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{m.label}</div>
-                  {isDefault && <div style={{fontSize:10,color:"var(--tx3)"}}>Using Default value</div>}
+                  {isDefault && <div style={{fontSize:10,color:"var(--tx3)"}}>
+                    {source==="team-all"?"Using team (all domains)":source==="default-domain"?"Using Default ("+selDomain+")":"Using Default"}
+                  </div>}
                   {target?.updated_by && target.updated_by !== "system" && <div style={{fontSize:10,color:"var(--tx3)"}}>Set by {nameFromEmail(target.updated_by)}</div>}
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
