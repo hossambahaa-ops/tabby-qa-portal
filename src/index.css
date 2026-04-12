@@ -478,12 +478,30 @@ tbody tr:hover {
 ::-webkit-scrollbar-thumb:hover { background: var(--tx3); }
 
 /* ── Input focus glow ── */
-.form-input, .select, input[type="date"], textarea {
+.form-input, .select, input[type="date"], input[type="month"], textarea {
   transition: border-color .2s var(--ease), box-shadow .2s var(--ease);
 }
-.form-input:focus, .select:focus, input[type="date"]:focus, textarea:focus {
+.form-input:focus, .select:focus, input[type="date"]:focus, input[type="month"]:focus, textarea:focus {
   border-color: var(--tabby-purple);
   box-shadow: 0 0 0 3px rgba(106,44,121,.08);
+}
+
+/* Make date/month inputs fully clickable */
+input[type="date"], input[type="month"] {
+  cursor: pointer;
+  position: relative;
+}
+input[type="date"]::-webkit-calendar-picker-indicator,
+input[type="month"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
 }
 
 /* ── Checkbox/toggle smooth ── */
