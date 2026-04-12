@@ -2598,9 +2598,9 @@ function ScoreEntryPage({token,profile,gf}){
                   <td style={{textAlign:"right"}}>{avg(l.rtr_scores).toFixed(1)}</td>
                   <td style={{textAlign:"right"}}>{l.obs}</td>
                   <td style={{textAlign:"right"}}>{l.calib}</td>
-                  <td style={{textAlign:"right"}}>{avg(l.completion).toFixed(1)}%</td>
+                  <td style={{textAlign:"right"}}>{(avg(l.completion)*100).toFixed(1)}%</td>
                   <td style={{textAlign:"right"}}>{avg(l.tickets).toFixed(1)}</td>
-                  <td style={{textAlign:"right"}}>{avg(l.occupancy).toFixed(1)}%</td>
+                  <td style={{textAlign:"right"}}>{(avg(l.occupancy)*100).toFixed(1)}%</td>
                   <td style={{textAlign:"right"}}>{l.days}</td>
                   <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)"}}>{l.st_mins?`${Math.floor(l.st_mins/60)}h ${l.st_mins%60}m`:"—"}</td>
                   <td style={{textAlign:"right"}}>
