@@ -364,11 +364,30 @@ const sb = {
     async refresh(rt) { try { const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, { method:"POST", headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"}, body:JSON.stringify({refresh_token:rt}) }); if(!r.ok){localStorage.removeItem("sb_session");return null;} const d=await r.json(); const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user}; localStorage.setItem("sb_session",JSON.stringify(s)); return s; } catch{localStorage.removeItem("sb_session");return null;} },
     signInWithGoogle(){window.location.href=`${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin)}`;},
     async handleCallback(){const h=window.location.hash;if(h&&h.includes("access_token")){const p=new URLSearchParams(h.substring(1));const s={access_token:p.get("access_token"),refresh_token:p.get("refresh_token"),expires_at:Number(p.get("expires_at")),user:null};try{const r=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_ANON,Authorization:`Bearer ${s.access_token}`}});if(r.ok)s.user=await r.json();}catch{}localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}const urlParams=new URLSearchParams(window.location.search);const c=urlParams.get("code");const state=urlParams.get("state");/* Skip Gmail OAuth codes — they are handled by CoachingPage */if(c&&state==="gmail_oauth"){return null;}if(c){try{const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=authorization_code`,{method:"POST",headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"},body:JSON.stringify({auth_code:c,code_verifier:sessionStorage.getItem("code_verifier")||""})});if(r.ok){const d=await r.json();const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user};localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}}catch{}}return null;},
-    signOut(){localStorage.removeItem("sb_session");sessionStorage.clear();window.location.href=window.location.origin;},
+    signOut(){dataCache.invalidate();localStorage.removeItem("sb_session");sessionStorage.clear();window.location.href=window.location.origin;},
   },
 };
 
-const monday=(d)=>{const dt=new Date(d);const day=dt.getDay();const diff=dt.getDate()-day+(day===0?-6:1);dt.setDate(diff);return dt.toISOString().split("T")[0];};
+/* ═══ GLOBAL DATA CACHE — avoids redundant fetches across pages ═══ */
+const dataCache = {
+  _store: {},
+  _ttl: 60000, // 60s cache lifetime
+  get(key) {
+    const entry = this._store[key];
+    if (!entry) return null;
+    if (Date.now() - entry.ts > this._ttl) { delete this._store[key]; return null; }
+    return entry.data;
+  },
+  set(key, data) { this._store[key] = { data, ts: Date.now() }; },
+  invalidate(key) { if (key) delete this._store[key]; else this._store = {}; },
+  async fetch(key, queryFn) {
+    const cached = this.get(key);
+    if (cached) return cached;
+    const data = await queryFn();
+    this.set(key, data);
+    return data;
+  }
+};const monday=(d)=>{const dt=new Date(d);const day=dt.getDay();const diff=dt.getDate()-day+(day===0?-6:1);dt.setDate(diff);return dt.toISOString().split("T")[0];};
 const fmtWeek=(d)=>{if(!d)return"—";const dt=new Date(d+"T00:00:00");return`Week of ${dt.toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;};
 const safeError=(e)=>{const m=e?.message||String(e);console.error("Error:",m);if(m.includes("duplicate key"))return"This record already exists.";if(m.includes("violates foreign key"))return"Related record not found.";if(m.includes("permission denied")||m.includes("new row violates"))return"You don't have permission for this action.";if(m.includes("JWT expired")||m.includes("Invalid JWT"))return"Session expired. Please refresh the page.";if(m.length>100)return"Something went wrong. Please try again.";return m;};
 
@@ -611,15 +630,19 @@ function DashboardPage({profile,token,gf}){
   const scoreBg=(v)=>v>=maxScore*0.7?"var(--green-bg)":v>=maxScore*0.4?"var(--amber-bg)":"var(--red-bg)";
 
   useEffect(()=>{(async()=>{try{
-    const[mtdRows,rosterRows,damFlagsRaw,profs,plans,planWeeks,dismissals,damStepsRaw]=await Promise.all([
-      sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[]),
-      sb.query("qa_roster",{select:"*",token}).catch(()=>[]),
+    // Phase 1: Critical data — use cache for shared tables
+    const[mtdRows,rosterRows,profs]=await Promise.all([
+      dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[])),
+      dataCache.fetch("qa_roster",()=>sb.query("qa_roster",{select:"*",token}).catch(()=>[])),
+      dataCache.fetch("profiles",()=>sb.query("profiles",{select:"id,email,display_name,role,status",filters:"status=eq.active",token}).catch(()=>[])),
+    ]);
+    // Phase 1b: Secondary data (non-blocking for initial render)
+    const[damFlagsRaw,plans,planWeeks,dismissals,damStepsRaw]=await Promise.all([
       sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
-      sb.query("profiles",{select:"id,email,display_name,role,status",filters:"status=eq.active",token}).catch(()=>[]),
-      sb.query("action_plans",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
-      sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
+      dataCache.fetch("action_plans",()=>sb.query("action_plans",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[])),
+      dataCache.fetch("action_plan_weeks",()=>sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[])),
       sb.query("ap_dismissals",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
-      sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action",token}).catch(()=>[]),
+      dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action",token}).catch(()=>[])),
     ]);
     // Build blacklist for non-QA users (both domain variants)
     const nonQaProfsD = profs.filter(p => p.role !== "qa");
@@ -2058,9 +2081,9 @@ function ScoreEntryPage({token,profile,gf}){
     (async () => {
       try {
         const [rows, rosterRows, profRows] = await Promise.all([
-          sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token}),
-          sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[]),
-          sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[]),
+          dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token})),
+          dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[])),
+          dataCache.fetch("profiles_slim",()=>sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[])),
         ]);
         setRoster(rosterRows);
         // Build blacklist: exclude both domain variants of non-QA users
@@ -2276,7 +2299,9 @@ function ScoreEntryPage({token,profile,gf}){
         setUploadResult({ success: true, rowsAffected, rowsCreated, errors: errors.length > 0 ? errors : null });
       }
       setUploadStep("done");
+      dataCache.invalidate("mtd_scores");
       const newRows = await sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token});
+      dataCache.set("mtd_scores", newRows);
       setData(newRows);
     } catch (e) {
       setUploadResult({ success: false, error: e.message });
@@ -2800,6 +2825,7 @@ function AdminUsersPage({token,teams,profile}){
       await sb.query("user_teams",{token,method:"POST",body:{user_id:uid,team_id:tid}}).catch(()=>{});
     }
     logActivity(token, profile?.email, "user_updated", "profiles", uid, `${u?.email}: role=${editRole}, domain=${editOpDomain}, teams=${editTeamIds.length}`);
+    dataCache.invalidate("profiles");dataCache.invalidate("profiles_slim");dataCache.invalidate("profiles_email_role");
     setUsers(prev=>prev.map(x=>x.id===uid?{...x,role:editRole,operational_domain:editOpDomain,team_id:editTeamIds[0]||null}:x));
     setEditingId(null);show("success","Updated");
   }catch(e){show("error",safeError(e));}};
@@ -2911,10 +2937,10 @@ function DAMPage({token,profile,gf}){
 
   const load=useCallback(async()=>{try{
     const[r,f,s,p]=await Promise.all([
-      sb.query("dam_rules",{select:"id,name,description,behavior_type,dam_reference,severity,auditing_flow,executor_role,auditor_role,goal,compliant_action",filters:"is_active=eq.true&order=behavior_type.asc,name.asc",token}),
+      dataCache.fetch("dam_rules",()=>sb.query("dam_rules",{select:"id,name,description,behavior_type,dam_reference,severity,auditing_flow,executor_role,auditor_role,goal,compliant_action",filters:"is_active=eq.true&order=behavior_type.asc,name.asc",token})),
       sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,severity,recommended_action,triggered_at,status,notes,occurrence_number,reviewed_by,reviewed_at,profiles!dam_flags_profile_id_fkey(display_name,email),dam_rules(name,behavior_type,dam_reference)",filters:"order=triggered_at.desc&limit=100",token}).catch(()=>[]),
-      sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action,deduction_days,is_hr_investigation",filters:"order=rule_id.asc,occurrence.asc",token}),
-      sb.query("profiles",{select:"id,display_name,email,role",filters:"status=eq.active",token}),
+      dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action,deduction_days,is_hr_investigation",filters:"order=rule_id.asc,occurrence.asc",token})),
+      dataCache.fetch("profiles",()=>sb.query("profiles",{select:"id,display_name,email,role",filters:"status=eq.active",token})),
     ]);
     setRules(r);
     // Scope flags and profiles by domain for supervisors
@@ -3120,9 +3146,9 @@ function LeaderboardPage({token, profile, gf}) {
     (async () => {
       try {
         const [rows, rosterRows, profRows] = await Promise.all([
-          sb.query("mtd_scores", {select:"*",filters:"order=month.desc,final_performance.desc",token}),
-          sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[]),
-          sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[]),
+          dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", {select:"*",filters:"order=month.desc,final_performance.desc",token})),
+          dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[])),
+          dataCache.fetch("profiles_slim",()=>sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[])),
         ]);
         setData(rows);
         setRoster(rosterRows);
@@ -3990,7 +4016,7 @@ function CoachingPage({token, profile, gf}) {
     (async () => {
       try {
         const [r, s, ap, apw] = await Promise.all([
-          sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch((e)=>{console.error("roster err:",e);return[];}),
+          dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch((e)=>{console.error("roster err:",e);return[];})),
           sb.query("coaching_sessions", {select:"*",filters:"order=created_at.desc&limit=100",token}).catch((e)=>{console.error("sessions err:",e);return[];}),
           sb.query("action_plans", {select:"*",filters:"status=eq.active",token}).catch((e)=>{console.error("ap err:",e);return[];}),
           sb.query("action_plan_weeks", {select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch((e)=>{console.error("apw err:",e);return[];}),
@@ -4898,12 +4924,12 @@ function ActionPlanPage({ token, profile }) {
       const [planRows, weekRows, mtdRows, rosterRows, profRows, dismissalRows, damFlags, damSteps] = await Promise.all([
         sb.query("action_plans", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
         sb.query("action_plan_weeks", { select: "*", filters: "order=plan_id.asc,week_number.asc", token }).catch(() => []),
-        sb.query("mtd_scores", { select: "*", filters: "order=month.desc", token }).catch(() => []),
-        sb.query("qa_roster", { select: "email,display_name,queue,manager_email", token }).catch(() => []),
-        sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => []),
+        dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", { select: "*", filters: "order=month.desc", token }).catch(() => [])),
+        dataCache.fetch("qa_roster",()=>sb.query("qa_roster", { select: "email,display_name,queue,manager_email", token }).catch(() => [])),
+        dataCache.fetch("profiles",()=>sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => [])),
         sb.query("ap_dismissals", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
         sb.query("dam_flags", { select: "id,profile_id,rule_id,occurrence_number,status,notes,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)", filters: "order=triggered_at.desc", token }).catch(() => []),
-        sb.query("dam_escalation_steps", { select: "id,rule_id,occurrence,action,includes_pip,pip_action", token }).catch(() => []),
+        dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps", { select: "id,rule_id,occurrence,action,includes_pip,pip_action", token }).catch(() => [])),
       ]);
       setPlans(planRows);
       setWeeks(weekRows);
@@ -6124,8 +6150,8 @@ function CoachingViolationsPage({token, profile, gf}) {
     try {
       const [v, p, r] = await Promise.all([
         sb.query("coaching_violations", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
-        sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => []),
-        sb.query("dam_rules", { select: "id,name,behavior_type", filters: "is_active=eq.true&order=name.asc", token }).catch(() => []),
+        dataCache.fetch("profiles",()=>sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => [])),
+        dataCache.fetch("dam_rules",()=>sb.query("dam_rules", { select: "id,name,behavior_type", filters: "is_active=eq.true&order=name.asc", token }).catch(() => [])),
       ]);
       // Domain scope for supervisors
       const svDomain = profile?.operational_domain || profile?.domain || "tabby.ai";
@@ -6581,9 +6607,9 @@ function EscalationsPage({ token, profile, gf }) {
     try {
       const [e, r, svProfs, profs] = await Promise.all([
         sb.query("escalations", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
-        sb.query("qa_roster", { select: "email,manager_email,queue,display_name", token }).catch(() => []),
+        dataCache.fetch("qa_roster",()=>sb.query("qa_roster", { select: "email,manager_email,queue,display_name", token }).catch(() => [])),
         sb.query("profiles", { select: "email,display_name,role,operational_domain", filters: "role=eq.qa_supervisor&status=eq.active", token }).catch(() => []),
-        sb.query("profiles", { select: "email,display_name,role,domain", token }).catch(() => []),
+        dataCache.fetch("profiles_all",()=>sb.query("profiles", { select: "email,display_name,role,domain", token }).catch(() => [])),
       ]);
       setRoster(r);
       setSupervisors(svProfs);
@@ -7237,13 +7263,13 @@ function QAProfilePage({token, profile, gf}) {
       try {
         const curMonth = new Date().toISOString().slice(0,7);
         const [r, m, s, ap, t, f, profs, att] = await Promise.all([
-          sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country,hiring_date",token}).catch(()=>[]),
-          sb.query("mtd_scores", {select:"*",filters:"order=month.desc",token}).catch(()=>[]),
+          dataCache.fetch("qa_roster_full",()=>sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country,hiring_date",token}).catch(()=>[])),
+          dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", {select:"*",filters:"order=month.desc",token}).catch(()=>[])),
           sb.query("coaching_sessions", {select:"id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass",filters:"order=session_date.desc",token}).catch(()=>[]),
-          sb.query("action_plans", {select:"id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)",token}).catch(()=>[]),
+          dataCache.fetch("action_plans_full",()=>sb.query("action_plans", {select:"id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)",token}).catch(()=>[])),
           sb.query("tasks", {select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
           sb.query("dam_flags", {select:"id,qa_email,severity,status,triggered_at,occurrence_number,reviewed_by,reviewed_at,notes,dam_rules(name,behavior_type,recommended_action)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
-          sb.query("profiles", {select:"email,role",token}).catch(()=>[]),
+          dataCache.fetch("profiles_email_role",()=>sb.query("profiles", {select:"email,role",token}).catch(()=>[])),
           sb.query("qa_attendance", {select:"email,date,status",filters:`date=gte.${curMonth}-01&order=date.asc`,token}).catch(()=>[]),
         ]);
         setRoster(Array.isArray(r) ? r : []);
@@ -7784,7 +7810,7 @@ function SchedulePage({token, profile, gf}) {
       const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
       const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status`;
       const [r, a1, a2, a3] = await Promise.all([
-        sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country",token}).catch(()=>[]),
+        dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country",token}).catch(()=>[])),
         fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(chunk1End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
         chunk1End < dim ? fetch(`${base}&date=gte.${fmtD(chunk1End+1)}&date=lte.${fmtD(chunk2End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]) : Promise.resolve([]),
         chunk2End < dim ? fetch(`${base}&date=gte.${fmtD(chunk2End+1)}&date=lte.${fmtD(chunk3End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]) : Promise.resolve([]),
