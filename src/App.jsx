@@ -1502,12 +1502,12 @@ function DashboardPage({profile,token,gf}){
           <div style={{display:"flex",alignItems:"center",gap:8}}>
             <span style={{fontSize:12,color:"var(--tx3)"}}>{leadDismissals.length} total</span>
             {hasRole(profile?.role,"super_admin")&&<button className="btn btn-outline btn-sm" style={{color:"var(--red)",fontSize:10}} onClick={async()=>{
-              if(!confirm("Clear ALL dismissal records? This will allow dismissed QAs to be re-detected."))return;
+              confirmAsk("Clear dismissal records?","This will allow dismissed QAs to be re-detected.",async()=>{
               try{
                 for(const d of apDismissals){await sb.query("ap_dismissals",{token,method:"DELETE",filters:`id=eq.${d.id}`});}
                 setApDismissals([]);
               }catch(e){console.error(e);}
-            }}>Clear all</button>}
+            },"Clear all","var(--red)");}}>Clear all</button>}
           </div>
         </div>
         {leadDismissals.slice(0,10).map((d,i)=>(
@@ -1872,6 +1872,7 @@ function DashboardPage({profile,token,gf}){
 function TeamManagementPage({token,profile}){
   const[teams,setTeams]=useState([]);const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[showForm,setShowForm]=useState(false);
   const[form,setForm]=useState({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});const[editId,setEditId]=useState(null);const{show,el}=useToast();
+  const{ask:confirmAsk,el:confirmEl}=useConfirm();
   const load=useCallback(async()=>{try{const[t,u,r]=await Promise.all([
     sb.query("teams",{select:"id,name,domain,lead_id,supervisor_id,profiles!fk_teams_lead(display_name,email),sup:profiles!fk_teams_supervisor(display_name,email)",token}),
     sb.query("profiles",{select:"id,display_name,email,role,domain",token}),
@@ -1907,7 +1908,7 @@ function TeamManagementPage({token,profile}){
 
   const save=async()=>{try{const b={name:form.name,domain:form.domain,lead_id:form.lead_id||null,supervisor_id:form.supervisor_id||null};if(editId){await sb.query("teams",{token,method:"PATCH",body:b,filters:`id=eq.${editId}`});logActivity(token,profile?.email,"team_updated","teams",editId,`Name: ${form.name}`);show("success","Team updated");}else{await sb.query("teams",{token,method:"POST",body:b});logActivity(token,profile?.email,"team_created","teams",null,`Name: ${form.name}, Domain: ${form.domain}`);show("success","Team created");}setShowForm(false);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});load();}catch(e){show("error",safeError(e));}};
   const startEdit=(t)=>{setForm({name:t.name,domain:t.domain,lead_id:t.lead_id||"",supervisor_id:t.supervisor_id||""});setEditId(t.id);setShowForm(true);};
-  const del=async(id)=>{if(!confirm("Delete this team?"))return;try{const t=teams.find(x=>x.id===id);await sb.query("teams",{token,method:"DELETE",filters:`id=eq.${id}`});logActivity(token,profile?.email,"team_deleted","teams",id,`Name: ${t?.name||"?"}`);show("success","Deleted");load();}catch(e){show("error",safeError(e));}};
+  const del=(id)=>{const t=teams.find(x=>x.id===id);confirmAsk("Delete team?",`Delete "${t?.name||"this team"}"?`,async()=>{try{await sb.query("teams",{token,method:"DELETE",filters:`id=eq.${id}`});logActivity(token,profile?.email,"team_deleted","teams",id,`Name: ${t?.name||"?"}`);show("success","Deleted");load();}catch(e){show("error",safeError(e));}},"Delete","var(--red)");};
 
   const [expandedTeam, setExpandedTeam] = useState(null);
   const [filterDomain, setFilterDomain] = useState("");
@@ -2603,23 +2604,25 @@ function ScoreEntryPage({token,profile,gf}){
 
 function AdminUsersPage({token,teams,profile}){
   const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const[editTeamIds,setEditTeamIds]=useState([]);const[userTeamsMap,setUserTeamsMap]=useState({});const[deletingId,setDeletingId]=useState(null);const{show,el}=useToast();
+  const{ask:confirmAsk,el:confirmEl}=useConfirm();
   const isSuperAdmin=profile?.role==="super_admin";
   const deleteUser=async(u)=>{
-    if(!confirm(`Are you sure you want to permanently delete ${u.display_name||u.email}?\n\nThis will remove their profile, auth account, Gmail tokens, team memberships, coaching sessions, and DAM flags.\n\nThis action cannot be undone.`))return;
-    setDeletingId(u.id);
-    try{
-      const resp=await fetch(`https://shuenqmzbrthiiokfzio.supabase.co/functions/v1/user-management`,{
-        method:"POST",
-        headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},
-        body:JSON.stringify({action:"delete_user",target_user_id:u.id,target_email:u.email}),
-      });
-      const data=await resp.json();
-      if(!resp.ok||data.error){show("error",data.error||"Failed to delete user");setDeletingId(null);return;}
-      setUsers(prev=>prev.filter(x=>x.id!==u.id));
-      show("success",`${u.display_name||u.email} deleted`);
-      logActivity(token,profile?.email,"user_deleted","profiles",u.id,`Deleted: ${u.email}`);
-    }catch(e){show("error",safeError(e));}
-    setDeletingId(null);
+    confirmAsk("Delete user?",`Permanently delete ${u.display_name||u.email}? This removes their profile, auth account, tokens, team memberships, sessions, and DAM flags. This cannot be undone.`,async()=>{
+      setDeletingId(u.id);
+      try{
+        const resp=await fetch(`https://shuenqmzbrthiiokfzio.supabase.co/functions/v1/user-management`,{
+          method:"POST",
+          headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},
+          body:JSON.stringify({action:"delete_user",target_user_id:u.id,target_email:u.email}),
+        });
+        const data=await resp.json();
+        if(!resp.ok||data.error){show("error",data.error||"Failed to delete user");setDeletingId(null);return;}
+        setUsers(prev=>prev.filter(x=>x.id!==u.id));
+        show("success",`${u.display_name||u.email} deleted`);
+        logActivity(token,profile?.email,"user_deleted","profiles",u.id,`Deleted: ${u.email}`);
+      }catch(e){show("error",safeError(e));}
+      setDeletingId(null);
+    },"Delete","var(--red)");
   };
   const load=useCallback(async()=>{try{
     const[d,r,ut]=await Promise.all([
@@ -2760,6 +2763,7 @@ function DAMPage({token,profile,gf}){
   const[loading,setLoading]=useState(true);const[showCreate,setShowCreate]=useState(false);
   const[selRule,setSelRule]=useState("");const[selProfile,setSelProfile]=useState("");const[flagNotes,setFlagNotes]=useState("");
   const[profiles,setProfiles]=useState([]);const{show,el}=useToast();
+  const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   const load=useCallback(async()=>{try{
     const[r,f,s,p]=await Promise.all([
@@ -2915,9 +2919,9 @@ function DAMPage({token,profile,gf}){
       <>
       {hasRole(profile?.role,"super_admin")&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
         <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{
-          if(!confirm(`Permanently delete ALL ${flags.length} DAM flag records? This cannot be undone.`))return;
+          confirmAsk("Delete all DAM flags?",`Permanently delete ALL ${flags.length} flag records? This cannot be undone.`,async()=>{
           try{for(const f of flags){await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});}show("success","All DAM flags deleted");setFlags([]);}catch(e){show("error",safeError(e));}
-        }}><Icon d={icons.trash} size={14}/>Clear all history</button>
+        },"Delete all","var(--red)");}}><Icon d={icons.trash} size={14}/>Clear all history</button>
       </div>}
       <div className="table-wrap"><table><thead><tr><th>Person</th><th>Behavior</th><th>Occ.</th><th>Status</th><th>Date</th><th>Notes</th>{hasRole(profile?.role,"super_admin")&&<th></th>}</tr></thead><tbody>
         {flags.map(f=>(<tr key={f.id}>
@@ -2929,15 +2933,16 @@ function DAMPage({token,profile,gf}){
           <td style={{fontSize:12,color:"var(--tx2)",maxWidth:200,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.notes||"—"}</td>
           {hasRole(profile?.role,"super_admin")&&<td>
             <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{
-              if(!confirm("Delete this flag permanently?"))return;
+              confirmAsk("Delete DAM flag?","This will permanently delete this flag.",async()=>{
               try{await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});show("success","Flag deleted");setFlags(prev=>prev.filter(x=>x.id!==f.id));}catch(e){show("error",safeError(e));}
-            }}><Icon d={icons.trash} size={14}/></button>
+            },"Delete","var(--red)");}}><Icon d={icons.trash} size={14}/></button>
           </td>}
         </tr>))}
       </tbody></table></div>
       </>}
     </div>}
     {el}
+    {confirmEl}
   </div>);
 }
 
@@ -3666,6 +3671,7 @@ function CoachingPage({token, profile, gf}) {
   const [activePlans, setActivePlans] = useState([]);
   const [planWeeks, setPlanWeeks] = useState([]);
   const {show, el} = useToast();
+  const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   // Gmail OAuth state
   const [gmailAuthorized, setGmailAuthorized] = useState(false);
@@ -3735,15 +3741,16 @@ function CoachingPage({token, profile, gf}) {
   };
 
   // Disconnect Gmail
-  const disconnectGmail = async () => {
-    if (!confirm("Disconnect Gmail? You'll need to re-authorize to send emails.")) return;
-    try {
-      await callGmailFn({ action: "disconnect" });
-      setGmailAuthorized(false);
-      show("success", "Gmail disconnected");
-    } catch (e) {
-      show("error", "Failed to disconnect Gmail");
-    }
+  const disconnectGmail = () => {
+    confirmAsk("Disconnect Gmail?","You will need to re-authorize to send emails.",async()=>{
+      try {
+        await callGmailFn({ action: "disconnect" });
+        setGmailAuthorized(false);
+        show("success", "Gmail disconnected");
+      } catch (e) {
+        show("error", "Failed to disconnect Gmail");
+      }
+    },"Disconnect","var(--red)");
   };
 
   // Form state
@@ -4602,13 +4609,13 @@ function CoachingPage({token, profile, gf}) {
                   {hasRole(profile?.role,"super_admin")&&<td>
                     <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async(e)=>{
                       e.stopPropagation();
-                      if(!confirm("Delete this coaching session log?"))return;
+                      confirmAsk("Delete coaching session?","This will permanently delete this session log.",async()=>{
                       try{
                         await sb.query("coaching_sessions",{token,method:"DELETE",filters:`id=eq.${s.id}`});
                         setSessions(sessions.filter(x=>x.id!==s.id));
                         show("success","Session deleted");
                       }catch(err){show("error",safeError(err));}
-                    }}><Icon d={icons.trash} size={14}/></button>
+                    },"Delete","var(--red)");}}><Icon d={icons.trash} size={14}/></button>
                   </td>}
                   <td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
                 </tr>
@@ -4649,6 +4656,7 @@ function CoachingPage({token, profile, gf}) {
       </div>}
 
       {el}
+      {confirmEl}
     </div>
   );
 }
@@ -4667,6 +4675,7 @@ function ActionPlanPage({ token, profile }) {
   const [dismissModalAP, setDismissModalAP] = useState(null);
   const [dismissReasonAP, setDismissReasonAP] = useState("");
   const { show, el } = useToast();
+  const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   // ── Create form state ──
   const [selQaEmail, setSelQaEmail] = useState("");
@@ -5744,7 +5753,7 @@ function ActionPlanPage({ token, profile }) {
                       {/* Super admin: hard delete */}
                       {hasRole(profile?.role, "super_admin") && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)", marginLeft: "auto" }} onClick={async (e) => {
                         e.stopPropagation();
-                        if (!confirm(`Permanently delete this ${plan.type.toUpperCase()} for ${nameFromEmail(plan.qa_email)}? This cannot be undone and leaves no trace.`)) return;
+                        confirmAsk(`Delete ${plan.type.toUpperCase()}?`,`Permanently delete this plan for ${nameFromEmail(plan.qa_email)}? This cannot be undone.`,async()=>{
                         try {
                           await sb.query("action_plan_weeks", { token, method: "DELETE", filters: `plan_id=eq.${plan.id}` });
                           await sb.query("action_plans", { token, method: "DELETE", filters: `id=eq.${plan.id}` });
@@ -5752,7 +5761,7 @@ function ActionPlanPage({ token, profile }) {
                           setPlans(prev => prev.filter(p => p.id !== plan.id));
                           setWeeks(prev => prev.filter(w => w.plan_id !== plan.id));
                         } catch (err) { show("error", safeError(err)); }
-                      }}>
+                      },"Delete","var(--red)");}}>
                         <Icon d={icons.trash} size={14} />Delete
                       </button>}
                     </div>
@@ -5828,7 +5837,7 @@ function ActionPlanPage({ token, profile }) {
                     {hasRole(profile?.role, "super_admin") && <td>
                       <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async (e) => {
                         e.stopPropagation();
-                        if (!confirm(`Permanently delete this ${p.type.toUpperCase()} for ${nameFromEmail(p.qa_email)}?`)) return;
+                        confirmAsk(`Delete ${p.type.toUpperCase()}?`,`Permanently delete this plan for ${nameFromEmail(p.qa_email)}?`,async()=>{
                         try {
                           await sb.query("action_plan_weeks", { token, method: "DELETE", filters: `plan_id=eq.${p.id}` });
                           await sb.query("action_plans", { token, method: "DELETE", filters: `id=eq.${p.id}` });
@@ -5836,7 +5845,7 @@ function ActionPlanPage({ token, profile }) {
                           setPlans(prev => prev.filter(x => x.id !== p.id));
                           setWeeks(prev => prev.filter(w => w.plan_id !== p.id));
                         } catch (err) { show("error", safeError(err)); }
-                      }}><Icon d={icons.trash} size={14} /></button>
+                      },"Delete","var(--red)");}}><Icon d={icons.trash} size={14} /></button>
                     </td>}
                   </tr>
                   {/* Expanded tracking detail */}
@@ -5940,6 +5949,7 @@ function ActionPlanPage({ token, profile }) {
       </div>}
 
       {el}
+      {confirmEl}
     </div>
   );
 }
@@ -6402,6 +6412,7 @@ function EscalationsPage({ token, profile, gf }) {
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
   const { show, el } = useToast();
+  const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   // Form state
   const [category, setCategory] = useState("");
@@ -6788,14 +6799,15 @@ function EscalationsPage({ token, profile, gf }) {
 
           {/* Super admin delete */}
           {hasRole(myRole, "super_admin") && <div style={{ borderTop: "1px solid var(--bd)", paddingTop: 12, marginTop: 12 }}>
-            <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async () => {
-              if (!confirm("Permanently delete this escalation?")) return;
-              try {
-                await sb.query("escalations", { token, method: "DELETE", filters: `id=eq.${viewEsc.id}` });
-                show("success", "Deleted");
-                setViewEsc(null);
-                load();
-              } catch (e) { show("error", safeError(e)); }
+            <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={() => {
+              confirmAsk("Delete escalation?","This will permanently delete this escalation.",async()=>{
+                try {
+                  await sb.query("escalations", { token, method: "DELETE", filters: `id=eq.${viewEsc.id}` });
+                  show("success", "Deleted");
+                  setViewEsc(null);
+                  load();
+                } catch (e) { show("error", safeError(e)); }
+              },"Delete","var(--red)");
             }}><Icon d={icons.trash} size={14} /> Delete permanently</button>
           </div>}
 
@@ -6806,6 +6818,7 @@ function EscalationsPage({ token, profile, gf }) {
       </div>}
 
       {el}
+      {confirmEl}
     </div>
   );
 }
