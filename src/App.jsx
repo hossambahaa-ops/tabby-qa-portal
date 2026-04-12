@@ -2004,6 +2004,7 @@ function ScoreEntryPage({token,profile,gf}){
   const [selTL, setSelTL] = useState("");
   const [selDomain, setSelDomain] = useState("");
   const [selTeam, setSelTeam] = useState("");
+  const [mtdView, setMtdView] = useState("qa"); // qa | lead
   // Upload modal state
   const [showUpload, setShowUpload] = useState(false);
   const [uploadStep, setUploadStep] = useState("config"); // config | preview | done
@@ -2376,6 +2377,10 @@ function ScoreEntryPage({token,profile,gf}){
         <div className="card-header">
           <span className="card-title">{selMonth} — {sorted.length} specialists</span>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
+            <div style={{display:"flex",borderRadius:8,border:"1px solid var(--bd)",overflow:"hidden"}}>
+              <button onClick={()=>setMtdView("qa")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:mtdView==="qa"?"var(--tabby-purple)":"transparent",color:mtdView==="qa"?"#fff":"var(--tx3)"}}>By QA</button>
+              <button onClick={()=>setMtdView("lead")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:mtdView==="lead"?"var(--tabby-purple)":"transparent",color:mtdView==="lead"?"#fff":"var(--tx3)"}}>By Lead</button>
+            </div>
             <span style={{fontSize:12,color:"var(--tx3)"}}>Synced: {sorted[0]?.synced_at ? new Date(sorted[0].synced_at).toLocaleString() : "—"}</span>
             <button className="btn btn-outline btn-sm" onClick={()=>{
               const csv=["Specialist,Email,TL,SBS,Non-SBS,DSAT,Late,Never,Valid,Invalid,Sessions,On-time Coaching,Eligible,Not Coached,RTR,RTR Score,Observations,Obs %,Calibrations,Calib %,Completion %,On-time %,JKQ,JKQ Result,Tickets/day,Occupancy %,Working Days,ST Time (mins),ST Time,Performance %"];
@@ -2400,7 +2405,7 @@ function ScoreEntryPage({token,profile,gf}){
             </button>
           </div>
         </div>
-        <div className="table-wrap">
+        {mtdView==="qa"&&<div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -2484,7 +2489,86 @@ function ScoreEntryPage({token,profile,gf}){
               ))}
             </tbody>
           </table>
-        </div>
+        </div>}
+
+        {/* Lead Aggregation View */}
+        {mtdView==="lead"&&(()=>{
+          const leadMap={};
+          sorted.forEach(r=>{
+            const tl=(r.qa_tl||"unknown").toLowerCase();
+            if(!leadMap[tl])leadMap[tl]={tl:r.qa_tl||"Unknown",count:0,sbs:0,non_sbs:0,dsat:0,late:0,never:0,valid:0,invalid:0,sessions:0,ontime:0,eligible:0,not_coached:0,rtr:0,rtr_scores:[],obs:0,obs_scores:[],calib:0,calib_scores:[],completion:[],ontime_pct:[],tickets:[],occupancy:[],days:0,st_mins:0,performance:[]};
+            const l=leadMap[tl];
+            l.count++;l.sbs+=(r.sbs||0);l.non_sbs+=(r.non_sbs||0);l.dsat+=(r.dsat||0);l.late+=(r.late_count||0);l.never+=(r.never_count||0);l.valid+=(r.valid_count||0);l.invalid+=(r.invalid_count||0);
+            l.sessions+=(r.coaching_sessions||0);l.ontime+=(r.total_ontime_coachings||0);l.eligible+=(r.coaching_eligibility_count||0);l.not_coached+=(r.not_coached||0);
+            l.rtr+=(r.rtr_count||0);if(r.avg_rtr_score)l.rtr_scores.push(parseFloat(r.avg_rtr_score)||0);
+            l.obs+=(r.observed_coaching_count||0);if(r.avg_observation_score_pct)l.obs_scores.push(parseFloat(r.avg_observation_score_pct)||0);
+            l.calib+=(r.calibration_count||0);if(r.avg_calibration_match_rate)l.calib_scores.push(parseFloat(r.avg_calibration_match_rate)||0);
+            if(r.coaching_completion_pct)l.completion.push(parseFloat(r.coaching_completion_pct)||0);
+            if(r.ontime_coaching_pct)l.ontime_pct.push(parseFloat(r.ontime_coaching_pct)||0);
+            if(r.ticket_per_day)l.tickets.push(parseFloat(r.ticket_per_day)||0);
+            if(r.occupancy_pct)l.occupancy.push(parseFloat(r.occupancy_pct)||0);
+            l.days+=(r.working_days||0);l.st_mins+=(r.side_tasks_duration_mins||0);
+            if(r.final_performance)l.performance.push(parseFloat(r.final_performance)||0);
+          });
+          const avg=(arr)=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
+          const leads=Object.values(leadMap).sort((a,b)=>avg(b.performance)-avg(a.performance));
+          return <div className="table-wrap"><table>
+            <thead><tr>
+              <th style={{minWidth:160}}>Lead</th>
+              <th style={{textAlign:"right"}}>QAs</th>
+              <th style={{textAlign:"right"}}>SBS</th>
+              <th style={{textAlign:"right"}}>Non-SBS</th>
+              <th style={{textAlign:"right"}}>DSAT</th>
+              <th style={{textAlign:"right"}}>Sessions</th>
+              <th style={{textAlign:"right"}}>On-time</th>
+              <th style={{textAlign:"right"}}>Not coached</th>
+              <th style={{textAlign:"right"}}>RTR</th>
+              <th style={{textAlign:"right"}}>Avg RTR</th>
+              <th style={{textAlign:"right"}}>Obs.</th>
+              <th style={{textAlign:"right"}}>Calib.</th>
+              <th style={{textAlign:"right"}}>Avg Completion</th>
+              <th style={{textAlign:"right"}}>Avg Tickets/d</th>
+              <th style={{textAlign:"right"}}>Avg Occupancy</th>
+              <th style={{textAlign:"right"}}>Total Days</th>
+              <th style={{textAlign:"right"}}>ST Time</th>
+              <th style={{textAlign:"right"}}>Avg Performance</th>
+            </tr></thead>
+            <tbody>
+              {leads.map(l=>{
+                const avgPerf=avg(l.performance);
+                return <tr key={l.tl}>
+                  <td><div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>
+                      {nameFromEmail(l.tl).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
+                    </div>
+                    <div><div style={{fontWeight:600,fontSize:13}}>{nameFromEmail(l.tl)}</div><div style={{fontSize:10,color:"var(--tx3)"}}>{l.count} QA{l.count!==1?"s":""}</div></div>
+                  </div></td>
+                  <td style={{textAlign:"right",fontWeight:600}}>{l.count}</td>
+                  <td style={{textAlign:"right"}}>{l.sbs}</td>
+                  <td style={{textAlign:"right"}}>{l.non_sbs}</td>
+                  <td style={{textAlign:"right",color:l.dsat>0?"var(--red)":"var(--tx3)"}}>{l.dsat}</td>
+                  <td style={{textAlign:"right"}}>{l.sessions}</td>
+                  <td style={{textAlign:"right"}}>{l.ontime}</td>
+                  <td style={{textAlign:"right",color:l.not_coached>0?"var(--red)":"var(--tx3)"}}>{l.not_coached}</td>
+                  <td style={{textAlign:"right"}}>{l.rtr}</td>
+                  <td style={{textAlign:"right"}}>{avg(l.rtr_scores).toFixed(1)}</td>
+                  <td style={{textAlign:"right"}}>{l.obs}</td>
+                  <td style={{textAlign:"right"}}>{l.calib}</td>
+                  <td style={{textAlign:"right"}}>{avg(l.completion).toFixed(1)}%</td>
+                  <td style={{textAlign:"right"}}>{avg(l.tickets).toFixed(1)}</td>
+                  <td style={{textAlign:"right"}}>{avg(l.occupancy).toFixed(1)}%</td>
+                  <td style={{textAlign:"right"}}>{l.days}</td>
+                  <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)"}}>{l.st_mins?`${Math.floor(l.st_mins/60)}h ${l.st_mins%60}m`:"—"}</td>
+                  <td style={{textAlign:"right"}}>
+                    <span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(avgPerf),color:fpColor(avgPerf)}}>
+                      {(avgPerf*100).toFixed(1)}%
+                    </span>
+                  </td>
+                </tr>;
+              })}
+            </tbody>
+          </table></div>;
+        })()}
       </div>
     )}
 
@@ -8127,8 +8211,45 @@ const NAV_ITEMS=[
   {key:"admin",label:"Admin panel",icon:icons.settings,minRole:"admin",section:"System"},
 ];
 
+/* ═══ ERROR BOUNDARY ═══ */
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, info) {
+    console.error("App crash:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return React.createElement("div", {
+        style: { height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0D1117", color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", padding: 24, textAlign: "center" }
+      },
+        React.createElement("svg", { width: 120, height: 40, viewBox: "0 0 200 60", fill: "none" },
+          React.createElement("path", { d: "M0 30 L40 30 L55 8 L75 52 L95 20 L110 30 L200 30", stroke: "#EF4444", strokeWidth: 3, strokeLinecap: "round", strokeLinejoin: "round", fill: "none" })
+        ),
+        React.createElement("div", { style: { marginTop: 20, fontSize: 24, fontWeight: 700 } }, "Something went wrong"),
+        React.createElement("p", { style: { marginTop: 8, color: "rgba(255,255,255,.5)", fontSize: 13, maxWidth: 400 } },
+          "The app encountered an unexpected error. Click below to reload."
+        ),
+        React.createElement("p", { style: { marginTop: 8, color: "rgba(255,255,255,.25)", fontSize: 11, maxWidth: 500, wordBreak: "break-all" } },
+          String(this.state.error?.message || "").slice(0, 200)
+        ),
+        React.createElement("button", {
+          onClick: () => window.location.reload(),
+          style: { marginTop: 24, padding: "10px 28px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #6A2C79, #8B5CF6)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', system-ui, sans-serif" }
+        }, "Reload app")
+      );
+    }
+    return this.props.children;
+  }
+}
+
 /* ═══ APP ═══ */
-export default function App(){
+function AppInner(){
   const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);
   const[page,setPage]=useState(()=>{/* If returning from Gmail OAuth, go back to coaching page */const urlP=new URLSearchParams(window.location.search);if(urlP.get("state")==="gmail_oauth"){return "coaching";}const h=window.location.hash.replace("#","");return h||"dashboard";});
   const[sidebarOpen,setSidebarOpen]=useState(false);
@@ -8336,7 +8457,7 @@ export default function App(){
           </div>
           <input id="avatar-upload" type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
             const file=e.target.files?.[0]; if(!file)return;
-            if(file.size>2*1024*1024){alert("Max 2MB");return;}
+            if(file.size>2*1024*1024){show("error","Image must be under 2MB");return;}
             try{
               const ext=file.name.split(".").pop();
               const path=`${profile.id}.${ext}`;
@@ -8511,4 +8632,8 @@ export default function App(){
 
     </div>
   </div>);
+}
+
+export default function App() {
+  return React.createElement(ErrorBoundary, null, React.createElement(AppInner));
 }
