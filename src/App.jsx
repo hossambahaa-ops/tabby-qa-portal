@@ -7505,6 +7505,47 @@ function QAProfilePage({token, profile, gf}) {
           </div>;})()}
         </div>
 
+        {/* Individual Performance Trend */}
+        {qaMtd.length >= 2 && <div className="card" style={{marginBottom:16}}>
+          <div className="card-header"><span className="card-title">Performance trend</span></div>
+          <div style={{padding:"12px 16px 8px"}}>
+            {(()=>{
+              const trendData = [...qaMtd].reverse().slice(-6);
+              if(trendData.length < 2) return null;
+              const chartH = 100; const chartW = Math.max(300, trendData.length * 70);
+              const maxPerf = Math.max(...trendData.map(d=>(parseFloat(d.final_performance)||0)*100), 1);
+              const points = trendData.map((d, i) => {
+                const x = 35 + i * (chartW - 50) / (trendData.length - 1 || 1);
+                const perf = (parseFloat(d.final_performance) || 0) * 100;
+                const y = chartH - 8 - (perf / Math.max(maxPerf, 50)) * (chartH - 25);
+                return { x, y, perf, month: d.month?.split("-")[0]?.slice(0,3) || "", dsat: d.dsat || 0, occ: parseFloat(d.occupancy_pct) || 0 };
+              });
+              const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x} ${p.y}`).join(" ");
+              const areaPath = line + ` L${points[points.length-1].x} ${chartH-8} L${points[0].x} ${chartH-8} Z`;
+              return <div style={{overflowX:"auto"}}>
+                <svg width={chartW} height={chartH + 25} viewBox={`0 0 ${chartW} ${chartH + 25}`}>
+                  {[0, 25, 50].map(v => { const y = chartH - 8 - (v / Math.max(maxPerf, 50)) * (chartH - 25); return <g key={v}><line x1="30" y1={y} x2={chartW - 5} y2={y} stroke="var(--bd)" strokeWidth="0.5" strokeDasharray="3" /><text x="25" y={y + 3} textAnchor="end" fill="var(--tx3)" fontSize="8">{v}%</text></g>; })}
+                  <path d={areaPath} fill="url(#perfGradArea)" opacity="0.15" />
+                  <path d={line} fill="none" stroke="#3BFF9D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                  {points.map((p, i) => <g key={i}>
+                    <circle cx={p.x} cy={p.y} r="4" fill="#3BFF9D" stroke="var(--bg3)" strokeWidth="2" />
+                    <text x={p.x} y={p.y - 10} textAnchor="middle" fill="#3BFF9D" fontSize="10" fontWeight="700">{p.perf.toFixed(1)}%</text>
+                    <text x={p.x} y={chartH + 15} textAnchor="middle" fill="var(--tx3)" fontSize="9">{p.month}</text>
+                  </g>)}
+                  <defs><linearGradient id="perfGradArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3BFF9D" /><stop offset="100%" stopColor="transparent" /></linearGradient></defs>
+                </svg>
+                <div style={{display:"flex",gap:16,justifyContent:"center",flexWrap:"wrap",marginTop:4}}>
+                  {trendData.map((d, i) => <div key={i} style={{textAlign:"center",fontSize:10,color:"var(--tx3)"}}>
+                    <div style={{fontWeight:600,color:"var(--tx2)"}}>{d.month?.split("-")[0]?.slice(0,3)}</div>
+                    <div>Occ: {d.occupancy_pct||"—"}%</div>
+                    <div style={{color:d.dsat>0?"var(--red)":"var(--tx3)"}}>DSAT: {d.dsat||0}</div>
+                  </div>)}
+                </div>
+              </div>;
+            })()}
+          </div>
+        </div>}
+
         {/* Coaching history — expandable */}
         <div className="card">
           <div className="card-header"><span className="card-title">Coaching sessions ({qaSessions.length})</span></div>
@@ -8240,6 +8281,177 @@ function SchedulePage({token, profile, gf}) {
   );
 }
 
+/* ═══ TARGETS PAGE ═══ */
+const TARGET_METRICS = [
+  {key:"sbs",label:"SBS evaluations / day",type:"number"},
+  {key:"non_sbs",label:"Non-SBS evaluations / day",type:"number"},
+  {key:"occupancy_pct",label:"Occupancy %",type:"percent"},
+  {key:"coaching_completion_pct",label:"Coaching completion %",type:"percent"},
+  {key:"ontime_coaching_pct",label:"On-time coaching %",type:"percent"},
+  {key:"dsat_max",label:"Max DSAT / month",type:"number"},
+  {key:"rtr_count",label:"RTR evaluations / month",type:"number"},
+  {key:"calibration_count",label:"Calibrations / month",type:"number"},
+  {key:"observed_coaching_count",label:"Coaching observations / month",type:"number"},
+  {key:"ticket_per_day",label:"Tickets / day",type:"number"},
+  {key:"final_performance",label:"Final performance score",type:"decimal"},
+];
+
+function TargetsPage({token, profile}) {
+  const [targets, setTargets] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selTeam, setSelTeam] = useState("Default");
+  const [editing, setEditing] = useState(null);
+  const [editValue, setEditValue] = useState("");
+  const {show, el: toastEl} = useToast();
+  const {ask: confirmAsk, el: confirmEl} = useConfirm();
+
+  const isLead = hasRole(profile?.role, "qa_lead");
+  const isAdmin = hasRole(profile?.role, "admin");
+  const myEmail = profile?.email?.toLowerCase() || "";
+
+  const nameFromEmail = (email) => {
+    if (!email) return "—";
+    return email.split("@")[0].split(".").map(p => { const c = p.replace(/[\d]+$/, ""); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ""; }).filter(Boolean).join(" ");
+  };
+
+  const load = useCallback(async () => {
+    try {
+      const [t, tm] = await Promise.all([
+        sb.query("team_targets", {select:"*",filters:"order=team_name.asc,metric.asc",token}).catch(()=>[]),
+        sb.query("teams", {select:"id,name,lead_id,profiles!fk_teams_lead(email)",token}).catch(()=>[]),
+      ]);
+      setTargets(Array.isArray(t) ? t : []);
+      setTeams(Array.isArray(tm) ? tm : []);
+    } catch(e) { console.error("Targets load:", e); }
+    setLoading(false);
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Get team names — leads see their teams + Default, admins see all
+  const teamNames = (() => {
+    const names = new Set(["Default"]);
+    teams.forEach(t => names.add(t.name));
+    if (!isAdmin) {
+      // Leads only see teams they lead
+      const myTeams = teams.filter(t => t.profiles?.email?.toLowerCase() === myEmail);
+      const filtered = new Set(["Default"]);
+      myTeams.forEach(t => filtered.add(t.name));
+      return [...filtered].sort();
+    }
+    return [...names].sort();
+  })();
+
+  // Get targets for selected team, falling back to Default
+  const getTarget = (metric) => {
+    const teamTarget = targets.find(t => t.team_name === selTeam && t.metric === metric);
+    if (teamTarget) return teamTarget;
+    if (selTeam !== "Default") return targets.find(t => t.team_name === "Default" && t.metric === metric);
+    return null;
+  };
+
+  const saveTarget = async (metric) => {
+    const val = parseFloat(editValue);
+    if (isNaN(val)) { show("error", "Invalid number"); return; }
+    try {
+      const existing = targets.find(t => t.team_name === selTeam && t.metric === metric);
+      if (existing) {
+        await sb.query("team_targets", {token, method:"PATCH", body:{target_value:val, updated_by:myEmail, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
+      } else {
+        const label = TARGET_METRICS.find(m=>m.key===metric)?.label || metric;
+        await fetch(`${SUPABASE_URL}/rest/v1/team_targets?on_conflict=team_name,metric`, {
+          method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
+          body:JSON.stringify({team_name:selTeam, metric, target_value:val, target_label:label, updated_by:myEmail})
+        });
+      }
+      show("success", "Target updated");
+      setEditing(null);
+      load();
+    } catch(e) { show("error", safeError(e)); }
+  };
+
+  const copyFromDefault = async () => {
+    if (selTeam === "Default") return;
+    confirmAsk("Copy defaults?", `Copy all Default targets to "${selTeam}"? Existing custom targets for this team will be overwritten.`, async () => {
+      try {
+        const defaults = targets.filter(t => t.team_name === "Default");
+        for (const d of defaults) {
+          await fetch(`${SUPABASE_URL}/rest/v1/team_targets?on_conflict=team_name,metric`, {
+            method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
+            body:JSON.stringify({team_name:selTeam, metric:d.metric, target_value:d.target_value, target_label:d.target_label, updated_by:myEmail})
+          });
+        }
+        show("success", `Copied ${defaults.length} targets to ${selTeam}`);
+        load();
+      } catch(e) { show("error", safeError(e)); }
+    }, "Copy", "var(--tabby-purple)");
+  };
+
+  if (loading) return <div className="page"><PulseLoader/></div>;
+
+  return (
+    <div className="page">
+      {toastEl}{confirmEl}
+      <div className="page-header">
+        <div className="page-title">QA Targets</div>
+        <div className="page-subtitle">Set KPI targets per team — changes apply across the app</div>
+      </div>
+
+      {/* Team selector */}
+      <div className="card" style={{padding:"12px 16px",marginBottom:16}}>
+        <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap"}}>
+          <span style={{fontSize:12,fontWeight:600,color:"var(--tx2)"}}>Team:</span>
+          {teamNames.map(tn => (
+            <button key={tn} onClick={() => setSelTeam(tn)} style={{
+              padding:"6px 14px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",border:"1px solid var(--bd)",fontFamily:"var(--font)",
+              background:selTeam===tn?"var(--tabby-purple)":"transparent",color:selTeam===tn?"#fff":"var(--tx2)",transition:"all .15s"
+            }}>{tn}</button>
+          ))}
+          {selTeam !== "Default" && <button className="btn btn-outline btn-sm" style={{fontSize:10,marginLeft:"auto"}} onClick={copyFromDefault}>Copy from Default</button>}
+        </div>
+      </div>
+
+      {/* Targets grid */}
+      <div className="card">
+        <div className="card-header">
+          <span className="card-title">{selTeam} targets</span>
+          {selTeam !== "Default" && <span style={{fontSize:11,color:"var(--tx3)"}}>Custom values override Default. Unset metrics fall back to Default.</span>}
+        </div>
+        <div style={{padding:"0 16px 16px"}}>
+          {TARGET_METRICS.map(m => {
+            const target = getTarget(m.key);
+            const isCustom = targets.some(t => t.team_name === selTeam && t.metric === m.key);
+            const isDefault = !isCustom && selTeam !== "Default";
+            const isEdit = editing === m.key;
+            return (
+              <div key={m.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid var(--bd)"}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{m.label}</div>
+                  {isDefault && <div style={{fontSize:10,color:"var(--tx3)"}}>Using Default value</div>}
+                  {target?.updated_by && target.updated_by !== "system" && <div style={{fontSize:10,color:"var(--tx3)"}}>Set by {nameFromEmail(target.updated_by)}</div>}
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  {isEdit ? <>
+                    <input type="number" step={m.type==="decimal"?"0.01":"1"} className="form-input" style={{width:80,fontSize:13,padding:"6px 10px",textAlign:"right"}} value={editValue} onChange={e=>setEditValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==="Enter")saveTarget(m.key);if(e.key==="Escape")setEditing(null);}}/>
+                    <button className="btn btn-primary btn-sm" style={{fontSize:10,padding:"4px 10px"}} onClick={()=>saveTarget(m.key)}>Save</button>
+                    <button className="btn btn-outline btn-sm" style={{fontSize:10,padding:"4px 8px"}} onClick={()=>setEditing(null)}>Cancel</button>
+                  </> : <>
+                    <span style={{fontSize:18,fontWeight:700,color:isDefault?"var(--tx3)":"var(--tx)",minWidth:50,textAlign:"right"}}>
+                      {target ? (m.type==="percent"?target.target_value+"%":m.type==="decimal"?(target.target_value*100).toFixed(0)+"%":target.target_value) : "—"}
+                    </span>
+                    <button className="btn btn-outline btn-sm" style={{fontSize:10,padding:"4px 8px"}} onClick={()=>{setEditing(m.key);setEditValue(target?.target_value||"");}}>Edit</button>
+                  </>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ═══ AUDIT TRAIL PAGE ═══ */
 function AuditTrailPage({token, profile}) {
   const [logs, setLogs] = useState([]);
@@ -8382,6 +8594,7 @@ const NAV_ITEMS=[
   {key:"profile",label:"QA Profile",icon:icons.hr},
   {key:"schedule",label:"Schedule",icon:icons.coaching},
   {key:"scores",label:"MTD",icon:icons.scores,section:"Performance"},
+  {key:"targets",label:"Targets",icon:icons.scores,minRole:"qa_lead"},
   {key:"dam",label:"DAM flags",icon:icons.dam,minRole:"qa_lead"},
   {key:"plans",label:"AP / PIP",icon:icons.plan,minRole:"qa_lead"},
   {key:"coaching",label:"Coaching",icon:icons.coaching,minRole:"qa_lead",section:"Management"},
@@ -8582,6 +8795,7 @@ function AppInner(){
   const renderPage=()=>{const t=session.access_token;const p=effectiveProfile;const gf=globalFilters;switch(page){
     case"dashboard":return<DashboardPage profile={p} token={t} gf={gf}/>;
     case"scores":return<ScoreEntryPage token={t} profile={p} gf={gf}/>;
+    case"targets":return<TargetsPage token={t} profile={p}/>;
     case"audit":return hasRole(userRole,"admin")?<AuditTrailPage token={t} profile={p}/>:<PlaceholderPage title="Audit trail" icon={icons.settings} minRole="admin" userRole={userRole}/>;
     case"admin":return hasRole(userRole,"admin")?<AdminPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>;
     case"leaderboard":return<LeaderboardPage token={t} profile={p} gf={gf}/>;
