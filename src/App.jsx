@@ -2670,7 +2670,7 @@ function AdminUsersPage({token,teams,profile}){
         <td>{editingId===u.id?<SearchableSelect options={teams.map(t=>({value:t.id,label:`${t.name} (${t.domain})`}))} value={editTeamIds} onChange={setEditTeamIds} placeholder="Select teams..." multi/>:uTeams.length>0?<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{uTeams.map((n,i)=><span key={i} className="team-tag">{n}</span>)}</div>:<span style={{fontSize:13,color:"var(--tx3)"}}>—</span>}</td>
         <td><span className={`status-badge status-${u.status}`}>{u.status}</span></td>
         <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<div style={{display:"flex",gap:6}}><button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditOpDomain(getOpDomain(u));setEditTeamIds(userTeamsMap[u.id]||[]);}}>Edit</button>{isSuperAdmin&&u.id!==profile?.id&&<button className="btn btn-sm" disabled={deletingId===u.id} onClick={()=>deleteUser(u)} style={{background:"var(--red-bg,#fef2f2)",color:"var(--red,#ef4444)",border:"1px solid var(--red,#ef4444)",fontSize:11,opacity:deletingId===u.id?.5:1}}>{deletingId===u.id?"...":"Delete"}</button>}</div>}</td></tr>);})}
-      </tbody></table></div>}</div>{el}
+      </tbody></table></div>}</div>{el}{confirmEl}
   </div>);
 }
 
