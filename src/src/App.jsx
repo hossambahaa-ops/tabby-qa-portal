@@ -380,6 +380,13 @@ const dataCache = {
   },
   set(key, data) { this._store[key] = { data, ts: Date.now() }; },
   invalidate(key) { if (key) delete this._store[key]; else this._store = {}; },
+  /** Invalidate + notify all listeners to refetch */
+  bust(keys) {
+    if (Array.isArray(keys)) keys.forEach(k => delete this._store[k]);
+    else if (keys) delete this._store[keys];
+    else this._store = {};
+    window.dispatchEvent(new CustomEvent("data-changed"));
+  },
   async fetch(key, queryFn) {
     const cached = this.get(key);
     if (cached) return cached;
@@ -392,6 +399,18 @@ const fmtWeek=(d)=>{if(!d)return"—";const dt=new Date(d+"T00:00:00");return`We
 const safeError=(e)=>{const m=e?.message||String(e);console.error("Error:",m);if(m.includes("duplicate key"))return"This record already exists.";if(m.includes("violates foreign key"))return"Related record not found.";if(m.includes("permission denied")||m.includes("new row violates"))return"You don't have permission for this action.";if(m.includes("JWT expired")||m.includes("Invalid JWT"))return"Session expired. Please refresh the page.";if(m.length>100)return"Something went wrong. Please try again.";return m;};
 
 function useToast(){const[t,setT]=useState(null);const show=(type,msg)=>{setT({type,msg});setTimeout(()=>setT(null),3500);};const el=t?<div className={`toast toast-${t.type}`}>{t.msg}</div>:null;return{show,el};}
+
+/** Auto-refresh hook: re-runs loadFn on data-changed event + interval polling */
+function useAutoRefresh(loadFn, intervalMs = 120000) {
+  const loadRef = useRef(loadFn);
+  useEffect(() => { loadRef.current = loadFn; });
+  useEffect(() => {
+    const onChanged = () => { dataCache.invalidate(); loadRef.current?.(); };
+    window.addEventListener("data-changed", onChanged);
+    const timer = intervalMs > 0 ? setInterval(() => { dataCache.invalidate(); loadRef.current?.(); }, intervalMs) : null;
+    return () => { window.removeEventListener("data-changed", onChanged); if (timer) clearInterval(timer); };
+  }, [intervalMs]);
+}
 
 // In-app confirmation modal hook
 function useConfirm(){
@@ -629,8 +648,7 @@ function DashboardPage({profile,token,gf}){
   const scoreColor=(v)=>v>=maxScore*0.7?"var(--green)":v>=maxScore*0.4?"var(--amber)":"var(--red)";
   const scoreBg=(v)=>v>=maxScore*0.7?"var(--green-bg)":v>=maxScore*0.4?"var(--amber-bg)":"var(--red-bg)";
 
-  useEffect(()=>{(async()=>{try{
-    // Phase 1: Critical data — use cache for shared tables
+  const loadDashboard=useCallback(async()=>{try{
     const[mtdRows,rosterRows,profs]=await Promise.all([
       dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[])),
       dataCache.fetch("qa_roster",()=>sb.query("qa_roster",{select:"*",token}).catch(()=>[])),
@@ -745,7 +763,9 @@ function DashboardPage({profile,token,gf}){
       flagged.sort((a,b)=>a.score-b.score);
       setApDetections(flagged);
     }
-  }catch(e){console.error("Dashboard:",e);}setLoading(false);})();},[token]);
+  }catch(e){console.error("Dashboard:",e);}setLoading(false);},[token]);
+  useEffect(()=>{loadDashboard();},[loadDashboard]);
+  useAutoRefresh(loadDashboard, 120000);
 
   // Load user tasks
   const loadTasks=useCallback(async()=>{try{
@@ -1970,6 +1990,7 @@ function TeamManagementPage({token,profile}){
   }
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   const nameFromEmail=(email)=>{if(!email)return"—";return email.split("@")[0].split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
   const leads=users.filter(u=>hasRole(u.role,"qa_lead")),supervisors=users.filter(u=>hasRole(u.role,"qa_supervisor"));
@@ -2809,6 +2830,7 @@ function AdminUsersPage({token,teams,profile}){
     setUserTeamsMap(map);
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
   const getUserTeamNames=(u)=>{
     const ids=userTeamsMap[u.id]||[];
     const teamNames=ids.map(tid=>{const t=teams.find(x=>x.id===tid);return t?t.name:null;}).filter(Boolean);
@@ -2852,6 +2874,7 @@ function AdminFeedbackPage({token}){
     setItems(d);
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
   const updateStatus=async(id,status)=>{try{
     await sb.query("feedback",{token,method:"PATCH",body:{status},filters:`id=eq.${id}`});
     setItems(prev=>prev.map(x=>x.id===id?{...x,status}:x));
@@ -2956,6 +2979,7 @@ function DAMPage({token,profile,gf}){
   }catch(e){console.error(e);}setLoading(false);},[token]);
 
   useEffect(()=>{load();},[load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   const getStepsForRule=(ruleId)=>steps.filter(s=>s.rule_id===ruleId).sort((a,b)=>a.occurrence-b.occurrence);
   const getOccurrenceCount=(profileId,ruleId)=>flags.filter(f=>f.profile_id===profileId&&f.rule_id===ruleId&&f.status!=="dismissed").length;
@@ -4944,6 +4968,7 @@ function ActionPlanPage({ token, profile }) {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   // ── Auto-detection: DAM-driven — only flag QAs with DAM escalation that includes AP/PIP ──
   const runDetection = (mtdRows, existingPlans, dismissalRows, damFlagRows, damStepRows) => {
@@ -6169,6 +6194,7 @@ function CoachingViolationsPage({token, profile, gf}) {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   const pendingV = violations.filter(v => v.status === "pending");
   const reviewedV = violations.filter(v => v.status !== "pending");
@@ -6627,6 +6653,7 @@ function EscalationsPage({ token, profile, gf }) {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   const mySubmitted = escalations.filter(e => e.submitted_by?.toLowerCase() === myEmail);
   const routedToMe = escalations.filter(e => {
@@ -7000,6 +7027,8 @@ function PlaceholderPage({title,description,icon,minRole,userRole}){const locked
 async function logActivity(token, actor, action, targetType, targetId, details) {
   try {
     await sb.query("activity_log", { token, method: "POST", body: { actor_email: actor, action, target_type: targetType || null, target_id: targetId || null, details: details || null } });
+    // Auto-invalidate cache for the mutated table so other pages get fresh data
+    if (targetType) dataCache.invalidate(targetType);
   } catch {}
 }
 
@@ -8347,6 +8376,7 @@ function TargetsPage({token, profile}) {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   // Get team names — leads see their teams + Default, admins see all
   const teamNames = (() => {
