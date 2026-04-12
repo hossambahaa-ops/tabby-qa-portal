@@ -2408,6 +2408,7 @@ function ScoreEntryPage({token,profile,gf}){
                 <th style={{textAlign:"right"}}>Tickets/d</th>
                 <th style={{textAlign:"right"}}>Occupancy</th>
                 <th style={{textAlign:"right"}}>Days</th>
+                <th style={{textAlign:"right"}}>ST Time</th>
                 <th style={{textAlign:"right"}}>Performance</th>
               </tr>
             </thead>
@@ -2452,6 +2453,7 @@ function ScoreEntryPage({token,profile,gf}){
                   <td style={{textAlign:"right",color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{fmtPct(r.occupancy_pct)}</td>
                   <td style={{textAlign:"right"}}>{r.working_days||"—"}{r.ramadan_wds?<span style={{fontSize:10,color:"var(--tx3)"}}> ({r.ramadan_wds}R)</span>:""}</td>
+                  <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)"}}>{r.side_tasks_duration_mins?`${Math.floor(r.side_tasks_duration_mins/60)}h ${r.side_tasks_duration_mins%60}m`:"—"}</td>
                   <td style={{textAlign:"right"}}>
                     <span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>
                       {((r.final_performance||0)*100).toFixed(1)}%
