@@ -546,10 +546,12 @@ a, [style*="cursor: pointer"], [style*="cursor:pointer"] {
 .pulse-line-anim path {
   stroke-dasharray: 400;
   stroke-dashoffset: 400;
-  animation: drawPulseLine 1.8s ease-in-out forwards, pulseFade 2s ease-in-out 1.8s infinite;
+  animation: drawPulseLine 1.5s ease-in-out infinite;
 }
 @keyframes drawPulseLine {
-  to { stroke-dashoffset: 0; }
+  0% { stroke-dashoffset: 400; opacity: 0.4; }
+  50% { stroke-dashoffset: 0; opacity: 1; }
+  100% { stroke-dashoffset: -400; opacity: 0.4; }
 }
 @keyframes pulseFade {
   0%, 100% { opacity: 1; filter: drop-shadow(0 0 4px rgba(59,255,157,.3)); }

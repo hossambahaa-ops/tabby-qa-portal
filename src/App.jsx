@@ -551,6 +551,16 @@ const SkeletonLoader = ({ rows = 4 }) => (
   </div>
 );
 
+const PulseLoader = () => (
+  <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"48px 20px",gap:12}}>
+    <svg width="120" height="40" viewBox="0 0 200 60" fill="none" className="pulse-line-anim">
+      <path d="M0 30 L40 30 L55 8 L75 52 L95 20 L110 30 L200 30" stroke="url(#plGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <defs><linearGradient id="plGrad" x1="0" y1="0" x2="200" y2="0"><stop offset="0%" stopColor="#3BFF9D"/><stop offset="100%" stopColor="#6A2C79"/></linearGradient></defs>
+    </svg>
+    <div style={{fontSize:12,color:"var(--tx3)",letterSpacing:"1px"}}>Loading...</div>
+  </div>
+);
+
 const GoogleLogo=()=>(<svg width="20" height="20" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>);
 
 /* ═══ PAGES ═══ */
@@ -1033,7 +1043,7 @@ function DashboardPage({profile,token,gf}){
         </div>
       </div>
     </div>
-    {loading?<SkeletonLoader rows={3}/>:<>
+    {loading?<PulseLoader/>:<>
 
     {/* ── User Task Management ── */}
     <div className="card" style={{marginBottom:20}}>
@@ -1933,7 +1943,7 @@ function TeamManagementPage({token,profile}){
       <div className="form-group"><label className="form-label">Supervisor</label><select className="select form-input" value={form.supervisor_id} onChange={e=>setForm({...form,supervisor_id:e.target.value})}><option value="">— Select —</option>{supervisors.map(u=><option key={u.id} value={u.id}>{u.email}</option>)}</select></div></div>
       <div style={{display:"flex",gap:8,marginTop:16}}><button className="btn btn-primary" onClick={save}><Icon d={icons.check} size={16}/>{editId?"Update":"Create"}</button><button className="btn btn-outline" onClick={()=>{setShowForm(false);setEditId(null);}}>Cancel</button></div>
     </div>}
-    <div className="card">{loading?<div className="loading-spinner"><div className="spinner"/></div>:teams.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No teams yet. Teams are auto-created from the roster.</p></div>:
+    <div className="card">{loading?<PulseLoader/>:teams.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No teams yet. Teams are auto-created from the roster.</p></div>:
       (()=>{
         // Build virtual teams: split each queue by email domain
         const virtualTeams=[];
@@ -2277,7 +2287,7 @@ function ScoreEntryPage({token,profile,gf}){
   const fpColor = (v) => v >= 0.4 ? "var(--green)" : v >= 0.25 ? "var(--amber)" : "var(--red)";
   const fpBg = (v) => v >= 0.4 ? "var(--green-bg)" : v >= 0.25 ? "var(--amber-bg)" : "var(--red-bg)";
 
-  if (loading) return <div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
+  if (loading) return <div className="page"><PulseLoader/></div>;
 
   return (<div className="page">
     <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
@@ -2664,7 +2674,7 @@ function AdminUsersPage({token,teams,profile}){
   }catch(e){show("error",safeError(e));}};
   return(<div className="page">
     <div className="page-header"><div className="page-title">User management</div><div className="page-subtitle">{users.length} users</div></div>
-    <div className="card">{loading?<div className="loading-spinner"><div className="spinner"/></div>:
+    <div className="card">{loading?<PulseLoader/>:
       <div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Email domain</th><th>Op. domain</th><th>Teams</th><th>Status</th><th></th></tr></thead><tbody>
         {users.map(u=>{const uTeams=getUserTeamNames(u);return(<tr key={u.id}><td style={{fontWeight:500}}>{u.display_name||"—"}</td><td style={{color:"var(--tx2)",fontSize:13}}>{u.email}</td>
         <td>{editingId===u.id?<SearchableSelect options={Object.entries(ROLE_LABELS).map(([k,v])=>({value:k,label:v}))} value={editRole} onChange={setEditRole} placeholder="Select role"/>:<span className={`role-badge role-${u.role}`}>{ROLE_LABELS[u.role]}</span>}</td>
@@ -2706,7 +2716,7 @@ function AdminFeedbackPage({token}){
         {counts.planned>0&&<div style={{textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:"var(--tabby-purple,#6A2C79)"}}>{counts.planned}</div><div style={{fontSize:10,color:"var(--tx3)",fontWeight:600}}>PLANNED</div></div>}
       </div>}
     </div>
-    {loading?<div className="loading-spinner"><div className="spinner"/></div>:
+    {loading?<PulseLoader/>:
     items.length===0?<div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No feedback yet.</p></div></div>:
     <div className="card"><div className="table-wrap"><table><thead><tr>
       <th style={{width:30}}></th>
@@ -2823,7 +2833,7 @@ function DAMPage({token,profile,gf}){
   const behaviorTypes=[{key:"manipulation",label:"Manipulation",color:"var(--red)"},{key:"performance_management",label:"Performance management",color:"var(--amber)"},{key:"completion_attainment",label:"Completion & attainment",color:"var(--accent-text)"}];
   const statusColors={pending:"var(--amber)",acknowledged:"var(--accent-text)",action_created:"var(--blue)",resolved:"var(--green)",dismissed:"var(--tx3)"};
 
-  if(loading)return<div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
+  if(loading)return<div className="page"><PulseLoader/></div>;
 
   return(<div className="page">
     <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
@@ -3141,7 +3151,7 @@ function LeaderboardPage({token, profile, gf}) {
         </div>}
       </div>
 
-      {loading ? <div className="loading-spinner"><div className="spinner"/></div> : <>
+      {loading ? <PulseLoader/> : <>
 
       <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:20}}>
         <div className="tabs">
@@ -5229,7 +5239,7 @@ function ActionPlanPage({ token, profile }) {
     return "fail";
   };
 
-  if (loading && plans.length === 0) return <div className="page"><div className="loading-spinner"><div className="spinner" /></div></div>;
+  if (loading && plans.length === 0) return <div className="page"><PulseLoader/></div>;
 
   return (
     <div className="page">
@@ -6107,7 +6117,7 @@ function CoachingViolationsPage({token, profile, gf}) {
     return { bg: "var(--bg2)", color: "var(--tx2)" };
   };
 
-  if (loading) return <div className="page"><div className="loading-spinner"><div className="spinner" /></div></div>;
+  if (loading) return <div className="page"><PulseLoader/></div>;
 
   return (
     <div className="page">
@@ -6585,7 +6595,7 @@ function EscalationsPage({ token, profile, gf }) {
     return { bg: "var(--bg2)", color: "var(--tx3)" };
   };
 
-  if (loading) return <div className="page"><div className="loading-spinner"><div className="spinner" /></div></div>;
+  if (loading) return <div className="page"><PulseLoader/></div>;
 
   const routing = getRouting();
 
@@ -7197,7 +7207,7 @@ function QAProfilePage({token, profile, gf}) {
     return n.toFixed(1) + "%";
   };
 
-  if (loading) return <div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
+  if (loading) return <div className="page"><PulseLoader/></div>;
 
   // ═══ LIST VIEW (no QA selected, or QA role sees own profile directly) ═══
   if (!selectedQA && !isQA) return (
@@ -7855,7 +7865,7 @@ function SchedulePage({token, profile, gf}) {
     return counts;
   };
 
-  if (loading) return <div className="page"><div className="loading-spinner"><div className="spinner"/></div></div>;
+  if (loading) return <div className="page"><PulseLoader/></div>;
 
   return (
     <div className="page">
@@ -8220,7 +8230,7 @@ export default function App(){
     </svg>
     <div style={{marginTop:20,fontSize:32,fontWeight:700,color:"#fff",letterSpacing:"-1px"}}>tabby<span style={{background:"linear-gradient(135deg, #3BFF9D, #6A2C79)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Pulse</span></div>
     <p style={{marginTop:6,color:"rgba(255,255,255,.35)",fontSize:12,letterSpacing:"2px",textTransform:"uppercase"}}>QA Performance & Analytics</p>
-    <div className="spinner" style={{marginTop:28}}/>
+    
     <p style={{marginTop:16,color:"rgba(255,255,255,.3)",fontSize:12}}>Loading your workspace...</p>
   </div>;
   if(!session)return(<div className="login-page"><div className="login-card">
