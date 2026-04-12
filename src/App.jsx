@@ -5956,6 +5956,7 @@ function CoachingViolationsPage({token, profile, gf}) {
   const [damRules, setDamRules] = useState([]);
   const [selDamRule, setSelDamRule] = useState("");
   const { show, el } = useToast();
+  const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
   const nameFromEmail = (email) => {
     if (!email) return "—";
@@ -6309,17 +6310,31 @@ function CoachingViolationsPage({token, profile, gf}) {
             {!reviewNotes.trim() && reviewStatus && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>Notes are required</div>}
           </div>
 
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button className="btn btn-primary" onClick={submitReview} disabled={!reviewStatus || !reviewNotes.trim() || (reviewStatus === "valid" && !selDamRule)}>
               {reviewModal.status !== "pending" ? "Update" : "Confirm"}
             </button>
             <button className="btn btn-outline" onClick={() => setReviewModal(null)}>Cancel</button>
+            {reviewModal.status !== "pending" && <button className="btn btn-outline" style={{marginLeft:"auto",color:"var(--amber)",borderColor:"var(--amber)"}} onClick={()=>{
+              confirmAsk("Reopen violation?",`This will set the violation back to "pending" for re-review. The previous decision will be cleared.`,async()=>{
+                try{
+                  await sb.query("coaching_violations",{token,method:"PATCH",body:{status:"pending",reviewed_by:null,reviewed_at:null,review_notes:null},filters:`id=eq.${reviewModal.id}`});
+                  setViolations(prev=>prev.map(v=>v.id===reviewModal.id?{...v,status:"pending",reviewed_by:null,reviewed_at:null,review_notes:null}:v));
+                  show("success","Violation reopened for review");
+                  setReviewModal(null);
+                }catch(e){show("error",safeError(e));}
+              },"Reopen","var(--amber)");
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+              Reopen
+            </button>}
           </div>
         </div>
       </div>;
       })()}
 
       {el}
+      {confirmEl}
     </div>
   );
 }
