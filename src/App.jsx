@@ -1645,6 +1645,50 @@ function DashboardPage({profile,token,gf}){
         </div>;
       })()}
 
+      {/* Score Trend Chart */}
+      {months.length>=2&&<div className="card" style={{marginBottom:20}}>
+        <div className="card-header"><span className="card-title">Performance trend</span><span style={{fontSize:12,color:"var(--tx3)"}}>{months.length} months</span></div>
+        <div style={{padding:"16px 16px 8px"}}>
+          {(()=>{
+            const trendMonths=months.slice(0,6).reverse();
+            // Calculate team avg performance per month
+            const teamData=trendMonths.map(mo=>{
+              const monthRows=mtd.filter(r=>r.month===mo&&allTeamEmails.includes(r.qa_email?.toLowerCase()));
+              const perfs=monthRows.map(r=>parseFloat(r.final_performance)||0).filter(v=>v>0);
+              const avgPerf=perfs.length?perfs.reduce((a,b)=>a+b,0)/perfs.length:0;
+              const totalDsat=monthRows.reduce((a,r)=>a+(r.dsat||0),0);
+              const avgOcc=monthRows.map(r=>parseFloat(r.occupancy_pct)||0).filter(v=>v>0);
+              return{month:mo,label:mo.split("-")[0].slice(0,3),avgPerf:avgPerf*100,dsat:totalDsat,avgOcc:avgOcc.length?avgOcc.reduce((a,b)=>a+b,0)/avgOcc.length:0,count:monthRows.length};
+            });
+            const maxPerf=Math.max(...teamData.map(d=>d.avgPerf),1);
+            const maxDsat=Math.max(...teamData.map(d=>d.dsat),1);
+            const chartH=120;const chartW=Math.max(400,trendMonths.length*80);
+            const perfPoints=teamData.map((d,i)=>{const x=40+i*(chartW-60)/(trendMonths.length-1||1);const y=chartH-10-(d.avgPerf/maxPerf)*(chartH-30);return{x,y,...d};});
+            const dsatPoints=teamData.map((d,i)=>{const x=40+i*(chartW-60)/(trendMonths.length-1||1);const y=chartH-10-(d.dsat/maxDsat)*(chartH-30);return{x,y,...d};});
+            const perfLine=perfPoints.map((p,i)=>`${i===0?"M":"L"}${p.x} ${p.y}`).join(" ");
+            const dsatLine=dsatPoints.map((p,i)=>`${i===0?"M":"L"}${p.x} ${p.y}`).join(" ");
+            return <div style={{overflowX:"auto"}}>
+              <svg width={chartW} height={chartH+30} viewBox={`0 0 ${chartW} ${chartH+30}`}>
+                {/* Grid lines */}
+                {[0,25,50,75,100].map(v=>{const y=chartH-10-(v/maxPerf)*(chartH-30);return <g key={v}><line x1="35" y1={y} x2={chartW-10} y2={y} stroke="var(--bd)" strokeWidth="0.5" strokeDasharray="4"/><text x="30" y={y+4} textAnchor="end" fill="var(--tx3)" fontSize="9">{v}%</text></g>})}
+                {/* Performance line */}
+                <path d={perfLine} fill="none" stroke="#3BFF9D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                {perfPoints.map((p,i)=><g key={i}><circle cx={p.x} cy={p.y} r="4" fill="#3BFF9D" stroke="var(--bg3)" strokeWidth="2"/><text x={p.x} y={p.y-10} textAnchor="middle" fill="#3BFF9D" fontSize="10" fontWeight="700">{p.avgPerf.toFixed(1)}%</text></g>)}
+                {/* DSAT line */}
+                <path d={dsatLine} fill="none" stroke="var(--red)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4"/>
+                {dsatPoints.map((p,i)=><g key={i}><circle cx={p.x} cy={p.y} r="3" fill="var(--red)" stroke="var(--bg3)" strokeWidth="1.5"/></g>)}
+                {/* X axis labels */}
+                {perfPoints.map((p,i)=><text key={i} x={p.x} y={chartH+18} textAnchor="middle" fill="var(--tx3)" fontSize="10" fontWeight="500">{p.label}</text>)}
+              </svg>
+              <div style={{display:"flex",gap:16,justifyContent:"center",marginTop:4,fontSize:11}}>
+                <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:3,borderRadius:2,background:"#3BFF9D",display:"inline-block"}}/>Avg Performance</span>
+                <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:3,borderRadius:2,background:"var(--red)",display:"inline-block",borderTop:"1px dashed var(--red)"}}/>Total DSAT</span>
+              </div>
+            </div>;
+          })()}
+        </div>
+      </div>}
+
       {/* Team members table */}
       {teamSorted.length>0&&<div className="card" style={{marginBottom:20}}>
         <div className="card-header"><span className="card-title">My team — {latestMonth}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{teamSorted.length} specialists</span></div>
@@ -8196,6 +8240,142 @@ function SchedulePage({token, profile, gf}) {
   );
 }
 
+/* ═══ AUDIT TRAIL PAGE ═══ */
+function AuditTrailPage({token, profile}) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filterAction, setFilterAction] = useState("");
+  const [filterActor, setFilterActor] = useState("");
+  const [filterMonth, setFilterMonth] = useState("");
+  const {show, el: toastEl} = useToast();
+
+  const nameFromEmail = (email) => {
+    if (!email) return "—";
+    return email.split("@")[0].split(".").map(p => { const c = p.replace(/[\d]+$/, ""); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ""; }).filter(Boolean).join(" ");
+  };
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // Load both activity_log and audit_trail, exclude super_admin actions
+        const [activities, audits, profs] = await Promise.all([
+          sb.query("activity_log", {select:"*",filters:"order=created_at.desc&limit=500",token}).catch(()=>[]),
+          sb.query("audit_trail", {select:"*",filters:"order=created_at.desc&limit=500",token}).catch(()=>[]),
+          sb.query("profiles", {select:"email,role",token}).catch(()=>[]),
+        ]);
+        // Build super_admin email set to exclude their actions
+        const superAdminEmails = new Set(
+          (Array.isArray(profs)?profs:[]).filter(p=>p.role==="super_admin").map(p=>p.email?.toLowerCase()).filter(Boolean)
+        );
+        // Merge and filter out super_admin actions
+        const merged = [
+          ...(Array.isArray(activities)?activities:[]).map(a=>({
+            id:a.id, type:"activity", actor:a.actor_email, action:a.action, target:a.target_type, target_id:a.target_id, details:a.details, time:a.created_at
+          })),
+          ...(Array.isArray(audits)?audits:[]).map(a=>({
+            id:a.id, type:"audit", actor:a.actor_email, action:a.action, target:a.table_name, target_id:a.record_id, details:JSON.stringify(a.new_data||a.old_data||"").slice(0,200), time:a.created_at
+          })),
+        ].filter(l=>!superAdminEmails.has(l.actor?.toLowerCase()))
+         .sort((a,b)=>new Date(b.time)-new Date(a.time));
+        setLogs(merged);
+      } catch(e) { console.error("Audit load:", e); }
+      setLoading(false);
+    })();
+  }, [token]);
+
+  // Get unique actors and actions for filters
+  const actors = [...new Set(logs.map(l=>l.actor).filter(Boolean))].sort();
+  const actions = [...new Set(logs.map(l=>l.action).filter(Boolean))].sort();
+  const logMonths = [...new Set(logs.map(l=>{const d=new Date(l.time);return d.toLocaleDateString("en-GB",{month:"short",year:"numeric"});}))];
+
+  const filtered = logs.filter(l=>{
+    if(filterAction && l.action !== filterAction) return false;
+    if(filterActor && l.actor !== filterActor) return false;
+    if(filterMonth) {
+      const d=new Date(l.time);
+      if(d.toLocaleDateString("en-GB",{month:"short",year:"numeric"})!==filterMonth) return false;
+    }
+    return true;
+  });
+
+  const actionColor = (action) => {
+    if(action?.includes("delete")) return {bg:"var(--red-bg)",color:"var(--red)"};
+    if(action?.includes("create") || action?.includes("insert")) return {bg:"var(--green-bg)",color:"var(--green)"};
+    if(action?.includes("update") || action?.includes("patch")) return {bg:"var(--blue-bg)",color:"var(--blue)"};
+    if(action?.includes("generate") || action?.includes("sync")) return {bg:"var(--accent-light)",color:"var(--accent-text)"};
+    return {bg:"var(--bg3)",color:"var(--tx3)"};
+  };
+
+  if(loading) return <div className="page"><PulseLoader/></div>;
+
+  return (
+    <div className="page">
+      {toastEl}
+      <div className="page-header">
+        <div className="page-title">Audit Trail</div>
+        <div className="page-subtitle">{filtered.length} actions logged (super admin actions excluded)</div>
+      </div>
+
+      {/* Filters */}
+      <div className="card" style={{padding:"12px 16px",marginBottom:16}}>
+        <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+          <div className="form-group" style={{marginBottom:0,minWidth:140}}>
+            <select className="select form-input" style={{fontSize:11,padding:"6px 10px"}} value={filterMonth} onChange={e=>setFilterMonth(e.target.value)}>
+              <option value="">All months</option>
+              {logMonths.map(m=><option key={m} value={m}>{m}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{marginBottom:0,minWidth:140}}>
+            <select className="select form-input" style={{fontSize:11,padding:"6px 10px"}} value={filterAction} onChange={e=>setFilterAction(e.target.value)}>
+              <option value="">All actions</option>
+              {actions.map(a=><option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+          <div className="form-group" style={{marginBottom:0,minWidth:180}}>
+            <select className="select form-input" style={{fontSize:11,padding:"6px 10px"}} value={filterActor} onChange={e=>setFilterActor(e.target.value)}>
+              <option value="">All users</option>
+              {actors.map(a=><option key={a} value={a}>{nameFromEmail(a)} ({a})</option>)}
+            </select>
+          </div>
+          {(filterMonth||filterAction||filterActor)&&<button className="btn btn-outline btn-sm" style={{fontSize:10}} onClick={()=>{setFilterMonth("");setFilterAction("");setFilterActor("");}}>Clear filters</button>}
+        </div>
+      </div>
+
+      {/* Log entries */}
+      <div className="card">
+        {filtered.length===0?<div style={{padding:40,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No audit entries found</div>:
+        <div className="table-wrap"><table>
+          <thead><tr>
+            <th style={{width:140}}>Time</th>
+            <th style={{width:160}}>User</th>
+            <th style={{width:120}}>Action</th>
+            <th style={{width:100}}>Target</th>
+            <th>Details</th>
+          </tr></thead>
+          <tbody>
+            {filtered.slice(0,200).map(l=>{
+              const ac=actionColor(l.action);
+              return <tr key={l.id}>
+                <td style={{fontSize:11,color:"var(--tx3)",whiteSpace:"nowrap"}}>{new Date(l.time).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</td>
+                <td style={{fontSize:12}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <div style={{width:22,height:22,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:"var(--accent-text)",flexShrink:0}}>{nameFromEmail(l.actor).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}</div>
+                    <span style={{fontSize:12,fontWeight:500}}>{nameFromEmail(l.actor)}</span>
+                  </div>
+                </td>
+                <td><span style={{fontSize:10,padding:"2px 8px",borderRadius:6,fontWeight:600,background:ac.bg,color:ac.color}}>{l.action}</span></td>
+                <td style={{fontSize:11,color:"var(--tx2)"}}>{l.target||"—"}</td>
+                <td style={{fontSize:11,color:"var(--tx3)",maxWidth:300,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{l.details||"—"}</td>
+              </tr>;
+            })}
+          </tbody>
+        </table></div>}
+        {filtered.length>200&&<div style={{padding:12,textAlign:"center",color:"var(--tx3)",fontSize:11}}>Showing 200 of {filtered.length} entries</div>}
+      </div>
+    </div>
+  );
+}
+
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
   {key:"leaderboard",label:"Leaderboard",icon:icons.leaderboard},
@@ -8208,7 +8388,8 @@ const NAV_ITEMS=[
   {key:"violations",label:"Violations",icon:icons.dam,minRole:"qa_lead"},
   {key:"hr",label:"HR cases",icon:icons.hr,minRole:"qa_supervisor"},
   {key:"escalations",label:"Escalations",icon:icons.escalation},
-  {key:"admin",label:"Admin panel",icon:icons.settings,minRole:"admin",section:"System"},
+  {key:"audit",label:"Audit trail",icon:icons.settings,minRole:"admin",section:"System"},
+  {key:"admin",label:"Admin panel",icon:icons.settings,minRole:"admin"},
 ];
 
 /* ═══ ERROR BOUNDARY ═══ */
@@ -8401,6 +8582,7 @@ function AppInner(){
   const renderPage=()=>{const t=session.access_token;const p=effectiveProfile;const gf=globalFilters;switch(page){
     case"dashboard":return<DashboardPage profile={p} token={t} gf={gf}/>;
     case"scores":return<ScoreEntryPage token={t} profile={p} gf={gf}/>;
+    case"audit":return hasRole(userRole,"admin")?<AuditTrailPage token={t} profile={p}/>:<PlaceholderPage title="Audit trail" icon={icons.settings} minRole="admin" userRole={userRole}/>;
     case"admin":return hasRole(userRole,"admin")?<AdminPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>;
     case"leaderboard":return<LeaderboardPage token={t} profile={p} gf={gf}/>;
     case"dam":return (hasRole(userRole,"qa_lead")||userRole==="auditor")?<DAMPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
