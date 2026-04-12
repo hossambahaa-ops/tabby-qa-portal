@@ -6131,13 +6131,12 @@ function CoachingViolationsPage({token, profile, gf}) {
               <th>Violation</th>
               <th>Date</th>
               <th>Link</th>
-              <th></th>
             </tr></thead>
             <tbody>
               {pendingV.map(v => {
                 const vc = violationColor(v.violation_type);
                 return (
-                  <tr key={v.id}>
+                  <tr key={v.id} onClick={() => openReview(v)} style={{cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <td style={{ fontWeight: 500, fontSize: 13 }}>
                       {v.qa_emails?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
                     </td>
@@ -6159,16 +6158,13 @@ function CoachingViolationsPage({token, profile, gf}) {
                     </td>
                     <td style={{ fontSize: 12 }}>
                       <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                        <a href={v.coaching_link} target="_blank" rel="noreferrer" style={{ color: "var(--accent-text)", textDecoration: "underline", fontSize: 12 }}>Open</a>
+                        <a href={v.coaching_link} target="_blank" rel="noreferrer" style={{ color: "var(--accent-text)", textDecoration: "underline", fontSize: 12 }} onClick={e=>e.stopPropagation()}>Open</a>
                         <button className="btn btn-outline btn-sm" style={{ fontSize: 10, padding: "1px 6px" }} onClick={(e) => {
                           e.stopPropagation();
                           navigator.clipboard.writeText(v.coaching_link);
                           show("success", "Link copied!");
                         }}>Copy</button>
                       </div>
-                    </td>
-                    <td>
-                      <button className="btn btn-primary btn-sm" onClick={() => openReview(v)}>Review</button>
                     </td>
                   </tr>
                 );
@@ -6192,13 +6188,12 @@ function CoachingViolationsPage({token, profile, gf}) {
               <th>Reviewed by</th>
               <th>Notes</th>
               <th>Date</th>
-              <th></th>
             </tr></thead>
             <tbody>
               {reviewedV.map(v => {
                 const vc = violationColor(v.violation_type);
                 return (
-                  <tr key={v.id}>
+                  <tr key={v.id} onClick={() => openReview(v)} style={{cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <td style={{ fontWeight: 500, fontSize: 13 }}>
                       {v.qa_emails?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
                     </td>
@@ -6220,19 +6215,6 @@ function CoachingViolationsPage({token, profile, gf}) {
                     <td style={{ fontSize: 12, color: "var(--tx2)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.review_notes || "—"}</td>
                     <td style={{ fontSize: 12, color: "var(--tx2)" }}>
                       {v.reviewed_at ? new Date(v.reviewed_at).toLocaleDateString("en-GB", { month: "short", day: "numeric" }) : "—"}
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", gap: 4 }}>
-                        {hasRole(profile?.role, "qa_lead") && <button className="btn btn-outline btn-sm" onClick={() => openReview(v)}><Icon d={icons.edit} size={14} /></button>}
-                        {hasRole(profile?.role, "super_admin") && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async () => {
-                          if (!confirm("Delete this violation record?")) return;
-                          try {
-                            await sb.query("coaching_violations", { token, method: "DELETE", filters: `id=eq.${v.id}` });
-                            show("success", "Deleted");
-                            load();
-                          } catch (e) { show("error", safeError(e)); }
-                        }}><Icon d={icons.trash} size={14} /></button>}
-                      </div>
                     </td>
                   </tr>
                 );
