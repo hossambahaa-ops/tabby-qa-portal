@@ -344,6 +344,7 @@ tbody tr:hover {
 }
 .nav-item.active {
   position: relative;
+  background: rgba(59, 255, 157, 0.08) !important;
 }
 .nav-item.active::before {
   content: '';
@@ -353,8 +354,9 @@ tbody tr:hover {
   transform: translateY(-50%);
   width: 3px;
   height: 60%;
-  background: var(--tabby-green);
-  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, #3BFF9D, var(--tabby-purple));
+  border-radius: 0 4px 4px 0;
+  box-shadow: 0 0 8px rgba(59, 255, 157, 0.4);
 }
 
 /* ── Tab underline slide ── */
@@ -556,4 +558,48 @@ a, [style*="cursor: pointer"], [style*="cursor:pointer"] {
 @keyframes pulseFade {
   0%, 100% { opacity: 1; filter: drop-shadow(0 0 4px rgba(59,255,157,.3)); }
   50% { opacity: .6; filter: drop-shadow(0 0 8px rgba(59,255,157,.6)); }
+}
+
+/* ═══ UI POLISH ═══ */
+
+/* 2. Table row hover effects */
+table tbody tr {
+  transition: background .15s ease;
+}
+table tbody tr:hover {
+  background: var(--bg) !important;
+}
+
+/* 3. Toast slide-in animation */
+.toast {
+  position: fixed !important;
+  top: 20px !important;
+  right: 20px !important;
+  left: auto !important;
+  bottom: auto !important;
+  z-index: 99999 !important;
+  animation: toastSlideIn .3s ease forwards;
+  max-width: 380px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.3);
+}
+@keyframes toastSlideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+/* 4. Stat card hover */
+.stat-card {
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,.15);
+}
+
+/* 5. Card hover subtle */
+.card {
+  transition: box-shadow .2s ease;
+}
+.card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,.08);
 }

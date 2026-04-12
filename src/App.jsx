@@ -1675,14 +1675,14 @@ function DashboardPage({profile,token,gf}){
                 <path d={perfLine} fill="none" stroke="#3BFF9D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
                 {perfPoints.map((p,i)=><g key={i}><circle cx={p.x} cy={p.y} r="4" fill="#3BFF9D" stroke="var(--bg3)" strokeWidth="2"/><text x={p.x} y={p.y-10} textAnchor="middle" fill="#3BFF9D" fontSize="10" fontWeight="700">{p.avgPerf.toFixed(1)}%</text></g>)}
                 {/* DSAT line */}
-                <path d={dsatLine} fill="none" stroke="var(--red)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4"/>
-                {dsatPoints.map((p,i)=><g key={i}><circle cx={p.x} cy={p.y} r="3" fill="var(--red)" stroke="var(--bg3)" strokeWidth="1.5"/></g>)}
+                <path d={dsatLine} fill="none" stroke="var(--amber)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4"/>
+                {dsatPoints.map((p,i)=><g key={i}><circle cx={p.x} cy={p.y} r="3" fill="var(--amber)" stroke="var(--bg3)" strokeWidth="1.5"/></g>)}
                 {/* X axis labels */}
                 {perfPoints.map((p,i)=><text key={i} x={p.x} y={chartH+18} textAnchor="middle" fill="var(--tx3)" fontSize="10" fontWeight="500">{p.label}</text>)}
               </svg>
               <div style={{display:"flex",gap:16,justifyContent:"center",marginTop:4,fontSize:11}}>
                 <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:3,borderRadius:2,background:"#3BFF9D",display:"inline-block"}}/>Avg Performance</span>
-                <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:3,borderRadius:2,background:"var(--red)",display:"inline-block",borderTop:"1px dashed var(--red)"}}/>Total DSAT</span>
+                <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:3,borderRadius:2,background:"var(--amber)",display:"inline-block",borderTop:"1px dashed var(--amber)"}}/>Total DSAT</span>
               </div>
             </div>;
           })()}
@@ -2358,7 +2358,7 @@ function ScoreEntryPage({token,profile,gf}){
         <div style={{width:1,height:32,background:"var(--bd)"}}/>
         <div style={{textAlign:"center"}}>
           <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>Total DSAT</div>
-          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px",color:sorted.reduce((a,r)=>a+(r.dsat||0),0)>0?"var(--red)":"var(--tx)"}}>{sorted.reduce((a,r)=>a+(r.dsat||0),0)}</div>
+          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px",color:"var(--tx)"}}>{sorted.reduce((a,r)=>a+(r.dsat||0),0)}</div>
         </div>
       </div>}
     </div>
@@ -2590,10 +2590,10 @@ function ScoreEntryPage({token,profile,gf}){
                   <td style={{textAlign:"right",fontWeight:600}}>{l.count}</td>
                   <td style={{textAlign:"right"}}>{l.sbs}</td>
                   <td style={{textAlign:"right"}}>{l.non_sbs}</td>
-                  <td style={{textAlign:"right",color:l.dsat>0?"var(--red)":"var(--tx3)"}}>{l.dsat}</td>
+                  <td style={{textAlign:"right",color:"var(--tx2)"}}>{l.dsat}</td>
                   <td style={{textAlign:"right"}}>{l.sessions}</td>
                   <td style={{textAlign:"right"}}>{l.ontime}</td>
-                  <td style={{textAlign:"right",color:l.not_coached>0?"var(--red)":"var(--tx3)"}}>{l.not_coached}</td>
+                  <td style={{textAlign:"right",color:l.not_coached>0?"var(--amber)":"var(--tx3)"}}>{l.not_coached}</td>
                   <td style={{textAlign:"right"}}>{l.rtr}</td>
                   <td style={{textAlign:"right"}}>{avg(l.rtr_scores).toFixed(1)}</td>
                   <td style={{textAlign:"right"}}>{l.obs}</td>
@@ -3407,7 +3407,7 @@ function LeaderboardPage({token, profile, gf}) {
 
             {/* Extra metrics */}
             <div style={{display:"flex",gap:16,flexWrap:"wrap",marginBottom:16,paddingBottom:12,borderBottom:"1px solid var(--bd2)"}}>
-              <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>DSAT: </span><span style={{fontWeight:600,color:(myRow.dsat||0)>0?"var(--red)":"var(--green)"}}>{myRow.dsat||0}</span></div>
+              <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>DSAT: </span><span style={{fontWeight:600,color:"var(--tx)"}}>{myRow.dsat||0}</span></div>
               <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>Tickets/day: </span><span style={{fontWeight:600}}>{myRow.ticket_per_day||"—"}</span></div>
               <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>JKQ: </span><span style={{fontWeight:600,color:myRow.jkq_result==="Pass"?"var(--green)":myRow.jkq_result==="Missed"?"var(--red)":"var(--tx2)"}}>{myRow.jkq_result||"—"}</span></div>
               <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>Working days: </span><span style={{fontWeight:600}}>{myRow.working_days||"—"}</span></div>
@@ -7499,7 +7499,7 @@ function QAProfilePage({token, profile, gf}) {
             ].map(([label, val], i) => (
               <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<9?"1px solid var(--bd)":"none"}}>
                 <span style={{fontSize:13,color:"var(--tx2)"}}>{label}</span>
-                <span style={{fontSize:13,fontWeight:600,color:label==="DSAT"&&val>0?"var(--red)":"var(--tx)"}}>{val ?? "—"}</span>
+                <span style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{val ?? "—"}</span>
               </div>
             ))}
           </div>;})()}
@@ -7538,7 +7538,7 @@ function QAProfilePage({token, profile, gf}) {
                   {trendData.map((d, i) => <div key={i} style={{textAlign:"center",fontSize:10,color:"var(--tx3)"}}>
                     <div style={{fontWeight:600,color:"var(--tx2)"}}>{d.month?.split("-")[0]?.slice(0,3)}</div>
                     <div>Occ: {d.occupancy_pct||"—"}%</div>
-                    <div style={{color:d.dsat>0?"var(--red)":"var(--tx3)"}}>DSAT: {d.dsat||0}</div>
+                    <div style={{color:"var(--tx3)"}}>DSAT: {d.dsat||0}</div>
                   </div>)}
                 </div>
               </div>;
