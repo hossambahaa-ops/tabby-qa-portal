@@ -7133,9 +7133,11 @@ function QAProfilePage({token, profile, gf}) {
         setTasks(Array.isArray(t) ? t : []);
         setFlags(Array.isArray(f) ? f : []);
         setQaAttendance(Array.isArray(att) ? att : []);
-        // Store qa_lead emails for filtering
-        const leads = (Array.isArray(profs)?profs:[]).filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase());
+        // Store qa_lead emails and all profiles for filtering
+        const allProfs = Array.isArray(profs)?profs:[];
+        const leads = allProfs.filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase());
         window.__qaLeadEmails = new Set(leads);
+        window.__allProfiles = allProfs;
         if (isQA) setSelectedQA(myEmail);
       } catch(e) { console.error("QA Profile load:", e); }
       setLoading(false);
@@ -7148,12 +7150,20 @@ function QAProfilePage({token, profile, gf}) {
   // Build full list: roster + anyone in MTD not in roster — only QAs under the 9 leads
   const allQAs = (() => {
     const map = new Map();
-    // Non-QA emails to exclude
+    // Exclude anyone with a profile role above QA/senior_qa
     const nonQaEmails = new Set();
     (window.__qaLeadEmails || new Set()).forEach(em => { nonQaEmails.add(em); });
+    // Also exclude admins, super_admins, supervisors by checking profiles
+    const excludeRoles = new Set(["qa_lead","qa_supervisor","admin","super_admin"]);
+    (window.__allProfiles || []).filter(p => excludeRoles.has(p.role)).forEach(p => {
+      if (p.email) {
+        nonQaEmails.add(p.email.toLowerCase());
+        nonQaEmails.add(p.email.toLowerCase().split("@")[0]);
+      }
+    });
     roster.forEach(r => {
       const em = r.email?.toLowerCase();
-      if (!em || nonQaEmails.has(em)) return;
+      if (!em || nonQaEmails.has(em) || nonQaEmails.has(em.split("@")[0])) return;
       const mgr = r.manager_email?.toLowerCase();
       if (!mgr) return;
       if (qaLeadSet.has(mgr) || qaLeadSet.has(mgr.split("@")[0])) {
@@ -7162,7 +7172,7 @@ function QAProfilePage({token, profile, gf}) {
     });
     mtd.forEach(m => {
       const em = m.qa_email?.toLowerCase();
-      if (!em || map.has(em) || nonQaEmails.has(em)) return;
+      if (!em || map.has(em) || nonQaEmails.has(em) || nonQaEmails.has(em.split("@")[0])) return;
       const tl = m.qa_tl?.toLowerCase();
       if (tl && (qaLeadSet.has(tl) || qaLeadSet.has(tl.split("@")[0]))) {
         map.set(em, { email: em, manager_email: m.qa_tl, queue: null, country: null });
