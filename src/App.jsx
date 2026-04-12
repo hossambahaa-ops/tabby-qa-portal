@@ -2378,9 +2378,20 @@ function ScoreEntryPage({token,profile,gf}){
           <div style={{display:"flex",alignItems:"center",gap:12}}>
             <span style={{fontSize:12,color:"var(--tx3)"}}>Synced: {sorted[0]?.synced_at ? new Date(sorted[0].synced_at).toLocaleString() : "—"}</span>
             <button className="btn btn-outline btn-sm" onClick={()=>{
-              const csv=["Specialist,Email,TL,Score,Tickets/day,DSAT,Occupancy,RTR,JKQ"];
+              const csv=["Specialist,Email,TL,SBS,Non-SBS,DSAT,Late,Never,Valid,Invalid,Sessions,On-time Coaching,Eligible,Not Coached,RTR,RTR Score,Observations,Obs %,Calibrations,Calib %,Completion %,On-time %,JKQ,JKQ Result,Tickets/day,Occupancy %,Working Days,ST Time (mins),ST Time,Performance %"];
               sorted.forEach(r=>{
-                csv.push(`"${nameFromEmail(r.qa_email)}",${r.qa_email},"${r.qa_tl?nameFromEmail(r.qa_tl):""}",${((r.final_performance||0)*100).toFixed(1)},${r.ticket_per_day||0},${r.dsat||0},${r.occupancy_pct||0},${r.avg_rtr_score||0},${r.jkq_result||""}`);
+                const stMins=r.side_tasks_duration_mins||0;
+                const stFormatted=stMins?`${Math.floor(stMins/60)}h ${stMins%60}m`:"";
+                csv.push([
+                  `"${nameFromEmail(r.qa_email)}"`,r.qa_email,`"${r.qa_tl?nameFromEmail(r.qa_tl):""}"`,
+                  r.sbs||0,r.non_sbs||0,r.dsat||0,r.late_count||0,r.never_count||0,r.valid_count||0,r.invalid_count||0,
+                  r.coaching_sessions||0,r.total_ontime_coachings||0,r.coaching_eligibility_count||0,r.not_coached||0,
+                  r.rtr_count||0,r.avg_rtr_score||0,r.observed_coaching_count||0,r.avg_observation_score_pct||0,
+                  r.calibration_count||0,r.avg_calibration_match_rate||0,
+                  r.coaching_completion_pct||0,r.ontime_coaching_pct||0,
+                  r.jkq_score||"",`"${r.jkq_result||""}"`,r.ticket_per_day||0,r.occupancy_pct||0,
+                  r.working_days||0,stMins,`"${stFormatted}"`,((r.final_performance||0)*100).toFixed(1)
+                ].join(","));
               });
               const blob=new Blob([csv.join("\n")],{type:"text/csv"});
               const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=`performance_${selMonth}.csv`;a.click();
