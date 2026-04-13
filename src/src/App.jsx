@@ -2493,6 +2493,7 @@ function ScoreEntryPage({token,profile,gf}){
               <tr>
                 <th style={{minWidth:160}}>Specialist</th>
                 <th>TL</th>
+                <th style={{textAlign:"right"}}>WDs</th>
                 <th style={{textAlign:"right"}}>SBS</th>
                 <th style={{textAlign:"right"}}>Non-SBS</th>
                 <th style={{textAlign:"right"}}>DSAT</th>
@@ -2515,7 +2516,6 @@ function ScoreEntryPage({token,profile,gf}){
                 <th style={{textAlign:"center"}}>JKQ</th>
                 <th style={{textAlign:"right"}}>Tickets/d</th>
                 <th style={{textAlign:"right"}}>Occupancy</th>
-                <th style={{textAlign:"right"}}>Days</th>
                 <th style={{textAlign:"right"}}>ST Time</th>
                 <th style={{textAlign:"right"}}>Performance</th>
               </tr>
@@ -2534,6 +2534,7 @@ function ScoreEntryPage({token,profile,gf}){
                     </div>
                   </td>
                   <td style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.working_days ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.sbs ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.non_sbs ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.dsat ?? "—"}</td>
@@ -2560,7 +2561,6 @@ function ScoreEntryPage({token,profile,gf}){
                   </td>
                   <td style={{textAlign:"right",color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{fmtPct(r.occupancy_pct)}</td>
-                  <td style={{textAlign:"right"}}>{r.working_days||"—"}{r.ramadan_wds?<span style={{fontSize:10,color:"var(--tx3)"}}> ({r.ramadan_wds}R)</span>:""}</td>
                   <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)"}}>{r.side_tasks_duration_mins?`${Math.floor(r.side_tasks_duration_mins/60)}h ${r.side_tasks_duration_mins%60}m`:"—"}</td>
                   <td style={{textAlign:"right"}}>
                     <span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>
