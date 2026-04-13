@@ -7584,7 +7584,7 @@ function QAProfilePage({token, profile, gf}) {
                 <div style={{display:"flex",gap:16,justifyContent:"center",flexWrap:"wrap",marginTop:4}}>
                   {trendData.map((d, i) => <div key={i} style={{textAlign:"center",fontSize:10,color:"var(--tx3)"}}>
                     <div style={{fontWeight:600,color:"var(--tx2)"}}>{d.month?.split("-")[0]?.slice(0,3)}</div>
-                    <div>Occ: {d.occupancy_pct||"—"}%</div>
+                    <div>Occ: {d.occupancy_pct ? (parseFloat(d.occupancy_pct) > 2 ? parseFloat(d.occupancy_pct).toFixed(1) : (parseFloat(d.occupancy_pct)*100).toFixed(1)) : "—"}%</div>
                     <div style={{color:"var(--tx3)"}}>DSAT: {d.dsat||0}</div>
                   </div>)}
                 </div>
