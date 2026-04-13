@@ -131,14 +131,6 @@ if (!document.querySelector('link[rel="manifest"]')) {
   metaStatus.name = "apple-mobile-web-app-status-bar-style";
   metaStatus.content = "black-translucent";
   document.head.appendChild(metaStatus);
-  // Override favicon
-  const existingFav = document.querySelector('link[rel="icon"]');
-  if (existingFav) existingFav.remove();
-  const favicon = document.createElement("link");
-  favicon.rel = "icon";
-  favicon.type = "image/svg+xml";
-  favicon.href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%236A2C79'/%3E%3Crect x='12' y='50' width='18' height='38' rx='4' fill='%233BFF9D'/%3E%3Crect x='41' y='28' width='18' height='60' rx='4' fill='%233BFF9D' opacity='.8'/%3E%3Crect x='70' y='12' width='18' height='76' rx='4' fill='%233BFF9D' opacity='.6'/%3E%3C/svg%3E";
-  document.head.appendChild(favicon);
 }
 
 /* ═══ ROLE SYSTEM ═══ */
@@ -372,15 +364,53 @@ const sb = {
     async refresh(rt) { try { const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, { method:"POST", headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"}, body:JSON.stringify({refresh_token:rt}) }); if(!r.ok){localStorage.removeItem("sb_session");return null;} const d=await r.json(); const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user}; localStorage.setItem("sb_session",JSON.stringify(s)); return s; } catch{localStorage.removeItem("sb_session");return null;} },
     signInWithGoogle(){window.location.href=`${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin)}`;},
     async handleCallback(){const h=window.location.hash;if(h&&h.includes("access_token")){const p=new URLSearchParams(h.substring(1));const s={access_token:p.get("access_token"),refresh_token:p.get("refresh_token"),expires_at:Number(p.get("expires_at")),user:null};try{const r=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_ANON,Authorization:`Bearer ${s.access_token}`}});if(r.ok)s.user=await r.json();}catch{}localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}const urlParams=new URLSearchParams(window.location.search);const c=urlParams.get("code");const state=urlParams.get("state");/* Skip Gmail OAuth codes — they are handled by CoachingPage */if(c&&state==="gmail_oauth"){return null;}if(c){try{const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=authorization_code`,{method:"POST",headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"},body:JSON.stringify({auth_code:c,code_verifier:sessionStorage.getItem("code_verifier")||""})});if(r.ok){const d=await r.json();const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user};localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}}catch{}}return null;},
-    signOut(){localStorage.removeItem("sb_session");sessionStorage.clear();window.location.href=window.location.origin;},
+    signOut(){dataCache.invalidate();localStorage.removeItem("sb_session");sessionStorage.clear();window.location.href=window.location.origin;},
   },
 };
 
-const monday=(d)=>{const dt=new Date(d);const day=dt.getDay();const diff=dt.getDate()-day+(day===0?-6:1);dt.setDate(diff);return dt.toISOString().split("T")[0];};
+/* ═══ GLOBAL DATA CACHE — avoids redundant fetches across pages ═══ */
+const dataCache = {
+  _store: {},
+  _ttl: 60000, // 60s cache lifetime
+  get(key) {
+    const entry = this._store[key];
+    if (!entry) return null;
+    if (Date.now() - entry.ts > this._ttl) { delete this._store[key]; return null; }
+    return entry.data;
+  },
+  set(key, data) { this._store[key] = { data, ts: Date.now() }; },
+  invalidate(key) { if (key) delete this._store[key]; else this._store = {}; },
+  /** Invalidate + notify all listeners to refetch */
+  bust(keys) {
+    if (Array.isArray(keys)) keys.forEach(k => delete this._store[k]);
+    else if (keys) delete this._store[keys];
+    else this._store = {};
+    window.dispatchEvent(new CustomEvent("data-changed"));
+  },
+  async fetch(key, queryFn) {
+    const cached = this.get(key);
+    if (cached) return cached;
+    const data = await queryFn();
+    this.set(key, data);
+    return data;
+  }
+};const monday=(d)=>{const dt=new Date(d);const day=dt.getDay();const diff=dt.getDate()-day+(day===0?-6:1);dt.setDate(diff);return dt.toISOString().split("T")[0];};
 const fmtWeek=(d)=>{if(!d)return"—";const dt=new Date(d+"T00:00:00");return`Week of ${dt.toLocaleDateString("en-US",{month:"short",day:"numeric"})}`;};
 const safeError=(e)=>{const m=e?.message||String(e);console.error("Error:",m);if(m.includes("duplicate key"))return"This record already exists.";if(m.includes("violates foreign key"))return"Related record not found.";if(m.includes("permission denied")||m.includes("new row violates"))return"You don't have permission for this action.";if(m.includes("JWT expired")||m.includes("Invalid JWT"))return"Session expired. Please refresh the page.";if(m.length>100)return"Something went wrong. Please try again.";return m;};
 
 function useToast(){const[t,setT]=useState(null);const show=(type,msg)=>{setT({type,msg});setTimeout(()=>setT(null),3500);};const el=t?<div className={`toast toast-${t.type}`}>{t.msg}</div>:null;return{show,el};}
+
+/** Auto-refresh hook: re-runs loadFn on data-changed event + interval polling */
+function useAutoRefresh(loadFn, intervalMs = 120000) {
+  const loadRef = useRef(loadFn);
+  useEffect(() => { loadRef.current = loadFn; });
+  useEffect(() => {
+    const onChanged = () => { dataCache.invalidate(); loadRef.current?.(); };
+    window.addEventListener("data-changed", onChanged);
+    const timer = intervalMs > 0 ? setInterval(() => { dataCache.invalidate(); loadRef.current?.(); }, intervalMs) : null;
+    return () => { window.removeEventListener("data-changed", onChanged); if (timer) clearInterval(timer); };
+  }, [intervalMs]);
+}
 
 // In-app confirmation modal hook
 function useConfirm(){
@@ -618,16 +648,19 @@ function DashboardPage({profile,token,gf}){
   const scoreColor=(v)=>v>=maxScore*0.7?"var(--green)":v>=maxScore*0.4?"var(--amber)":"var(--red)";
   const scoreBg=(v)=>v>=maxScore*0.7?"var(--green-bg)":v>=maxScore*0.4?"var(--amber-bg)":"var(--red-bg)";
 
-  useEffect(()=>{(async()=>{try{
-    const[mtdRows,rosterRows,damFlagsRaw,profs,plans,planWeeks,dismissals,damStepsRaw]=await Promise.all([
-      sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[]),
-      sb.query("qa_roster",{select:"*",token}).catch(()=>[]),
+  const loadDashboard=useCallback(async()=>{try{
+    const[mtdRows,rosterRows,profs]=await Promise.all([
+      dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[])),
+      dataCache.fetch("qa_roster",()=>sb.query("qa_roster",{select:"*",token}).catch(()=>[])),
+      dataCache.fetch("profiles",()=>sb.query("profiles",{select:"id,email,display_name,role,status",filters:"status=eq.active",token}).catch(()=>[])),
+    ]);
+    // Phase 1b: Secondary data (non-blocking for initial render)
+    const[damFlagsRaw,plans,planWeeks,dismissals,damStepsRaw]=await Promise.all([
       sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
-      sb.query("profiles",{select:"id,email,display_name,role,status",filters:"status=eq.active",token}).catch(()=>[]),
-      sb.query("action_plans",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
-      sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[]),
+      dataCache.fetch("action_plans",()=>sb.query("action_plans",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[])),
+      dataCache.fetch("action_plan_weeks",()=>sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[])),
       sb.query("ap_dismissals",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
-      sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action",token}).catch(()=>[]),
+      dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action",token}).catch(()=>[])),
     ]);
     // Build blacklist for non-QA users (both domain variants)
     const nonQaProfsD = profs.filter(p => p.role !== "qa");
@@ -730,7 +763,9 @@ function DashboardPage({profile,token,gf}){
       flagged.sort((a,b)=>a.score-b.score);
       setApDetections(flagged);
     }
-  }catch(e){console.error("Dashboard:",e);}setLoading(false);})();},[token]);
+  }catch(e){console.error("Dashboard:",e);}setLoading(false);},[token]);
+  useEffect(()=>{loadDashboard();},[loadDashboard]);
+  useAutoRefresh(loadDashboard, 120000);
 
   // Load user tasks
   const loadTasks=useCallback(async()=>{try{
@@ -1955,6 +1990,7 @@ function TeamManagementPage({token,profile}){
   }
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   const nameFromEmail=(email)=>{if(!email)return"—";return email.split("@")[0].split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
   const leads=users.filter(u=>hasRole(u.role,"qa_lead")),supervisors=users.filter(u=>hasRole(u.role,"qa_supervisor"));
@@ -2066,9 +2102,9 @@ function ScoreEntryPage({token,profile,gf}){
     (async () => {
       try {
         const [rows, rosterRows, profRows] = await Promise.all([
-          sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token}),
-          sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[]),
-          sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[]),
+          dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token})),
+          dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[])),
+          dataCache.fetch("profiles_slim",()=>sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[])),
         ]);
         setRoster(rosterRows);
         // Build blacklist: exclude both domain variants of non-QA users
@@ -2284,7 +2320,9 @@ function ScoreEntryPage({token,profile,gf}){
         setUploadResult({ success: true, rowsAffected, rowsCreated, errors: errors.length > 0 ? errors : null });
       }
       setUploadStep("done");
+      dataCache.invalidate("mtd_scores");
       const newRows = await sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token});
+      dataCache.set("mtd_scores", newRows);
       setData(newRows);
     } catch (e) {
       setUploadResult({ success: false, error: e.message });
@@ -2455,6 +2493,7 @@ function ScoreEntryPage({token,profile,gf}){
               <tr>
                 <th style={{minWidth:160}}>Specialist</th>
                 <th>TL</th>
+                <th style={{textAlign:"right"}}>WDs</th>
                 <th style={{textAlign:"right"}}>SBS</th>
                 <th style={{textAlign:"right"}}>Non-SBS</th>
                 <th style={{textAlign:"right"}}>DSAT</th>
@@ -2477,7 +2516,6 @@ function ScoreEntryPage({token,profile,gf}){
                 <th style={{textAlign:"center"}}>JKQ</th>
                 <th style={{textAlign:"right"}}>Tickets/d</th>
                 <th style={{textAlign:"right"}}>Occupancy</th>
-                <th style={{textAlign:"right"}}>Days</th>
                 <th style={{textAlign:"right"}}>ST Time</th>
                 <th style={{textAlign:"right"}}>Performance</th>
               </tr>
@@ -2496,6 +2534,7 @@ function ScoreEntryPage({token,profile,gf}){
                     </div>
                   </td>
                   <td style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
+                  <td style={{textAlign:"right"}}>{r.working_days ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.sbs ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.non_sbs ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.dsat ?? "—"}</td>
@@ -2522,7 +2561,6 @@ function ScoreEntryPage({token,profile,gf}){
                   </td>
                   <td style={{textAlign:"right",color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{fmtPct(r.occupancy_pct)}</td>
-                  <td style={{textAlign:"right"}}>{r.working_days||"—"}{r.ramadan_wds?<span style={{fontSize:10,color:"var(--tx3)"}}> ({r.ramadan_wds}R)</span>:""}</td>
                   <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)"}}>{r.side_tasks_duration_mins?`${Math.floor(r.side_tasks_duration_mins/60)}h ${r.side_tasks_duration_mins%60}m`:"—"}</td>
                   <td style={{textAlign:"right"}}>
                     <span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>
@@ -2792,6 +2830,7 @@ function AdminUsersPage({token,teams,profile}){
     setUserTeamsMap(map);
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
   const getUserTeamNames=(u)=>{
     const ids=userTeamsMap[u.id]||[];
     const teamNames=ids.map(tid=>{const t=teams.find(x=>x.id===tid);return t?t.name:null;}).filter(Boolean);
@@ -2808,6 +2847,7 @@ function AdminUsersPage({token,teams,profile}){
       await sb.query("user_teams",{token,method:"POST",body:{user_id:uid,team_id:tid}}).catch(()=>{});
     }
     logActivity(token, profile?.email, "user_updated", "profiles", uid, `${u?.email}: role=${editRole}, domain=${editOpDomain}, teams=${editTeamIds.length}`);
+    dataCache.invalidate("profiles");dataCache.invalidate("profiles_slim");dataCache.invalidate("profiles_email_role");
     setUsers(prev=>prev.map(x=>x.id===uid?{...x,role:editRole,operational_domain:editOpDomain,team_id:editTeamIds[0]||null}:x));
     setEditingId(null);show("success","Updated");
   }catch(e){show("error",safeError(e));}};
@@ -2834,6 +2874,7 @@ function AdminFeedbackPage({token}){
     setItems(d);
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
   const updateStatus=async(id,status)=>{try{
     await sb.query("feedback",{token,method:"PATCH",body:{status},filters:`id=eq.${id}`});
     setItems(prev=>prev.map(x=>x.id===id?{...x,status}:x));
@@ -2919,10 +2960,10 @@ function DAMPage({token,profile,gf}){
 
   const load=useCallback(async()=>{try{
     const[r,f,s,p]=await Promise.all([
-      sb.query("dam_rules",{select:"id,name,description,behavior_type,dam_reference,severity,auditing_flow,executor_role,auditor_role,goal,compliant_action",filters:"is_active=eq.true&order=behavior_type.asc,name.asc",token}),
+      dataCache.fetch("dam_rules",()=>sb.query("dam_rules",{select:"id,name,description,behavior_type,dam_reference,severity,auditing_flow,executor_role,auditor_role,goal,compliant_action",filters:"is_active=eq.true&order=behavior_type.asc,name.asc",token})),
       sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,severity,recommended_action,triggered_at,status,notes,occurrence_number,reviewed_by,reviewed_at,profiles!dam_flags_profile_id_fkey(display_name,email),dam_rules(name,behavior_type,dam_reference)",filters:"order=triggered_at.desc&limit=100",token}).catch(()=>[]),
-      sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action,deduction_days,is_hr_investigation",filters:"order=rule_id.asc,occurrence.asc",token}),
-      sb.query("profiles",{select:"id,display_name,email,role",filters:"status=eq.active",token}),
+      dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action,deduction_days,is_hr_investigation",filters:"order=rule_id.asc,occurrence.asc",token})),
+      dataCache.fetch("profiles",()=>sb.query("profiles",{select:"id,display_name,email,role",filters:"status=eq.active",token})),
     ]);
     setRules(r);
     // Scope flags and profiles by domain for supervisors
@@ -2938,6 +2979,7 @@ function DAMPage({token,profile,gf}){
   }catch(e){console.error(e);}setLoading(false);},[token]);
 
   useEffect(()=>{load();},[load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   const getStepsForRule=(ruleId)=>steps.filter(s=>s.rule_id===ruleId).sort((a,b)=>a.occurrence-b.occurrence);
   const getOccurrenceCount=(profileId,ruleId)=>flags.filter(f=>f.profile_id===profileId&&f.rule_id===ruleId&&f.status!=="dismissed").length;
@@ -3128,9 +3170,9 @@ function LeaderboardPage({token, profile, gf}) {
     (async () => {
       try {
         const [rows, rosterRows, profRows] = await Promise.all([
-          sb.query("mtd_scores", {select:"*",filters:"order=month.desc,final_performance.desc",token}),
-          sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[]),
-          sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[]),
+          dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", {select:"*",filters:"order=month.desc,final_performance.desc",token})),
+          dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[])),
+          dataCache.fetch("profiles_slim",()=>sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[])),
         ]);
         setData(rows);
         setRoster(rosterRows);
@@ -3998,7 +4040,7 @@ function CoachingPage({token, profile, gf}) {
     (async () => {
       try {
         const [r, s, ap, apw] = await Promise.all([
-          sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch((e)=>{console.error("roster err:",e);return[];}),
+          dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch((e)=>{console.error("roster err:",e);return[];})),
           sb.query("coaching_sessions", {select:"*",filters:"order=created_at.desc&limit=100",token}).catch((e)=>{console.error("sessions err:",e);return[];}),
           sb.query("action_plans", {select:"*",filters:"status=eq.active",token}).catch((e)=>{console.error("ap err:",e);return[];}),
           sb.query("action_plan_weeks", {select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch((e)=>{console.error("apw err:",e);return[];}),
@@ -4906,12 +4948,12 @@ function ActionPlanPage({ token, profile }) {
       const [planRows, weekRows, mtdRows, rosterRows, profRows, dismissalRows, damFlags, damSteps] = await Promise.all([
         sb.query("action_plans", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
         sb.query("action_plan_weeks", { select: "*", filters: "order=plan_id.asc,week_number.asc", token }).catch(() => []),
-        sb.query("mtd_scores", { select: "*", filters: "order=month.desc", token }).catch(() => []),
-        sb.query("qa_roster", { select: "email,display_name,queue,manager_email", token }).catch(() => []),
-        sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => []),
+        dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", { select: "*", filters: "order=month.desc", token }).catch(() => [])),
+        dataCache.fetch("qa_roster",()=>sb.query("qa_roster", { select: "email,display_name,queue,manager_email", token }).catch(() => [])),
+        dataCache.fetch("profiles",()=>sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => [])),
         sb.query("ap_dismissals", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
         sb.query("dam_flags", { select: "id,profile_id,rule_id,occurrence_number,status,notes,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)", filters: "order=triggered_at.desc", token }).catch(() => []),
-        sb.query("dam_escalation_steps", { select: "id,rule_id,occurrence,action,includes_pip,pip_action", token }).catch(() => []),
+        dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps", { select: "id,rule_id,occurrence,action,includes_pip,pip_action", token }).catch(() => [])),
       ]);
       setPlans(planRows);
       setWeeks(weekRows);
@@ -4926,6 +4968,7 @@ function ActionPlanPage({ token, profile }) {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   // ── Auto-detection: DAM-driven — only flag QAs with DAM escalation that includes AP/PIP ──
   const runDetection = (mtdRows, existingPlans, dismissalRows, damFlagRows, damStepRows) => {
@@ -6132,8 +6175,8 @@ function CoachingViolationsPage({token, profile, gf}) {
     try {
       const [v, p, r] = await Promise.all([
         sb.query("coaching_violations", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
-        sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => []),
-        sb.query("dam_rules", { select: "id,name,behavior_type", filters: "is_active=eq.true&order=name.asc", token }).catch(() => []),
+        dataCache.fetch("profiles",()=>sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => [])),
+        dataCache.fetch("dam_rules",()=>sb.query("dam_rules", { select: "id,name,behavior_type", filters: "is_active=eq.true&order=name.asc", token }).catch(() => [])),
       ]);
       // Domain scope for supervisors
       const svDomain = profile?.operational_domain || profile?.domain || "tabby.ai";
@@ -6151,6 +6194,7 @@ function CoachingViolationsPage({token, profile, gf}) {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   const pendingV = violations.filter(v => v.status === "pending");
   const reviewedV = violations.filter(v => v.status !== "pending");
@@ -6589,9 +6633,9 @@ function EscalationsPage({ token, profile, gf }) {
     try {
       const [e, r, svProfs, profs] = await Promise.all([
         sb.query("escalations", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
-        sb.query("qa_roster", { select: "email,manager_email,queue,display_name", token }).catch(() => []),
+        dataCache.fetch("qa_roster",()=>sb.query("qa_roster", { select: "email,manager_email,queue,display_name", token }).catch(() => [])),
         sb.query("profiles", { select: "email,display_name,role,operational_domain", filters: "role=eq.qa_supervisor&status=eq.active", token }).catch(() => []),
-        sb.query("profiles", { select: "email,display_name,role,domain", token }).catch(() => []),
+        dataCache.fetch("profiles_all",()=>sb.query("profiles", { select: "email,display_name,role,domain", token }).catch(() => [])),
       ]);
       setRoster(r);
       setSupervisors(svProfs);
@@ -6609,6 +6653,7 @@ function EscalationsPage({ token, profile, gf }) {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   const mySubmitted = escalations.filter(e => e.submitted_by?.toLowerCase() === myEmail);
   const routedToMe = escalations.filter(e => {
@@ -6982,6 +7027,8 @@ function PlaceholderPage({title,description,icon,minRole,userRole}){const locked
 async function logActivity(token, actor, action, targetType, targetId, details) {
   try {
     await sb.query("activity_log", { token, method: "POST", body: { actor_email: actor, action, target_type: targetType || null, target_id: targetId || null, details: details || null } });
+    // Auto-invalidate cache for the mutated table so other pages get fresh data
+    if (targetType) dataCache.invalidate(targetType);
   } catch {}
 }
 
@@ -7245,13 +7292,13 @@ function QAProfilePage({token, profile, gf}) {
       try {
         const curMonth = new Date().toISOString().slice(0,7);
         const [r, m, s, ap, t, f, profs, att] = await Promise.all([
-          sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country,hiring_date",token}).catch(()=>[]),
-          sb.query("mtd_scores", {select:"*",filters:"order=month.desc",token}).catch(()=>[]),
+          dataCache.fetch("qa_roster_full",()=>sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country,hiring_date",token}).catch(()=>[])),
+          dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", {select:"*",filters:"order=month.desc",token}).catch(()=>[])),
           sb.query("coaching_sessions", {select:"id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass",filters:"order=session_date.desc",token}).catch(()=>[]),
-          sb.query("action_plans", {select:"id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)",token}).catch(()=>[]),
+          dataCache.fetch("action_plans_full",()=>sb.query("action_plans", {select:"id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)",token}).catch(()=>[])),
           sb.query("tasks", {select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
           sb.query("dam_flags", {select:"id,qa_email,severity,status,triggered_at,occurrence_number,reviewed_by,reviewed_at,notes,dam_rules(name,behavior_type,recommended_action)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
-          sb.query("profiles", {select:"email,role",token}).catch(()=>[]),
+          dataCache.fetch("profiles_email_role",()=>sb.query("profiles", {select:"email,role",token}).catch(()=>[])),
           sb.query("qa_attendance", {select:"email,date,status",filters:`date=gte.${curMonth}-01&order=date.asc`,token}).catch(()=>[]),
         ]);
         setRoster(Array.isArray(r) ? r : []);
@@ -7792,7 +7839,7 @@ function SchedulePage({token, profile, gf}) {
       const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
       const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status`;
       const [r, a1, a2, a3] = await Promise.all([
-        sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country",token}).catch(()=>[]),
+        dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country",token}).catch(()=>[])),
         fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(chunk1End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
         chunk1End < dim ? fetch(`${base}&date=gte.${fmtD(chunk1End+1)}&date=lte.${fmtD(chunk2End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]) : Promise.resolve([]),
         chunk2End < dim ? fetch(`${base}&date=gte.${fmtD(chunk2End+1)}&date=lte.${fmtD(chunk3End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]) : Promise.resolve([]),
@@ -8329,6 +8376,7 @@ function TargetsPage({token, profile}) {
   }, [token]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
   // Get team names — leads see their teams + Default, admins see all
   const teamNames = (() => {
@@ -8693,6 +8741,18 @@ function AppInner(){
   const[feedbackSent,setFeedbackSent]=useState(false);
   // Persist page in URL hash
   useEffect(()=>{window.location.hash=page;},[page]);
+  // Dynamic page title
+  useEffect(()=>{
+    const item=NAV_ITEMS.find(n=>n.key===page);
+    document.title=item?`${item.label} — Tabby Pulse`:"Tabby Pulse";
+  },[page]);
+  // Set favicon on mount
+  useEffect(()=>{
+    let link=document.querySelector("link[rel='icon']");
+    if(!link){link=document.createElement("link");link.rel="icon";document.head.appendChild(link);}
+    link.type="image/svg+xml";
+    link.href="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3BFF9D"/><stop offset="100%" stop-color="#8B5CF6"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="#0d1117"/><path d="M3 16 L8 16 L11 7 L16 25 L21 12 L24 16 L29 16" stroke="url(#fg)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>');
+  },[]);
   useEffect(()=>{const onHash=()=>{const h=window.location.hash.replace("#","");if(h)setPage(h);};window.addEventListener("hashchange",onHash);return()=>window.removeEventListener("hashchange",onHash);},[]);
   // Persist sidebar collapse
   useEffect(()=>{localStorage.setItem("sb_collapsed",sidebarCollapsed);},[sidebarCollapsed]);
@@ -8913,7 +8973,7 @@ function AppInner(){
     <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} teams={[]} roster={globalRoster} profile={effectiveProfile} role={userRole}/>
     {/* Search overlay */}
     {showSearch&&<GlobalSearch token={session.access_token} onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
-    {renderPage()}
+    <div key={page} className="page-animate">{renderPage()}</div>
 
     {/* ═══ ANNOUNCEMENT POPUP — blocks until acknowledged ═══ */}
     {pendingAnnouncements.length>0&&<div style={{
