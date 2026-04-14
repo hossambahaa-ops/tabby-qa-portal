@@ -726,14 +726,21 @@ function DashboardPage({profile,token,gf}){
     setMtd(normalizedMtd2);setRoster(filteredRoster);setAppProfiles(profs);setDamCount(damFlagsRaw.filter(f=>f.status==="pending").length);
     setProfileCount({qas:filteredRoster.length,leads:[...new Set(filteredRoster.map(r=>r.manager_email).filter(Boolean))].length,active:profs.length});
     setApPlans(plans);setApWeeks(planWeeks);setApDismissals(dismissals);
-    // Load today's attendance + daily scores
+    // Load today's attendance + daily scores + teams for task assignment
     try{const todayStr=new Date().toISOString().split("T")[0];
-      const[att,ds]=await Promise.all([
+      const[att,ds,teamsData]=await Promise.all([
         sb.query("qa_attendance",{select:"email,status",filters:`date=eq.${todayStr}`,token}).catch(()=>[]),
         sb.query("daily_scores",{select:"*",filters:`date=eq.${todayStr}`,token}).catch(()=>[]),
+        dataCache.fetch("teams_hierarchy",()=>sb.query("teams",{select:"name,domain,profiles!fk_teams_lead(email),sup:profiles!fk_teams_supervisor(email)",token}).catch(()=>[])),
       ]);
       setTodayAttendance(Array.isArray(att)?att:[]);
       setDailyScores(Array.isArray(ds)?ds:[]);
+      // Store teams data for supervisor→lead mapping in task assignment
+      window.__teamsData=(Array.isArray(teamsData)?teamsData:[]).map(tm=>({
+        name:tm.name,domain:tm.domain,
+        lead_email:tm.profiles?.email||null,
+        supervisor_email:tm.sup?.email||null,
+      }));
     }catch{}
 
     // Auto-detection for TL dashboard alert — DAM-driven
@@ -848,12 +855,22 @@ function DashboardPage({profile,token,gf}){
       if(tpl.assign_to_type==="specific_person"&&tpl.assign_to_value){
         assignees=[tpl.assign_to_value.toLowerCase()];
       }else if(tpl.assign_to_type==="my_team"){
-        const myTeam=roster.filter(r=>r.manager_email?.toLowerCase()===myEmail).map(r=>r.email?.toLowerCase()).filter(Boolean);
+        const myLocal=myEmail.split("@")[0];
+        const myTeam=roster.filter(r=>{const mgr=r.manager_email?.toLowerCase()||"";return mgr===myEmail||mgr.split("@")[0]===myLocal;}).map(r=>r.email?.toLowerCase()).filter(Boolean);
         if(myTeam.length>0){
           assignees=myTeam;
         }else if(hasRole(profile?.role,"admin")){
           assignees=roster.filter(r=>leadSet.has(r.manager_email?.toLowerCase())).map(r=>r.email?.toLowerCase()).filter(Boolean);
         }
+      }else if(tpl.assign_to_type==="my_leads"){
+        // Supervisor: assign to QA leads they supervise
+        const myLocal=myEmail.split("@")[0];
+        const myLeads=new Set();
+        (window.__teamsData||[]).forEach(tm=>{
+          const sv=tm.supervisor_email?.toLowerCase()||"";
+          if(sv===myEmail||sv.split("@")[0]===myLocal){if(tm.lead_email)myLeads.add(tm.lead_email.toLowerCase());}
+        });
+        assignees=[...myLeads];
       }else if(tpl.assign_to_type==="all_qa"){
         assignees=roster.filter(r=>leadSet.has(r.manager_email?.toLowerCase())).map(r=>r.email?.toLowerCase()).filter(Boolean);
       }
@@ -1157,7 +1174,69 @@ function DashboardPage({profile,token,gf}){
           </div>
           {(hasRole(profile?.role,"qa_lead"))&&<div className="form-group">
             <label className="form-label">Assign to</label>
-            <SearchableSelect options={(()=>{const seen=new Set();const opts=[];const myEm=profile?.email?.toLowerCase()||"";const isLeadOnly=hasRole(profile?.role,"qa_lead")&&!hasRole(profile?.role,"qa_supervisor");roster.forEach(r=>{const em=r.email?.toLowerCase();if(!em||seen.has(em))return;if(isLeadOnly&&r.manager_email?.toLowerCase()!==myEm)return;seen.add(em);opts.push({value:em,label:em+` — ${nameFromEmail(em)} (${r.queue||"QA"})`});});if(!isLeadOnly){appProfiles.forEach(p=>{const em=p.email?.toLowerCase();if(!em||seen.has(em))return;seen.add(em);opts.push({value:em,label:em+` — ${p.display_name||nameFromEmail(em)} (${ROLE_LABELS[p.role]||p.role})`});});}return opts.sort((a,b)=>a.label.localeCompare(b.label));})()}
+            <SearchableSelect options={(()=>{
+              const seen=new Set();const opts=[];
+              const myEm=profile?.email?.toLowerCase()||"";
+              const myRole=profile?.role;
+              const myLocal=myEm.split("@")[0];
+              // Build supervisor → leads mapping from teams table
+              // QA Lead: only their team members from roster
+              if(myRole==="qa_lead"){
+                roster.forEach(r=>{
+                  const em=r.email?.toLowerCase();if(!em||seen.has(em))return;
+                  const mgr=r.manager_email?.toLowerCase()||"";
+                  if(mgr===myEm||mgr===myLocal||mgr.split("@")[0]===myLocal){
+                    seen.add(em);opts.push({value:em,label:`${nameFromEmail(em)} — ${r.queue||"QA"}`});
+                  }
+                });
+              }
+              // QA Supervisor: their leads (from teams where supervisor = me) + those leads' QAs
+              else if(myRole==="qa_supervisor"){
+                // Find leads I supervise
+                const myLeadEmails=new Set();
+                const allTeams=window.__teamsData||[];
+                allTeams.forEach(tm=>{
+                  const svEm=tm.supervisor_email?.toLowerCase()||"";
+                  if(svEm===myEm||svEm.split("@")[0]===myLocal){
+                    if(tm.lead_email)myLeadEmails.add(tm.lead_email.toLowerCase());
+                  }
+                });
+                // Add leads themselves
+                myLeadEmails.forEach(leadEm=>{
+                  if(!seen.has(leadEm)){
+                    seen.add(leadEm);
+                    const p=appProfiles.find(x=>x.email?.toLowerCase()===leadEm);
+                    opts.push({value:leadEm,label:`${p?.display_name||nameFromEmail(leadEm)} — QA Lead`});
+                  }
+                });
+                // Add QAs managed by those leads
+                roster.forEach(r=>{
+                  const em=r.email?.toLowerCase();if(!em||seen.has(em))return;
+                  const mgr=r.manager_email?.toLowerCase()||"";
+                  if(myLeadEmails.has(mgr)||myLeadEmails.has(mgr.split("@")[0])){
+                    seen.add(em);opts.push({value:em,label:`${nameFromEmail(em)} — ${r.queue||"QA"}`});
+                  }
+                });
+              }
+              // Admin/Super Admin: everyone (with Amanda exception for Imad)
+              else if(hasRole(myRole,"admin")){
+                const isAmanda=myEm==="amanda.souza@tabby.ai";
+                appProfiles.forEach(p=>{
+                  const em=p.email?.toLowerCase();if(!em||seen.has(em))return;
+                  if(em===myEm)return; // Don't assign to yourself
+                  if(isAmanda&&em==="imad.moussa@tabby.ai")return; // Amanda can't assign to Imad
+                  seen.add(em);
+                  opts.push({value:em,label:`${p.display_name||nameFromEmail(em)} — ${ROLE_LABELS[p.role]||p.role}`});
+                });
+                // Also add roster members not in profiles
+                roster.forEach(r=>{
+                  const em=r.email?.toLowerCase();if(!em||seen.has(em))return;
+                  if(isAmanda&&em==="imad.moussa@tabby.ai")return;
+                  seen.add(em);opts.push({value:em,label:`${nameFromEmail(em)} — ${r.queue||"QA"}`});
+                });
+              }
+              return opts.sort((a,b)=>a.label.localeCompare(b.label));
+            })()}
               value={taskForm.assigned_to} onChange={v=>setTaskForm({...taskForm,assigned_to:v})} placeholder="Assign to someone..."/>
           </div>}
         </div>
@@ -1363,13 +1442,30 @@ function DashboardPage({profile,token,gf}){
             </div>
             <div className="form-group"><label className="form-label">Assign to</label>
               <select className="select form-input" value={tplForm.assign_to_type} onChange={e=>setTplForm({...tplForm,assign_to_type:e.target.value,assign_to_value:""})}>
-                <option value="my_team">My entire team</option><option value="specific_person">Specific person</option>
+                <option value="my_team">My team (QAs I manage)</option>
+                <option value="specific_person">Specific person</option>
+                {hasRole(profile?.role,"qa_supervisor")&&<option value="my_leads">My QA leads</option>}
                 {hasRole(profile?.role,"qa_supervisor")&&<option value="all_qa">All QAs</option>}
-                {hasRole(profile?.role,"admin")&&!hasRole(profile?.role,"qa_supervisor")&&<option value="all_qa">All QAs</option>}
+                {hasRole(profile?.role,"admin")&&<option value="all_qa">All QAs</option>}
               </select>
             </div>
             {tplForm.assign_to_type==="specific_person"&&<div className="form-group"><label className="form-label">Person</label>
-              <SearchableSelect options={roster.filter(r=>r.manager_email?.toLowerCase()===profile?.email?.toLowerCase()).map(r=>({value:r.email,label:r.email+" — "+nameFromEmail(r.email)}))}
+              <SearchableSelect options={(()=>{
+                const seen=new Set();const opts=[];
+                const myEm=profile?.email?.toLowerCase()||"";const myLocal=myEm.split("@")[0];const myRole=profile?.role;
+                if(myRole==="qa_lead"){
+                  roster.forEach(r=>{const em=r.email?.toLowerCase();if(!em||seen.has(em))return;const mgr=r.manager_email?.toLowerCase()||"";if(mgr===myEm||mgr.split("@")[0]===myLocal){seen.add(em);opts.push({value:em,label:`${nameFromEmail(em)} — ${r.queue||"QA"}`});}});
+                } else if(myRole==="qa_supervisor"){
+                  const myLeads=new Set();(window.__teamsData||[]).forEach(tm=>{const sv=tm.supervisor_email?.toLowerCase()||"";if(sv===myEm||sv.split("@")[0]===myLocal){if(tm.lead_email)myLeads.add(tm.lead_email.toLowerCase());}});
+                  myLeads.forEach(le=>{if(!seen.has(le)){seen.add(le);opts.push({value:le,label:`${nameFromEmail(le)} — QA Lead`});}});
+                  roster.forEach(r=>{const em=r.email?.toLowerCase();if(!em||seen.has(em))return;const mgr=r.manager_email?.toLowerCase()||"";if(myLeads.has(mgr)||myLeads.has(mgr.split("@")[0])){seen.add(em);opts.push({value:em,label:`${nameFromEmail(em)} — ${r.queue||"QA"}`});}});
+                } else if(hasRole(myRole,"admin")){
+                  const isAmanda=myEm==="amanda.souza@tabby.ai";
+                  appProfiles.forEach(p=>{const em=p.email?.toLowerCase();if(!em||seen.has(em)||em===myEm)return;if(isAmanda&&em==="imad.moussa@tabby.ai")return;seen.add(em);opts.push({value:em,label:`${p.display_name||nameFromEmail(em)} — ${ROLE_LABELS[p.role]||p.role}`});});
+                  roster.forEach(r=>{const em=r.email?.toLowerCase();if(!em||seen.has(em))return;if(isAmanda&&em==="imad.moussa@tabby.ai")return;seen.add(em);opts.push({value:em,label:`${nameFromEmail(em)} — ${r.queue||"QA"}`});});
+                }
+                return opts.sort((a,b)=>a.label.localeCompare(b.label));
+              })()}
                 value={tplForm.assign_to_value} onChange={v=>setTplForm({...tplForm,assign_to_value:v})} placeholder="Select person..."/>
             </div>}
             <div className="form-group"><label className="form-label">Description (optional)</label>
