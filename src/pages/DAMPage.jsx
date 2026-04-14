@@ -6,8 +6,10 @@ import { useToast, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function DAMPage({token,profile,gf}){
+function DAMPage(){
+  const{token,profile,gf}=useApp();
   const[tab,setTab]=useState("flags");const[rules,setRules]=useState([]);const[flags,setFlags]=useState([]);const[steps,setSteps]=useState([]);
   const[loading,setLoading]=useState(true);const[showCreate,setShowCreate]=useState(false);
   const[selRule,setSelRule]=useState("");const[selProfile,setSelProfile]=useState("");const[flagNotes,setFlagNotes]=useState("");

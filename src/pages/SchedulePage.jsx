@@ -6,6 +6,7 @@ import { useToast, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
 const ATTENDANCE_TYPES = [
   {code:"P",label:"Present",color:"#22C55E",bg:"#22C55E20"},
@@ -24,7 +25,8 @@ const ATTENDANCE_TYPES = [
 const ATT_MAP = {};
 ATTENDANCE_TYPES.forEach(t => { ATT_MAP[t.code] = t; });
 
-function SchedulePage({token, profile, gf}) {
+function SchedulePage() {
+  const{token,profile,gf}=useApp();
   const [attendance, setAttendance] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);

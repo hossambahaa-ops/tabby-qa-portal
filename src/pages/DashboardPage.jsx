@@ -7,8 +7,10 @@ import { useToast, useAutoRefresh, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { ProgressRing, MiniBarChart, SparkLine, SkeletonLoader, PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function DashboardPage({profile,token,gf}){
+function DashboardPage(){
+  const{profile,token,gf}=useApp();
   const[mtd,setMtd]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[appProfiles,setAppProfiles]=useState([]);
   const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
   const[todayAttendance,setTodayAttendance]=useState([]);

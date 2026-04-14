@@ -2,8 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb } from "../lib/supabase.js";
 import { Icon } from "./Icons.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function NotificationBell({ token, profile, onNavigate }) {
+function NotificationBell({ onNavigate }) {
+  const{token,profile}=useApp();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [showAllHistory, setShowAllHistory] = useState(false);

@@ -3,8 +3,10 @@ import { sb, dataCache } from "../lib/supabase.js";
 import { safeError } from "../lib/utils.js";
 import { useToast } from "../lib/hooks.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function AdminFeedbackPage({token}){
+function AdminFeedbackPage(){
+  const{token}=useApp();
   const[items,setItems]=useState([]);const[loading,setLoading]=useState(true);const[expandedId,setExpandedId]=useState(null);
   const{show,el}=useToast();
   const load=useCallback(async()=>{try{

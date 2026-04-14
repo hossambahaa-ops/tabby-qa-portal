@@ -3,8 +3,10 @@ import { sb } from "../lib/supabase.js";
 import { nameFromEmail } from "../lib/utils.js";
 import { useToast } from "../lib/hooks.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function AuditTrailPage({token, profile}) {
+function AuditTrailPage() {
+  const{token,profile}=useApp();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filterAction, setFilterAction] = useState("");

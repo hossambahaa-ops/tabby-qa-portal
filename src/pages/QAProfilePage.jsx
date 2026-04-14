@@ -3,8 +3,10 @@ import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail } from "../lib/utils.js";
 import { PulseLoader } from "../components/Charts.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function QAProfilePage({token, profile, gf}) {
+function QAProfilePage() {
+  const{token,profile,gf}=useApp();
   const [roster, setRoster] = useState([]);
   const [mtd, setMtd] = useState([]);
   const [sessions, setSessions] = useState([]);

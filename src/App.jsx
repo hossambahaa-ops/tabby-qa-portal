@@ -8,6 +8,7 @@ import GlobalFilterBar from "./components/GlobalFilterBar.jsx";
 import NotificationBell from "./components/NotificationBell.jsx";
 import GlobalSearch from "./components/GlobalSearch.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
+import { AppContext } from "./lib/AppContext.jsx";
 import DashboardPage from "./pages/DashboardPage.jsx";
 import ScoreEntryPage from "./pages/ScoreEntryPage.jsx";
 import TargetsPage from "./pages/TargetsPage.jsx";
@@ -225,9 +226,9 @@ function AppInner(){
     }
     return !n.minRole || hasRole(userRole, n.minRole);
   });let curSec=null;
-  const t=session.access_token;const p=effectiveProfile;const gf=globalFilters;
   const guardRole=(role,component,fallbackProps)=>(hasRole(userRole,role)||userRole==="auditor")?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
-  return(<div className="app-layout">
+  const appCtx={token:session.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole};
+  return(<AppContext.Provider value={appCtx}><div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
       <div className="sidebar-header" style={{display:"flex",alignItems:"center",justifyContent:sidebarCollapsed?"center":"space-between"}}>
@@ -251,7 +252,7 @@ function AppInner(){
           <Icon d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" size={18}/>
         </button>
         {/* Notifications */}
-        <NotificationBell token={session.access_token} profile={profile} onNavigate={setPage}/>
+        <NotificationBell onNavigate={setPage}/>
         {/* Dark mode */}
         <button className="notif-btn" onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Light mode":"Dark mode"}>
           <Icon d={darkMode?"M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z":"M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"} size={18}/>
@@ -298,21 +299,21 @@ function AppInner(){
     {/* Global filter bar */}
     <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} teams={[]} roster={globalRoster} profile={effectiveProfile} role={userRole}/>
     {/* Search overlay */}
-    {showSearch&&<GlobalSearch token={session.access_token} onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
+    {showSearch&&<GlobalSearch onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
     <div className="page-animate"><Routes>
-      <Route path="/dashboard" element={<DashboardPage profile={p} token={t} gf={gf}/>}/>
-      <Route path="/scores" element={<ScoreEntryPage token={t} profile={p} gf={gf}/>}/>
-      <Route path="/targets" element={<TargetsPage token={t} profile={p}/>}/>
-      <Route path="/leaderboard" element={<LeaderboardPage token={t} profile={p} gf={gf}/>}/>
-      <Route path="/profile" element={<QAProfilePage token={t} profile={p} gf={gf}/>}/>
-      <Route path="/schedule" element={<SchedulePage token={t} profile={p} gf={gf}/>}/>
-      <Route path="/escalations" element={<EscalationsPage token={t} profile={p} gf={gf}/>}/>
-      <Route path="/dam" element={guardRole("qa_lead",<DAMPage token={t} profile={p} gf={gf}/>,{title:"DAM flags",icon:icons.dam})}/>
-      <Route path="/plans" element={guardRole("qa_lead",<ActionPlanPage token={t} profile={p} gf={gf}/>,{title:"Action plans & PIPs",icon:icons.plan})}/>
-      <Route path="/coaching" element={hasRole(userRole,"qa_lead")&&userRole!=="auditor"?<CoachingPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>}/>
-      <Route path="/violations" element={guardRole("qa_lead",<CoachingViolationsPage token={t} profile={p} gf={gf}/>,{title:"Coaching Violations",icon:icons.dam})}/>
-      <Route path="/audit" element={hasRole(userRole,"admin")?<AuditTrailPage token={t} profile={p}/>:<PlaceholderPage title="Audit trail" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
-      <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
+      <Route path="/dashboard" element={<DashboardPage/>}/>
+      <Route path="/scores" element={<ScoreEntryPage/>}/>
+      <Route path="/targets" element={<TargetsPage/>}/>
+      <Route path="/leaderboard" element={<LeaderboardPage/>}/>
+      <Route path="/profile" element={<QAProfilePage/>}/>
+      <Route path="/schedule" element={<SchedulePage/>}/>
+      <Route path="/escalations" element={<EscalationsPage/>}/>
+      <Route path="/dam" element={guardRole("qa_lead",<DAMPage/>,{title:"DAM flags",icon:icons.dam})}/>
+      <Route path="/plans" element={guardRole("qa_lead",<ActionPlanPage/>,{title:"Action plans & PIPs",icon:icons.plan})}/>
+      <Route path="/coaching" element={hasRole(userRole,"qa_lead")&&userRole!=="auditor"?<CoachingPage/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>}/>
+      <Route path="/violations" element={guardRole("qa_lead",<CoachingViolationsPage/>,{title:"Coaching Violations",icon:icons.dam})}/>
+      <Route path="/audit" element={hasRole(userRole,"admin")?<AuditTrailPage/>:<PlaceholderPage title="Audit trail" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
+      <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
       <Route path="/hr" element={<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>}/>
       <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
     </Routes></div>
@@ -461,7 +462,7 @@ function AppInner(){
     </div>}
 
     </div>
-  </div>);
+  </div></AppContext.Provider>);
 }
 
 export default function App() {

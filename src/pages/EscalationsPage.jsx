@@ -6,6 +6,7 @@ import { useToast, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
 const ESCALATION_CATEGORIES = [
   "Unfair treatment",
@@ -57,7 +58,8 @@ function smartRoute(aboutEmail, roster, supervisors, allProfiles) {
 }
 
 
-function EscalationsPage({ token, profile, gf }) {
+function EscalationsPage() {
+  const{token,profile,gf}=useApp();
   const [escalations, setEscalations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);

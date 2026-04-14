@@ -6,8 +6,10 @@ import { useToast } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function ScoreEntryPage({token,profile,gf}){
+function ScoreEntryPage(){
+  const{token,profile,gf}=useApp();
   const [data, setData] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);

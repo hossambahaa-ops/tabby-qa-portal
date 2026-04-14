@@ -7,8 +7,10 @@ import { useToast, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function CoachingPage({token, profile, gf}) {
+function CoachingPage() {
+  const{token,profile,gf}=useApp();
   const [tab, setTab] = useState("compose"); // compose | history
   const [loading, setLoading] = useState(false);
   const [sessions, setSessions] = useState([]);

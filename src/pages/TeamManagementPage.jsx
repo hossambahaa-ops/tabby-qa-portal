@@ -5,8 +5,10 @@ import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { useToast, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function TeamManagementPage({token,profile}){
+function TeamManagementPage(){
+  const{token,profile}=useApp();
   const[teams,setTeams]=useState([]);const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[showForm,setShowForm]=useState(false);
   const[form,setForm]=useState({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});const[editId,setEditId]=useState(null);const{show,el}=useToast();
   const{ask:confirmAsk,el:confirmEl}=useConfirm();

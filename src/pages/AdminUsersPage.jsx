@@ -5,8 +5,10 @@ import { safeError, logActivity } from "../lib/utils.js";
 import { useToast, useConfirm } from "../lib/hooks.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function AdminUsersPage({token,teams,profile}){
+function AdminUsersPage({teams}){
+  const{token,profile}=useApp();
   const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const[editTeamIds,setEditTeamIds]=useState([]);const[userTeamsMap,setUserTeamsMap]=useState({});const[deletingId,setDeletingId]=useState(null);const{show,el}=useToast();
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
   const isSuperAdmin=profile?.role==="super_admin";

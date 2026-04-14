@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ROLE_LABELS } from "../lib/constants.js";
 import { sb } from "../lib/supabase.js";
+import { useApp } from "../lib/AppContext.jsx";
 
-function GlobalSearch({ token, onNavigate, onClose }) {
+function GlobalSearch({ onNavigate, onClose }) {
+  const{token}=useApp();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const inputRef = useRef(null);

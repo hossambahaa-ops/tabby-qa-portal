@@ -4,8 +4,10 @@ import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { useToast, useConfirm } from "../lib/hooks.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function CoachingViolationsPage({token, profile, gf}) {
+function CoachingViolationsPage() {
+  const{token,profile,gf}=useApp();
   const [violations, setViolations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("pending");

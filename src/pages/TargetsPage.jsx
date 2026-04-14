@@ -4,6 +4,7 @@ import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError } from "../lib/utils.js";
 import { useToast, useConfirm } from "../lib/hooks.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
 const DAILY_TARGET_METRICS = [
   {key:"daily_sbs",label:"SBS evals",icon:"📋",unit:"evals",type:"number"},
@@ -25,7 +26,8 @@ const TARGET_METRICS = [
   {key:"final_performance",label:"Final performance score",type:"decimal"},
 ];
 
-function TargetsPage({token, profile}) {
+function TargetsPage() {
+  const{token,profile}=useApp();
   const [targets, setTargets] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);

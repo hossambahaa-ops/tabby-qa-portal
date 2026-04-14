@@ -5,8 +5,10 @@ import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { useToast, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
+import { useApp } from "../lib/AppContext.jsx";
 
-function ActionPlanPage({ token, profile }) {
+function ActionPlanPage() {
+  const{token,profile}=useApp();
   const [tab, setTab] = useState("active"); // active | create | detection | history
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState([]);
