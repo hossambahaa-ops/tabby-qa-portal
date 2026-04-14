@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
@@ -6,6 +6,10 @@ import { useToast, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import APDetectionTab from "../components/actionplan/APDetectionTab.jsx";
+import APCreateForm from "../components/actionplan/APCreateForm.jsx";
+import APConcludeModal from "../components/actionplan/APConcludeModal.jsx";
+import APActivePlanCard from "../components/actionplan/APActivePlanCard.jsx";
 
 function ActionPlanPage() {
   const{token,profile}=useApp();
@@ -18,8 +22,6 @@ function ActionPlanPage() {
   const [profiles, setProfiles] = useState([]);
   const [detections, setDetections] = useState([]);
   const [expandedPlan, setExpandedPlan] = useState(null);
-  const [dismissModalAP, setDismissModalAP] = useState(null);
-  const [dismissReasonAP, setDismissReasonAP] = useState("");
   const { show, el } = useToast();
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
@@ -601,308 +603,44 @@ function ActionPlanPage() {
       </div>
 
       {/* ═══ DETECTION TAB ═══ */}
-      {tab === "detection" && <div>
-        {detections.length === 0 ? (
-          <div className="card"><div className="placeholder" style={{ padding: "40px" }}>
-            <div className="placeholder-icon"><Icon d={icons.check} size={28} /></div>
-            <h3>No auto-detections</h3>
-            <p>No QAs currently need an Action Plan.<br />AP/PIP detection is triggered by DAM escalation steps with "includes PIP" enabled.</p>
-          </div></div>
-        ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            <div style={{ padding: "10px 14px", background: "var(--amber-bg)", borderRadius: 8, fontSize: 13, color: "var(--amber)", fontWeight: 500 }}>
-              ⚠️ {detections.length} QA specialist{detections.length !== 1 ? "s" : ""} flagged for potential Action Plan. Review and confirm below.
-            </div>
-            {detections.map(d => (
-              <div key={d.email} className="card" style={{
-                borderLeft: `4px solid ${d.severity === "critical" ? "var(--red)" : d.severity === "warning" ? "var(--amber)" : "var(--blue)"}`,
-              }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--accent-light)", color: "var(--accent-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600 }}>
-                      {initialsFromEmail(d.email)}
-                    </div>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 15 }}>{d.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--tx3)" }}>{d.email} · TL: {d.tl ? nameFromEmail(d.tl) : "—"}</div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <span style={{
-                      padding: "3px 10px", borderRadius: 12, fontSize: 11, fontWeight: 600,
-                      background: d.severity === "critical" ? "var(--red-bg)" : d.severity === "warning" ? "var(--amber-bg)" : "var(--green-bg)",
-                      color: d.severity === "critical" ? "var(--red)" : d.severity === "warning" ? "var(--amber)" : "var(--green)",
-                    }}>{d.severity.toUpperCase()}</span>
-                    <span style={{ fontSize: 18, fontWeight: 700, color: scoreColor(d.totalScore) }}>
-                      {d.totalScore.toFixed(1)}<span style={{ fontSize: 12, fontWeight: 400, color: "var(--tx3)" }}> / 55</span>
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 12, padding: "8px 12px", background: "var(--bg)", borderRadius: 6, fontSize: 13, color: "var(--tx2)" }}>
-                  {d.reason}
-                </div>
-
-                {/* KPI breakdown mini */}
-                <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                  {d.kpis.map(k => (
-                    <div key={k.key} style={{
-                      padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 500,
-                      background: k.slab.slab === 0 ? "var(--red-bg)" : k.slab.slab === 1 ? "var(--amber-bg)" : "var(--green-bg)",
-                      color: k.slab.slab === 0 ? "var(--red)" : k.slab.slab === 1 ? "var(--amber)" : "var(--green)",
-                    }}>
-                      {k.label}: {k.rawPct !== null ? k.rawPct.toFixed(1) + "%" : "—"} ({k.slab.label})
-                    </div>
-                  ))}
-                </div>
-
-                <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-                  <button className="btn btn-primary btn-sm" onClick={() => startCreate(d.email, d.planType || "pip")} style={d.planType === "pip" ? { background: "var(--red)", color: "#fff" } : {}}>
-                    <Icon d={d.planType === "pip" ? icons.dam : icons.plan} size={14} />Create {(d.planType || "pip").toUpperCase()}
-                  </button>
-                  {hasRole(profile?.role, "super_admin") ?
-                    <button className="btn btn-outline btn-sm" onClick={() => dismissDetectionDB(d.email, "")}>Dismiss</button> :
-                    <button className="btn btn-outline btn-sm" onClick={() => { setDismissModalAP(d); setDismissReasonAP(""); }}>Dismiss</button>
-                  }
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Dismiss reason modal for non-super-admins */}
-        {dismissModalAP && <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,overflowY:"auto"}} onClick={e=>{if(e.target===e.currentTarget){setDismissModalAP(null);setDismissReasonAP("");}}}>
-          <div className="card" style={{width:"100%",maxWidth:480,margin:20,maxHeight:"85vh",overflowY:"auto"}}>
-            <div className="card-header"><span className="card-title">Dismiss Detection — {nameFromEmail(dismissModalAP.email)}</span></div>
-            <div style={{fontSize:13,color:"var(--tx2)",marginBottom:12}}>{dismissModalAP.reason}</div>
-            <div className="form-group">
-              <label className="form-label">Reason for dismissal (required — visible to your supervisor)</label>
-              <textarea className="form-input" rows={3} value={dismissReasonAP} onChange={e=>setDismissReasonAP(e.target.value)} placeholder="Why is this detection being dismissed?" style={{resize:"vertical"}}/>
-            </div>
-            <div style={{display:"flex",gap:8,marginTop:12}}>
-              <button className="btn btn-primary" disabled={!dismissReasonAP.trim()} onClick={async()=>{
-                await dismissDetectionDB(dismissModalAP.email, dismissReasonAP.trim());
-                setDismissModalAP(null);setDismissReasonAP("");
-              }}>Confirm dismissal</button>
-              <button className="btn btn-outline" onClick={()=>{setDismissModalAP(null);setDismissReasonAP("");}}>Cancel</button>
-            </div>
-          </div>
-        </div>}
-      </div>}
+      {tab === "detection" && <APDetectionTab
+        detections={detections}
+        startCreate={startCreate}
+        dismissDetectionDB={dismissDetectionDB}
+        nameFromEmail={nameFromEmail}
+        initialsFromEmail={initialsFromEmail}
+        scoreColor={scoreColor}
+      />}
 
       {/* ═══ CREATE TAB ═══ */}
-      {tab === "create" && showCreateForm && <div>
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="card-header">
-            <span className="card-title">Create {planType === "pip" ? "Performance Improvement Plan" : "Action Plan"}</span>
-          </div>
-          <div className="form-grid">
-            <div className="form-group" style={{ position: "relative" }}>
-              <label className="form-label">QA Specialist</label>
-              <input className="form-input" value={selQaEmail} onChange={e => handleQaEmailChange(e.target.value)} placeholder="Type name or email..." autoComplete="off" />
-              {selQaEmail && !roster.find(r => r.email === selQaEmail) && (() => {
-                const q = selQaEmail.toLowerCase();
-                const matches = roster.filter(r => (r.email || "").toLowerCase().includes(q) || (r.display_name || "").toLowerCase().includes(q)).slice(0, 8);
-                if (!matches.length) return null;
-                return <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, background: "var(--bg3)", border: "1px solid var(--bd)", borderRadius: "0 0 var(--radius) var(--radius)", boxShadow: "var(--shadow-lg)", maxHeight: 200, overflowY: "auto" }}>
-                  {matches.map(r => <div key={r.email} onClick={() => handleQaEmailChange(r.email)} style={{ padding: "8px 12px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid var(--bd2)", display: "flex", justifyContent: "space-between", alignItems: "center" }} onMouseEnter={e => e.currentTarget.style.background = "var(--bg)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
-                    <span style={{ fontWeight: 500 }}>{r.email}</span>
-                    <span style={{ color: "var(--tx3)", fontSize: 11 }}>{r.display_name || nameFromEmail(r.email)}</span>
-                  </div>)}
-                </div>;
-              })()}
-            </div>
-            <div className="form-group">
-              <label className="form-label">Plan type</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => { setPlanType("ap"); setPlanDuration(4); }} className={`btn ${planType === "ap" ? "btn-primary" : "btn-outline"}`} style={planType === "ap" ? { background: "var(--amber)" } : {}}>
-                  📋 Action Plan
-                </button>
-                <button onClick={() => { setPlanType("pip"); setPlanDuration(8); }} className={`btn ${planType === "pip" ? "btn-primary" : "btn-outline"}`} style={planType === "pip" ? { background: "var(--red)", color: "#fff" } : {}}>
-                  ⚠️ PIP
-                </button>
-              </div>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Duration</label>
-              <select className="select form-input" value={planDuration} onChange={e => {
-                const d = Number(e.target.value);
-                setPlanDuration(d);
-                // Resize existing targets
-                setPlanTargets(prev => prev.map(t => ({ ...t, weekly_targets: Array(d).fill("") })));
-                setCustomMetrics(prev => prev.map(c => ({ ...c, targets: Array(d).fill("") })));
-              }}>
-                {followUpMode === "weekly" ? (
-                  planType === "ap" ? <option value={4}>4 weeks</option> : <>
-                    <option value={4}>4 weeks</option>
-                    <option value={6}>6 weeks</option>
-                    <option value={8}>8 weeks</option>
-                  </>
-                ) : (
-                  <>
-                    <option value={1}>1 month</option>
-                    <option value={2}>2 months</option>
-                    <option value={3}>3 months</option>
-                    <option value={4}>4 months</option>
-                  </>
-                )}
-              </select>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Follow-up frequency</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => { setFollowUpMode("weekly"); setPlanDuration(4); setPlanTargets(prev => prev.map(t => ({ ...t, weekly_targets: Array(4).fill("") }))); setCustomMetrics(prev => prev.map(c => ({ ...c, targets: Array(4).fill("") }))); }} className={`btn ${followUpMode === "weekly" ? "btn-primary" : "btn-outline"}`} style={{ fontSize: 13 }}>
-                  📅 Weekly
-                </button>
-                <button onClick={() => { setFollowUpMode("monthly"); setPlanDuration(1); setPlanTargets(prev => prev.map(t => ({ ...t, weekly_targets: Array(1).fill("") }))); setCustomMetrics(prev => prev.map(c => ({ ...c, targets: Array(1).fill("") }))); }} className={`btn ${followUpMode === "monthly" ? "btn-primary" : "btn-outline"}`} style={{ fontSize: 13 }}>
-                  📆 Monthly
-                </button>
-              </div>
-            </div>
-            <div className="form-group" style={{ gridColumn: "1/-1" }}>
-              <label className="form-label">Reason / justification</label>
-              <textarea className="form-input" rows={2} value={planReason} onChange={e => setPlanReason(e.target.value)} placeholder="Why is this plan being created? Reference specific KPIs, months, patterns..." style={{ resize: "vertical" }} />
-            </div>
-          </div>
-        </div>
-
-        {/* Target configuration */}
-        {/* Step 2: KPI selection */}
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div className="card-header">
-            <span className="card-title">Select KPIs to track</span>
-            <span style={{ fontSize: 12, color: "var(--tx3)" }}>Choose which metrics to include in the plan</span>
-          </div>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", padding: "4px 0" }}>
-            {Object.entries(KPI_SLABS).map(([key, def]) => {
-              const isOn = selectedKpis.includes(key);
-              // Get current value for this QA
-              const months2 = sortMonthsDesc([...new Set(mtd.map(r => r.month))]);
-              const row2 = selQaEmail ? mtd.find(r => r.month === months2[0] && r.qa_email?.toLowerCase() === selQaEmail.toLowerCase()) : null;
-              const curVal = row2 ? parseRaw(row2[def.rawKey]) : null;
-              return (
-                <div key={key} onClick={() => toggleKpi(key)} style={{
-                  padding: "10px 16px", borderRadius: 10, cursor: "pointer", minWidth: 140,
-                  border: isOn ? "2px solid var(--accent)" : "2px solid var(--bd2)",
-                  background: isOn ? "var(--accent-light)" : "var(--bg)",
-                  transition: "all .15s",
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <div style={{ width: 18, height: 18, borderRadius: 4, border: isOn ? "none" : "2px solid var(--bd)", background: isOn ? "var(--accent)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {isOn && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="3"><path d="M20 6L9 17l-5-5"/></svg>}
-                    </div>
-                    <span style={{ fontWeight: 600, fontSize: 13 }}>{def.label}</span>
-                  </div>
-                  {curVal !== null && <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 4 }}>Current: {curVal.toFixed(1)}%</div>}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Custom metric input */}
-          <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--bd2)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: "var(--tx3)" }}>Custom metrics (not in KPI list)</span>
-              <button className="btn btn-outline btn-sm" onClick={addCustomMetric} style={{ fontSize: 11 }}>+ Add custom metric</button>
-            </div>
-            {customMetrics.map((cm, ci) => (
-              <div key={ci} style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 6 }}>
-                <input className="form-input" value={cm.name} onChange={e => {
-                  const upd = [...customMetrics]; upd[ci] = { ...upd[ci], name: e.target.value }; setCustomMetrics(upd);
-                }} placeholder="Metric name (e.g. CSAT, Attendance, SBS quality...)" style={{ flex: 1, fontSize: 13, padding: "6px 10px" }} />
-                <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={() => removeCustomMetric(ci)}>✕</button>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Step 3: Targets (manual entry) */}
-        {(planTargets.length > 0 || customMetrics.length > 0) && <div className="card" style={{ marginBottom: 16 }}>
-          <div className="card-header">
-            <span className="card-title">Set {followUpMode === "monthly" ? "monthly" : "weekly"} targets</span>
-            <span style={{ fontSize: 12, color: "var(--tx3)" }}>Enter target % for each metric per {followUpMode === "monthly" ? "month" : "week"}</span>
-          </div>
-          <div className="table-wrap">
-            <table style={{ fontSize: 12 }}>
-              <thead><tr>
-                <th>Metric</th>
-                <th style={{ textAlign: "center" }}>Current</th>
-                {Array.from({ length: planDuration }, (_, i) => (
-                  <th key={i} style={{ textAlign: "center" }}>{followUpMode === "monthly" ? `M${i + 1}` : `W${i + 1}`} target</th>
-                ))}
-                <th style={{ textAlign: "center" }}>Avg</th>
-              </tr></thead>
-              <tbody>
-                {planTargets.map((t, ti) => {
-                  const filled = t.weekly_targets.filter(w => w !== "" && w !== null && w !== undefined);
-                  const avg = filled.length > 0 ? filled.reduce((a, b) => a + Number(b), 0) / filled.length : null;
-                  return (
-                  <tr key={t.kpi_key}>
-                    <td style={{ fontWeight: 600, fontSize: 12 }}>
-                      {t.label}
-                      {t.current_slab && t.current_slab !== "—" && <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 400 }}>{t.current_slab}</div>}
-                    </td>
-                    <td style={{ textAlign: "center", fontWeight: 500, color: t.current_value !== null ? (t.current_value >= t.thresholds?.[0] ? "var(--green)" : "var(--red)") : "var(--tx3)" }}>
-                      {t.current_value !== null ? t.current_value.toFixed(1) + "%" : "—"}
-                    </td>
-                    {Array.from({ length: planDuration }, (_, wi) => (
-                      <td key={wi} style={{ textAlign: "center" }}>
-                        <input type="number" step="0.1" className="form-input" value={t.weekly_targets[wi] ?? ""} onChange={e => {
-                          const newTargets = [...planTargets];
-                          const newWeekly = [...newTargets[ti].weekly_targets];
-                          newWeekly[wi] = e.target.value === "" ? "" : Number(e.target.value);
-                          newTargets[ti] = { ...newTargets[ti], weekly_targets: newWeekly };
-                          setPlanTargets(newTargets);
-                        }} placeholder="%" style={{ width: 60, textAlign: "center", padding: "4px 6px", fontSize: 12 }} />
-                      </td>
-                    ))}
-                    <td style={{ textAlign: "center", fontWeight: 600, fontSize: 12, color: avg !== null ? "var(--accent-text)" : "var(--tx3)" }}>
-                      {avg !== null ? avg.toFixed(1) + "%" : "—"}
-                    </td>
-                  </tr>);
-                })}
-                {customMetrics.map((cm, ci) => {
-                  const filledC = cm.targets.filter(t => t !== "" && t !== null && t !== undefined);
-                  const nums = filledC.map(Number).filter(n => !isNaN(n));
-                  const avgC = nums.length > 0 ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
-                  return (
-                  <tr key={"custom_" + ci} style={{ background: "var(--bg)" }}>
-                    <td style={{ fontWeight: 600, fontSize: 12 }}>
-                      {cm.name || <span style={{ color: "var(--tx3)", fontStyle: "italic" }}>Custom metric</span>}
-                      <div style={{ fontSize: 10, color: "var(--accent-text)", fontWeight: 400 }}>Custom</div>
-                    </td>
-                    <td style={{ textAlign: "center", color: "var(--tx3)" }}>—</td>
-                    {Array.from({ length: planDuration }, (_, wi) => (
-                      <td key={wi} style={{ textAlign: "center" }}>
-                        <input className="form-input" value={cm.targets[wi] ?? ""} onChange={e => {
-                          const upd = [...customMetrics];
-                          const newT = [...upd[ci].targets];
-                          newT[wi] = e.target.value;
-                          upd[ci] = { ...upd[ci], targets: newT };
-                          setCustomMetrics(upd);
-                        }} placeholder="target" style={{ width: 60, textAlign: "center", padding: "4px 6px", fontSize: 12 }} />
-                      </td>
-                    ))}
-                    <td style={{ textAlign: "center", fontWeight: 600, fontSize: 12, color: avgC !== null ? "var(--accent-text)" : "var(--tx3)" }}>
-                      {avgC !== null ? avgC.toFixed(1) : "—"}
-                    </td>
-                  </tr>);
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 8, fontStyle: "italic" }}>
-            {followUpMode === "monthly" ? "Targets will be reviewed at the end of each month." : "Targets will be reviewed weekly. Actuals are pulled from MTD data."}{customMetrics.length > 0 ? " Custom metrics are tracked manually." : ""}
-          </div>
-        </div>}
-
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-primary" onClick={savePlan} disabled={loading}>
-            {loading ? "Creating..." : <><Icon d={icons.check} size={16} />Create {planType === "pip" ? "PIP" : "Action Plan"}</>}
-          </button>
-          <button className="btn btn-outline" onClick={() => { setShowCreateForm(false); setTab("active"); }}>Cancel</button>
-        </div>
-      </div>}
+      {tab === "create" && showCreateForm && <APCreateForm
+        selQaEmail={selQaEmail}
+        planType={planType}
+        planDuration={planDuration}
+        planReason={planReason}
+        planTargets={planTargets}
+        selectedKpis={selectedKpis}
+        followUpMode={followUpMode}
+        customMetrics={customMetrics}
+        loading={loading}
+        roster={roster}
+        mtd={mtd}
+        KPI_SLABS={KPI_SLABS}
+        handleQaEmailChange={handleQaEmailChange}
+        setPlanType={setPlanType}
+        setPlanDuration={setPlanDuration}
+        setPlanReason={setPlanReason}
+        setPlanTargets={setPlanTargets}
+        setFollowUpMode={setFollowUpMode}
+        setCustomMetrics={setCustomMetrics}
+        toggleKpi={toggleKpi}
+        addCustomMetric={addCustomMetric}
+        removeCustomMetric={removeCustomMetric}
+        savePlan={savePlan}
+        onCancel={() => { setShowCreateForm(false); setTab("active"); }}
+        nameFromEmail={nameFromEmail}
+        parseRaw={parseRaw}
+      />}
 
       {/* ═══ ACTIVE PLANS TAB ═══ */}
       {tab === "active" && <div>
@@ -914,219 +652,31 @@ function ActionPlanPage() {
           </div></div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            {activePlans.map(plan => {
-              const prog = getPlanProgress(plan);
-              const isExp = expandedPlan === plan.id;
-              const targetsData = parseTargets(plan.targets);
-              const targets = targetsData.metrics;
-              const autoRec = getAutoRecommendation(plan);
-              const progressPct = prog.totalWeeks ? (prog.elapsed / prog.totalWeeks) * 100 : 0;
-              const daysLeft = plan.end_date ? Math.max(0, Math.ceil((new Date(plan.end_date) - Date.now()) / (1000 * 60 * 60 * 24))) : null;
-
-              return (
-                <div key={plan.id} className="card" style={{
-                  borderLeft: `4px solid ${plan.type === "pip" ? "var(--red)" : "var(--amber)"}`,
-                }}>
-                  {/* Header */}
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, cursor: "pointer" }} onClick={() => setExpandedPlan(isExp ? null : plan.id)}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                      <div style={{
-                        width: 44, height: 44, borderRadius: "50%",
-                        background: plan.type === "pip" ? "var(--red-bg)" : "var(--amber-bg)",
-                        color: plan.type === "pip" ? "var(--red)" : "var(--amber)",
-                        display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 700,
-                      }}>
-                        {plan.type === "pip" ? "⚠️" : "📋"}
-                      </div>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 15 }}>{nameFromEmail(plan.qa_email)}</div>
-                        <div style={{ fontSize: 12, color: "var(--tx3)" }}>
-                          <span style={{
-                            padding: "1px 8px", borderRadius: 10, fontSize: 10, fontWeight: 700,
-                            background: plan.type === "pip" ? "var(--red-bg)" : "var(--amber-bg)",
-                            color: plan.type === "pip" ? "var(--red)" : "var(--amber)",
-                            marginRight: 6,
-                          }}>{plan.type.toUpperCase()}</span>
-                          {plan.team || "—"} · Created by {nameFromEmail(plan.created_by)} · {new Date(plan.start_date).toLocaleDateString("en-GB", { month: "short", day: "numeric" })} — {new Date(plan.end_date).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" })}
-                        </div>
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                      <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 11, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Progress</div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: prog.successRate >= 60 ? "var(--green)" : "var(--red)" }}>
-                          {prog.metWeeks}/{prog.elapsed} {targetsData.follow_up_mode === "monthly" ? "months" : "weeks"} met
-                        </div>
-                      </div>
-                      {daysLeft !== null && <div style={{ textAlign: "right" }}>
-                        <div style={{ fontSize: 11, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Remaining</div>
-                        <div style={{ fontSize: 16, fontWeight: 700, color: daysLeft <= 7 ? "var(--red)" : "var(--tx)" }}>{daysLeft}d</div>
-                      </div>}
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{ transition: "transform .2s", transform: isExp ? "rotate(180deg)" : "none" }}><path d="M6 9l6 6 6-6" /></svg>
-                    </div>
-                  </div>
-
-                  {/* Progress bar */}
-                  <div style={{ marginTop: 12, height: 6, background: "var(--bd2)", borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{ width: `${progressPct}%`, height: "100%", borderRadius: 3, background: prog.successRate >= 60 ? "var(--green)" : "var(--amber)", transition: "width .4s" }} />
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "var(--tx3)", marginTop: 4 }}>
-                    <span>{targetsData.follow_up_mode === "monthly" ? "Month" : "Week"} {prog.elapsed} of {prog.totalWeeks}</span>
-                    <span>Success rate: {prog.successRate.toFixed(0)}%</span>
-                  </div>
-
-                  {/* Expanded detail */}
-                  {isExp && <div style={{ marginTop: 16, paddingTop: 16, borderTop: "1px solid var(--bd2)" }}>
-
-                    {/* Reason */}
-                    {plan.reason && <div style={{ marginBottom: 14, padding: "8px 12px", background: "var(--bg)", borderRadius: 6, fontSize: 13, color: "var(--tx2)" }}>
-                      <span style={{ fontWeight: 600, color: "var(--tx)" }}>Reason: </span>{plan.reason}
-                    </div>}
-
-                    {/* Weekly tracking table */}
-                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)", textTransform: "uppercase", letterSpacing: ".5px" }}>{targetsData.follow_up_mode === "monthly" ? "Monthly" : "Weekly"} tracking</div>
-                      <div style={{display:"flex",alignItems:"center",gap:8}}>
-                        <span style={{fontSize:10,color:"var(--tx3)",fontWeight:500}}>Pull from:</span>
-                        <select className="form-input" style={{fontSize:11,padding:"3px 8px",width:"auto",minWidth:120}} value={pullMonth} onChange={e=>setPullMonth(e.target.value)}>
-                          <option value="">Latest month</option>
-                          {sortMonthsDesc([...new Set(mtd.map(r=>r.month))]).map(m=><option key={m} value={m}>{m}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="table-wrap">
-                      <table style={{ fontSize: 12 }}>
-                        <thead><tr>
-                          <th>{targetsData.follow_up_mode === "monthly" ? "Month" : "Week"}</th>
-                          <th>Date</th>
-                          {targets.map(t => <th key={t.kpi_key || t.label} style={{ textAlign: "center" }}>{t.label}{t.is_custom ? <div style={{fontSize:9,color:"var(--tx3)",fontWeight:400}}>Custom</div> : ""}</th>)}
-                          <th style={{ textAlign: "center" }}>Met?</th>
-                          <th style={{ width: 80 }}></th>
-                        </tr></thead>
-                        <tbody>
-                          {prog.planWeeks.map(week => {
-                            const targetData = safeJson(week.target_data);
-                            const actualData = safeJson(week.actual_data);
-                            const hasActuals = week.actual_data && Object.keys(actualData).length > 0;
-
-                            return (
-                              <tr key={week.id} style={{ background: hasActuals ? (week.met_targets ? "var(--green-bg)" : "var(--red-bg)") : "transparent" }}>
-                                <td style={{ fontWeight: 600 }}>{targetsData.follow_up_mode === "monthly" ? "M" : "W"}{week.week_number}</td>
-                                <td style={{ fontSize: 11, color: "var(--tx3)" }}>
-                                  {week.week_start ? new Date(week.week_start + "T00:00:00").toLocaleDateString("en-GB", { month: "short", day: "numeric" }) : "—"}
-                                </td>
-                                {targets.map(t => {
-                                  const tKey = t.kpi_key || t.label;
-                                  const target = targetData[tKey];
-                                  const actual = actualData?.[tKey];
-                                  const met = actual !== null && actual !== undefined && target !== undefined && Number(actual) >= Number(target);
-                                  return (
-                                    <td key={tKey} style={{ textAlign: "center" }}>
-                                      <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target !== undefined ? target + (t.is_custom ? "" : "%") : "—"}</div>
-                                      {hasActuals && <div style={{ fontSize: 12, fontWeight: 600, color: met ? "var(--green)" : "var(--red)" }}>
-                                        A: {actual !== null && actual !== undefined ? (typeof actual === "number" ? actual.toFixed(1) + "%" : actual) : "—"}
-                                      </div>}
-                                    </td>
-                                  );
-                                })}
-                                <td style={{ textAlign: "center" }}>
-                                  {hasActuals ? (
-                                    week.met_targets ?
-                                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>✅</span> :
-                                      <span style={{ fontSize: 12, fontWeight: 700, color: "var(--red)" }}>❌</span>
-                                  ) : <span style={{ color: "var(--tx3)" }}>—</span>}
-                                </td>
-                                <td>
-                                  {!hasActuals && <button className="btn btn-outline btn-sm" onClick={() => updateWeekActuals(week.id, plan.qa_email)} style={{ fontSize: 10, padding: "2px 8px" }}>
-                                    Pull MTD
-                                  </button>}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-
-                    {/* Actions */}
-                    <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
-                      {/* Send coaching review email */}
-                      <button className="btn btn-outline btn-sm" style={{ color: "var(--accent-text)" }} onClick={() => {
-                        window.dispatchEvent(new CustomEvent("navigate", { detail: "coaching" }));
-                        setTimeout(() => {
-                          window.dispatchEvent(new CustomEvent("prefill-coaching", { detail: {
-                            email: plan.qa_email,
-                            type: plan.type === "pip" ? "PIP Review" : "Action Plan Review",
-                          }}));
-                        }, 300);
-                      }}>
-                        <Icon d={icons.coaching} size={14} />Send Review Email
-                      </button>
-
-                      {/* Schedule Google Calendar meeting */}
-                      <button className="btn btn-outline btn-sm" onClick={() => {
-                        const title = encodeURIComponent(`${plan.type === "pip" ? "PIP" : "AP"} Review — ${plan.qa_email?.split("@")[0].split(".").map(p=>p.charAt(0).toUpperCase()+p.slice(1)).join(" ")}`);
-                        const details = encodeURIComponent(`${plan.type === "pip" ? "PIP" : "Action Plan"} follow-up meeting.\n\nQA: ${plan.qa_email}\nPlan created: ${new Date(plan.created_at).toLocaleDateString()}`);
-                        const attendee = encodeURIComponent(plan.qa_email);
-                        const now = new Date();
-                        const start = new Date(now.getTime() + 24*60*60*1000); // tomorrow
-                        start.setHours(10,0,0,0);
-                        const end = new Date(start.getTime() + 30*60*1000); // 30 min
-                        const fmt = (d) => d.toISOString().replace(/[-:]/g,"").replace(/\.\d+/,"");
-                        const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&dates=${fmt(start)}/${fmt(end)}&add=${attendee}`;
-                        window.open(url, "_blank");
-                      }}>
-                        <Icon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={14} />Schedule Meeting
-                      </button>
-
-                      {/* Pull all remaining weeks */}
-                      {prog.planWeeks.some(w => !w.actual_data) && <button className="btn btn-outline btn-sm" onClick={async () => {
-                        for (const w of prog.planWeeks.filter(w => !w.actual_data)) {
-                          await updateWeekActuals(w.id, plan.qa_email);
-                        }
-                      }}>
-                        <Icon d={icons.upload} size={14} />Pull all actuals from MTD
-                      </button>}
-
-                      {/* Conclude */}
-                      <button className="btn btn-primary btn-sm" onClick={() => {
-                        setConcludingPlan(plan);
-                        const rec = getAutoRecommendation(plan);
-                        setConclusionOutcome(rec || "");
-                      }}>
-                        <Icon d={icons.check} size={14} />Conclude {plan.type.toUpperCase()}
-                      </button>
-
-                      {/* Failed AP → suggest PIP */}
-                      {plan.type === "ap" && prog.successRate < 50 && prog.elapsed >= 2 && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={() => startCreate(plan.qa_email, "pip")}>
-                        <Icon d={icons.dam} size={14} />Escalate to PIP
-                      </button>}
-
-                      {/* Super admin: hard delete */}
-                      {hasRole(profile?.role, "super_admin") && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)", marginLeft: "auto" }} onClick={async (e) => {
-                        e.stopPropagation();
-                        confirmAsk(`Delete ${plan.type.toUpperCase()}?`,`Permanently delete this plan for ${nameFromEmail(plan.qa_email)}? This cannot be undone.`,async()=>{
-                        try {
-                          await sb.query("action_plan_weeks", { token, method: "DELETE", filters: `plan_id=eq.${plan.id}` });
-                          await sb.query("action_plans", { token, method: "DELETE", filters: `id=eq.${plan.id}` });
-                          show("success", "Plan permanently deleted");
-                          setPlans(prev => prev.filter(p => p.id !== plan.id));
-                          setWeeks(prev => prev.filter(w => w.plan_id !== plan.id));
-                        } catch (err) { show("error", safeError(err)); }
-                      },"Delete","var(--red)");}}>
-                        <Icon d={icons.trash} size={14} />Delete
-                      </button>}
-                    </div>
-
-                    {/* Audit trail */}
-                    <div style={{ marginTop: 14, padding: "8px 12px", background: "var(--bg)", borderRadius: 6, fontSize: 11, color: "var(--tx3)" }}>
-                      Created by {nameFromEmail(plan.created_by)} on {new Date(plan.created_at).toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" })}
-                      {plan.tl_email && <span> · TL: {nameFromEmail(plan.tl_email)}</span>}
-                    </div>
-                  </div>}
-                </div>
-              );
-            })}
+            {activePlans.map(plan => (
+              <APActivePlanCard
+                key={plan.id}
+                plan={plan}
+                expandedPlan={expandedPlan}
+                setExpandedPlan={setExpandedPlan}
+                getPlanProgress={getPlanProgress}
+                parseTargets={parseTargets}
+                getAutoRecommendation={getAutoRecommendation}
+                safeJson={safeJson}
+                updateWeekActuals={updateWeekActuals}
+                setConcludingPlan={setConcludingPlan}
+                setConclusionOutcome={setConclusionOutcome}
+                startCreate={startCreate}
+                nameFromEmail={nameFromEmail}
+                mtd={mtd}
+                pullMonth={pullMonth}
+                setPullMonth={setPullMonth}
+                setPlans={setPlans}
+                setWeeks={setWeeks}
+                show={show}
+                confirmAsk={confirmAsk}
+                loading={loading}
+              />
+            ))}
           </div>
         )}
       </div>}
@@ -1248,57 +798,19 @@ function ActionPlanPage() {
       </div>}
 
       {/* ═══ CONCLUSION MODAL ═══ */}
-      {concludingPlan && <div style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflowY: "auto",
-      }} onClick={(e) => { if (e.target === e.currentTarget) setConcludingPlan(null); }}>
-        <div className="card" style={{ width: "100%", maxWidth: 520, margin: 20, maxHeight: "85vh", overflowY: "auto" }}>
-          <div className="card-header">
-            <span className="card-title">Conclude {concludingPlan.type.toUpperCase()} — {nameFromEmail(concludingPlan.qa_email)}</span>
-          </div>
-
-          {/* Auto-recommendation */}
-          {(() => {
-            const rec = getAutoRecommendation(concludingPlan);
-            const prog = getPlanProgress(concludingPlan);
-            return rec ? (
-              <div style={{ padding: "10px 14px", background: rec === "pass" ? "var(--green-bg)" : "var(--red-bg)", borderRadius: 8, marginBottom: 14, fontSize: 13 }}>
-                <span style={{ fontWeight: 600, color: rec === "pass" ? "var(--green)" : "var(--red)" }}>
-                  Auto-recommendation: {rec === "pass" ? "✅ PASS" : "❌ FAIL"}
-                </span>
-                <span style={{ color: "var(--tx2)", marginLeft: 8 }}>({prog.metWeeks}/{prog.elapsed} periods met targets — {prog.successRate.toFixed(0)}%)</span>
-              </div>
-            ) : null;
-          })()}
-
-          <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-            <button onClick={() => setConclusionOutcome("pass")} className={`btn ${conclusionOutcome === "pass" ? "btn-primary" : "btn-outline"}`} style={conclusionOutcome === "pass" ? { background: "var(--green)", color: "#fff" } : {}}>✅ Passed</button>
-            <button onClick={() => setConclusionOutcome("fail")} className={`btn ${conclusionOutcome === "fail" ? "btn-primary" : "btn-outline"}`} style={conclusionOutcome === "fail" ? { background: "var(--red)", color: "#fff" } : {}}>❌ Failed</button>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Conclusion notes</label>
-            <textarea className="form-input" rows={3} value={conclusionNotes} onChange={e => setConclusionNotes(e.target.value)} placeholder="Document the final assessment..." style={{ resize: "vertical" }} />
-          </div>
-
-          {conclusionOutcome === "fail" && concludingPlan.type === "ap" && (
-            <div style={{ padding: "8px 12px", background: "var(--amber-bg)", borderRadius: 6, fontSize: 12, color: "var(--amber)", fontWeight: 500, marginTop: 8 }}>
-              ⚠️ Failed AP will recommend escalation to PIP.
-            </div>
-          )}
-          {conclusionOutcome === "fail" && concludingPlan.type === "pip" && (
-            <div style={{ padding: "8px 12px", background: "var(--red-bg)", borderRadius: 6, fontSize: 12, color: "var(--red)", fontWeight: 500, marginTop: 8 }}>
-              ⚠️ Failed PIP will automatically create a DAM flag for HR investigation.
-            </div>
-          )}
-
-          <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-            <button className="btn btn-primary" onClick={concludePlan} disabled={!conclusionOutcome || loading}>
-              {loading ? "Processing..." : "Confirm conclusion"}
-            </button>
-            <button className="btn btn-outline" onClick={() => { setConcludingPlan(null); setConclusionOutcome(""); setConclusionNotes(""); }}>Cancel</button>
-          </div>
-        </div>
-      </div>}
+      <APConcludeModal
+        concludingPlan={concludingPlan}
+        setConcludingPlan={setConcludingPlan}
+        conclusionOutcome={conclusionOutcome}
+        setConclusionOutcome={setConclusionOutcome}
+        conclusionNotes={conclusionNotes}
+        setConclusionNotes={setConclusionNotes}
+        concludePlan={concludePlan}
+        loading={loading}
+        getAutoRecommendation={getAutoRecommendation}
+        getPlanProgress={getPlanProgress}
+        nameFromEmail={nameFromEmail}
+      />
 
       {el}
       {confirmEl}
