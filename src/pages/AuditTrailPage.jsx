@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
 import { nameFromEmail } from "../lib/utils.js";
-import { useToast } from "../lib/hooks.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
@@ -12,7 +11,6 @@ function AuditTrailPage() {
   const [filterAction, setFilterAction] = useState("");
   const [filterActor, setFilterActor] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
-  const {show, el: toastEl} = useToast();
 
   const nameFromEmail = (email) => {
     if (!email) return "—";
@@ -75,7 +73,6 @@ function AuditTrailPage() {
 
   return (
     <div className="page">
-      {toastEl}
       <div className="page-header">
         <div className="page-title">Audit Trail</div>
         <div className="page-subtitle">{filtered.length} actions logged (super admin actions excluded)</div>

@@ -3,7 +3,7 @@ import ReactDOM from "react-dom";
 import { hasRole, ROLE_LABELS, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
-import { useToast, useAutoRefresh, useConfirm } from "../lib/hooks.jsx";
+import { useAutoRefresh, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { ProgressRing, MiniBarChart, SparkLine, SkeletonLoader, PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -13,7 +13,7 @@ import AnnouncementForm from "../components/dashboard/AnnouncementForm.jsx";
 import APDetectionAlerts from "../components/dashboard/APDetectionAlerts.jsx";
 
 function DashboardPage(){
-  const{profile,token,gf}=useApp();
+  const{profile,token,gf,globalToast}=useApp();
   const[mtd,setMtd]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[appProfiles,setAppProfiles]=useState([]);
   const[damCount,setDamCount]=useState(0);const[profileCount,setProfileCount]=useState({qas:0,leads:0,active:0});
   const[todayAttendance,setTodayAttendance]=useState([]);
@@ -25,7 +25,6 @@ function DashboardPage(){
   const isAdmin=hasRole(profile?.role,"admin");
   const isSupervisor=hasRole(profile?.role,"qa_supervisor");
   const canAnnounce=hasRole(profile?.role,"senior_qa");
-  const{show,el:toastEl}=useToast();
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   const nameFromEmailLocal=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
@@ -215,10 +214,10 @@ function DashboardPage(){
         setSyncing(true);
         try{
           const r=await fetch("https://script.google.com/macros/s/AKfycbwpQjACvkSQBkbJok5L00-jXNMJm9x8b5-cdd4c5imZXeXCD5eHu8_zCsRNgWIegzvZ/exec",{method:"POST",mode:"no-cors"});
-          show("success","Sync triggered — data will update in ~30 seconds");
+          globalToast("success","Sync triggered — data will update in ~30 seconds");
           logActivity(token, profile?.email, "mtd_sync_triggered", "mtd_scores", null, "Manual sync from dashboard");
         }catch(e){
-          show("error","Sync request failed: "+e.message);
+          globalToast("error","Sync request failed: "+e.message);
         }
         setSyncing(false);
       }} style={{fontSize:12}}>
@@ -227,7 +226,7 @@ function DashboardPage(){
     </div>}
 
     {/* Announcement form */}
-    {showAnnForm&&<AnnouncementForm roster={roster} show={show} onClose={()=>setShowAnnForm(false)}/>}
+    {showAnnForm&&<AnnouncementForm roster={roster} onClose={()=>setShowAnnForm(false)}/>}
 
     <div className="welcome-banner">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:16}}>
@@ -670,7 +669,6 @@ function DashboardPage(){
     })()}
 
     </>}
-    {toastEl}
     {confirmEl}
   </div>);
 }

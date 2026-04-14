@@ -2,14 +2,14 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole, ROLE_LABELS, ROLE_LEVEL } from "../lib/constants.js";
 import { sb, SUPABASE_URL, dataCache } from "../lib/supabase.js";
 import { safeError, logActivity } from "../lib/utils.js";
-import { useToast, useConfirm } from "../lib/hooks.jsx";
+import { useConfirm } from "../lib/hooks.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 function AdminUsersPage({teams}){
-  const{token,profile}=useApp();
-  const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const[editTeamIds,setEditTeamIds]=useState([]);const[userTeamsMap,setUserTeamsMap]=useState({});const[deletingId,setDeletingId]=useState(null);const{show,el}=useToast();
+  const{token,profile,globalToast}=useApp();
+  const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[editingId,setEditingId]=useState(null);const[editRole,setEditRole]=useState("");const[editOpDomain,setEditOpDomain]=useState("");const[editTeamIds,setEditTeamIds]=useState([]);const[userTeamsMap,setUserTeamsMap]=useState({});const[deletingId,setDeletingId]=useState(null);
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
   const isSuperAdmin=profile?.role==="super_admin";
   const deleteUser=async(u)=>{
@@ -22,11 +22,11 @@ function AdminUsersPage({teams}){
           body:JSON.stringify({action:"delete_user",target_user_id:u.id,target_email:u.email}),
         });
         const data=await resp.json();
-        if(!resp.ok||data.error){show("error",data.error||"Failed to delete user");setDeletingId(null);return;}
+        if(!resp.ok||data.error){globalToast("error",data.error||"Failed to delete user");setDeletingId(null);return;}
         setUsers(prev=>prev.filter(x=>x.id!==u.id));
-        show("success",`${u.display_name||u.email} deleted`);
+        globalToast("success",`${u.display_name||u.email} deleted`);
         logActivity(token,profile?.email,"user_deleted","profiles",u.id,`Deleted: ${u.email}`);
-      }catch(e){show("error",safeError(e));}
+      }catch(e){globalToast("error",safeError(e));}
       setDeletingId(null);
     },"Delete","var(--red)");
   };
@@ -65,8 +65,8 @@ function AdminUsersPage({teams}){
     logActivity(token, profile?.email, "user_updated", "profiles", uid, `${u?.email}: role=${editRole}, domain=${editOpDomain}, teams=${editTeamIds.length}`);
     dataCache.invalidate("profiles");dataCache.invalidate("profiles_slim");dataCache.invalidate("profiles_email_role");
     setUsers(prev=>prev.map(x=>x.id===uid?{...x,role:editRole,operational_domain:editOpDomain,team_id:editTeamIds[0]||null}:x));
-    setEditingId(null);show("success","Updated");
-  }catch(e){show("error",safeError(e));}};
+    setEditingId(null);globalToast("success","Updated");
+  }catch(e){globalToast("error",safeError(e));}};
   return(<div className="page">
     <div className="page-header"><div className="page-title">User management</div><div className="page-subtitle">{users.length} users</div></div>
     <div className="card">{loading?<PulseLoader/>:
@@ -78,7 +78,7 @@ function AdminUsersPage({teams}){
         <td>{editingId===u.id?<SearchableSelect options={teams.map(t=>({value:t.id,label:`${t.name} (${t.domain})`}))} value={editTeamIds} onChange={setEditTeamIds} placeholder="Select teams..." multi/>:uTeams.length>0?<div style={{display:"flex",gap:4,flexWrap:"wrap"}}>{uTeams.map((n,i)=><span key={i} className="team-tag">{n}</span>)}</div>:<span style={{fontSize:13,color:"var(--tx3)"}}>—</span>}</td>
         <td><span className={`status-badge status-${u.status}`}>{u.status}</span></td>
         <td>{editingId===u.id?<div style={{display:"flex",gap:6}}><button className="btn btn-primary btn-sm" onClick={()=>save(u.id)}>Save</button><button className="btn btn-outline btn-sm" onClick={()=>setEditingId(null)}>Cancel</button></div>:<div style={{display:"flex",gap:6}}><button className="btn btn-outline btn-sm" onClick={()=>{setEditingId(u.id);setEditRole(u.role);setEditOpDomain(getOpDomain(u));setEditTeamIds(userTeamsMap[u.id]||[]);}}>Edit</button>{isSuperAdmin&&u.id!==profile?.id&&<button className="btn btn-sm" disabled={deletingId===u.id} onClick={()=>deleteUser(u)} style={{background:"var(--red-bg,#fef2f2)",color:"var(--red,#ef4444)",border:"1px solid var(--red,#ef4444)",fontSize:11,opacity:deletingId===u.id?.5:1}}>{deletingId===u.id?"...":"Delete"}</button>}</div>}</td></tr>);})}
-      </tbody></table></div>}</div>{el}{confirmEl}
+      </tbody></table></div>}</div>{confirmEl}
   </div>);
 }
 

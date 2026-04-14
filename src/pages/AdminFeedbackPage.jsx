@@ -1,14 +1,12 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { sb, dataCache } from "../lib/supabase.js";
 import { safeError } from "../lib/utils.js";
-import { useToast } from "../lib/hooks.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 function AdminFeedbackPage(){
-  const{token}=useApp();
+  const{token,globalToast}=useApp();
   const[items,setItems]=useState([]);const[loading,setLoading]=useState(true);const[expandedId,setExpandedId]=useState(null);
-  const{show,el}=useToast();
   const load=useCallback(async()=>{try{
     const d=await sb.query("feedback",{select:"*",filters:"order=created_at.desc",token});
     setItems(d);
@@ -18,8 +16,8 @@ function AdminFeedbackPage(){
   const updateStatus=async(id,status)=>{try{
     await sb.query("feedback",{token,method:"PATCH",body:{status},filters:`id=eq.${id}`});
     setItems(prev=>prev.map(x=>x.id===id?{...x,status}:x));
-    show("success","Updated");
-  }catch(e){show("error",safeError(e));}};
+    globalToast("success","Updated");
+  }catch(e){globalToast("error",safeError(e));}};
   const catIcon={bug:"🐛",feature:"💡",improvement:"✨",general:"💬"};
   const catLabel={bug:"Bug",feature:"Feature",improvement:"Improvement",general:"General"};
   const statusColor={new:{bg:"var(--blue-bg)",color:"var(--blue)"},reviewed:{bg:"var(--amber-bg)",color:"var(--amber)"},planned:{bg:"var(--primary-light)",color:"var(--tabby-purple,#6A2C79)"},done:{bg:"var(--green-bg)",color:"var(--green)"},dismissed:{bg:"var(--bg2)",color:"var(--tx3)"}};
@@ -78,7 +76,7 @@ function AdminFeedbackPage(){
           </div></td></tr>}
         </React.Fragment>;
       })}
-    </tbody></table></div></div>}{el}
+    </tbody></table></div></div>}
   </div>);
 }
 

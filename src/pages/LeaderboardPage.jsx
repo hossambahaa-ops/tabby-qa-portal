@@ -2,14 +2,13 @@ import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail } from "../lib/utils.js";
-import { useToast } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { ProgressRing, PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 function LeaderboardPage() {
-  const{token,profile,gf}=useApp();
+  const{token,profile,gf,globalToast}=useApp();
   const [data, setData] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +22,6 @@ function LeaderboardPage() {
   const [selQuarter, setSelQuarter] = useState("");
   const [selYear, setSelYear] = useState("");
   const [selQaQuarterly, setSelQaQuarterly] = useState("");
-  const {show, el} = useToast();
 
   // Sync global filters to local state — runs whenever global filters change
   useEffect(() => {
@@ -77,7 +75,7 @@ function LeaderboardPage() {
         if (gf?.teams?.length > 0) setSelTeam(gf.teams[0]);
       } catch (e) {
         console.error("Leaderboard:", e);
-        show("error", "Failed to load leaderboard data");
+        globalToast("error", "Failed to load leaderboard data");
       }
       setLoading(false);
     })();
@@ -719,7 +717,6 @@ function LeaderboardPage() {
       })()}
 
       </>}
-      {el}
     </div>
   );
 }

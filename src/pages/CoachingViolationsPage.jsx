@@ -2,12 +2,12 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
-import { useToast, useConfirm } from "../lib/hooks.jsx";
+import { useConfirm } from "../lib/hooks.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 function CoachingViolationsPage() {
-  const{token,profile,gf}=useApp();
+  const{token,profile,gf,globalToast}=useApp();
   const [violations, setViolations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("pending");
@@ -17,7 +17,6 @@ function CoachingViolationsPage() {
   const [profiles, setProfiles] = useState([]);
   const [damRules, setDamRules] = useState([]);
   const [selDamRule, setSelDamRule] = useState("");
-  const { show, el } = useToast();
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
   const nameFromEmail = (email) => {
@@ -72,7 +71,7 @@ function CoachingViolationsPage() {
   };
 
   const submitReview = async () => {
-    if (!reviewStatus) { show("error", "Select Valid or Invalid"); return; }
+    if (!reviewStatus) { globalToast("error", "Select Valid or Invalid"); return; }
 
     try {
       // Update the violation
@@ -89,7 +88,7 @@ function CoachingViolationsPage() {
 
       // If valid → auto-create DAM flag (DAM rule is required)
       if (reviewStatus === "valid") {
-        if (!selDamRule) { show("error", "Select a DAM rule to create the flag"); setLoading(false); return; }
+        if (!selDamRule) { globalToast("error", "Select a DAM rule to create the flag"); setLoading(false); return; }
 
         const qaEmailsList = reviewModal.qa_emails.split("\n").map(e => e.trim()).filter(Boolean);
         let flagsCreated = 0;
@@ -136,10 +135,10 @@ function CoachingViolationsPage() {
           filters: `id=eq.${reviewModal.id}`,
         });
 
-        show("success", `Marked as valid — ${flagsCreated} DAM flag(s) created`);
+        globalToast("success", `Marked as valid — ${flagsCreated} DAM flag(s) created`);
         logActivity(token, profile?.email, "violation_valid", "coaching_violations", reviewModal.id, `QA: ${reviewModal.qa_emails}, Type: ${reviewModal.violation_type}`);
       } else {
-        show("success", "Marked as invalid");
+        globalToast("success", "Marked as invalid");
         logActivity(token, profile?.email, "violation_invalid", "coaching_violations", reviewModal.id, `QA: ${reviewModal.qa_emails}, Type: ${reviewModal.violation_type}`);
       }
 
@@ -147,7 +146,7 @@ function CoachingViolationsPage() {
       // Optimistic update
       const newStatus = reviewStatus === "valid" ? "dam_created" : "invalid";
       setViolations(prev => prev.map(v => v.id === reviewModal.id ? { ...v, status: newStatus, reviewed_by: profile?.email, reviewed_at: new Date().toISOString(), review_notes: reviewNotes.trim() } : v));
-    } catch (e) { show("error", safeError(e)); }
+    } catch (e) { globalToast("error", safeError(e)); }
   };
 
   const violationColor = (type) => {
@@ -225,7 +224,7 @@ function CoachingViolationsPage() {
                         <button className="btn btn-outline btn-sm" style={{ fontSize: 10, padding: "1px 6px" }} onClick={(e) => {
                           e.stopPropagation();
                           navigator.clipboard.writeText(v.coaching_link);
-                          show("success", "Link copied!");
+                          globalToast("success", "Link copied!");
                         }}>Copy</button>
                       </div>
                     </td>
@@ -365,9 +364,9 @@ function CoachingViolationsPage() {
                 try{
                   await sb.query("coaching_violations",{token,method:"PATCH",body:{status:"pending",reviewed_by:null,reviewed_at:null,review_notes:null},filters:`id=eq.${reviewModal.id}`});
                   setViolations(prev=>prev.map(v=>v.id===reviewModal.id?{...v,status:"pending",reviewed_by:null,reviewed_at:null,review_notes:null}:v));
-                  show("success","Violation reopened for review");
+                  globalToast("success","Violation reopened for review");
                   setReviewModal(null);
-                }catch(e){show("error",safeError(e));}
+                }catch(e){globalToast("error",safeError(e));}
               },"Reopen","var(--amber)");
             }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
@@ -378,7 +377,6 @@ function CoachingViolationsPage() {
       </div>;
       })()}
 
-      {el}
       {confirmEl}
     </div>
   );

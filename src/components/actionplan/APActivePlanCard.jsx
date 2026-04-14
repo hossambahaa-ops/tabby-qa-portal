@@ -23,11 +23,10 @@ export default function APActivePlanCard({
   setPullMonth,
   setPlans,
   setWeeks,
-  show,
   confirmAsk,
   loading,
 }) {
-  const { token, profile } = useApp();
+  const { token, profile, globalToast } = useApp();
 
   const prog = getPlanProgress(plan);
   const isExp = expandedPlan === plan.id;
@@ -216,10 +215,10 @@ export default function APActivePlanCard({
             try {
               await sb.query("action_plan_weeks", { token, method: "DELETE", filters: `plan_id=eq.${plan.id}` });
               await sb.query("action_plans", { token, method: "DELETE", filters: `id=eq.${plan.id}` });
-              show("success", "Plan permanently deleted");
+              globalToast("success", "Plan permanently deleted");
               setPlans(prev => prev.filter(p => p.id !== plan.id));
               setWeeks(prev => prev.filter(w => w.plan_id !== plan.id));
-            } catch (err) { show("error", safeError(err)); }
+            } catch (err) { globalToast("error", safeError(err)); }
           },"Delete","var(--red)");}}>
             <Icon d={icons.trash} size={14} />Delete
           </button>}

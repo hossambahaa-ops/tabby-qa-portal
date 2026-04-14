@@ -1,5 +1,12 @@
 export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 export const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+if (!SUPABASE_URL) {
+  console.error("Missing VITE_SUPABASE_URL — check your .env file");
+}
+if (!SUPABASE_ANON) {
+  console.error("Missing VITE_SUPABASE_ANON_KEY — check your .env file");
+}
 export const sb = {
   headers: (token) => ({ apikey: SUPABASE_ANON, Authorization: `Bearer ${token || SUPABASE_ANON}`, "Content-Type": "application/json", Prefer: "return=representation" }),
   async query(table, { select = "*", filters = "", token, method = "GET", body, headers: extra } = {}) {

@@ -6,8 +6,8 @@ import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import { useConfirm } from "../../lib/hooks.jsx";
 
-function APHistoryTab({ historyPlans, expandedPlan, setExpandedPlan, getPlanProgress, parseTargets, safeJson, setPlans, setWeeks, show }) {
-  const { token, profile } = useApp();
+function APHistoryTab({ historyPlans, expandedPlan, setExpandedPlan, getPlanProgress, parseTargets, safeJson, setPlans, setWeeks }) {
+  const { token, profile, globalToast } = useApp();
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
   if (historyPlans.length === 0) {
@@ -72,10 +72,10 @@ function APHistoryTab({ historyPlans, expandedPlan, setExpandedPlan, getPlanProg
                   try {
                     await sb.query("action_plan_weeks", { token, method: "DELETE", filters: `plan_id=eq.${p.id}` });
                     await sb.query("action_plans", { token, method: "DELETE", filters: `id=eq.${p.id}` });
-                    show("success", "Plan permanently deleted");
+                    globalToast("success", "Plan permanently deleted");
                     setPlans(prev => prev.filter(x => x.id !== p.id));
                     setWeeks(prev => prev.filter(w => w.plan_id !== p.id));
-                  } catch (err) { show("error", safeError(err)); }
+                  } catch (err) { globalToast("error", safeError(err)); }
                 },"Delete","var(--red)");}}><Icon d={icons.trash} size={14} /></button>
               </td>}
             </tr>

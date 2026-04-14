@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import DOMPurify from "dompurify";
 import { sb, SUPABASE_URL, SUPABASE_ANON } from "../../lib/supabase.js";
 import { safeError, logActivity } from "../../lib/utils.js";
-import { useToast, useConfirm } from "../../lib/hooks.jsx";
+import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 
@@ -45,8 +45,7 @@ const TEMPLATES = {
 };
 
 export default function CoachingCompose({ roster, sessions, plans, planWeeks, gmailAuthorized, setGmailAuthorized, gmailChecking, connectGmail, callGmailFn, loadSessions }) {
-  const { token, profile } = useApp();
-  const { show, el: toastEl } = useToast();
+  const { token, profile, globalToast } = useApp();
 
   // Form state
   const [toEmail, setToEmail] = useState("");
@@ -131,7 +130,7 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
         setTargetRows(rows);
         if (plan.type === "pip") setMeetingType("PIP Review");
         else if (plan.type === "ap") setMeetingType("Action Plan Review");
-        show("success", `Targets loaded from ${plan.type.toUpperCase()} plan`);
+        globalToast("success", `Targets loaded from ${plan.type.toUpperCase()} plan`);
       }
     } catch(e) { console.error("Fill targets:", e); }
   };
@@ -174,7 +173,7 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
     setWeaknesses(t.weaknesses || "");
     setGoals(t.goals || "");
     setActions(t.actions || "");
-    if (!forceType) show("success", "Template applied");
+    if (!forceType) globalToast("success", "Template applied");
   };
 
   // Auto-apply template when meeting type changes and fields are empty
@@ -305,9 +304,9 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
 
   // Save session and send via Gmail API
   const generateAndSend = async () => {
-    if (!toEmail) { show("error", "Enter the team member's email"); return; }
+    if (!toEmail) { globalToast("error", "Enter the team member's email"); return; }
     if (!gmailAuthorized) {
-      show("error", "Please connect your Gmail account first");
+      globalToast("error", "Please connect your Gmail account first");
       connectGmail();
       return;
     }
@@ -346,16 +345,16 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
         });
 
         if (result.success) {
-          show("success", "Email sent & session logged");
+          globalToast("success", "Email sent & session logged");
         } else if (result.reauth) {
           setGmailAuthorized(false);
-          show("error", "Gmail authorization expired. Please reconnect Gmail and try again.");
+          globalToast("error", "Gmail authorization expired. Please reconnect Gmail and try again.");
         } else {
-          show("error", "Session saved but email failed: " + (result.error || "Unknown error"));
+          globalToast("error", "Session saved but email failed: " + (result.error || "Unknown error"));
         }
       } catch(emailErr) {
         console.error("Email error:", emailErr);
-        show("error", "Session saved but email failed: " + emailErr.message);
+        globalToast("error", "Session saved but email failed: " + emailErr.message);
       }
 
       // Refresh history
@@ -394,21 +393,21 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
               },
               filters: `id=eq.${nextUnfilledWeek.id}`,
             });
-            show("success", `Email sent & Week ${nextUnfilledWeek.week_number} actuals written to ${memberActivePlan.type.toUpperCase()} plan${metTargets ? " ✅ Targets met!" : " ❌ Targets not met"}`);
+            globalToast("success", `Email sent & Week ${nextUnfilledWeek.week_number} actuals written to ${memberActivePlan.type.toUpperCase()} plan${metTargets ? " ✅ Targets met!" : " ❌ Targets not met"}`);
           } else {
-            show("success", "Email sent and session logged successfully!");
+            globalToast("success", "Email sent and session logged successfully!");
           }
         } catch (e) {
           console.error("AP/PIP write-back:", e);
-          show("success", "Email sent! (Note: could not write back to AP/PIP plan)");
+          globalToast("success", "Email sent! (Note: could not write back to AP/PIP plan)");
         }
       } else {
-        show("success", "Email sent and session logged successfully!");
+        globalToast("success", "Email sent and session logged successfully!");
       }
       logActivity(token, profile?.email, "coaching_session_created", "coaching_sessions", null, `Member: ${toEmail}, Type: ${meetingType}`);
       setShowPreview(false);
     } catch (e) {
-      show("error", safeError(e));
+      globalToast("error", safeError(e));
     }
     setLoading(false);
   };
@@ -654,7 +653,7 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
                 <button className="btn btn-outline btn-sm" style={{flex:1}} onClick={()=>{
                   const body = buildEmailBody();
                   navigator.clipboard.writeText("Subject: "+emailSubject+"\n\n"+document.createElement("div").innerHTML);
-                  show("success","Copied to clipboard");
+                  globalToast("success","Copied to clipboard");
                 }}>Copy text</button>
                 <button className="btn btn-outline btn-sm" style={{flex:1}} onClick={()=>setShowPreview(false)}>Edit</button>
               </div>
@@ -663,6 +662,5 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
         </div>
       </div>
     </div>
-    {toastEl}
   </>);
 }

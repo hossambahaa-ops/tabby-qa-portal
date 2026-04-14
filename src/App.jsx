@@ -218,11 +218,11 @@ function AppInner(){
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
       <div className="sidebar-header" style={{display:"flex",alignItems:"center",justifyContent:sidebarCollapsed?"center":"space-between"}}>
         <div className="sidebar-brand">{sidebarCollapsed?<svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M2 12 L6 12 L8 5 L12 19 L16 9 L18 12 L22 12" stroke="#3BFF9D" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>:<>tabby<span>Pulse</span></>}</div>
-        <button className="sidebar-toggle" onClick={()=>setSidebarCollapsed(!sidebarCollapsed)} title={sidebarCollapsed?"Expand":"Collapse"}>
+        <button className="sidebar-toggle" onClick={()=>setSidebarCollapsed(!sidebarCollapsed)} title={sidebarCollapsed?"Expand":"Collapse"} aria-label={sidebarCollapsed?"Expand sidebar":"Collapse sidebar"}>
           <Icon d={sidebarCollapsed?"M9 5l7 7-7 7":"M15 19l-7-7 7-7"} size={16}/>
         </button>
       </div>
-      <nav className="sidebar-nav">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label}><Icon d={item.icon} size={18}/><span className="nav-item-label">{item.label}</span></button></div>);})}</nav>
+      <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}><Icon d={item.icon} size={18}/><span className="nav-item-label">{item.label}</span></button></div>);})}</nav>
     </aside>
     <div className="main-content">
       {/* View-as banner for super admin */}
@@ -230,16 +230,16 @@ function AppInner(){
         <span>👁 Viewing as <strong>{ROLE_LABELS[viewAsRole]}</strong></span>
         <button onClick={()=>setViewAsRole("")} style={{background:"var(--amber)",color:"#fff",border:"none",borderRadius:4,padding:"2px 8px",fontSize:11,cursor:"pointer",fontFamily:"var(--font)"}}>Exit</button>
       </div>}
-      <div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)}><Icon d={icons.menu} size={22}/></button><span className="topbar-title">{NAV_ITEMS.find(n=>n.key===page)?.label||"Dashboard"}</span>
+      <div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Icon d={icons.menu} size={22}/></button><span className="topbar-title">{NAV_ITEMS.find(n=>n.key===page)?.label||"Dashboard"}</span>
       <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
         {/* Search */}
-        <button className="notif-btn" onClick={()=>setShowSearch(true)} title="Search (⌘K)">
+        <button className="notif-btn" onClick={()=>setShowSearch(true)} title="Search (⌘K)" aria-label="Search">
           <Icon d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" size={18}/>
         </button>
         {/* Notifications */}
         <NotificationBell onNavigate={setPage}/>
         {/* Dark mode */}
-        <button className="notif-btn" onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Light mode":"Dark mode"}>
+        <button className="notif-btn" onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Light mode":"Dark mode"} aria-label={darkMode?"Switch to light mode":"Switch to dark mode"}>
           <Icon d={darkMode?"M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z":"M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"} size={18}/>
         </button>
         {/* View-as dropdown for super admin */}
@@ -304,7 +304,7 @@ function AppInner(){
     </Routes></Suspense></div>
 
     {/* ═══ ANNOUNCEMENT POPUP — blocks until acknowledged ═══ */}
-    {pendingAnnouncements.length>0&&<div style={{
+    {pendingAnnouncements.length>0&&<div role="dialog" aria-modal="true" aria-label="Announcement" style={{
       position:"fixed",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(8px)",
       display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,
       animation:"fadeIn .3s cubic-bezier(.4,0,.2,1)",
@@ -365,6 +365,7 @@ function AppInner(){
       onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.1)";e.currentTarget.style.boxShadow="0 6px 28px rgba(106,44,121,.5)";}}
       onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";e.currentTarget.style.boxShadow="0 4px 20px rgba(106,44,121,.4)";}}
       title="Send feedback"
+      aria-label="Send feedback"
     >💬</button>}
 
     {showFeedback&&<div style={{position:"fixed",bottom:24,right:24,width:380,maxHeight:"80vh",background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"0 16px 48px rgba(0,0,0,.25)",zIndex:950,overflow:"hidden",display:"flex",flexDirection:"column"}}>

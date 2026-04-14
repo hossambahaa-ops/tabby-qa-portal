@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
-import { useToast, useConfirm } from "../lib/hooks.jsx";
+import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import CoachingCompose from "../components/coaching/CoachingCompose.jsx";
 import CoachingHistory from "../components/coaching/CoachingHistory.jsx";
 
 function CoachingPage() {
-  const{token,profile,gf,rosterMap}=useApp();
+  const{token,profile,gf,rosterMap,globalToast}=useApp();
   const [tab, setTab] = useState("compose"); // compose | history
   const [sessions, setSessions] = useState([]);
   const [roster, setRoster] = useState([]);
   const [activePlans, setActivePlans] = useState([]);
   const [planWeeks, setPlanWeeks] = useState([]);
-  const {show, el} = useToast();
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   // Gmail OAuth state
@@ -45,13 +44,13 @@ function CoachingPage() {
           const result = await callGmailFn({ action: "exchange", code });
           if (result.success) {
             setGmailAuthorized(true);
-            show("success", "Gmail connected successfully! You can now send emails directly.");
+            globalToast("success", "Gmail connected successfully! You can now send emails directly.");
           } else {
-            show("error", "Gmail authorization failed: " + (result.error || "Unknown error"));
+            globalToast("error", "Gmail authorization failed: " + (result.error || "Unknown error"));
           }
         } catch (e) {
           console.error("Gmail OAuth exchange:", e);
-          show("error", "Failed to complete Gmail authorization");
+          globalToast("error", "Failed to complete Gmail authorization");
         }
         window.history.replaceState(null, "", window.location.pathname + window.location.hash);
       }
@@ -73,10 +72,10 @@ function CoachingPage() {
         sessionStorage.setItem("gmail_oauth_return", "coaching");
         window.location.href = result.authUrl;
       } else {
-        show("error", "Could not get Gmail authorization URL");
+        globalToast("error", "Could not get Gmail authorization URL");
       }
     } catch (e) {
-      show("error", "Failed to start Gmail authorization");
+      globalToast("error", "Failed to start Gmail authorization");
     }
   };
 
@@ -86,9 +85,9 @@ function CoachingPage() {
       try {
         await callGmailFn({ action: "disconnect" });
         setGmailAuthorized(false);
-        show("success", "Gmail disconnected");
+        globalToast("success", "Gmail disconnected");
       } catch (e) {
-        show("error", "Failed to disconnect Gmail");
+        globalToast("error", "Failed to disconnect Gmail");
       }
     },"Disconnect","var(--red)");
   };
@@ -181,7 +180,6 @@ function CoachingPage() {
         onDelete={handleDeleteSession}
       />}
 
-      {el}
       {confirmEl}
     </div>
   );

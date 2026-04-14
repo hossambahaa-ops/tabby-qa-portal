@@ -37,9 +37,9 @@ function GlobalSearch({ onNavigate, onClose }) {
   const typeColors = { profile: { bg: "var(--accent-light)", color: "var(--accent-text)" }, violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" } };
 
   return (
-    <div className="search-overlay" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+    <div className="search-overlay" role="dialog" aria-label="Global search" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="search-box">
-        <input ref={inputRef} className="search-input" placeholder="Search QAs, violations, flags, escalations..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape") onClose(); }} />
+        <input ref={inputRef} className="search-input" aria-label="Search QAs, violations, flags, escalations" placeholder="Search QAs, violations, flags, escalations..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape") onClose(); }} />
         {results.length > 0 && <div className="search-results">
           {results.map(r => {
             const tc = typeColors[r.type] || {};

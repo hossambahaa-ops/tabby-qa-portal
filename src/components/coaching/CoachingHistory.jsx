@@ -2,15 +2,14 @@ import React, { useState } from "react";
 import { hasRole } from "../../lib/constants.js";
 import { sb } from "../../lib/supabase.js";
 import { nameFromEmail, safeError } from "../../lib/utils.js";
-import { useToast, useConfirm } from "../../lib/hooks.jsx";
+import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 
 const ENUM_TO_LABEL = {"weekly_1on1":"1:1 Meeting","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
 
 export default function CoachingHistory({ sessions, onDelete }) {
-  const { token, profile } = useApp();
-  const { show, el: toastEl } = useToast();
+  const { token, profile, globalToast } = useApp();
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
   const [expandedSession, setExpandedSession] = useState(null);
@@ -74,8 +73,8 @@ export default function CoachingHistory({ sessions, onDelete }) {
                 try{
                   await sb.query("coaching_sessions",{token,method:"DELETE",filters:`id=eq.${s.id}`});
                   onDelete(s.id);
-                  show("success","Session deleted");
-                }catch(err){show("error",safeError(err));}
+                  globalToast("success","Session deleted");
+                }catch(err){globalToast("error",safeError(err));}
               },"Delete","var(--red)");}}><Icon d={icons.trash} size={14}/></button>
             </td>}
             <td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
@@ -114,7 +113,6 @@ export default function CoachingHistory({ sessions, onDelete }) {
       </tbody>
     </table></div>}
 
-    {toastEl}
     {confirmEl}
   </div>);
 }

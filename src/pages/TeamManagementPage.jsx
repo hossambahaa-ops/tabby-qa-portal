@@ -2,15 +2,15 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
-import { useToast, useConfirm } from "../lib/hooks.jsx";
+import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 function TeamManagementPage(){
-  const{token,profile}=useApp();
+  const{token,profile,globalToast}=useApp();
   const[teams,setTeams]=useState([]);const[users,setUsers]=useState([]);const[roster,setRoster]=useState([]);const[loading,setLoading]=useState(true);const[showForm,setShowForm]=useState(false);
-  const[form,setForm]=useState({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});const[editId,setEditId]=useState(null);const{show,el}=useToast();
+  const[form,setForm]=useState({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});const[editId,setEditId]=useState(null);
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
   const load=useCallback(async()=>{try{const[t,u,r]=await Promise.all([
     sb.query("teams",{select:"id,name,domain,lead_id,supervisor_id,profiles!fk_teams_lead(display_name,email),sup:profiles!fk_teams_supervisor(display_name,email)",token}),
@@ -35,7 +35,7 @@ function TeamManagementPage(){
   if(created>0){
     const t2=await sb.query("teams",{select:"id,name,domain,lead_id,supervisor_id,profiles!fk_teams_lead(display_name,email),sup:profiles!fk_teams_supervisor(display_name,email)",token});
     setTeams(t2);
-    show("success",`Auto-created ${created} team(s) from roster`);
+    globalToast("success",`Auto-created ${created} team(s) from roster`);
   }
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
@@ -46,9 +46,9 @@ function TeamManagementPage(){
   const getMemberCount=(teamName)=>roster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain))).length;
   const getTeamMembers=(teamName)=>roster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain)));
 
-  const save=async()=>{try{const b={name:form.name,domain:form.domain,lead_id:form.lead_id||null,supervisor_id:form.supervisor_id||null};if(editId){await sb.query("teams",{token,method:"PATCH",body:b,filters:`id=eq.${editId}`});logActivity(token,profile?.email,"team_updated","teams",editId,`Name: ${form.name}`);show("success","Team updated");}else{await sb.query("teams",{token,method:"POST",body:b});logActivity(token,profile?.email,"team_created","teams",null,`Name: ${form.name}, Domain: ${form.domain}`);show("success","Team created");}setShowForm(false);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});load();}catch(e){show("error",safeError(e));}};
+  const save=async()=>{try{const b={name:form.name,domain:form.domain,lead_id:form.lead_id||null,supervisor_id:form.supervisor_id||null};if(editId){await sb.query("teams",{token,method:"PATCH",body:b,filters:`id=eq.${editId}`});logActivity(token,profile?.email,"team_updated","teams",editId,`Name: ${form.name}`);globalToast("success","Team updated");}else{await sb.query("teams",{token,method:"POST",body:b});logActivity(token,profile?.email,"team_created","teams",null,`Name: ${form.name}, Domain: ${form.domain}`);globalToast("success","Team created");}setShowForm(false);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});load();}catch(e){globalToast("error",safeError(e));}};
   const startEdit=(t)=>{setForm({name:t.name,domain:t.domain,lead_id:t.lead_id||"",supervisor_id:t.supervisor_id||""});setEditId(t.id);setShowForm(true);};
-  const del=(id)=>{const t=teams.find(x=>x.id===id);confirmAsk("Delete team?",`Delete "${t?.name||"this team"}"?`,async()=>{try{await sb.query("teams",{token,method:"DELETE",filters:`id=eq.${id}`});logActivity(token,profile?.email,"team_deleted","teams",id,`Name: ${t?.name||"?"}`);show("success","Deleted");load();}catch(e){show("error",safeError(e));}},"Delete","var(--red)");};
+  const del=(id)=>{const t=teams.find(x=>x.id===id);confirmAsk("Delete team?",`Delete "${t?.name||"this team"}"?`,async()=>{try{await sb.query("teams",{token,method:"DELETE",filters:`id=eq.${id}`});logActivity(token,profile?.email,"team_deleted","teams",id,`Name: ${t?.name||"?"}`);globalToast("success","Deleted");load();}catch(e){globalToast("error",safeError(e));}},"Delete","var(--red)");};
 
   const [expandedTeam, setExpandedTeam] = useState(null);
   const [filterDomain, setFilterDomain] = useState("");
@@ -119,7 +119,7 @@ function TeamManagementPage(){
             </React.Fragment>);
           })}
         </tbody></table></div>;
-      })()}</div>{el}
+      })()}</div>
   </div>);
 }
 export default TeamManagementPage;

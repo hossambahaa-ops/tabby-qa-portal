@@ -2,18 +2,18 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole, ROLE_LABELS } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { safeError, logActivity } from "../lib/utils.js";
-import { useToast, useConfirm } from "../lib/hooks.jsx";
+import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 function DAMPage(){
-  const{token,profile,gf}=useApp();
+  const{token,profile,gf,globalToast}=useApp();
   const[tab,setTab]=useState("flags");const[rules,setRules]=useState([]);const[flags,setFlags]=useState([]);const[steps,setSteps]=useState([]);
   const[loading,setLoading]=useState(true);const[showCreate,setShowCreate]=useState(false);
   const[selRule,setSelRule]=useState("");const[selProfile,setSelProfile]=useState("");const[flagNotes,setFlagNotes]=useState("");
-  const[profiles,setProfiles]=useState([]);const{show,el}=useToast();
+  const[profiles,setProfiles]=useState([]);
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   const load=useCallback(async()=>{try{
@@ -43,7 +43,7 @@ function DAMPage(){
   const getOccurrenceCount=(profileId,ruleId)=>flags.filter(f=>f.profile_id===profileId&&f.rule_id===ruleId&&f.status!=="dismissed").length;
 
   const createFlag=async()=>{
-    if(!selRule||!selProfile){show("error","Select a behavior and a person");return;}
+    if(!selRule||!selProfile){globalToast("error","Select a behavior and a person");return;}
     const occ=getOccurrenceCount(selProfile,selRule)+1;
     const rule=rules.find(r=>r.id===selRule);
     const step=getStepsForRule(selRule).find(s=>s.occurrence===occ);
@@ -54,10 +54,10 @@ function DAMPage(){
         occurrence_number:occ,escalation_step_id:step?.id||null,
         notes:flagNotes,trigger_data:{created_by:profile.id,step_action:step?.action||"No step defined"},
       }});
-      show("success",`Flag created — occurrence #${occ}${step?": "+step.action:""}`);
+      globalToast("success",`Flag created — occurrence #${occ}${step?": "+step.action:""}`);
       logActivity(token, profile?.email, "dam_flag_created", "dam_flags", selProfile, `Rule: ${rules.find(r=>r.id===selRule)?.name}, Occurrence: #${occ}`);
       setShowCreate(false);setSelRule("");setSelProfile("");setFlagNotes("");load();
-    }catch(e){show("error",safeError(e));}
+    }catch(e){globalToast("error",safeError(e));}
   };
 
   const updateFlagStatus=async(flagId,status)=>{
@@ -65,8 +65,8 @@ function DAMPage(){
     try{
       await sb.query("dam_flags",{token,method:"PATCH",body:{status,reviewed_by:profile.id,reviewed_at:new Date().toISOString()},filters:`id=eq.${flagId}`});
       logActivity(token, profile?.email, `dam_flag_${status}`, "dam_flags", flagId, `Status changed to: ${status}`);
-      show("success","Flag updated");
-    }catch(e){show("error",safeError(e));load();}
+      globalToast("success","Flag updated");
+    }catch(e){globalToast("error",safeError(e));load();}
   };
 
   const behaviorTypes=[{key:"manipulation",label:"Manipulation",color:"var(--red)"},{key:"performance_management",label:"Performance management",color:"var(--amber)"},{key:"completion_attainment",label:"Completion & attainment",color:"var(--accent-text)"}];
@@ -172,7 +172,7 @@ function DAMPage(){
       {hasRole(profile?.role,"super_admin")&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
         <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{
           confirmAsk("Delete all DAM flags?",`Permanently delete ALL ${flags.length} flag records? This cannot be undone.`,async()=>{
-          try{for(const f of flags){await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});}show("success","All DAM flags deleted");setFlags([]);}catch(e){show("error",safeError(e));}
+          try{for(const f of flags){await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});}globalToast("success","All DAM flags deleted");setFlags([]);}catch(e){globalToast("error",safeError(e));}
         },"Delete all","var(--red)");}}><Icon d={icons.trash} size={14}/>Clear all history</button>
       </div>}
       <div className="table-wrap"><table><thead><tr><th>Person</th><th>Behavior</th><th>Occ.</th><th>Status</th><th>Date</th><th>Notes</th>{hasRole(profile?.role,"super_admin")&&<th></th>}</tr></thead><tbody>
@@ -186,14 +186,13 @@ function DAMPage(){
           {hasRole(profile?.role,"super_admin")&&<td>
             <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{
               confirmAsk("Delete DAM flag?","This will permanently delete this flag.",async()=>{
-              try{await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});show("success","Flag deleted");setFlags(prev=>prev.filter(x=>x.id!==f.id));}catch(e){show("error",safeError(e));}
+              try{await sb.query("dam_flags",{token,method:"DELETE",filters:`id=eq.${f.id}`});globalToast("success","Flag deleted");setFlags(prev=>prev.filter(x=>x.id!==f.id));}catch(e){globalToast("error",safeError(e));}
             },"Delete","var(--red)");}}><Icon d={icons.trash} size={14}/></button>
           </td>}
         </tr>))}
       </tbody></table></div>
       </>}
     </div>}
-    {el}
     {confirmEl}
   </div>);
 }

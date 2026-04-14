@@ -3,13 +3,13 @@ import ReactDOM from "react-dom";
 import { hasRole, ROLE_LABELS } from "../../lib/constants.js";
 import { sb, dataCache } from "../../lib/supabase.js";
 import { safeError, logActivity } from "../../lib/utils.js";
-import { useToast, useConfirm } from "../../lib/hooks.jsx";
+import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import SearchableSelect from "../SearchableSelect.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 
 function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
-  const { profile, token } = useApp();
+  const { profile, token, globalToast } = useApp();
 
   const [userTasks, setUserTasks] = useState([]);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -27,7 +27,6 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   const [tplForm, setTplForm] = useState({title:"",description:"",priority:"medium",frequency:"daily",assign_to_type:"my_team",assign_to_value:"",target_metric:"",target_value:""});
   const [attWarning, setAttWarning] = useState(null);
 
-  const { show, el: toastEl } = useToast();
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
   const myEmail = profile?.email?.toLowerCase();
@@ -74,23 +73,23 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
       }
       if(closed>0){
         loadTasks();
-        show("success",`${closed} task${closed>1?"s":""} auto-completed from daily evaluations`);
+        globalToast("success",`${closed} task${closed>1?"s":""} auto-completed from daily evaluations`);
       }
     })();
   },[dailyScores,userTasks.length]);
 
   // Create template
   const saveTemplate=async()=>{
-    if(!tplForm.title.trim()){show("error","Template title is required");return;}
+    if(!tplForm.title.trim()){globalToast("error","Template title is required");return;}
     try{
       const body={title:tplForm.title,description:tplForm.description||null,priority:tplForm.priority,frequency:tplForm.frequency,
         created_by:profile?.email,assign_to_type:tplForm.assign_to_type,assign_to_value:tplForm.assign_to_type==="specific_person"?tplForm.assign_to_value:null,
         target_metric:tplForm.target_metric||null,target_value:tplForm.target_value?Number(tplForm.target_value):null,is_active:true};
       await sb.query("task_templates",{token,method:"POST",body});
-      show("success","Template created");setShowTemplateForm(false);
+      globalToast("success","Template created");setShowTemplateForm(false);
       setTplForm({title:"",description:"",priority:"medium",frequency:"daily",assign_to_type:"my_team",assign_to_value:"",target_metric:"",target_value:""});
       loadTasks();
-    }catch(e){show("error",safeError(e));}
+    }catch(e){globalToast("error",safeError(e));}
   };
 
   // Generate tasks from template
@@ -121,7 +120,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
       }else if(tpl.assign_to_type==="all_qa"){
         assignees=roster.filter(r=>leadSet.has(r.manager_email?.toLowerCase())).map(r=>r.email?.toLowerCase()).filter(Boolean);
       }
-      if(assignees.length===0){show("error","No QAs found to assign. Make sure you have team members or select 'All QAs'.");return;}
+      if(assignees.length===0){globalToast("error","No QAs found to assign. Make sure you have team members or select 'All QAs'.");return;}
       const today=new Date().toISOString().split("T")[0];
       const absentStatuses=new Set(["AL","Paid SL","ML","UL","NSNC","OFF","X"]);
       let todayAtt=[];
@@ -138,24 +137,24 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
         created++;
       }
       await sb.query("task_templates",{token,method:"PATCH",body:{last_generated_at:new Date().toISOString()},filters:`id=eq.${tpl.id}`});
-      show("success",`Created ${created} task${created!==1?"s":""}${skipped>0?` (${skipped} skipped — on leave/off)`:""}`);
+      globalToast("success",`Created ${created} task${created!==1?"s":""}${skipped>0?` (${skipped} skipped — on leave/off)`:""}`);
       logActivity(token,profile?.email,"tasks_generated","task_templates",tpl.id,`Template: ${tpl.title}, Created: ${created}, Skipped: ${skipped}`);
       loadTasks();
-    }catch(e){show("error",safeError(e));}
+    }catch(e){globalToast("error",safeError(e));}
   };
 
   // Delete template
   const deleteTemplate=(id)=>{
     const tpl=taskTemplates.find(t=>t.id===id);
     confirmAsk("Delete template?",`Delete "${tpl?.title||"this template"}"? This won't delete tasks already generated from it.`,async()=>{
-      try{await sb.query("task_templates",{token,method:"DELETE",filters:`id=eq.${id}`});show("success","Template deleted");loadTasks();}catch(e){show("error",safeError(e));}
+      try{await sb.query("task_templates",{token,method:"DELETE",filters:`id=eq.${id}`});globalToast("success","Template deleted");loadTasks();}catch(e){globalToast("error",safeError(e));}
     },"Delete","var(--red)");
   };
 
   // Delete all tasks I assigned to others
   const deleteAllAssignedTasks=()=>{
     const assignedOut=userTasks.filter(t=>t.created_by?.toLowerCase()===myEmail&&t.assigned_to&&t.assigned_to?.toLowerCase()!==myEmail&&t.status!=="done");
-    if(assignedOut.length===0){show("error","No assigned tasks to delete");return;}
+    if(assignedOut.length===0){globalToast("error","No assigned tasks to delete");return;}
     confirmAsk("Delete all assigned tasks?",`This will delete ${assignedOut.length} task${assignedOut.length!==1?"s":""} you assigned to other people. Tasks assigned to yourself will be kept.`,async()=>{
       try{
         let deleted=0;
@@ -164,14 +163,14 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
           deleted++;
         }
         logActivity(token,profile?.email,"bulk_tasks_deleted","tasks",null,`Deleted ${deleted} assigned tasks`);
-        show("success",`Deleted ${deleted} assigned task${deleted!==1?"s":""}`);
+        globalToast("success",`Deleted ${deleted} assigned task${deleted!==1?"s":""}`);
         loadTasks();
-      }catch(e){show("error",safeError(e));}
+      }catch(e){globalToast("error",safeError(e));}
     },"Delete all","var(--red)");
   };
 
   const toggleTemplate=async(tpl)=>{
-    try{await sb.query("task_templates",{token,method:"PATCH",body:{is_active:!tpl.is_active,updated_at:new Date().toISOString()},filters:`id=eq.${tpl.id}`});loadTasks();}catch(e){show("error",safeError(e));}
+    try{await sb.query("task_templates",{token,method:"PATCH",body:{is_active:!tpl.is_active,updated_at:new Date().toISOString()},filters:`id=eq.${tpl.id}`});loadTasks();}catch(e){globalToast("error",safeError(e));}
   };
 
   const priorityConfig={urgent:{label:"Urgent",color:"var(--red)",bg:"var(--red-bg)"},high:{label:"High",color:"var(--amber)",bg:"var(--amber-bg)"},medium:{label:"Medium",color:"var(--tabby-purple)",bg:"var(--primary-light)"},low:{label:"Low",color:"var(--tx3)",bg:"var(--bg2)"}};
@@ -180,7 +179,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
 
   // Task CRUD
   const saveTask=async(forceAssign)=>{
-    if(!taskForm.title.trim()){show("error","Task title is required");return;}
+    if(!taskForm.title.trim()){globalToast("error","Task title is required");return;}
     if(taskForm.assigned_to&&!editingTask&&!forceAssign){
       try{
         const todayStr=new Date().toISOString().split("T")[0];
@@ -201,7 +200,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
         await sb.query("tasks",{token,method:"PATCH",body,filters:`id=eq.${editingTask.id}`});
         setUserTasks(prev=>prev.map(t=>t.id===editingTask.id?{...t,...body}:t));
         logActivity(token,profile?.email,"task_updated","tasks",editingTask.id,`Title: ${taskForm.title}`);
-        show("success","Task updated");
+        globalToast("success","Task updated");
       }else{
         const result = await sb.query("tasks",{token,method:"POST",body});
         const created = Array.isArray(result) ? result[0] : result;
@@ -211,10 +210,10 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
           setUserTasks(prev=>[{...body, id:"temp-"+Date.now(), status:"pending", created_at:new Date().toISOString()}, ...prev]);
         }
         logActivity(token,profile?.email,"task_created","tasks",null,`Title: ${taskForm.title}${taskForm.assigned_to?", Assigned to: "+taskForm.assigned_to:""}`);
-        show("success",taskForm.assigned_to?`Task created and assigned to ${nameFromEmail(taskForm.assigned_to)}`:"Task created");
+        globalToast("success",taskForm.assigned_to?`Task created and assigned to ${nameFromEmail(taskForm.assigned_to)}`:"Task created");
       }
       setShowTaskForm(false);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});
-    }catch(e){show("error",safeError(e));}
+    }catch(e){globalToast("error",safeError(e));}
   };
 
   const toggleTaskDone=async(task)=>{
@@ -223,17 +222,17 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
     try{
       await sb.query("tasks",{token,method:"PATCH",body:{status:newStatus,completed_at:newStatus==="done"?new Date().toISOString():null,updated_at:new Date().toISOString()},filters:`id=eq.${task.id}`});
       logActivity(token,profile?.email,newStatus==="done"?"task_completed":"task_reopened","tasks",task.id,`Title: ${task.title}`);
-    }catch(e){show("error",safeError(e));setUserTasks(prev=>prev.map(t=>t.id===task.id?{...t,status:task.status}:t));}
+    }catch(e){globalToast("error",safeError(e));setUserTasks(prev=>prev.map(t=>t.id===task.id?{...t,status:task.status}:t));}
   };
 
   const postponeTask=async()=>{
-    if(!postponeDate){show("error","Select a new date");return;}
+    if(!postponeDate){globalToast("error","Select a new date");return;}
     try{
       await sb.query("tasks",{token,method:"PATCH",body:{status:"postponed",postponed_to:postponeDate,postpone_reason:postponeReason||null,due_date:postponeDate,updated_at:new Date().toISOString()},filters:`id=eq.${postponeModal.id}`});
       setUserTasks(prev=>prev.map(t=>t.id===postponeModal.id?{...t,status:"postponed",eta_date:postponeDate}:t));
       logActivity(token,profile?.email,"task_postponed","tasks",postponeModal.id,`Title: ${postponeModal.title}, New date: ${postponeDate}`);
-      show("success","Task postponed");setPostponeModal(null);setPostponeDate("");setPostponeReason("");
-    }catch(e){show("error",safeError(e));}
+      globalToast("success","Task postponed");setPostponeModal(null);setPostponeDate("");setPostponeReason("");
+    }catch(e){globalToast("error",safeError(e));}
   };
 
   const deleteTask=(task)=>{
@@ -242,8 +241,8 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
       try{
         await sb.query("tasks",{token,method:"DELETE",filters:`id=eq.${task.id}`});
         logActivity(token,profile?.email,"task_deleted","tasks",task.id,`Title: ${task.title}`);
-        show("success","Task deleted");
-      }catch(e){show("error",safeError(e));loadTasks();}
+        globalToast("success","Task deleted");
+      }catch(e){globalToast("error",safeError(e));loadTasks();}
     },"Delete","var(--red)");
   };
 
@@ -709,7 +708,6 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
       </div>
     </div>}
 
-    {toastEl}
     {confirmEl}
   </>;
 }

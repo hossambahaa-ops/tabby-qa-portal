@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError } from "../lib/utils.js";
-import { useToast, useConfirm } from "../lib/hooks.jsx";
+import { useConfirm } from "../lib/hooks.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
@@ -27,7 +27,7 @@ const TARGET_METRICS = [
 ];
 
 function TargetsPage() {
-  const{token,profile}=useApp();
+  const{token,profile,globalToast}=useApp();
   const [targets, setTargets] = useState([]);
   const [teams, setTeams] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +35,6 @@ function TargetsPage() {
   const [selDomain, setSelDomain] = useState("all");
   const [editing, setEditing] = useState(null);
   const [editValue, setEditValue] = useState("");
-  const {show, el: toastEl} = useToast();
   const {ask: confirmAsk, el: confirmEl} = useConfirm();
 
   const isLead = hasRole(profile?.role, "qa_lead");
@@ -99,7 +98,7 @@ function TargetsPage() {
 
   const saveTarget = async (metric) => {
     const val = parseFloat(editValue);
-    if (isNaN(val)) { show("error", "Invalid number"); return; }
+    if (isNaN(val)) { globalToast("error", "Invalid number"); return; }
     try {
       const existing = targets.find(t => t.team_name === selTeam && t.domain === selDomain && t.metric === metric);
       if (existing) {
@@ -111,10 +110,10 @@ function TargetsPage() {
           body:JSON.stringify({team_name:selTeam, domain:selDomain, metric, target_value:val, target_label:label, updated_by:myEmail})
         });
       }
-      show("success", "Target updated");
+      globalToast("success", "Target updated");
       setEditing(null);
       load();
-    } catch(e) { show("error", safeError(e)); }
+    } catch(e) { globalToast("error", safeError(e)); }
   };
 
   const copyFromDefault = async () => {
@@ -128,9 +127,9 @@ function TargetsPage() {
             body:JSON.stringify({team_name:selTeam, domain:selDomain, metric:d.metric, target_value:d.target_value, target_label:d.target_label, updated_by:myEmail})
           });
         }
-        show("success", `Copied ${defaults.length} targets to ${selTeam}`);
+        globalToast("success", `Copied ${defaults.length} targets to ${selTeam}`);
         load();
-      } catch(e) { show("error", safeError(e)); }
+      } catch(e) { globalToast("error", safeError(e)); }
     }, "Copy", "var(--tabby-purple)");
   };
 
@@ -138,7 +137,7 @@ function TargetsPage() {
 
   return (
     <div className="page">
-      {toastEl}{confirmEl}
+      {confirmEl}
       <div className="page-header">
         <div className="page-title">QA Targets</div>
         <div className="page-subtitle">Set KPI targets per team — changes apply across the app</div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError } from "../lib/utils.js";
-import { useToast, useConfirm } from "../lib/hooks.jsx";
+import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -26,7 +26,7 @@ const ATT_MAP = {};
 ATTENDANCE_TYPES.forEach(t => { ATT_MAP[t.code] = t; });
 
 function SchedulePage() {
-  const{token,profile,gf}=useApp();
+  const{token,profile,gf,globalToast}=useApp();
   const [attendance, setAttendance] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -48,7 +48,6 @@ function SchedulePage() {
   const [editCell, setEditCell] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
-  const {show, el: toastEl} = useToast();
   const {ask: confirmAsk, el: confirmEl} = useConfirm();
 
   const myEmail = profile?.email?.toLowerCase() || "";
@@ -201,17 +200,17 @@ function SchedulePage() {
         return [...filtered, {email:email.toLowerCase(), date:dateStr, status, id:existing?.id||"new-"+Date.now(), created_by:myEmail}];
       });
       setEditCell(null);
-    } catch(e) { show("error", safeError(e)); }
+    } catch(e) { globalToast("error", safeError(e)); }
   };
 
   // Bulk set
   const applyBulk = async () => {
-    if (!bulkFrom || !bulkTo) { show("error", "Select date range"); return; }
+    if (!bulkFrom || !bulkTo) { globalToast("error", "Select date range"); return; }
     let targets = [];
     if (bulkScope === "my_team") targets = visibleQAs.map(r => r.email?.toLowerCase());
     else if (bulkScope === "specific" && bulkPerson) targets = [bulkPerson.toLowerCase()];
     else targets = visibleQAs.map(r => r.email?.toLowerCase());
-    if (targets.length === 0) { show("error", "No QAs selected"); return; }
+    if (targets.length === 0) { globalToast("error", "No QAs selected"); return; }
 
     const start = new Date(bulkFrom + "T00:00:00");
     const end = new Date(bulkTo + "T00:00:00");
@@ -225,7 +224,7 @@ function SchedulePage() {
         rows.push({email: em, date: dateStr, status: bulkStatus, created_by: myEmail});
       }
     }
-    if (rows.length === 0) { show("error", "No matching days in range"); return; }
+    if (rows.length === 0) { globalToast("error", "No matching days in range"); return; }
     try {
       const batchSize = 200;
       for (let i = 0; i < rows.length; i += batchSize) {
@@ -236,10 +235,10 @@ function SchedulePage() {
         });
         if (!resp.ok) throw new Error(await resp.text());
       }
-      show("success", `Set ${bulkStatus} for ${targets.length} QA${targets.length>1?"s":""} × ${Math.round(rows.length/targets.length)} days`);
+      globalToast("success", `Set ${bulkStatus} for ${targets.length} QA${targets.length>1?"s":""} × ${Math.round(rows.length/targets.length)} days`);
       setBulkModal(false);
       loadData();
-    } catch(e) { show("error", safeError(e)); }
+    } catch(e) { globalToast("error", safeError(e)); }
   };
 
   // Counters per QA
@@ -277,7 +276,7 @@ function SchedulePage() {
     reader.onload = (e) => {
       const text = e.target.result;
       const lines = text.split("\n").map(l => l.trim()).filter(Boolean);
-      if (lines.length < 2) { show("error", "CSV has no data rows"); return; }
+      if (lines.length < 2) { globalToast("error", "CSV has no data rows"); return; }
       const headers = lines[0].split(",");
       const dayHeaders = headers.slice(1); // "Mon_1", "Tue_2", etc.
       const dayNums = dayHeaders.map(h => parseInt(h.split("_").pop()));
@@ -322,10 +321,10 @@ function SchedulePage() {
         });
         if (!resp.ok) throw new Error(await resp.text());
       }
-      show("success", `Uploaded ${rows.length} attendance records for ${csvPreview.length} QAs`);
+      globalToast("success", `Uploaded ${rows.length} attendance records for ${csvPreview.length} QAs`);
       setCsvUpload(false); setCsvFile(null); setCsvPreview([]);
       loadData();
-    } catch (e) { show("error", safeError(e)); }
+    } catch (e) { globalToast("error", safeError(e)); }
     setCsvUploading(false);
   };
 
@@ -340,7 +339,6 @@ function SchedulePage() {
 
   return (
     <div className="page">
-      {toastEl}
       {confirmEl}
       <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
         <div>
@@ -375,9 +373,9 @@ function SchedulePage() {
                   method:"DELETE",headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`}
                 });
                 if(!resp.ok)throw new Error(await resp.text());
-                show("success","All attendance data deleted for this month");
+                globalToast("success","All attendance data deleted for this month");
                 loadData();
-              }catch(e){show("error",safeError(e));}
+              }catch(e){globalToast("error",safeError(e));}
             },"Delete all","var(--red)");
           }}>
             <Icon d={icons.trash} size={13}/>Delete month
@@ -446,7 +444,7 @@ function SchedulePage() {
                           {ATTENDANCE_TYPES.map(t => (
                             <button key={t.code} onClick={(e)=>{e.stopPropagation();setAtt(em,d.num,t.code);}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"none",cursor:"pointer",background:t.bg,color:t.color,fontWeight:700,fontFamily:"var(--font)"}} title={t.label}>{t.code}</button>
                           ))}
-                          {st&&<button onClick={async(e)=>{e.stopPropagation();const existing=getAtt(em,d.num);if(existing?.id&&!existing.id.startsWith("new")){try{await sb.query("qa_attendance",{token,method:"DELETE",filters:`id=eq.${existing.id}`});setAttendance(prev=>prev.filter(a=>a.id!==existing.id));setEditCell(null);show("success","Removed");}catch(err){show("error",safeError(err));}}else{setEditCell(null);}}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"1px solid var(--red)",cursor:"pointer",background:"var(--red-bg)",color:"var(--red)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginTop:2}} title="Remove entry">✕ Clear</button>}
+                          {st&&<button onClick={async(e)=>{e.stopPropagation();const existing=getAtt(em,d.num);if(existing?.id&&!existing.id.startsWith("new")){try{await sb.query("qa_attendance",{token,method:"DELETE",filters:`id=eq.${existing.id}`});setAttendance(prev=>prev.filter(a=>a.id!==existing.id));setEditCell(null);globalToast("success","Removed");}catch(err){globalToast("error",safeError(err));}}else{setEditCell(null);}}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"1px solid var(--red)",cursor:"pointer",background:"var(--red-bg)",color:"var(--red)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginTop:2}} title="Remove entry">✕ Clear</button>}
                         </div>}
                       </td>
                     );

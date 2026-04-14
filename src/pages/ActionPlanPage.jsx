@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
-import { useToast, useConfirm } from "../lib/hooks.jsx";
+import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import { useApp } from "../lib/AppContext.jsx";
@@ -13,7 +13,7 @@ import APActivePlanCard from "../components/actionplan/APActivePlanCard.jsx";
 import APHistoryTab from "../components/actionplan/APHistoryTab.jsx";
 
 function ActionPlanPage() {
-  const{token,profile}=useApp();
+  const{token,profile,globalToast}=useApp();
   const [tab, setTab] = useState("active"); // active | create | detection | history
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState([]);
@@ -23,7 +23,6 @@ function ActionPlanPage() {
   const [profiles, setProfiles] = useState([]);
   const [detections, setDetections] = useState([]);
   const [expandedPlan, setExpandedPlan] = useState(null);
-  const { show, el } = useToast();
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   // ── Create form state ──
@@ -241,15 +240,15 @@ function ActionPlanPage() {
 
   // ── Save plan to Supabase ──
   const savePlan = async () => {
-    if (!selQaEmail) { show("error", "Select a QA specialist"); return; }
-    if (!planReason.trim()) { show("error", "Provide a reason for this plan"); return; }
-    if (planTargets.length === 0 && customMetrics.length === 0) { show("error", "Select at least one KPI or add a custom metric"); return; }
+    if (!selQaEmail) { globalToast("error", "Select a QA specialist"); return; }
+    if (!planReason.trim()) { globalToast("error", "Provide a reason for this plan"); return; }
+    if (planTargets.length === 0 && customMetrics.length === 0) { globalToast("error", "Select at least one KPI or add a custom metric"); return; }
     // Validate KPI targets
     const missingTargets = planTargets.some(t => t.weekly_targets.some(w => w === "" || w === null || w === undefined));
-    if (missingTargets) { show("error", "Fill in all targets for each selected KPI"); return; }
+    if (missingTargets) { globalToast("error", "Fill in all targets for each selected KPI"); return; }
     // Validate custom metrics
     const invalidCustom = customMetrics.some(c => !c.name.trim() || c.targets.some(t => t === "" || t === null || t === undefined));
-    if (invalidCustom) { show("error", "Fill in name and all targets for each custom metric"); return; }
+    if (invalidCustom) { globalToast("error", "Fill in name and all targets for each custom metric"); return; }
 
     const existing = plans.find(p =>
       p.qa_email?.toLowerCase() === selQaEmail.toLowerCase() &&
@@ -257,7 +256,7 @@ function ActionPlanPage() {
       (p.status === "active" || p.status === "pending_review")
     );
     if (existing) {
-      show("error", `${nameFromEmail(selQaEmail)} already has an active ${existing.type.toUpperCase()} plan`);
+      globalToast("error", `${nameFromEmail(selQaEmail)} already has an active ${existing.type.toUpperCase()} plan`);
       return;
     }
 
@@ -320,14 +319,14 @@ function ActionPlanPage() {
         await sb.query("action_plan_weeks", { token, method: "POST", body: periodBodies });
       }
 
-      show("success", `${planType.toUpperCase()} created for ${nameFromEmail(selQaEmail)}`);
+      globalToast("success", `${planType.toUpperCase()} created for ${nameFromEmail(selQaEmail)}`);
       logActivity(token, profile?.email, `${planType}_created`, "action_plans", null, `QA: ${selQaEmail}, Duration: ${planDuration} weeks`);
       setShowCreateForm(false);
       setTab("active");
       // Reload to get new plan with ID
       load();
     } catch (e) {
-      show("error", safeError(e));
+      globalToast("error", safeError(e));
     }
     setLoading(false);
   };
@@ -336,9 +335,9 @@ function ActionPlanPage() {
   const updateWeekActuals = async (weekId, qaEmail, selectedMonth) => {
     // Find the plan for this week
     const week = weeks.find(w => w.id === weekId);
-    if (!week) { show("error", "Week not found"); return; }
+    if (!week) { globalToast("error", "Week not found"); return; }
     const plan = plans.find(p => p.id === week.plan_id);
-    if (!plan) { show("error", "Plan not found"); return; }
+    if (!plan) { globalToast("error", "Plan not found"); return; }
 
     // Parse the plan's targets to know which KPIs to pull
     let targetData = {};
@@ -357,7 +356,7 @@ function ActionPlanPage() {
     const useMonth = selectedMonth || pullMonth || months[0];
     const qaLocal = qaEmail.toLowerCase().split("@")[0];
     const row = mtd.find(r => r.month === useMonth && (r.qa_email?.toLowerCase() === qaEmail.toLowerCase() || r.qa_email?.toLowerCase().split("@")[0] === qaLocal));
-    if (!row) { show("error", "No MTD data found for " + nameFromEmail(qaEmail) + " in " + useMonth); return; }
+    if (!row) { globalToast("error", "No MTD data found for " + nameFromEmail(qaEmail) + " in " + useMonth); return; }
 
     // Only pull actuals for KPIs that are in this plan's targets
     const actualData = {};
@@ -389,9 +388,9 @@ function ActionPlanPage() {
         },
         filters: `id=eq.${weekId}`,
       });
-      show("success", "Actuals updated from MTD (" + useMonth + ")");
+      globalToast("success", "Actuals updated from MTD (" + useMonth + ")");
       setWeeks(prev => prev.map(w => w.id === weekId ? { ...w, actual_data: JSON.stringify(actualData), met_targets: metTargets, updated_at: new Date().toISOString() } : w));
-    } catch (e) { show("error", safeError(e)); }
+    } catch (e) { globalToast("error", safeError(e)); }
   };
 
   // ── Conclude plan ──
@@ -428,7 +427,7 @@ function ActionPlanPage() {
                 trigger_data: JSON.stringify({ source: "pip_failure", plan_id: concludingPlan.id }),
               }
             });
-            show("success", "PIP failed — DAM flag created for HR investigation");
+            globalToast("success", "PIP failed — DAM flag created for HR investigation");
           }
         } catch (e) { console.error("DAM flag creation:", e); }
       }
@@ -477,14 +476,14 @@ function ActionPlanPage() {
                 trigger_data: JSON.stringify({ source: "ap_failure", plan_id: concludingPlan.id, step_action: step?.action || "No step defined" }),
               }
             });
-            show("success", `AP failed — DAM flag created (occurrence #${occurrence}${step ? ": " + step.action : ""})`);
+            globalToast("success", `AP failed — DAM flag created (occurrence #${occurrence}${step ? ": " + step.action : ""})`);
           }
         } catch (e) {
           console.error("DAM flag creation:", e);
-          show("error", "AP concluded as failed. Could not create DAM flag: " + e.message);
+          globalToast("error", "AP concluded as failed. Could not create DAM flag: " + e.message);
         }
       } else {
-        show("success", `${concludingPlan.type.toUpperCase()} concluded as ${conclusionOutcome === "pass" ? "PASSED" : "FAILED"}`);
+        globalToast("success", `${concludingPlan.type.toUpperCase()} concluded as ${conclusionOutcome === "pass" ? "PASSED" : "FAILED"}`);
         logActivity(token, profile?.email, `${concludingPlan.type}_concluded`, "action_plans", concludingPlan.id, `QA: ${concludingPlan.qa_email}, Result: ${conclusionOutcome}`);
       }
 
@@ -494,7 +493,7 @@ function ActionPlanPage() {
       // Optimistic update
       const newStatus = conclusionOutcome === "pass" ? "completed_pass" : "completed_fail";
       setPlans(prev => prev.map(p => p.id === concludingPlan.id ? { ...p, status: newStatus, conclusion: conclusionOutcome, conclusion_notes: conclusionNotes, concluded_by: profile?.email, concluded_at: new Date().toISOString() } : p));
-    } catch (e) { show("error", safeError(e)); }
+    } catch (e) { globalToast("error", safeError(e)); }
     setLoading(false);
   };
 
@@ -509,8 +508,8 @@ function ActionPlanPage() {
         detection_info: detections.find(d => d.email === email)?.reason || "",
       }});
       setDetections(prev => prev.filter(d => d.email !== email));
-      show("success", "Detection dismissed for " + nameFromEmail(email));
-    } catch (e) { show("error", safeError(e)); }
+      globalToast("success", "Detection dismissed for " + nameFromEmail(email));
+    } catch (e) { globalToast("error", safeError(e)); }
   };
 
   // ── Helper: parse JSON safely ──
@@ -673,7 +672,6 @@ function ActionPlanPage() {
                 setPullMonth={setPullMonth}
                 setPlans={setPlans}
                 setWeeks={setWeeks}
-                show={show}
                 confirmAsk={confirmAsk}
                 loading={loading}
               />
@@ -692,7 +690,6 @@ function ActionPlanPage() {
         safeJson={safeJson}
         setPlans={setPlans}
         setWeeks={setWeeks}
-        show={show}
       />}
 
       {/* ═══ CONCLUSION MODAL ═══ */}
@@ -710,7 +707,6 @@ function ActionPlanPage() {
         nameFromEmail={nameFromEmail}
       />
 
-      {el}
       {confirmEl}
     </div>
   );

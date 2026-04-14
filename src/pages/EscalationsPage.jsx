@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole, ROLE_LABELS } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
-import { useToast, useConfirm } from "../lib/hooks.jsx";
+import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -59,7 +59,7 @@ function smartRoute(aboutEmail, roster, supervisors, allProfiles) {
 
 
 function EscalationsPage() {
-  const{token,profile,gf}=useApp();
+  const{token,profile,gf,globalToast}=useApp();
   const [escalations, setEscalations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -72,7 +72,6 @@ function EscalationsPage() {
   const [resolutionNote, setResolutionNote] = useState("");
   const [attachments, setAttachments] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const { show, el } = useToast();
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   // Form state
@@ -129,7 +128,7 @@ function EscalationsPage() {
     const files = Array.from(e.target.files || []);
     const maxSize = 5 * 1024 * 1024; // 5MB per file
     const allowed = files.filter(f => f.size <= maxSize);
-    if (allowed.length < files.length) show("error", "Some files exceeded 5MB and were skipped");
+    if (allowed.length < files.length) globalToast("error", "Some files exceeded 5MB and were skipped");
     setAttachments(prev => [...prev, ...allowed].slice(0, 5)); // max 5 files
   };
 
@@ -156,12 +155,12 @@ function EscalationsPage() {
   };
 
   const submitEscalation = async () => {
-    if (!aboutPerson) { show("error", "Select the person you're escalating about"); return; }
-    if (!category) { show("error", "Select a category"); return; }
-    if (!description.trim()) { show("error", "Description is required"); return; }
+    if (!aboutPerson) { globalToast("error", "Select the person you're escalating about"); return; }
+    if (!category) { globalToast("error", "Select a category"); return; }
+    if (!description.trim()) { globalToast("error", "Description is required"); return; }
 
     const routing = getRouting();
-    if (!routing.email) { show("error", "Unable to determine routing — select a valid person"); return; }
+    if (!routing.email) { globalToast("error", "Unable to determine routing — select a valid person"); return; }
     const routedTo = routing.email;
 
     try {
@@ -195,7 +194,7 @@ function EscalationsPage() {
         }
       }
 
-      show("success", `Escalation submitted — routed to ${nameFromEmail(routedTo)}`);
+      globalToast("success", `Escalation submitted — routed to ${nameFromEmail(routedTo)}`);
       logActivity(token, profile?.email, "escalation_created", "escalations", null, `Category: ${category}, Routed to: ${routing.email}`);
       setShowForm(false);
       setCategory("");
@@ -204,23 +203,23 @@ function EscalationsPage() {
       setAttachments([]);
       // Optimistic: reload to get new escalation with ID
       load();
-    } catch (e) { show("error", safeError(e)); }
+    } catch (e) { globalToast("error", safeError(e)); }
     setUploading(false);
   };
 
   const submitResponse = async (escId) => {
-    if (!responseText.trim()) { show("error", "Response is required"); return; }
+    if (!responseText.trim()) { globalToast("error", "Response is required"); return; }
     try {
       await sb.query("escalations", {
         token, method: "PATCH",
         body: { response: responseText.trim(), responded_by: myEmail, responded_at: new Date().toISOString(), status: "in_progress" },
         filters: `id=eq.${escId}`,
       });
-      show("success", "Response sent");
+      globalToast("success", "Response sent");
       setEscalations(prev => prev.map(e => e.id === escId ? { ...e, response: responseText.trim(), responded_by: myEmail, responded_at: new Date().toISOString(), status: "in_progress" } : e));
       setResponseText("");
       setViewEsc(null);
-    } catch (e) { show("error", safeError(e)); }
+    } catch (e) { globalToast("error", safeError(e)); }
   };
 
   const resolveEscalation = async (escId) => {
@@ -230,11 +229,11 @@ function EscalationsPage() {
         body: { status: "resolved", resolution_note: resolutionNote.trim() || null, resolved_at: new Date().toISOString() },
         filters: `id=eq.${escId}`,
       });
-      show("success", "Escalation resolved");
+      globalToast("success", "Escalation resolved");
       setEscalations(prev => prev.map(e => e.id === escId ? { ...e, status: "resolved", resolution_note: resolutionNote.trim() || null, resolved_at: new Date().toISOString() } : e));
       setResolutionNote("");
       setViewEsc(null);
-    } catch (e) { show("error", safeError(e)); }
+    } catch (e) { globalToast("error", safeError(e)); }
   };
 
   const statusColor = (s) => {
@@ -450,10 +449,10 @@ function EscalationsPage() {
                 {hasRole(myRole, "admin") && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async () => {
                   try {
                     await sb.query("escalations", { token, method: "PATCH", body: { status: "dismissed" }, filters: `id=eq.${viewEsc.id}` });
-                    show("success", "Dismissed");
+                    globalToast("success", "Dismissed");
                     setViewEsc(null);
                     load();
-                  } catch (e) { show("error", safeError(e)); }
+                  } catch (e) { globalToast("error", safeError(e)); }
                 }}>Dismiss</button>}
               </div>
             </div>
@@ -465,10 +464,10 @@ function EscalationsPage() {
               confirmAsk("Delete escalation?","This will permanently delete this escalation.",async()=>{
                 try {
                   await sb.query("escalations", { token, method: "DELETE", filters: `id=eq.${viewEsc.id}` });
-                  show("success", "Deleted");
+                  globalToast("success", "Deleted");
                   setViewEsc(null);
                   load();
-                } catch (e) { show("error", safeError(e)); }
+                } catch (e) { globalToast("error", safeError(e)); }
               },"Delete","var(--red)");
             }}><Icon d={icons.trash} size={14} /> Delete permanently</button>
           </div>}
@@ -479,7 +478,6 @@ function EscalationsPage() {
         </div>
       </div>}
 
-      {el}
       {confirmEl}
     </div>
   );

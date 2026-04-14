@@ -5,15 +5,15 @@ import { logActivity } from "../../lib/utils.js";
 import SearchableSelect from "../SearchableSelect.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 
-function AnnouncementForm({ roster, show, onClose }){
-  const { profile, token } = useApp();
+function AnnouncementForm({ roster, onClose }){
+  const { profile, token, globalToast } = useApp();
   const [annForm, setAnnForm] = useState({title:"",message:"",priority:"normal",target_type:"my_team",target_value:""});
 
   const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
 
   const sendAnnouncement=async()=>{
-    if(!annForm.title.trim()||!annForm.message.trim()){show("error","Title and message are required");return;}
-    if(annForm.target_type!=="all"&&annForm.target_type!=="my_team"&&!annForm.target_value){show("error","Please select a target");return;}
+    if(!annForm.title.trim()||!annForm.message.trim()){globalToast("error","Title and message are required");return;}
+    if(annForm.target_type!=="all"&&annForm.target_type!=="my_team"&&!annForm.target_value){globalToast("error","Please select a target");return;}
     try{
       const targetValue = annForm.target_type==="all"?null:annForm.target_type==="my_team"?profile?.email:annForm.target_value;
       const result = await sb.query("announcements",{token,method:"POST",body:{
@@ -24,10 +24,10 @@ function AnnouncementForm({ roster, show, onClose }){
       logActivity(token,profile?.email,"announcement_sent","announcements",null,`Title: ${annForm.title}, Target: ${annForm.target_type}${targetValue?" ("+targetValue+")":""}`);
       onClose();
       setAnnForm({title:"",message:"",priority:"normal",target_type:"my_team",target_value:""});
-      show("success","Announcement sent successfully!");
+      globalToast("success","Announcement sent successfully!");
     }catch(e){
       console.error("Announcement error:", e);
-      show("error","Failed: " + (e.message || "Unknown error"));
+      globalToast("error","Failed: " + (e.message || "Unknown error"));
     }
   };
 
