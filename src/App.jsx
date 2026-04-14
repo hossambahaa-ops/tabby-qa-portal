@@ -9,6 +9,7 @@ import NotificationBell from "./components/NotificationBell.jsx";
 import GlobalSearch from "./components/GlobalSearch.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { AppContext } from "./lib/AppContext.jsx";
+import { ToastProvider, useGlobalToast } from "./lib/ToastContext.jsx";
 const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
 const ScoreEntryPage = lazy(() => import("./pages/ScoreEntryPage.jsx"));
 const TargetsPage = lazy(() => import("./pages/TargetsPage.jsx"));
@@ -26,23 +27,6 @@ const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
 
 document.title = "Tabby Pulse — QA Performance & Analytics";
 
-// PWA manifest injection
-if (!document.querySelector('link[rel="manifest"]')) {
-  const manifest = { name: "Tabby Pulse", short_name: "Pulse", start_url: "/", display: "standalone", background_color: "#1A1A1A", theme_color: "#3CFFA5", icons: [{ src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect x='10' y='50' width='20' height='40' rx='4' fill='%233CFFA5'/%3E%3Crect x='40' y='25' width='20' height='65' rx='4' fill='%233CFFA5'/%3E%3Crect x='70' y='10' width='20' height='80' rx='4' fill='%233CFFA5'/%3E%3C/svg%3E", sizes: "any", type: "image/svg+xml" }] };
-  const blob = new Blob([JSON.stringify(manifest)], { type: "application/json" });
-  const link = document.createElement("link");
-  link.rel = "manifest";
-  link.href = URL.createObjectURL(blob);
-  document.head.appendChild(link);
-  const meta = document.createElement("meta");
-  meta.name = "apple-mobile-web-app-capable";
-  meta.content = "yes";
-  document.head.appendChild(meta);
-  const metaStatus = document.createElement("meta");
-  metaStatus.name = "apple-mobile-web-app-status-bar-style";
-  metaStatus.content = "black-translucent";
-  document.head.appendChild(metaStatus);
-}
 
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
@@ -227,7 +211,8 @@ function AppInner(){
     return !n.minRole || hasRole(userRole, n.minRole);
   });let curSec=null;
   const guardRole=(role,component,fallbackProps)=>(hasRole(userRole,role)||userRole==="auditor")?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
-  const appCtx={token:session.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{}};
+  const globalToast=useGlobalToast();
+  const appCtx={token:session.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast};
   return(<AppContext.Provider value={appCtx}><div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
@@ -466,5 +451,5 @@ function AppInner(){
 }
 
 export default function App() {
-  return <ErrorBoundary><HashRouter><AppInner/></HashRouter></ErrorBoundary>;
+  return <ErrorBoundary><ToastProvider><HashRouter><AppInner/></HashRouter></ToastProvider></ErrorBoundary>;
 }

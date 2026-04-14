@@ -24,7 +24,7 @@ export const sb = {
       const e = await r.json().catch(() => ({}));
       throw new Error("Session expired. Please sign in again.");
     }
-    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || e.details || r.statusText); }
+    if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.message || e.details || r.statusText); window.dispatchEvent(new CustomEvent("sb-error", { detail: { table, method, error: err.message } })); throw err; }
     if (r.status === 204) return [];
     return r.json();
   },
