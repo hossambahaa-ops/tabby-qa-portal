@@ -1563,8 +1563,8 @@ function DashboardPage({profile,token,gf}){
       const pc=priorityConfig[t.priority]||priorityConfig.medium;
       const isDone=t.status==="done";
       const isOverdue=(()=>{if(!t.eta_date||isDone)return false;const td=new Date();td.setHours(0,0,0,0);return new Date(t.eta_date+"T00:00:00")<td;})();
-      return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget)setSelectedTask(null);}}>
-        <div className="card" style={{width:"100%",maxWidth:440,margin:20}}>
+      return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,overflowY:"auto"}} onClick={e=>{if(e.target===e.currentTarget)setSelectedTask(null);}}>
+        <div className="card" style={{width:"100%",maxWidth:440,margin:20,maxHeight:"85vh",overflowY:"auto"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
             <div style={{display:"flex",alignItems:"center",gap:10}}>
               <span style={{fontSize:10,padding:"2px 10px",borderRadius:8,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase"}}>{pc.label}</span>
@@ -1600,8 +1600,8 @@ function DashboardPage({profile,token,gf}){
     })()}
 
     {/* ── Postpone Modal ── */}
-    {postponeModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget){setPostponeModal(null);setPostponeDate("");setPostponeReason("");}}}>
-      <div className="card" style={{width:"100%",maxWidth:400,margin:20}}>
+    {postponeModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,overflowY:"auto"}} onClick={e=>{if(e.target===e.currentTarget){setPostponeModal(null);setPostponeDate("");setPostponeReason("");}}}>
+      <div className="card" style={{width:"100%",maxWidth:400,margin:20,maxHeight:"85vh",overflowY:"auto"}}>
         <div className="card-header"><span className="card-title">Postpone: {postponeModal.title}</span></div>
         <div className="form-group" style={{marginBottom:12}}>
           <label className="form-label">New due date *</label>
@@ -1649,8 +1649,8 @@ function DashboardPage({profile,token,gf}){
     </div>}
 
     {/* ── Dismiss Modal ── */}
-    {dismissModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget){setDismissModal(null);setDismissReason("");}}}>
-      <div className="card" style={{width:"100%",maxWidth:480,margin:20}}>
+    {dismissModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,overflowY:"auto"}} onClick={e=>{if(e.target===e.currentTarget){setDismissModal(null);setDismissReason("");}}}>
+      <div className="card" style={{width:"100%",maxWidth:480,margin:20,maxHeight:"85vh",overflowY:"auto"}}>
         <div className="card-header"><span className="card-title">Dismiss AP Detection — {dismissModal.name}</span></div>
         <div style={{fontSize:13,color:"var(--tx2)",marginBottom:12}}>{dismissModal.reason} · Score: {dismissModal.score.toFixed(1)}/55</div>
         <div className="form-group">
@@ -5686,8 +5686,8 @@ function ActionPlanPage({ token, profile }) {
         )}
 
         {/* Dismiss reason modal for non-super-admins */}
-        {dismissModalAP && <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000}} onClick={e=>{if(e.target===e.currentTarget){setDismissModalAP(null);setDismissReasonAP("");}}}>
-          <div className="card" style={{width:"100%",maxWidth:480,margin:20}}>
+        {dismissModalAP && <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,overflowY:"auto"}} onClick={e=>{if(e.target===e.currentTarget){setDismissModalAP(null);setDismissReasonAP("");}}}>
+          <div className="card" style={{width:"100%",maxWidth:480,margin:20,maxHeight:"85vh",overflowY:"auto"}}>
             <div className="card-header"><span className="card-title">Dismiss Detection — {nameFromEmail(dismissModalAP.email)}</span></div>
             <div style={{fontSize:13,color:"var(--tx2)",marginBottom:12}}>{dismissModalAP.reason}</div>
             <div className="form-group">
@@ -6264,9 +6264,9 @@ function ActionPlanPage({ token, profile }) {
 
       {/* ═══ CONCLUSION MODAL ═══ */}
       {concludingPlan && <div style={{
-        position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000,
+        position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflowY: "auto",
       }} onClick={(e) => { if (e.target === e.currentTarget) setConcludingPlan(null); }}>
-        <div className="card" style={{ width: "100%", maxWidth: 520, margin: 20 }}>
+        <div className="card" style={{ width: "100%", maxWidth: 520, margin: 20, maxHeight: "85vh", overflowY: "auto" }}>
           <div className="card-header">
             <span className="card-title">Conclude {concludingPlan.type.toUpperCase()} — {nameFromEmail(concludingPlan.qa_email)}</span>
           </div>
@@ -6614,8 +6614,8 @@ function CoachingViolationsPage({token, profile, gf}) {
         const suggestion = violationMap[reviewModal.violation_type] || null;
         const suggestedRule = suggestion ? damRules.find(r => r.name === suggestion.ruleName) : null;
 
-        return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
-        <div className="card" style={{ width: "100%", maxWidth: 560, margin: 20 }}>
+        return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflowY: "auto" }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
+        <div className="card" style={{ width: "100%", maxWidth: 560, margin: 20, maxHeight: "85vh", overflowY: "auto" }}>
           <div className="card-header"><span className="card-title">{reviewModal.status !== "pending" ? "Update Review" : "Review Violation"}</span></div>
 
           <div style={{ marginBottom: 16 }}>
@@ -7093,7 +7093,7 @@ function EscalationsPage({ token, profile, gf }) {
       })()}
 
       {/* View/Respond Modal */}
-      {viewEsc && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setViewEsc(null); }}>
+      {viewEsc && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflowY: "auto" }} onClick={e => { if (e.target === e.currentTarget) setViewEsc(null); }}>
         <div className="card" style={{ width: "100%", maxWidth: 600, margin: 20, maxHeight: "80vh", overflow: "auto" }}>
           <div className="card-header">
             <span className="card-title">Escalation Details</span>
