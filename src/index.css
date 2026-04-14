@@ -537,6 +537,12 @@ a, [style*="cursor: pointer"], [style*="cursor:pointer"] {
   }
 }
 
+/* ── Placeholder float animation ── */
+@keyframes placeholderFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
 /* ── Pulse heartbeat animation ── */
 @keyframes pulseHeart {
   0%, 100% { transform: scale(1); opacity: 1; }
@@ -710,4 +716,178 @@ table tbody tr:hover {
 @media (max-width: 768px) {
   .sidebar.collapsed { width: var(--sidebar-w) !important; }
   .notif-dropdown { width: 300px; right: -40px; }
+}
+
+/* ═══════════════════════════════════════════════ */
+/* ══ ENHANCEMENTS — Appended block            ══ */
+/* ═══════════════════════════════════════════════ */
+
+/* ── 1. Page transitions on route change ── */
+.page-animate > * {
+  animation: pageIn .35s var(--ease) both;
+}
+
+/* ── 2. Responsive table handling ── */
+@media (max-width: 768px) {
+  .table-wrap {
+    -webkit-overflow-scrolling: touch;
+    position: relative;
+  }
+  .table-wrap::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 32px;
+    background: linear-gradient(to left, var(--bg3), transparent);
+    pointer-events: none;
+    border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+    z-index: 2;
+  }
+}
+
+/* ── 3. Micro-interactions ── */
+.btn:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+  pointer-events: auto;
+}
+.btn:disabled:hover {
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+
+.nav-item:active {
+  transform: scale(0.97) translateX(3px);
+}
+
+.card:active {
+  box-shadow: var(--shadow);
+  transition: box-shadow .1s var(--ease);
+}
+
+.form-input::placeholder,
+.input::placeholder,
+textarea::placeholder {
+  transition: color .25s var(--ease), opacity .25s var(--ease);
+}
+.form-input:focus::placeholder,
+.input:focus::placeholder,
+textarea:focus::placeholder {
+  opacity: .5;
+  color: var(--tx3);
+}
+
+@keyframes badgePulseUtil {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(106,44,121,.35); transform: scale(1); }
+  50% { box-shadow: 0 0 0 6px rgba(106,44,121,0); transform: scale(1.05); }
+}
+.badge-pulse {
+  animation: badgePulseUtil 2s var(--ease) infinite;
+}
+
+/* ── 4. Typography scale ── */
+.text-xs  { font-size: 10px; }
+.text-sm  { font-size: 12px; }
+.text-base { font-size: 13px; }
+.text-lg  { font-size: 15px; }
+.text-xl  { font-size: 18px; }
+.text-2xl { font-size: 24px; }
+
+.font-medium   { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold     { font-weight: 700; }
+
+.text-muted     { color: var(--tx3); }
+.text-secondary { color: var(--tx2); }
+
+/* ── 5. Spacing utilities ── */
+.gap-sm { gap: 8px; }
+.gap-md { gap: 12px; }
+.gap-lg { gap: 16px; }
+.gap-xl { gap: 24px; }
+
+.p-sm { padding: 8px; }
+.p-md { padding: 12px; }
+.p-lg { padding: 16px; }
+.p-xl { padding: 24px; }
+
+.m-sm { margin: 8px; }
+.m-md { margin: 12px; }
+.m-lg { margin: 16px; }
+.m-xl { margin: 24px; }
+
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.row   { display: flex; flex-direction: row; gap: 12px; align-items: center; }
+
+/* ── 6. Dark mode inline color fixes ── */
+.dark .form-group label {
+  color: var(--tx3);
+}
+.dark input[type="date"],
+.dark input[type="month"] {
+  background: var(--bg2);
+  color: var(--tx);
+  border-color: var(--bd);
+}
+.dark textarea {
+  background: var(--bg2);
+  color: var(--tx);
+  border-color: var(--bd);
+}
+.dark select {
+  background: var(--bg2);
+  color: var(--tx);
+  border-color: var(--bd);
+}
+.dark select:focus,
+.dark textarea:focus,
+.dark input[type="date"]:focus,
+.dark input[type="month"]:focus {
+  border-color: var(--tabby-purple-light);
+  box-shadow: 0 0 0 3px rgba(106,44,121,.15);
+}
+
+/* ── 7. Better empty state animations ── */
+@keyframes placeholderFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.placeholder .placeholder-icon {
+  animation: placeholderFloat 3s ease-in-out infinite;
+}
+
+.placeholder-action {
+  margin-top: 20px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: var(--radius);
+  font-family: var(--font);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px dashed var(--tabby-purple);
+  background: var(--primary-light);
+  color: var(--primary-text);
+  transition: all .25s var(--ease);
+}
+.placeholder-action:hover {
+  background: var(--tabby-purple);
+  color: #fff;
+  border-style: solid;
+  box-shadow: 0 4px 12px rgba(106,44,121,.2);
+  transform: translateY(-1px);
+}
+
+/* ── 8. Smooth scrollbar for all platforms ── */
+html, .main-content, .sidebar-nav, .table-wrap, .notif-dropdown, .search-results {
+  scrollbar-width: thin;
+  scrollbar-color: var(--bd) transparent;
+}
+.dark html, .dark .main-content, .dark .sidebar-nav, .dark .table-wrap, .dark .notif-dropdown, .dark .search-results {
+  scrollbar-color: rgba(106,44,121,.3) transparent;
 }
