@@ -13,16 +13,16 @@ export const nameFromEmail = (email) => {
 };
 
 /* ═══ GLOBAL FILTER HELPERS ═══ */
-export function applyGF(rows, gf, emailField = "qa_email") {
+export function applyGF(rows, gf, emailField = "qa_email", rosterMap) {
   if (!gf || !rows) return rows;
   let r = rows;
   if (gf.domain) r = r.filter(x => (x[emailField] || x.email || "").endsWith("@" + gf.domain));
   if (gf.people?.length > 0) r = r.filter(x => gf.people.includes((x[emailField] || x.email || "").toLowerCase()));
   if (gf.teams?.length > 0) {
-    const rosterMap = window.__gfRoster || {};
+    const rm = rosterMap || window.__gfRoster || {};
     r = r.filter(x => {
       const em = (x[emailField] || x.email || "").toLowerCase();
-      const q = rosterMap[em];
+      const q = rm[em];
       return q && gf.teams.includes(q);
     });
   }

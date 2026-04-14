@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense, lazy } from "react";
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import "./index.css";
 import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc } from "./lib/constants.js";
@@ -9,20 +9,20 @@ import NotificationBell from "./components/NotificationBell.jsx";
 import GlobalSearch from "./components/GlobalSearch.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { AppContext } from "./lib/AppContext.jsx";
-import DashboardPage from "./pages/DashboardPage.jsx";
-import ScoreEntryPage from "./pages/ScoreEntryPage.jsx";
-import TargetsPage from "./pages/TargetsPage.jsx";
-import AuditTrailPage from "./pages/AuditTrailPage.jsx";
-import AdminPage from "./pages/AdminPage.jsx";
-import LeaderboardPage from "./pages/LeaderboardPage.jsx";
-import DAMPage from "./pages/DAMPage.jsx";
-import ActionPlanPage from "./pages/ActionPlanPage.jsx";
-import CoachingPage from "./pages/CoachingPage.jsx";
-import CoachingViolationsPage from "./pages/CoachingViolationsPage.jsx";
-import EscalationsPage from "./pages/EscalationsPage.jsx";
-import QAProfilePage from "./pages/QAProfilePage.jsx";
-import SchedulePage from "./pages/SchedulePage.jsx";
-import PlaceholderPage from "./pages/PlaceholderPage.jsx";
+const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
+const ScoreEntryPage = lazy(() => import("./pages/ScoreEntryPage.jsx"));
+const TargetsPage = lazy(() => import("./pages/TargetsPage.jsx"));
+const AuditTrailPage = lazy(() => import("./pages/AuditTrailPage.jsx"));
+const AdminPage = lazy(() => import("./pages/AdminPage.jsx"));
+const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage.jsx"));
+const DAMPage = lazy(() => import("./pages/DAMPage.jsx"));
+const ActionPlanPage = lazy(() => import("./pages/ActionPlanPage.jsx"));
+const CoachingPage = lazy(() => import("./pages/CoachingPage.jsx"));
+const CoachingViolationsPage = lazy(() => import("./pages/CoachingViolationsPage.jsx"));
+const EscalationsPage = lazy(() => import("./pages/EscalationsPage.jsx"));
+const QAProfilePage = lazy(() => import("./pages/QAProfilePage.jsx"));
+const SchedulePage = lazy(() => import("./pages/SchedulePage.jsx"));
+const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
 
 document.title = "Tabby Pulse — QA Performance & Analytics";
 
@@ -227,7 +227,7 @@ function AppInner(){
     return !n.minRole || hasRole(userRole, n.minRole);
   });let curSec=null;
   const guardRole=(role,component,fallbackProps)=>(hasRole(userRole,role)||userRole==="auditor")?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
-  const appCtx={token:session.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole};
+  const appCtx={token:session.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{}};
   return(<AppContext.Provider value={appCtx}><div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
@@ -300,7 +300,7 @@ function AppInner(){
     <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} teams={[]} roster={globalRoster} profile={effectiveProfile} role={userRole}/>
     {/* Search overlay */}
     {showSearch&&<GlobalSearch onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
-    <div className="page-animate"><Routes>
+    <div className="page-animate"><Suspense fallback={<div style={{display:"flex",justifyContent:"center",alignItems:"center",minHeight:200}}><div className="pulse-loader"/></div>}><Routes>
       <Route path="/dashboard" element={<DashboardPage/>}/>
       <Route path="/scores" element={<ScoreEntryPage/>}/>
       <Route path="/targets" element={<TargetsPage/>}/>
@@ -316,7 +316,7 @@ function AppInner(){
       <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
       <Route path="/hr" element={<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>}/>
       <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
-    </Routes></div>
+    </Routes></Suspense></div>
 
     {/* ═══ ANNOUNCEMENT POPUP — blocks until acknowledged ═══ */}
     {pendingAnnouncements.length>0&&<div style={{

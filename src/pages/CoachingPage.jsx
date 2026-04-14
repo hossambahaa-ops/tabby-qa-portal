@@ -8,7 +8,7 @@ import CoachingCompose from "../components/coaching/CoachingCompose.jsx";
 import CoachingHistory from "../components/coaching/CoachingHistory.jsx";
 
 function CoachingPage() {
-  const{token,profile,gf}=useApp();
+  const{token,profile,gf,rosterMap}=useApp();
   const [tab, setTab] = useState("compose"); // compose | history
   const [sessions, setSessions] = useState([]);
   const [roster, setRoster] = useState([]);
@@ -115,7 +115,7 @@ function CoachingPage() {
         let filteredPlans=isSvC?plansArr.filter(x=>x.qa_email?.endsWith("@"+svDomainC)):plansArr;
         if(gf?.domain){filteredRoster=filteredRoster.filter(x=>x.email?.endsWith("@"+gf.domain));filteredSessions=filteredSessions.filter(x=>x.member_email?.endsWith("@"+gf.domain));filteredPlans=filteredPlans.filter(x=>x.qa_email?.endsWith("@"+gf.domain));}
         if(gf?.people?.length>0){filteredRoster=filteredRoster.filter(x=>gf.people.includes(x.email?.toLowerCase()));filteredSessions=filteredSessions.filter(x=>gf.people.includes(x.member_email?.toLowerCase()));filteredPlans=filteredPlans.filter(x=>gf.people.includes(x.qa_email?.toLowerCase()));}
-        if(gf?.teams?.length>0){const rm=window.__gfRoster||{};filteredRoster=filteredRoster.filter(x=>{const q=rm[x.email?.toLowerCase()];return q&&gf.teams.includes(q);});}
+        if(gf?.teams?.length>0){filteredRoster=filteredRoster.filter(x=>{const q=rosterMap[x.email?.toLowerCase()];return q&&gf.teams.includes(q);});}
         setRoster(filteredRoster);
         setSessions(filteredSessions);
         setActivePlans(filteredPlans);
