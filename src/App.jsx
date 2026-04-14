@@ -8475,8 +8475,6 @@ function SchedulePage({token, profile, gf}) {
 const DAILY_TARGET_METRICS = [
   {key:"daily_sbs",label:"SBS evals",icon:"📋",unit:"evals",type:"number"},
   {key:"daily_non_sbs",label:"Non-SBS evals",icon:"📝",unit:"evals",type:"number"},
-  {key:"daily_coaching",label:"Coaching sessions",icon:"🎯",unit:"sessions",type:"number"},
-  {key:"daily_side_task_mins",label:"Side task time",icon:"⏱",unit:"mins",type:"number"},
   {key:"sbs_time_mins",label:"Time per SBS",icon:"⏳",unit:"mins",type:"number"},
   {key:"non_sbs_time_mins",label:"Time per Non-SBS",icon:"⏳",unit:"mins",type:"number"},
 ];
@@ -8646,7 +8644,7 @@ function TargetsPage({token, profile}) {
           <span className="card-title">Daily targets — {selTeam} {selDomain !== "all" ? `(${selDomain})` : ""}</span>
           <span style={{fontSize:11,color:"var(--tx3)"}}>How much each QA should complete per day</span>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,padding:"12px 16px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,padding:"12px 16px"}}>
           {DAILY_TARGET_METRICS.map(m => {
             const target = getTarget(m.key);
             const val = target?.target_value ?? "—";
