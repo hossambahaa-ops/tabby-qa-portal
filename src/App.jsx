@@ -7371,6 +7371,7 @@ function QAProfilePage({token, profile, gf}) {
   const [flags, setFlags] = useState([]);
   const [qaAttendance, setQaAttendance] = useState([]);
   const [dailyScores, setDailyScores] = useState([]);
+  const [teamTargets, setTeamTargets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedQA, setSelectedQA] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -7394,7 +7395,7 @@ function QAProfilePage({token, profile, gf}) {
     (async () => {
       try {
         const curMonth = new Date().toISOString().slice(0,7);
-        const [r, m, s, ap, t, f, profs, att, ds] = await Promise.all([
+        const [r, m, s, ap, t, f, profs, att, ds, tgt] = await Promise.all([
           dataCache.fetch("qa_roster_full",()=>sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country,hiring_date",token}).catch(()=>[])),
           dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", {select:"*",filters:"order=month.desc",token}).catch(()=>[])),
           sb.query("coaching_sessions", {select:"id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass",filters:"order=session_date.desc",token}).catch(()=>[]),
@@ -7404,6 +7405,7 @@ function QAProfilePage({token, profile, gf}) {
           dataCache.fetch("profiles_email_role",()=>sb.query("profiles", {select:"email,role",token}).catch(()=>[])),
           sb.query("qa_attendance", {select:"email,date,status",filters:`date=gte.${curMonth}-01&order=date.asc`,token}).catch(()=>[]),
           sb.query("daily_scores", {select:"*",filters:`date=eq.${new Date().toISOString().split("T")[0]}`,token}).catch(()=>[]),
+          dataCache.fetch("team_targets",()=>sb.query("team_targets", {select:"team_name,domain,metric,target_value",token}).catch(()=>[])),
         ]);
         setRoster(Array.isArray(r) ? r : []);
         setMtd(Array.isArray(m) ? m : []);
@@ -7413,6 +7415,7 @@ function QAProfilePage({token, profile, gf}) {
         setFlags(Array.isArray(f) ? f : []);
         setQaAttendance(Array.isArray(att) ? att : []);
         setDailyScores(Array.isArray(ds) ? ds : []);
+        setTeamTargets(Array.isArray(tgt) ? tgt : []);
         // Store qa_lead emails and all profiles for filtering
         const allProfs = Array.isArray(profs)?profs:[];
         const leads = allProfs.filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase());
@@ -7587,8 +7590,17 @@ function QAProfilePage({token, profile, gf}) {
             const stMins = d?.side_task_minutes || 0;
             const occ = d?.occupancy_pct || 0;
             const occPct = occ > 2 ? occ : occ * 100;
-            // Progress ring — total evals vs a rough daily target
-            const target = 20; // fallback — will use team targets when available
+            // Get daily target from team_targets (with inheritance: team+domain → team+all → Default+domain → Default+all)
+            const qaQueue = qa?.queue || "";
+            const qaEmail = selectedQA?.toLowerCase() || "";
+            const qaDomain = qaEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
+            const findTgt = (metric) => {
+              const find = (team, dom) => teamTargets.find(t => t.team_name === team && t.domain === dom && t.metric === metric);
+              return find(qaQueue, qaDomain) || find(qaQueue, "all") || find("Default", qaDomain) || find("Default", "all");
+            };
+            const sbsTarget = parseFloat(findTgt("daily_sbs")?.target_value) || 3;
+            const nonSbsTarget = parseFloat(findTgt("daily_non_sbs")?.target_value) || 10;
+            const target = sbsTarget + nonSbsTarget;
             const pct = target > 0 ? Math.min(100, Math.round((totalEvals / target) * 100)) : 0;
             const circumference = 2 * Math.PI * 28;
             const dashArray = `${(pct / 100) * circumference} ${circumference}`;
@@ -8460,15 +8472,17 @@ function SchedulePage({token, profile, gf}) {
 }
 
 /* ═══ TARGETS PAGE ═══ */
+const DAILY_TARGET_METRICS = [
+  {key:"daily_sbs",label:"SBS evals",icon:"📋",unit:"evals",type:"number"},
+  {key:"daily_non_sbs",label:"Non-SBS evals",icon:"📝",unit:"evals",type:"number"},
+  {key:"daily_coaching",label:"Coaching sessions",icon:"🎯",unit:"sessions",type:"number"},
+  {key:"daily_side_task_mins",label:"Side task time",icon:"⏱",unit:"mins",type:"number"},
+  {key:"sbs_time_mins",label:"Time per SBS",icon:"⏳",unit:"mins",type:"number"},
+  {key:"non_sbs_time_mins",label:"Time per Non-SBS",icon:"⏳",unit:"mins",type:"number"},
+];
 const TARGET_METRICS = [
-  {key:"sbs",label:"SBS evaluations / day",type:"number"},
-  {key:"non_sbs",label:"Non-SBS evaluations / day",type:"number"},
-  {key:"daily_sbs",label:"Daily SBS target",type:"number"},
-  {key:"daily_non_sbs",label:"Daily Non-SBS target",type:"number"},
-  {key:"daily_coaching",label:"Daily coaching sessions target",type:"number"},
-  {key:"daily_side_task_mins",label:"Daily side task minutes target",type:"number"},
-  {key:"sbs_time_mins",label:"Time per SBS eval (minutes)",type:"number"},
-  {key:"non_sbs_time_mins",label:"Time per Non-SBS eval (minutes)",type:"number"},
+  {key:"sbs",label:"SBS evaluations / month",type:"number"},
+  {key:"non_sbs",label:"Non-SBS evaluations / month",type:"number"},
   {key:"occupancy_pct",label:"Occupancy %",type:"percent"},
   {key:"coaching_completion_pct",label:"Coaching completion %",type:"percent"},
   {key:"ontime_coaching_pct",label:"On-time coaching %",type:"percent"},
@@ -8626,6 +8640,41 @@ function TargetsPage({token, profile}) {
         </div>
       </div>
 
+      {/* ═══ DAILY TARGETS — smart card layout ═══ */}
+      <div className="card" style={{marginBottom:16}}>
+        <div className="card-header">
+          <span className="card-title">Daily targets — {selTeam} {selDomain !== "all" ? `(${selDomain})` : ""}</span>
+          <span style={{fontSize:11,color:"var(--tx3)"}}>How much each QA should complete per day</span>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,padding:"12px 16px"}}>
+          {DAILY_TARGET_METRICS.map(m => {
+            const target = getTarget(m.key);
+            const val = target?.target_value ?? "—";
+            const isEdit = editing === m.key;
+            const isCustom = targets.some(t => t.team_name === selTeam && t.domain === selDomain && t.metric === m.key);
+            const isInherited = !isCustom && (selTeam !== "Default" || selDomain !== "all");
+            return (
+              <div key={m.key} style={{background:"var(--bg)",borderRadius:12,padding:16,textAlign:"center",border:"1px solid var(--bd)",cursor:isEdit?"default":"pointer",transition:"all .15s"}}
+                onClick={()=>{if(!isEdit){setEditing(m.key);setEditValue(target?.target_value||"");}}}
+                onMouseEnter={e=>{if(!isEdit)e.currentTarget.style.borderColor="var(--tabby-purple)";}}
+                onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--bd)";}}
+              >
+                <div style={{fontSize:22,marginBottom:4}}>{m.icon}</div>
+                {isEdit ? <div style={{display:"flex",alignItems:"center",gap:4,justifyContent:"center"}}>
+                  <input type="number" className="form-input" style={{width:70,fontSize:16,fontWeight:700,textAlign:"center",padding:"4px 8px"}} value={editValue} onChange={e=>setEditValue(e.target.value)} autoFocus
+                    onKeyDown={e=>{if(e.key==="Enter")saveTarget(m.key);if(e.key==="Escape")setEditing(null);}}/>
+                  <button className="btn btn-primary btn-sm" style={{fontSize:10,padding:"4px 8px"}} onClick={e=>{e.stopPropagation();saveTarget(m.key);}}>✓</button>
+                </div>
+                : <div style={{fontSize:24,fontWeight:800,color:isInherited?"var(--tx3)":"var(--tx)"}}>{val}</div>}
+                <div style={{fontSize:11,fontWeight:600,color:"var(--tx2)",marginTop:4}}>{m.label}</div>
+                <div style={{fontSize:9,color:"var(--tx3)",marginTop:2}}>{isInherited?"inherited":"per QA / day"} · {m.unit}</div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ═══ MONTHLY KPI TARGETS ═══ */}
       {/* Targets grid */}
       <div className="card">
         <div className="card-header">
