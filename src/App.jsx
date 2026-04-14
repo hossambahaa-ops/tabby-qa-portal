@@ -5053,6 +5053,7 @@ function ActionPlanPage({ token, profile }) {
   const [concludingPlan, setConcludingPlan] = useState(null);
   const [conclusionOutcome, setConclusionOutcome] = useState("");
   const [conclusionNotes, setConclusionNotes] = useState("");
+  const [pullMonth, setPullMonth] = useState(""); // month to pull MTD data from
 
   // ── Slab engine (same as dashboard/leaderboard) ──
   const KPI_SLABS = {
@@ -5344,7 +5345,7 @@ function ActionPlanPage({ token, profile }) {
   };
 
   // ── Update week actuals ──
-  const updateWeekActuals = async (weekId, qaEmail) => {
+  const updateWeekActuals = async (weekId, qaEmail, selectedMonth) => {
     // Find the plan for this week
     const week = weeks.find(w => w.id === weekId);
     if (!week) { show("error", "Week not found"); return; }
@@ -5363,33 +5364,29 @@ function ActionPlanPage({ token, profile }) {
       planMetrics = Array.isArray(parsed) ? parsed : (parsed.metrics || []);
     } catch { }
 
-    // Pull latest MTD data
+    // Pull MTD data for the selected month (or latest if not specified)
     const months = sortMonthsDesc([...new Set(mtd.map(r => r.month))]);
-    const latestMonth = months[0];
+    const useMonth = selectedMonth || pullMonth || months[0];
     const qaLocal = qaEmail.toLowerCase().split("@")[0];
-    const row = mtd.find(r => r.month === latestMonth && (r.qa_email?.toLowerCase() === qaEmail.toLowerCase() || r.qa_email?.toLowerCase().split("@")[0] === qaLocal));
-    if (!row) { show("error", "No MTD data found for " + nameFromEmail(qaEmail) + " in " + latestMonth); return; }
+    const row = mtd.find(r => r.month === useMonth && (r.qa_email?.toLowerCase() === qaEmail.toLowerCase() || r.qa_email?.toLowerCase().split("@")[0] === qaLocal));
+    if (!row) { show("error", "No MTD data found for " + nameFromEmail(qaEmail) + " in " + useMonth); return; }
 
     // Only pull actuals for KPIs that are in this plan's targets
     const actualData = {};
     targetKeys.forEach(key => {
-      // Find the metric definition (could be from KPI_SLABS or custom)
       const metric = planMetrics.find(m => m.kpi_key === key);
       if (metric?.raw_key && KPI_SLABS[key]) {
-        // Standard KPI — pull from MTD
         actualData[key] = parseRaw(row[KPI_SLABS[key].rawKey]);
       } else if (metric?.raw_key) {
         actualData[key] = parseRaw(row[metric.raw_key]);
-      } else {
-        // Custom metric — can't pull from MTD, skip
       }
     });
 
-    // Check if targets met (only for keys that have actuals)
+    // Check if targets met
     const metTargets = targetKeys.every(key => {
       const actual = actualData[key];
       const target = targetData[key];
-      if (actual === null || actual === undefined) return true; // custom metrics without actuals don't block
+      if (actual === null || actual === undefined) return true;
       if (target === null || target === undefined || target === "") return true;
       return Number(actual) >= Number(target);
     });
@@ -5404,8 +5401,7 @@ function ActionPlanPage({ token, profile }) {
         },
         filters: `id=eq.${weekId}`,
       });
-      show("success", "Actuals updated from MTD (" + latestMonth + ")");
-      // Optimistic update
+      show("success", "Actuals updated from MTD (" + useMonth + ")");
       setWeeks(prev => prev.map(w => w.id === weekId ? { ...w, actual_data: JSON.stringify(actualData), met_targets: metTargets, updated_at: new Date().toISOString() } : w));
     } catch (e) { show("error", safeError(e)); }
   };
@@ -6003,7 +5999,16 @@ function ActionPlanPage({ token, profile }) {
                     </div>}
 
                     {/* Weekly tracking table */}
-                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>{targetsData.follow_up_mode === "monthly" ? "Monthly" : "Weekly"} tracking</div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)", textTransform: "uppercase", letterSpacing: ".5px" }}>{targetsData.follow_up_mode === "monthly" ? "Monthly" : "Weekly"} tracking</div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontSize:10,color:"var(--tx3)",fontWeight:500}}>Pull from:</span>
+                        <select className="form-input" style={{fontSize:11,padding:"3px 8px",width:"auto",minWidth:120}} value={pullMonth} onChange={e=>setPullMonth(e.target.value)}>
+                          <option value="">Latest month</option>
+                          {sortMonthsDesc([...new Set(mtd.map(r=>r.month))]).map(m=><option key={m} value={m}>{m}</option>)}
+                        </select>
+                      </div>
+                    </div>
                     <div className="table-wrap">
                       <table style={{ fontSize: 12 }}>
                         <thead><tr>
