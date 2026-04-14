@@ -1,0 +1,385 @@
+import React, { useState, useEffect } from "react";
+import { hasRole } from "../lib/constants.js";
+import { sb, dataCache } from "../lib/supabase.js";
+import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
+import { useToast, useConfirm } from "../lib/hooks.jsx";
+import { PulseLoader } from "../components/Charts.jsx";
+
+function CoachingViolationsPage({token, profile, gf}) {
+  const [violations, setViolations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState("pending");
+  const [reviewModal, setReviewModal] = useState(null);
+  const [reviewStatus, setReviewStatus] = useState("");
+  const [reviewNotes, setReviewNotes] = useState("");
+  const [profiles, setProfiles] = useState([]);
+  const [damRules, setDamRules] = useState([]);
+  const [selDamRule, setSelDamRule] = useState("");
+  const { show, el } = useToast();
+  const { ask: confirmAsk, el: confirmEl } = useConfirm();
+
+  const nameFromEmail = (email) => {
+    if (!email) return "—";
+    return email.split("@")[0].split(".").map(p => {
+      const c = p.replace(/[\d]+$/, "");
+      return c ? c.charAt(0).toUpperCase() + c.slice(1) : "";
+    }).filter(Boolean).join(" ");
+  };
+
+  const load = useCallback(async () => {
+    try {
+      const [v, p, r] = await Promise.all([
+        sb.query("coaching_violations", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
+        dataCache.fetch("profiles",()=>sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => [])),
+        dataCache.fetch("dam_rules",()=>sb.query("dam_rules", { select: "id,name,behavior_type", filters: "is_active=eq.true&order=name.asc", token }).catch(() => [])),
+      ]);
+      // Domain scope for supervisors
+      const svDomain = profile?.operational_domain || profile?.domain || "tabby.ai";
+      const isAdmin = hasRole(profile?.role, "admin");
+      const isSv = hasRole(profile?.role, "qa_supervisor") && !isAdmin;
+      let filtered = isSv ? v.filter(x => x.qa_emails?.includes("@" + svDomain) || x.lead_email?.includes("@" + svDomain)) : v;
+      // Apply global filters
+      if(gf?.domain) filtered = filtered.filter(x => x.qa_emails?.includes("@" + gf.domain));
+      if(gf?.people?.length > 0) filtered = filtered.filter(x => gf.people.some(p => x.qa_emails?.toLowerCase().includes(p)));
+      setViolations(filtered);
+      setProfiles(p);
+      setDamRules(r);
+    } catch (e) { console.error("Violations:", e); }
+    setLoading(false);
+  }, [token]);
+
+  useEffect(() => { load(); }, [load]);
+  useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
+
+  const pendingV = violations.filter(v => v.status === "pending");
+  const reviewedV = violations.filter(v => v.status !== "pending");
+
+  const openReview = (v) => {
+    setReviewModal(v);
+    setReviewStatus(v.status === "pending" ? "" : (v.status === "invalid" ? "invalid" : "valid"));
+    setReviewNotes(v.review_notes || "");
+    // Auto-detect DAM rule from violation type
+    const typeToRule = {
+      "> 4 Uses": "Same link for 4+",
+      "Multiple Days": "Same link on different days",
+      "Multiple Agents": "Same link for multiple agents",
+    };
+    const matchText = typeToRule[v.violation_type] || "";
+    const matched = damRules.find(r => r.name?.toLowerCase().includes(matchText.toLowerCase()));
+    setSelDamRule(matched?.id || "");
+  };
+
+  const submitReview = async () => {
+    if (!reviewStatus) { show("error", "Select Valid or Invalid"); return; }
+
+    try {
+      // Update the violation
+      await sb.query("coaching_violations", {
+        token, method: "PATCH",
+        body: {
+          status: reviewStatus === "valid" ? "valid" : "invalid",
+          reviewed_by: profile?.email,
+          reviewed_at: new Date().toISOString(),
+          review_notes: reviewNotes.trim() || null,
+        },
+        filters: `id=eq.${reviewModal.id}`,
+      });
+
+      // If valid → auto-create DAM flag (DAM rule is required)
+      if (reviewStatus === "valid") {
+        if (!selDamRule) { show("error", "Select a DAM rule to create the flag"); setLoading(false); return; }
+
+        const qaEmailsList = reviewModal.qa_emails.split("\n").map(e => e.trim()).filter(Boolean);
+        let flagsCreated = 0;
+
+        for (const qaEmail of qaEmailsList) {
+          // Try to find profile by email (check both domain variants)
+          let qaProfile = profiles.find(p => p.email?.toLowerCase() === qaEmail.toLowerCase());
+          if (!qaProfile) {
+            const local = qaEmail.split("@")[0];
+            qaProfile = profiles.find(p => p.email?.toLowerCase() === (local + "@tabby.ai") || p.email?.toLowerCase() === (local + "@tabby.sa"));
+          }
+
+          // Count existing occurrences (by profile_id or qa_email)
+          let occurrence = 1;
+          try {
+            const filterStr = qaProfile
+              ? `profile_id=eq.${qaProfile.id}&rule_id=eq.${selDamRule}&status=neq.dismissed`
+              : `qa_email=eq.${qaEmail}&rule_id=eq.${selDamRule}&status=neq.dismissed`;
+            const existing = await sb.query("dam_flags", { select: "id", filters: filterStr, token });
+            occurrence = (existing?.length || 0) + 1;
+          } catch {}
+
+          // Create DAM flag — with profile_id if available, otherwise just qa_email
+          const selectedRule = damRules.find(r => r.id === selDamRule);
+          const flagBody = {
+            rule_id: selDamRule,
+            qa_email: qaEmail,
+            severity: selectedRule?.severity || (occurrence >= 3 ? "critical" : occurrence >= 2 ? "warning" : "notice"),
+            recommended_action: selectedRule?.recommended_action || "coaching",
+            status: "pending",
+            notes: `Auto-created from coaching violation: ${reviewModal.violation_type}. Link: ${reviewModal.coaching_link}. Review notes: ${reviewNotes.trim()}`,
+            occurrence_number: occurrence,
+          };
+          if (qaProfile) flagBody.profile_id = qaProfile.id;
+
+          await sb.query("dam_flags", { token, method: "POST", body: flagBody });
+          flagsCreated++;
+        }
+
+        // Update violation status to dam_created
+        await sb.query("coaching_violations", {
+          token, method: "PATCH",
+          body: { status: "dam_created", reviewed_by: profile?.email, reviewed_at: new Date().toISOString(), review_notes: reviewNotes.trim() },
+          filters: `id=eq.${reviewModal.id}`,
+        });
+
+        show("success", `Marked as valid — ${flagsCreated} DAM flag(s) created`);
+        logActivity(token, profile?.email, "violation_valid", "coaching_violations", reviewModal.id, `QA: ${reviewModal.qa_emails}, Type: ${reviewModal.violation_type}`);
+      } else {
+        show("success", "Marked as invalid");
+        logActivity(token, profile?.email, "violation_invalid", "coaching_violations", reviewModal.id, `QA: ${reviewModal.qa_emails}, Type: ${reviewModal.violation_type}`);
+      }
+
+      setReviewModal(null);
+      // Optimistic update
+      const newStatus = reviewStatus === "valid" ? "dam_created" : "invalid";
+      setViolations(prev => prev.map(v => v.id === reviewModal.id ? { ...v, status: newStatus, reviewed_by: profile?.email, reviewed_at: new Date().toISOString(), review_notes: reviewNotes.trim() } : v));
+    } catch (e) { show("error", safeError(e)); }
+  };
+
+  const violationColor = (type) => {
+    if (type?.includes(">") || type?.includes("4")) return { bg: "var(--red-bg)", color: "var(--red)" };
+    if (type?.includes("Day")) return { bg: "var(--amber-bg)", color: "var(--amber)" };
+    if (type?.includes("Agent")) return { bg: "#EDE9FE", color: "#7C3AED" };
+    return { bg: "var(--bg2)", color: "var(--tx2)" };
+  };
+
+  if (loading) return <div className="page"><PulseLoader/></div>;
+
+  return (
+    <div className="page">
+      <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+        <div>
+          <div className="page-title">Coaching Violations</div>
+          <div className="page-subtitle">Review coaching link violations detected by the audit script</div>
+        </div>
+        <div style={{display:"flex",gap:12,alignItems:"center"}}>
+          {pendingV.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--red-bg)",color:"var(--red)",fontSize:12,fontWeight:700}}>{pendingV.length} pending</span>}
+          <span style={{padding:"4px 12px",borderRadius:20,background:"var(--green-bg)",color:"var(--green)",fontSize:12,fontWeight:600}}>{reviewedV.length} reviewed</span>
+        </div>
+      </div>
+
+      <div className="tab-bar" style={{marginBottom:16}}>
+        <button className={`tab-btn ${tab === "pending" ? "active" : ""}`} onClick={() => setTab("pending")}>
+          Pending review ({pendingV.length})
+        </button>
+        <button className={`tab-btn ${tab === "reviewed" ? "active" : ""}`} onClick={() => setTab("reviewed")}>
+          Reviewed ({reviewedV.length})
+        </button>
+      </div>
+
+      {tab === "pending" && <div className="card">
+        {pendingV.length === 0 ? (
+          <div className="placeholder" style={{ padding: 40 }}>
+            <p style={{ color: "var(--tx3)" }}>No pending violations to review.</p>
+          </div>
+        ) : (
+          <div className="table-wrap"><table>
+            <thead><tr>
+              <th>QA</th>
+              <th>Lead</th>
+              <th>Violation</th>
+              <th>Date</th>
+              <th>Link</th>
+            </tr></thead>
+            <tbody>
+              {pendingV.map(v => {
+                const vc = violationColor(v.violation_type);
+                return (
+                  <tr key={v.id} onClick={() => openReview(v)} style={{cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{ fontWeight: 500, fontSize: 13 }}>
+                      {v.qa_emails?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
+                    </td>
+                    <td style={{ fontSize: 13, color: "var(--tx2)" }}>
+                      {v.lead_email?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
+                    </td>
+                    <td>
+                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, fontWeight: 600, background: vc.bg, color: vc.color }}>
+                        {v.violation_type}
+                      </span>
+                      {(()=>{
+                        const flowMap = { "> 4 Uses": "Coaching Observation", "> 3 Uses": "Coaching Observation", "Multiple Days": "Calendar + Occupancy Audit", "Multiple Agents": "Calendar Audit" };
+                        const flow = flowMap[v.violation_type];
+                        return flow ? <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{flow}</div> : null;
+                      })()}
+                    </td>
+                    <td style={{ fontSize: 12, color: "var(--tx2)" }}>
+                      {v.violation_date ? new Date(v.violation_date + "T00:00:00").toLocaleDateString("en-GB", { month: "short", day: "numeric", year: "numeric" }) : "—"}
+                    </td>
+                    <td style={{ fontSize: 12 }}>
+                      <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                        <a href={v.coaching_link} target="_blank" rel="noreferrer" style={{ color: "var(--accent-text)", textDecoration: "underline", fontSize: 12 }} onClick={e=>e.stopPropagation()}>Open</a>
+                        <button className="btn btn-outline btn-sm" style={{ fontSize: 10, padding: "1px 6px" }} onClick={(e) => {
+                          e.stopPropagation();
+                          navigator.clipboard.writeText(v.coaching_link);
+                          show("success", "Link copied!");
+                        }}>Copy</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table></div>
+        )}
+      </div>}
+
+      {tab === "reviewed" && <div className="card">
+        {reviewedV.length === 0 ? (
+          <div className="placeholder" style={{ padding: 40 }}>
+            <p style={{ color: "var(--tx3)" }}>No reviewed violations yet.</p>
+          </div>
+        ) : (
+          <div className="table-wrap"><table>
+            <thead><tr>
+              <th>QA</th>
+              <th>Violation</th>
+              <th>Result</th>
+              <th>Reviewed by</th>
+              <th>Notes</th>
+              <th>Date</th>
+            </tr></thead>
+            <tbody>
+              {reviewedV.map(v => {
+                const vc = violationColor(v.violation_type);
+                return (
+                  <tr key={v.id} onClick={() => openReview(v)} style={{cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                    <td style={{ fontWeight: 500, fontSize: 13 }}>
+                      {v.qa_emails?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
+                    </td>
+                    <td>
+                      <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, fontWeight: 600, background: vc.bg, color: vc.color }}>
+                        {v.violation_type}
+                      </span>
+                    </td>
+                    <td>
+                      <span style={{
+                        fontSize: 11, padding: "2px 8px", borderRadius: 12, fontWeight: 600,
+                        background: v.status === "invalid" ? "var(--green-bg)" : v.status === "dam_created" ? "var(--red-bg)" : "var(--amber-bg)",
+                        color: v.status === "invalid" ? "var(--green)" : v.status === "dam_created" ? "var(--red)" : "var(--amber)",
+                      }}>
+                        {v.status === "invalid" ? "✓ Invalid" : v.status === "dam_created" ? "⚠ Valid → DAM" : "Valid"}
+                      </span>
+                    </td>
+                    <td style={{ fontSize: 12, color: "var(--tx2)" }}>{nameFromEmail(v.reviewed_by)}</td>
+                    <td style={{ fontSize: 12, color: "var(--tx2)", maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.review_notes || "—"}</td>
+                    <td style={{ fontSize: 12, color: "var(--tx2)" }}>
+                      {v.reviewed_at ? new Date(v.reviewed_at).toLocaleDateString("en-GB", { month: "short", day: "numeric" }) : "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table></div>
+        )}
+      </div>}
+
+      {/* Review Modal */}
+      {reviewModal && (()=>{
+        // Map violation type to suggested DAM rule and auditing flow
+        const violationMap = {
+          "> 4 Uses": { ruleName: "Coaching Recording: Same link for 3+ tickets", flow: "Coaching Observation" },
+          "> 3 Uses": { ruleName: "Coaching Recording: Same link for 3+ tickets", flow: "Coaching Observation" },
+          "Multiple Days": { ruleName: "Coaching Recording: Same link on different days", flow: "Calendar + Occupancy Audit" },
+          "Multiple Agents": { ruleName: "Coaching Recording: Same link for multiple agents", flow: "Calendar Audit" },
+        };
+        const suggestion = violationMap[reviewModal.violation_type] || null;
+        const suggestedRule = suggestion ? damRules.find(r => r.name === suggestion.ruleName) : null;
+
+        return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflowY: "auto" }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
+        <div className="card" style={{ width: "100%", maxWidth: 560, margin: 20, maxHeight: "85vh", overflowY: "auto" }}>
+          <div className="card-header"><span className="card-title">{reviewModal.status !== "pending" ? "Update Review" : "Review Violation"}</span></div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13 }}>
+              <div><span style={{ color: "var(--tx3)" }}>QA: </span><strong>{reviewModal.qa_emails?.split("\n").map(e => nameFromEmail(e)).join(", ")}</strong></div>
+              <div><span style={{ color: "var(--tx3)" }}>Type: </span><strong>{reviewModal.violation_type}</strong></div>
+              <div><span style={{ color: "var(--tx3)" }}>Date: </span>{reviewModal.violation_date || "—"}</div>
+              <div><span style={{ color: "var(--tx3)" }}>Lead: </span>{reviewModal.lead_email?.split("\n").map(e => nameFromEmail(e)).join(", ")}</div>
+            </div>
+
+            {/* Suggested auditing flow */}
+            {suggestion && <div style={{ marginTop: 10, padding: "8px 12px", background: "var(--amber-bg)", borderRadius: 8, fontSize: 12 }}>
+              <span style={{ fontWeight: 600, color: "var(--amber)" }}>Suggested audit: </span>
+              <span style={{ color: "var(--tx)" }}>{suggestion.flow}</span>
+              {suggestedRule && <span style={{ color: "var(--tx3)" }}> · DAM rule: {suggestedRule.name}</span>}
+            </div>}
+
+            <div style={{ marginTop: 8 }}>
+              <a href={reviewModal.coaching_link} target="_blank" rel="noreferrer" style={{ color: "var(--accent-text)", fontSize: 13 }}>
+                Open coaching link ↗
+              </a>
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">Decision</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => { setReviewStatus("valid"); if (suggestedRule) setSelDamRule(suggestedRule.id); }} className={`btn ${reviewStatus === "valid" ? "btn-primary" : "btn-outline"}`} style={reviewStatus === "valid" ? { background: "var(--red)" } : {}}>
+                ⚠️ Valid violation
+              </button>
+              <button onClick={() => setReviewStatus("invalid")} className={`btn ${reviewStatus === "invalid" ? "btn-primary" : "btn-outline"}`} style={reviewStatus === "invalid" ? { background: "var(--green)" } : {}}>
+                ✓ Invalid (false positive)
+              </button>
+            </div>
+          </div>
+
+          {reviewStatus === "valid" && <div className="form-group" style={{ marginBottom: 12 }}>
+            <label className="form-label">DAM rule <span style={{ color: "var(--red)" }}>*</span> (creates flag automatically)</label>
+            <select className="select form-input" value={selDamRule} onChange={e => setSelDamRule(e.target.value)}>
+              <option value="">— Select DAM rule —</option>
+              {damRules.filter(r => r.name?.startsWith("Coaching Recording")).map(r => {
+                const isSuggested = r.id === suggestedRule?.id;
+                return <option key={r.id} value={r.id}>{isSuggested ? "⭐ " : ""}{r.name}{isSuggested ? " (suggested)" : ""}</option>;
+              })}
+            </select>
+            {!selDamRule && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>DAM rule is required for valid violations</div>}
+          </div>}
+
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label className="form-label">Notes <span style={{ color: "var(--red)" }}>*</span></label>
+            <textarea className="form-input" rows={2} value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} placeholder="Explain your decision (required)..." style={{ resize: "vertical", borderColor: !reviewNotes.trim() && reviewStatus ? "var(--red)" : "" }} />
+            {!reviewNotes.trim() && reviewStatus && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>Notes are required</div>}
+          </div>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button className="btn btn-primary" onClick={submitReview} disabled={!reviewStatus || !reviewNotes.trim() || (reviewStatus === "valid" && !selDamRule)}>
+              {reviewModal.status !== "pending" ? "Update" : "Confirm"}
+            </button>
+            <button className="btn btn-outline" onClick={() => setReviewModal(null)}>Cancel</button>
+            {reviewModal.status !== "pending" && <button className="btn btn-outline" style={{marginLeft:"auto",color:"var(--amber)",borderColor:"var(--amber)"}} onClick={()=>{
+              confirmAsk("Reopen violation?",`This will set the violation back to "pending" for re-review. The previous decision will be cleared.`,async()=>{
+                try{
+                  await sb.query("coaching_violations",{token,method:"PATCH",body:{status:"pending",reviewed_by:null,reviewed_at:null,review_notes:null},filters:`id=eq.${reviewModal.id}`});
+                  setViolations(prev=>prev.map(v=>v.id===reviewModal.id?{...v,status:"pending",reviewed_by:null,reviewed_at:null,review_notes:null}:v));
+                  show("success","Violation reopened for review");
+                  setReviewModal(null);
+                }catch(e){show("error",safeError(e));}
+              },"Reopen","var(--amber)");
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+              Reopen
+            </button>}
+          </div>
+        </div>
+      </div>;
+      })()}
+
+      {el}
+      {confirmEl}
+    </div>
+  );
+}
+
+export default CoachingViolationsPage;

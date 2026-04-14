@@ -1,0 +1,71 @@
+export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+export const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
+export const sb = {
+  headers: (token) => ({ apikey: SUPABASE_ANON, Authorization: `Bearer ${token || SUPABASE_ANON}`, "Content-Type": "application/json", Prefer: "return=representation" }),
+  async query(table, { select = "*", filters = "", token, method = "GET", body, headers: extra } = {}) {
+    const url = `${SUPABASE_URL}/rest/v1/${table}?select=${encodeURIComponent(select)}${filters ? "&" + filters : ""}`;
+    const opts = { method, headers: { ...this.headers(token), ...extra } };
+    if (body) opts.body = JSON.stringify(body);
+    const r = await fetch(url, opts);
+    // Auto-refresh on 401 (JWT expired) and retry once
+    if (r.status === 401) {
+      const session = await sb.auth.getSession();
+      if (session?.access_token && session.access_token !== token) {
+        // Update stored session and retry with new token
+        const retryOpts = { method, headers: { ...this.headers(session.access_token), ...extra } };
+        if (body) retryOpts.body = JSON.stringify(body);
+        const r2 = await fetch(url, retryOpts);
+        if (!r2.ok) { const e = await r2.json().catch(() => ({})); throw new Error(e.message || e.details || r2.statusText); }
+        if (r2.status === 204) return [];
+        // Notify app to update token
+        window.dispatchEvent(new CustomEvent("session-refreshed", { detail: session }));
+        return r2.json();
+      }
+      const e = await r.json().catch(() => ({}));
+      throw new Error("Session expired. Please sign in again.");
+    }
+    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || e.details || r.statusText); }
+    if (r.status === 204) return [];
+    return r.json();
+  },
+  async rpc(fn, params, token) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: "POST", headers: this.headers(token), body: JSON.stringify(params) });
+    if (!r.ok) { const e = await r.json().catch(() => ({})); throw new Error(e.message || r.statusText); }
+    const t = await r.text(); return t ? JSON.parse(t) : null;
+  },
+  auth: {
+    async getSession() { const s = localStorage.getItem("sb_session"); if (!s) return null; try { const p = JSON.parse(s); if (p.expires_at && Date.now()/1000 > p.expires_at-60) return sb.auth.refresh(p.refresh_token); return p; } catch { localStorage.removeItem("sb_session"); return null; } },
+    async refresh(rt) { try { const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, { method:"POST", headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"}, body:JSON.stringify({refresh_token:rt}) }); if(!r.ok){localStorage.removeItem("sb_session");return null;} const d=await r.json(); const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user}; localStorage.setItem("sb_session",JSON.stringify(s)); return s; } catch{localStorage.removeItem("sb_session");return null;} },
+    signInWithGoogle(){window.location.href=`${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(window.location.origin)}`;},
+    async handleCallback(){const h=window.location.hash;if(h&&h.includes("access_token")){const p=new URLSearchParams(h.substring(1));const s={access_token:p.get("access_token"),refresh_token:p.get("refresh_token"),expires_at:Number(p.get("expires_at")),user:null};try{const r=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_ANON,Authorization:`Bearer ${s.access_token}`}});if(r.ok)s.user=await r.json();}catch{}localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}const urlParams=new URLSearchParams(window.location.search);const c=urlParams.get("code");const state=urlParams.get("state");/* Skip Gmail OAuth codes — they are handled by CoachingPage */if(c&&state==="gmail_oauth"){return null;}if(c){try{const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=authorization_code`,{method:"POST",headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"},body:JSON.stringify({auth_code:c,code_verifier:sessionStorage.getItem("code_verifier")||""})});if(r.ok){const d=await r.json();const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user};localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}}catch{}}return null;},
+    signOut(){dataCache.invalidate();localStorage.removeItem("sb_session");sessionStorage.clear();window.location.href=window.location.origin;},
+  },
+};
+
+/* ═══ GLOBAL DATA CACHE — avoids redundant fetches across pages ═══ */
+export const dataCache = {
+  _store: {},
+  _ttl: 60000, // 60s cache lifetime
+  get(key) {
+    const entry = this._store[key];
+    if (!entry) return null;
+    if (Date.now() - entry.ts > this._ttl) { delete this._store[key]; return null; }
+    return entry.data;
+  },
+  set(key, data) { this._store[key] = { data, ts: Date.now() }; },
+  invalidate(key) { if (key) delete this._store[key]; else this._store = {}; },
+  /** Invalidate + notify all listeners to refetch */
+  bust(keys) {
+    if (Array.isArray(keys)) keys.forEach(k => delete this._store[k]);
+    else if (keys) delete this._store[keys];
+    else this._store = {};
+    window.dispatchEvent(new CustomEvent("data-changed"));
+  },
+  async fetch(key, queryFn) {
+    const cached = this.get(key);
+    if (cached) return cached;
+    const data = await queryFn();
+    this.set(key, data);
+    return data;
+  }
+};
