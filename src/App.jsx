@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import "./index.css";
 import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc } from "./lib/constants.js";
 import { sb, SUPABASE_URL } from "./lib/supabase.js";
@@ -61,8 +62,10 @@ const NAV_ITEMS=[
 
 /* ═══ APP ═══ */
 function AppInner(){
+  const navigate=useNavigate();
+  const location=useLocation();
+  const page=location.pathname.replace(/^\//,"") || "dashboard";
   const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);
-  const[page,setPage]=useState(()=>{/* If returning from Gmail OAuth, go back to coaching page */const urlP=new URLSearchParams(window.location.search);if(urlP.get("state")==="gmail_oauth"){return "coaching";}const h=window.location.hash.replace("#","");return h||"dashboard";});
   const[sidebarOpen,setSidebarOpen]=useState(false);
   const[sidebarCollapsed,setSidebarCollapsed]=useState(()=>localStorage.getItem("sb_collapsed")==="true");
   const[viewAsRole,setViewAsRole]=useState("");
@@ -76,8 +79,9 @@ function AppInner(){
   const[feedbackForm,setFeedbackForm]=useState({category:"general",message:"",rating:0});
   const[feedbackSending,setFeedbackSending]=useState(false);
   const[feedbackSent,setFeedbackSent]=useState(false);
-  // Persist page in URL hash
-  useEffect(()=>{window.location.hash=page;},[page]);
+  const setPage=(p)=>navigate("/"+p);
+  // Gmail OAuth redirect
+  useEffect(()=>{const urlP=new URLSearchParams(window.location.search);if(urlP.get("state")==="gmail_oauth"){navigate("/coaching",{replace:true});}},[]);
   // Dynamic page title
   useEffect(()=>{
     const item=NAV_ITEMS.find(n=>n.key===page);
@@ -90,7 +94,6 @@ function AppInner(){
     link.type="image/svg+xml";
     link.href="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="fg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#3BFF9D"/><stop offset="100%" stop-color="#8B5CF6"/></linearGradient></defs><rect width="32" height="32" rx="8" fill="#0d1117"/><path d="M3 16 L8 16 L11 7 L16 25 L21 12 L24 16 L29 16" stroke="url(#fg)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>');
   },[]);
-  useEffect(()=>{const onHash=()=>{const h=window.location.hash.replace("#","");if(h)setPage(h);};window.addEventListener("hashchange",onHash);return()=>window.removeEventListener("hashchange",onHash);},[]);
   // Persist sidebar collapse
   useEffect(()=>{localStorage.setItem("sb_collapsed",sidebarCollapsed);},[sidebarCollapsed]);
   // Dark mode
@@ -111,7 +114,8 @@ function AppInner(){
     window.addEventListener("session-refreshed",handler);
     return()=>window.removeEventListener("session-refreshed",handler);
   },[]);
-  useEffect(()=>{const handler=(e)=>setPage(e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[]);
+  // Listen for legacy "navigate" custom events from child pages
+  useEffect(()=>{const handler=(e)=>navigate("/"+e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[navigate]);
   useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{
     // First try by Auth UUID
     let p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user?.id}`,token:s.access_token});
@@ -221,23 +225,8 @@ function AppInner(){
     }
     return !n.minRole || hasRole(userRole, n.minRole);
   });let curSec=null;
-  const renderPage=()=>{const t=session.access_token;const p=effectiveProfile;const gf=globalFilters;switch(page){
-    case"dashboard":return<DashboardPage profile={p} token={t} gf={gf}/>;
-    case"scores":return<ScoreEntryPage token={t} profile={p} gf={gf}/>;
-    case"targets":return<TargetsPage token={t} profile={p}/>;
-    case"audit":return hasRole(userRole,"admin")?<AuditTrailPage token={t} profile={p}/>:<PlaceholderPage title="Audit trail" icon={icons.settings} minRole="admin" userRole={userRole}/>;
-    case"admin":return hasRole(userRole,"admin")?<AdminPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>;
-    case"leaderboard":return<LeaderboardPage token={t} profile={p} gf={gf}/>;
-    case"dam":return (hasRole(userRole,"qa_lead")||userRole==="auditor")?<DAMPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="DAM flags" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
-    case"plans":return (hasRole(userRole,"qa_lead")||userRole==="auditor")?<ActionPlanPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Action plans & PIPs" icon={icons.plan} minRole="qa_lead" userRole={userRole}/>;
-    case"coaching":return hasRole(userRole,"qa_lead")&&userRole!=="auditor"?<CoachingPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>;
-    case"violations":return (hasRole(userRole,"qa_lead")||userRole==="auditor")?<CoachingViolationsPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Coaching Violations" icon={icons.dam} minRole="qa_lead" userRole={userRole}/>;
-    case"hr":return<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>;
-    case"escalations":return<EscalationsPage token={t} profile={p} gf={gf}/>;
-    case"profile":return<QAProfilePage token={t} profile={p} gf={gf}/>;
-    case"schedule":return<SchedulePage token={t} profile={p} gf={gf}/>;
-    default:return<DashboardPage profile={p} token={t} gf={gf}/>;
-  }};
+  const t=session.access_token;const p=effectiveProfile;const gf=globalFilters;
+  const guardRole=(role,component,fallbackProps)=>(hasRole(userRole,role)||userRole==="auditor")?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
   return(<div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
@@ -310,7 +299,23 @@ function AppInner(){
     <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} teams={[]} roster={globalRoster} profile={effectiveProfile} role={userRole}/>
     {/* Search overlay */}
     {showSearch&&<GlobalSearch token={session.access_token} onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
-    <div key={page} className="page-animate">{renderPage()}</div>
+    <div className="page-animate"><Routes>
+      <Route path="/dashboard" element={<DashboardPage profile={p} token={t} gf={gf}/>}/>
+      <Route path="/scores" element={<ScoreEntryPage token={t} profile={p} gf={gf}/>}/>
+      <Route path="/targets" element={<TargetsPage token={t} profile={p}/>}/>
+      <Route path="/leaderboard" element={<LeaderboardPage token={t} profile={p} gf={gf}/>}/>
+      <Route path="/profile" element={<QAProfilePage token={t} profile={p} gf={gf}/>}/>
+      <Route path="/schedule" element={<SchedulePage token={t} profile={p} gf={gf}/>}/>
+      <Route path="/escalations" element={<EscalationsPage token={t} profile={p} gf={gf}/>}/>
+      <Route path="/dam" element={guardRole("qa_lead",<DAMPage token={t} profile={p} gf={gf}/>,{title:"DAM flags",icon:icons.dam})}/>
+      <Route path="/plans" element={guardRole("qa_lead",<ActionPlanPage token={t} profile={p} gf={gf}/>,{title:"Action plans & PIPs",icon:icons.plan})}/>
+      <Route path="/coaching" element={hasRole(userRole,"qa_lead")&&userRole!=="auditor"?<CoachingPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>}/>
+      <Route path="/violations" element={guardRole("qa_lead",<CoachingViolationsPage token={t} profile={p} gf={gf}/>,{title:"Coaching Violations",icon:icons.dam})}/>
+      <Route path="/audit" element={hasRole(userRole,"admin")?<AuditTrailPage token={t} profile={p}/>:<PlaceholderPage title="Audit trail" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
+      <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage token={t} profile={p} gf={gf}/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
+      <Route path="/hr" element={<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>}/>
+      <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
+    </Routes></div>
 
     {/* ═══ ANNOUNCEMENT POPUP — blocks until acknowledged ═══ */}
     {pendingAnnouncements.length>0&&<div style={{
@@ -460,5 +465,5 @@ function AppInner(){
 }
 
 export default function App() {
-  return React.createElement(ErrorBoundary, null, React.createElement(AppInner));
+  return <ErrorBoundary><HashRouter><AppInner/></HashRouter></ErrorBoundary>;
 }
