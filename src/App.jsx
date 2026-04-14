@@ -790,6 +790,40 @@ function DashboardPage({profile,token,gf}){
   }catch(e){console.error("Tasks:",e);}},[token,profile?.email]);
   useEffect(()=>{if(profile?.email)loadTasks();},[loadTasks,profile?.email]);
 
+  // Auto-close tasks based on daily_scores data
+  useEffect(()=>{
+    if(!dailyScores.length||!userTasks.length)return;
+    const todayStr=new Date().toISOString().split("T")[0];
+    const pendingAutoTasks=userTasks.filter(t=>t.auto_close&&t.target_metric&&t.target_value&&t.status==="pending"&&t.due_date===todayStr);
+    if(!pendingAutoTasks.length)return;
+    (async()=>{
+      let closed=0;
+      for(const task of pendingAutoTasks){
+        const assignee=(task.assigned_to||task.created_by||"").toLowerCase();
+        // Find daily score — match both domain variants
+        const local=assignee.split("@")[0];
+        const ds=dailyScores.find(d=>{
+          const em=d.qa_email?.toLowerCase();
+          return em===assignee||em?.split("@")[0]===local;
+        });
+        if(!ds)continue;
+        const actual=parseFloat(ds[task.target_metric])||0;
+        const target=parseFloat(task.target_value)||0;
+        if(actual>=target){
+          // Auto-close this task
+          try{
+            await sb.query("tasks",{token,method:"PATCH",body:{status:"done",completed_at:new Date().toISOString(),updated_at:new Date().toISOString()},filters:`id=eq.${task.id}`});
+            closed++;
+          }catch(e){console.error("Auto-close task:",e);}
+        }
+      }
+      if(closed>0){
+        loadTasks();
+        show("success",`${closed} task${closed>1?"s":""} auto-completed from daily evaluations`);
+      }
+    })();
+  },[dailyScores,userTasks.length]);
+
   // Create template
   const saveTemplate=async()=>{
     if(!tplForm.title.trim()){show("error","Template title is required");return;}
@@ -1347,6 +1381,7 @@ function DashboardPage({profile,token,gf}){
                 <option value="sbs">SBS evaluations</option>
                 <option value="non_sbs">Non-SBS evaluations</option>
                 <option value="coaching_sessions">Coaching sessions</option>
+                <option value="side_task_minutes">Side task minutes</option>
                 <option value="rtr_count">RTR count</option>
                 <option value="calibration_count">Calibration count</option>
               </select>
@@ -7135,7 +7170,38 @@ function NotificationBell({ token, profile, onNavigate }) {
             const daysLeft = (new Date(p.end_date) - new Date()) / (1000*60*60*24);
             return daysLeft <= 7 && daysLeft > -1;
           }).map(p => ({ id: "ap-"+p.id, type: "plan", title: `${p.type.toUpperCase()} ending soon`, sub: `${p.qa_email?.split("@")[0]} — ${Math.ceil((new Date(p.end_date)-new Date())/(1000*60*60*24))} days left`, time: p.created_at, page: "plans" })),
-        ].sort((a, b) => new Date(b.time) - new Date(a.time));
+        ];
+        // Daily task reminders — check auto-close tasks vs daily_scores
+        try {
+          const todayStr = new Date().toISOString().split("T")[0];
+          const [dailyDs, allTodayTasks] = await Promise.all([
+            sb.query("daily_scores", {select:"*",filters:`date=eq.${todayStr}`,token}).catch(()=>[]),
+            sb.query("tasks", {select:"id,title,assigned_to,target_metric,target_value,auto_close,status,due_date",filters:`due_date=eq.${todayStr}&auto_close=eq.true&status=eq.pending`,token}).catch(()=>[]),
+          ]);
+          const myAutoTasks = allTodayTasks.filter(t => t.assigned_to?.toLowerCase() === myEmail);
+          for (const task of myAutoTasks) {
+            const local = myEmail.split("@")[0];
+            const ds = dailyDs.find(d => {
+              const em = d.qa_email?.toLowerCase();
+              return em === myEmail || em?.split("@")[0] === local;
+            });
+            const actual = ds ? (parseFloat(ds[task.target_metric]) || 0) : 0;
+            const target = parseFloat(task.target_value) || 0;
+            const remaining = Math.max(0, target - actual);
+            if (remaining > 0) {
+              const metricLabel = (task.target_metric||"").replace(/_/g, " ");
+              all.push({
+                id: "dr-"+task.id,
+                type: "reminder",
+                title: `⏰ ${remaining} more ${metricLabel} needed`,
+                sub: `${actual}/${target} done · ${task.title}`,
+                time: new Date().toISOString(),
+                page: "dashboard"
+              });
+            }
+          }
+        } catch(e) { console.error("Daily reminders:", e); }
+        all.sort((a, b) => new Date(b.time) - new Date(a.time));
         setItems(all);
       } catch {}
     };
@@ -7152,7 +7218,7 @@ function NotificationBell({ token, profile, onNavigate }) {
 
   const visible = items.filter(i => !dismissed.includes(i.id));
   const count = visible.length;
-  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" } };
+  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" } };
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -7705,10 +7771,28 @@ function QAProfilePage({token, profile, gf}) {
                     <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 4h16v16H4z"/><path d="M4 9h16"/><path d="M9 4v16"/></svg>
                     Auto-generated from template
                   </div>}
-                  {t.target_metric && t.target_value && <div style={{marginTop:6,padding:"6px 10px",background:"var(--amber-bg)",borderRadius:6,fontSize:11}}>
-                    <span style={{color:"var(--amber)",fontWeight:600}}>Target: {t.target_value}x {t.target_metric.replace(/_/g," ")}</span>
-                    {t.auto_close && <span style={{color:"var(--tx3)",marginLeft:8}}>(auto-closes when met)</span>}
-                  </div>}
+                  {t.target_metric && t.target_value && (()=>{
+                    const assignee = (t.assigned_to||t.created_by||"").toLowerCase();
+                    const local = assignee.split("@")[0];
+                    const ds = dailyScores.find(d => {
+                      const em = d.qa_email?.toLowerCase();
+                      return em === assignee || em?.split("@")[0] === local;
+                    });
+                    const actual = ds ? (parseFloat(ds[t.target_metric]) || 0) : 0;
+                    const target = parseFloat(t.target_value) || 0;
+                    const pct = target > 0 ? Math.min(100, Math.round((actual/target)*100)) : 0;
+                    const done = actual >= target;
+                    return <div style={{marginTop:6,padding:"6px 10px",background:done?"var(--green-bg)":"var(--amber-bg)",borderRadius:6,fontSize:11}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <span style={{color:done?"var(--green)":"var(--amber)",fontWeight:600}}>{actual}/{target} {t.target_metric.replace(/_/g," ")}</span>
+                        <span style={{color:done?"var(--green)":"var(--tx3)",fontWeight:600}}>{pct}%</span>
+                      </div>
+                      <div style={{marginTop:4,height:4,borderRadius:2,background:"var(--bd2)",overflow:"hidden"}}>
+                        <div style={{height:"100%",width:`${pct}%`,borderRadius:2,background:done?"var(--green)":"var(--amber)",transition:"width .3s"}}/>
+                      </div>
+                      {t.auto_close && <div style={{fontSize:10,color:"var(--tx3)",marginTop:2}}>{done?"✓ Auto-completed":"Auto-closes when target is met"}</div>}
+                    </div>;
+                  })()}
                   {t.completed_at && <div style={{fontSize:11,color:"var(--green)",marginTop:4}}>Completed: {new Date(t.completed_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>}
                 </div>}
               </div>;
