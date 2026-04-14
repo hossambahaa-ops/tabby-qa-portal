@@ -607,6 +607,7 @@ function DashboardPage({profile,token,gf}){
   const[taskTemplates,setTaskTemplates]=useState([]);const[showTemplateForm,setShowTemplateForm]=useState(false);const[showTemplates,setShowTemplates]=useState(false);
   const[tplForm,setTplForm]=useState({title:"",description:"",priority:"medium",frequency:"daily",assign_to_type:"my_team",assign_to_value:"",target_metric:"",target_value:""});
   const[attWarning,setAttWarning]=useState(null);
+  const[dailyScores,setDailyScores]=useState([]);
   const[showAnnForm,setShowAnnForm]=useState(false);
   const[annForm,setAnnForm]=useState({title:"",message:"",priority:"normal",target_type:"all",target_value:""});
   const isLead=hasRole(profile?.role,"qa_lead");
@@ -725,8 +726,15 @@ function DashboardPage({profile,token,gf}){
     setMtd(normalizedMtd2);setRoster(filteredRoster);setAppProfiles(profs);setDamCount(damFlagsRaw.filter(f=>f.status==="pending").length);
     setProfileCount({qas:filteredRoster.length,leads:[...new Set(filteredRoster.map(r=>r.manager_email).filter(Boolean))].length,active:profs.length});
     setApPlans(plans);setApWeeks(planWeeks);setApDismissals(dismissals);
-    // Load today's attendance
-    try{const todayStr=new Date().toISOString().split("T")[0];const att=await sb.query("qa_attendance",{select:"email,status",filters:`date=eq.${todayStr}`,token}).catch(()=>[]);setTodayAttendance(Array.isArray(att)?att:[]);}catch{}
+    // Load today's attendance + daily scores
+    try{const todayStr=new Date().toISOString().split("T")[0];
+      const[att,ds]=await Promise.all([
+        sb.query("qa_attendance",{select:"email,status",filters:`date=eq.${todayStr}`,token}).catch(()=>[]),
+        sb.query("daily_scores",{select:"*",filters:`date=eq.${todayStr}`,token}).catch(()=>[]),
+      ]);
+      setTodayAttendance(Array.isArray(att)?att:[]);
+      setDailyScores(Array.isArray(ds)?ds:[]);
+    }catch{}
 
     // Auto-detection for TL dashboard alert — DAM-driven
     if(hasRole(profile?.role,"qa_lead")){
@@ -1658,6 +1666,34 @@ function DashboardPage({profile,token,gf}){
           </div>
         </div>
       </div>
+
+      {/* Today's live activity */}
+      {dailyScores.length>0&&<div className="card" style={{marginBottom:16}}>
+        <div className="card-header"><span className="card-title">Today's activity</span><span style={{fontSize:11,color:"var(--tx3)"}}>{dailyScores.length} active · {new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</span></div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,padding:"12px 16px"}}>
+          {(()=>{
+            const teamDs=dailyScores.filter(d=>allTeamEmails.includes(d.qa_email?.toLowerCase()));
+            const totSbs=teamDs.reduce((a,d)=>a+(d.sbs||0),0);
+            const totNon=teamDs.reduce((a,d)=>a+(d.non_sbs||0),0);
+            const totCoach=teamDs.reduce((a,d)=>a+(d.coaching_sessions||0),0);
+            const totST=teamDs.reduce((a,d)=>a+(parseFloat(d.side_task_minutes)||0),0);
+            const avgOcc=teamDs.length?teamDs.reduce((a,d)=>a+(parseFloat(d.occupancy_pct)||0),0)/teamDs.length:0;
+            const occPct=avgOcc>2?avgOcc:avgOcc*100;
+            return [
+              {label:"SBS",value:totSbs,color:"var(--green)",icon:"📋"},
+              {label:"Non-SBS",value:totNon,color:"var(--blue)",icon:"📝"},
+              {label:"Coaching",value:totCoach,color:"var(--amber)",icon:"🎯"},
+              {label:"Side Tasks",value:totST>0?`${Math.floor(totST/60)}h ${Math.round(totST%60)}m`:"0",color:"var(--tx2)",icon:"⏱"},
+              {label:"Avg Occ",value:occPct>0?occPct.toFixed(1)+"%":"—",color:"var(--tx2)",icon:"📊"},
+            ].map((s,i)=><div key={i} style={{textAlign:"center"}}>
+              <div style={{fontSize:18,marginBottom:4}}>{s.icon}</div>
+              <div style={{fontSize:20,fontWeight:800,color:s.color}}>{s.value}</div>
+              <div style={{fontSize:10,color:"var(--tx3)",fontWeight:500}}>{s.label}</div>
+            </div>);
+          })()}
+        </div>
+      </div>}
+
       {/* Team availability today */}
       {(()=>{
         const presentStatuses=new Set(["P","H","L","EL","PH"]);
@@ -7268,6 +7304,7 @@ function QAProfilePage({token, profile, gf}) {
   const [tasks, setTasks] = useState([]);
   const [flags, setFlags] = useState([]);
   const [qaAttendance, setQaAttendance] = useState([]);
+  const [dailyScores, setDailyScores] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedQA, setSelectedQA] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -7291,7 +7328,7 @@ function QAProfilePage({token, profile, gf}) {
     (async () => {
       try {
         const curMonth = new Date().toISOString().slice(0,7);
-        const [r, m, s, ap, t, f, profs, att] = await Promise.all([
+        const [r, m, s, ap, t, f, profs, att, ds] = await Promise.all([
           dataCache.fetch("qa_roster_full",()=>sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country,hiring_date",token}).catch(()=>[])),
           dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", {select:"*",filters:"order=month.desc",token}).catch(()=>[])),
           sb.query("coaching_sessions", {select:"id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass",filters:"order=session_date.desc",token}).catch(()=>[]),
@@ -7300,6 +7337,7 @@ function QAProfilePage({token, profile, gf}) {
           sb.query("dam_flags", {select:"id,qa_email,severity,status,triggered_at,occurrence_number,reviewed_by,reviewed_at,notes,dam_rules(name,behavior_type,recommended_action)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
           dataCache.fetch("profiles_email_role",()=>sb.query("profiles", {select:"email,role",token}).catch(()=>[])),
           sb.query("qa_attendance", {select:"email,date,status",filters:`date=gte.${curMonth}-01&order=date.asc`,token}).catch(()=>[]),
+          sb.query("daily_scores", {select:"*",filters:`date=eq.${new Date().toISOString().split("T")[0]}`,token}).catch(()=>[]),
         ]);
         setRoster(Array.isArray(r) ? r : []);
         setMtd(Array.isArray(m) ? m : []);
@@ -7308,6 +7346,7 @@ function QAProfilePage({token, profile, gf}) {
         setTasks(Array.isArray(t) ? t : []);
         setFlags(Array.isArray(f) ? f : []);
         setQaAttendance(Array.isArray(att) ? att : []);
+        setDailyScores(Array.isArray(ds) ? ds : []);
         // Store qa_lead emails and all profiles for filtering
         const allProfs = Array.isArray(profs)?profs:[];
         const leads = allProfs.filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase());
@@ -7470,32 +7509,40 @@ function QAProfilePage({token, profile, gf}) {
 
       {/* KPI cards row */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
-        {/* Attendance this month */}
+        {/* Today's evaluations */}
         <div className="card" style={{padding:16,textAlign:"center"}}>
-          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Attendance</div>
+          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Today's evals</div>
           {(()=>{
-            const myAtt = qaAttendance.filter(a => matchQA(a.email));
-            const present = myAtt.filter(a => ["P","H","L","EL","PH"].includes(a.status)).length;
-            const leave = myAtt.filter(a => ["AL","Paid SL","ML","UL"].includes(a.status)).length;
-            const off = myAtt.filter(a => a.status === "OFF").length;
-            const total = present + leave + off;
-            const pct = total > 0 ? Math.round((present / (present + leave)) * 100) : 0;
+            const d = dailyScores.find(x => matchQA(x.qa_email));
+            const sbs = d?.sbs || 0;
+            const nonSbs = d?.non_sbs || 0;
+            const totalEvals = sbs + nonSbs;
+            const coaching = d?.coaching_sessions || 0;
+            const stMins = d?.side_task_minutes || 0;
+            const occ = d?.occupancy_pct || 0;
+            const occPct = occ > 2 ? occ : occ * 100;
+            // Progress ring — total evals vs a rough daily target
+            const target = 20; // fallback — will use team targets when available
+            const pct = target > 0 ? Math.min(100, Math.round((totalEvals / target) * 100)) : 0;
             const circumference = 2 * Math.PI * 28;
-            const dashArray = total > 0 ? `${(present/(present+leave||1))*circumference} ${circumference}` : `0 ${circumference}`;
+            const dashArray = `${(pct / 100) * circumference} ${circumference}`;
+            const ringColor = pct >= 80 ? "var(--green)" : pct >= 50 ? "var(--amber)" : "var(--red)";
             return <>
               <div style={{position:"relative",width:64,height:64,margin:"0 auto 8px"}}>
                 <svg width="64" height="64" viewBox="0 0 64 64">
                   <circle cx="32" cy="32" r="28" fill="none" stroke="var(--bd2)" strokeWidth="5"/>
-                  <circle cx="32" cy="32" r="28" fill="none" stroke="var(--green)" strokeWidth="5" strokeLinecap="round"
+                  <circle cx="32" cy="32" r="28" fill="none" stroke={ringColor} strokeWidth="5" strokeLinecap="round"
                     strokeDasharray={dashArray} transform="rotate(-90 32 32)"/>
                 </svg>
-                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:total>0?"var(--green)":"var(--tx3)"}}>{total>0?`${pct}%`:"—"}</div>
+                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:totalEvals>0?ringColor:"var(--tx3)"}}>{totalEvals>0?totalEvals:"—"}</div>
               </div>
               <div style={{display:"flex",justifyContent:"center",gap:10,fontSize:10}}>
-                <span style={{color:"var(--green)",fontWeight:600}}>{present}P</span>
-                {leave>0&&<span style={{color:"var(--red)",fontWeight:600}}>{leave}L</span>}
-                <span style={{color:"var(--tx3)"}}>{off}OFF</span>
+                <span style={{color:"var(--green)",fontWeight:600}}>{sbs} SBS</span>
+                <span style={{color:"var(--blue)",fontWeight:600}}>{nonSbs} Non</span>
+                {coaching>0&&<span style={{color:"var(--amber)",fontWeight:600}}>{coaching} C</span>}
               </div>
+              {stMins>0&&<div style={{fontSize:10,color:"var(--tx3)",marginTop:2}}>ST: {Math.floor(stMins/60)}h {Math.round(stMins%60)}m</div>}
+              {occPct>0&&<div style={{fontSize:10,color:"var(--tx3)",marginTop:1}}>Occ: {occPct.toFixed(1)}%</div>}
             </>;
           })()}
         </div>
@@ -8332,6 +8379,12 @@ function SchedulePage({token, profile, gf}) {
 const TARGET_METRICS = [
   {key:"sbs",label:"SBS evaluations / day",type:"number"},
   {key:"non_sbs",label:"Non-SBS evaluations / day",type:"number"},
+  {key:"daily_sbs",label:"Daily SBS target",type:"number"},
+  {key:"daily_non_sbs",label:"Daily Non-SBS target",type:"number"},
+  {key:"daily_coaching",label:"Daily coaching sessions target",type:"number"},
+  {key:"daily_side_task_mins",label:"Daily side task minutes target",type:"number"},
+  {key:"sbs_time_mins",label:"Time per SBS eval (minutes)",type:"number"},
+  {key:"non_sbs_time_mins",label:"Time per Non-SBS eval (minutes)",type:"number"},
   {key:"occupancy_pct",label:"Occupancy %",type:"percent"},
   {key:"coaching_completion_pct",label:"Coaching completion %",type:"percent"},
   {key:"ontime_coaching_pct",label:"On-time coaching %",type:"percent"},
