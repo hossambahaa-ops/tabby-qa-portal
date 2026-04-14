@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { hasRole, ROLE_LABELS, ROLE_LEVEL } from "../lib/constants.js";
 import { sb, SUPABASE_URL, dataCache } from "../lib/supabase.js";
 import { safeError, logActivity } from "../lib/utils.js";
