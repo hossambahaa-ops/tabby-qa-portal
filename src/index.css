@@ -173,10 +173,10 @@ tr:hover td { background: var(--bg2); }
 .select:focus { outline: none; border-color: var(--tabby-purple); box-shadow: 0 0 0 3px rgba(106,44,121,.08); }
 
 /* ── Toast ── */
-.toast { position: fixed; bottom: 24px; right: 24px; padding: 14px 20px; border-radius: var(--radius); font-size: 13px; font-weight: 600; color: #FFF; z-index: 99999; animation: toastIn .35s var(--ease-spring); box-shadow: var(--shadow-lg); backdrop-filter: blur(8px); }
+.toast { padding: 14px 24px; border-radius: var(--radius); font-size: 13px; font-weight: 600; color: #FFF; box-shadow: 0 8px 32px rgba(0,0,0,.3); backdrop-filter: blur(12px); min-width: 280px; max-width: 420px; text-align: center; line-height: 1.4; animation: toastSlideDown .3s var(--ease-spring) both; }
 .toast-success { background: var(--green); }
 .toast-error { background: var(--red); }
-@keyframes toastIn { from { transform: translateY(20px) scale(.95); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+@keyframes toastSlideDown { from { opacity: 0; transform: translateY(-12px) scale(.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
 
 /* ── Tabs ── */
 .tabs { display: flex; gap: 4px; background: var(--bg2); padding: 4px; border-radius: var(--radius); width: fit-content; }
@@ -402,9 +402,6 @@ tbody tr:hover {
   from { opacity: 1; transform: translateY(0); }
   to { opacity: 0; transform: translateY(-10px); }
 }
-.toast {
-  animation: toastIn .3s var(--ease-spring) both;
-}
 
 /* ── Spinner pulse ── */
 @keyframes spinnerPulse {
@@ -579,22 +576,6 @@ table tbody tr:hover {
   background: var(--bg) !important;
 }
 
-/* 3. Toast slide-in animation */
-.toast {
-  position: fixed !important;
-  top: 20px !important;
-  right: 20px !important;
-  left: auto !important;
-  bottom: auto !important;
-  z-index: 99999 !important;
-  animation: toastSlideIn .3s ease forwards;
-  max-width: 380px;
-  box-shadow: 0 8px 32px rgba(0,0,0,.3);
-}
-@keyframes toastSlideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
 
 /* 4. Stat card hover */
 .stat-card {

@@ -20,9 +20,9 @@ export function ToastProvider({ children }) {
 
   const portal = toasts.length > 0
     ? ReactDOM.createPortal(
-        <div style={{ position: "fixed", top: 16, right: 16, zIndex: 100000, display: "flex", flexDirection: "column", gap: 8 }}>
+        <div style={{ position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", zIndex: 100000, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, pointerEvents: "none" }}>
           {toasts.map(t => (
-            <div key={t.id} className={`toast toast-${t.type}`} style={{ animation: "fadeIn .2s ease" }}>{t.msg}</div>
+            <div key={t.id} className={`toast toast-${t.type}`} style={{ pointerEvents: "auto" }}>{t.msg}</div>
           ))}
         </div>,
         document.body
