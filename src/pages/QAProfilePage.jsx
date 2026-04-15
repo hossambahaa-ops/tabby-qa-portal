@@ -229,80 +229,110 @@ function QAProfilePage() {
       </div>
 
       {/* KPI cards row */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
-        {/* Today's evaluations */}
-        <div className="card" style={{padding:16,textAlign:"center"}}>
-          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Today's evals</div>
-          {(()=>{
-            const d = dailyScores.find(x => matchQA(x.qa_email));
-            const sbs = parseFloat(d?.sbs_count || d?.sbs || 0);
-            const nonSbs = parseFloat(d?.non_sbs_count || d?.non_sbs || 0);
-            const totalEvals = sbs + nonSbs;
-            const coaching = parseFloat(d?.coaching_count || d?.coaching_sessions || 0);
-            const stMins = parseFloat(d?.side_task_minutes || 0);
-            const occ = parseFloat(d?.occupancy_pct || 0);
-            const occPct = occ > 2 ? occ : occ * 100;
-            const qaQueue = qa?.queue || "";
-            const qaEmail = selectedQA?.toLowerCase() || "";
-            const qaDomain = qaEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
-            const findTgt = (metric) => {
-              const find = (team, dom) => teamTargets.find(t => t.team_name === team && t.domain === dom && t.metric === metric);
-              return find(qaQueue, qaDomain) || find(qaQueue, "all") || find("Default", qaDomain) || find("Default", "all");
-            };
-            const sbsTarget = parseFloat(findTgt("daily_sbs")?.target_value) || 3;
-            const nonSbsTarget = parseFloat(findTgt("daily_non_sbs")?.target_value) || 10;
-            const target = sbsTarget + nonSbsTarget;
-            const pct = target > 0 ? Math.min(100, Math.round((totalEvals / target) * 100)) : 0;
-            const circumference = 2 * Math.PI * 28;
-            const sbsFrac = totalEvals > 0 ? sbs / totalEvals : 0;
-            const nsbsFrac = totalEvals > 0 ? nonSbs / totalEvals : 0;
-            const sbsArc = sbsFrac * pct / 100 * circumference;
-            const nsbsArc = nsbsFrac * pct / 100 * circumference;
-            const remaining = circumference - sbsArc - nsbsArc;
-            return <>
-              <div style={{position:"relative",width:64,height:64,margin:"0 auto 8px"}}>
-                <svg width="64" height="64" viewBox="0 0 64 64">
-                  <circle cx="32" cy="32" r="28" fill="none" stroke="var(--bd2)" strokeWidth="5"/>
-                  {sbs > 0 && <circle cx="32" cy="32" r="28" fill="none" stroke="var(--green)" strokeWidth="5" strokeLinecap="round"
-                    strokeDasharray={`${sbsArc} ${circumference - sbsArc}`} transform="rotate(-90 32 32)"/>}
-                  {nonSbs > 0 && <circle cx="32" cy="32" r="28" fill="none" stroke="var(--blue)" strokeWidth="5" strokeLinecap="round"
-                    strokeDasharray={`${nsbsArc} ${circumference - nsbsArc}`} transform={`rotate(${-90 + sbsFrac * pct / 100 * 360} 32 32)`}/>}
-                </svg>
-                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:totalEvals>0?"var(--tx)":"var(--tx3)"}}>{totalEvals>0?totalEvals:"—"}</div>
-              </div>
-              <div style={{display:"flex",justifyContent:"center",gap:10,fontSize:10}}>
-                <span style={{color:"var(--green)",fontWeight:600}}>{sbs} SBS</span>
-                <span style={{color:"var(--blue)",fontWeight:600}}>{nonSbs} Non</span>
-                {coaching>0&&<span style={{color:"var(--amber)",fontWeight:600}}>{coaching} C</span>}
-              </div>
-              {stMins>0&&<div style={{fontSize:10,color:"var(--tx3)",marginTop:2}}>ST: {Math.floor(stMins/60)}h {Math.round(stMins%60)}m</div>}
-              {occPct>0&&<div style={{fontSize:10,color:"var(--tx3)",marginTop:1}}>Occ: {occPct.toFixed(1)}%</div>}
-            </>;
-          })()}
-        </div>
-
-        {/* Occupancy — today's */}
-        {(()=>{
-          const d = dailyScores.find(x => matchQA(x.qa_email));
-          const occ = d?.occupancy_pct || 0;
-          const occPct = occ > 2 ? occ : occ * 100;
-          const hasOcc = occPct > 0;
-          return <div className="card" style={{padding:16,textAlign:"center"}}>
-            <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Today's occupancy</div>
-            <div style={{fontSize:28,fontWeight:800,color:hasOcc?"var(--tx)":"var(--tx3)"}}>{hasOcc ? occPct.toFixed(1)+"%" : "—"}</div>
-            <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>{hasOcc ? new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short"}) : "No data today"}</div>
-          </div>;
-        })()}
-
-        {/* Final Performance */}
-        <div className="card" style={{padding:16,textAlign:"center"}}>
-          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Final score</div>
-          <div style={{fontSize:28,fontWeight:800,color:latestMtd?((latestMtd.final_performance||0)>=0.4?"var(--green)":(latestMtd.final_performance||0)>=0.25?"var(--amber)":"var(--red)"):"var(--tx3)"}}>
-            {latestMtd ? ((latestMtd.final_performance||0)*100).toFixed(1)+"%" : "—"}
+      {/* ── Today's KPI cards ── */}
+      {(()=>{
+        const d = dailyScores.find(x => matchQA(x.qa_email));
+        const sbs = parseFloat(d?.sbs_count || d?.sbs || 0);
+        const nonSbs = parseFloat(d?.non_sbs_count || d?.non_sbs || 0);
+        const totalEvals = sbs + nonSbs;
+        const coaching = parseFloat(d?.coaching_count || d?.coaching_sessions || 0);
+        const stMins = parseFloat(d?.side_task_minutes || 0);
+        const occ = parseFloat(d?.occupancy_pct || 0);
+        const occPct = occ > 2 ? occ : occ * 100;
+        const qaQueue = qa?.queue || "";
+        const qaEmail = selectedQA?.toLowerCase() || "";
+        const qaDomain = qaEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
+        const findTgt = (metric) => {
+          const find = (team, dom) => teamTargets.find(t => t.team_name === team && t.domain === dom && t.metric === metric);
+          return find(qaQueue, qaDomain) || find(qaQueue, "all") || find("Default", qaDomain) || find("Default", "all");
+        };
+        const sbsTarget = parseFloat(findTgt("daily_sbs")?.target_value) || 3;
+        const nonSbsTarget = parseFloat(findTgt("daily_non_sbs")?.target_value) || 10;
+        const occTarget = parseFloat(findTgt("occupancy_pct")?.target_value) || 95;
+        const coachingTarget = parseFloat(findTgt("daily_coaching")?.target_value) || 1;
+        const stTarget = parseFloat(findTgt("daily_side_task_mins")?.target_value) || 60;
+        const whTarget = parseFloat(findTgt("daily_working_hours")?.target_value) || 8;
+        const target = sbsTarget + nonSbsTarget;
+        const pct = target > 0 ? Math.min(100, Math.round((totalEvals / target) * 100)) : 0;
+        const circumference = 2 * Math.PI * 28;
+        const sbsFrac = totalEvals > 0 ? sbs / totalEvals : 0;
+        const nsbsFrac = totalEvals > 0 ? nonSbs / totalEvals : 0;
+        const sbsArc = sbsFrac * pct / 100 * circumference;
+        const nsbsArc = nsbsFrac * pct / 100 * circumference;
+        const occPctOfTarget = occTarget > 0 ? Math.min(100, Math.round((occPct / occTarget) * 100)) : 0;
+        const workingHrs = (occPct / 100) * whTarget;
+        const miniBar = (val, max, color) => <div style={{width:"100%",height:4,borderRadius:2,background:"var(--bd2)",marginTop:4}}>
+          <div style={{width:Math.min(100,max>0?(val/max)*100:0)+"%",height:4,borderRadius:2,background:color,transition:"width .4s"}}/>
+        </div>;
+        return <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
+          {/* Today's Evals */}
+          <div className="card" style={{padding:16,textAlign:"center"}}>
+            <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Today's evals</div>
+            <div style={{position:"relative",width:64,height:64,margin:"0 auto 8px"}}>
+              <svg width="64" height="64" viewBox="0 0 64 64">
+                <circle cx="32" cy="32" r="28" fill="none" stroke="var(--bd2)" strokeWidth="5"/>
+                {sbs > 0 && <circle cx="32" cy="32" r="28" fill="none" stroke="var(--green)" strokeWidth="5" strokeLinecap="round"
+                  strokeDasharray={`${sbsArc} ${circumference - sbsArc}`} transform="rotate(-90 32 32)"/>}
+                {nonSbs > 0 && <circle cx="32" cy="32" r="28" fill="none" stroke="var(--blue)" strokeWidth="5" strokeLinecap="round"
+                  strokeDasharray={`${nsbsArc} ${circumference - nsbsArc}`} transform={`rotate(${-90 + sbsFrac * pct / 100 * 360} 32 32)`}/>}
+              </svg>
+              <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:totalEvals>0?"var(--tx)":"var(--tx3)"}}>{totalEvals>0?totalEvals:"—"}</div>
+            </div>
+            <div style={{display:"flex",justifyContent:"center",gap:10,fontSize:10}}>
+              <span style={{color:"var(--green)",fontWeight:600}}>{sbs} SBS</span>
+              <span style={{color:"var(--blue)",fontWeight:600}}>{nonSbs} Non</span>
+            </div>
+            <div style={{fontSize:10,color:"var(--tx3)",marginTop:4}}>{totalEvals} / {target} target</div>
           </div>
-          <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>{latestMtd?.month || "No data"}</div>
-        </div>
 
+          {/* Occupancy vs target */}
+          <div className="card" style={{padding:16,textAlign:"center"}}>
+            <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Occupancy</div>
+            <div style={{fontSize:28,fontWeight:800,color:occPct>0?(occPctOfTarget>=90?"var(--green)":occPctOfTarget>=60?"var(--amber)":"var(--red)"):"var(--tx3)"}}>
+              {occPct > 0 ? occPct.toFixed(1)+"%" : "—"}
+            </div>
+            <div style={{fontSize:10,color:"var(--tx3)",marginTop:2}}>Target: {occTarget}%</div>
+            {miniBar(occPct, occTarget, occPctOfTarget>=90?"var(--green)":occPctOfTarget>=60?"var(--amber)":"var(--red)")}
+            <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--tx3)",marginTop:6}}>
+              <span>Hours: {workingHrs.toFixed(1)}h</span>
+              <span>/ {whTarget}h</span>
+            </div>
+          </div>
+
+          {/* Coaching + Side Tasks + Final Score */}
+          <div className="card" style={{padding:16}}>
+            <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:10}}>Today's activity</div>
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+              <div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:12,color:"var(--tx2)"}}>Coaching</span>
+                  <span style={{fontSize:13,fontWeight:700,color:coaching>=coachingTarget?"var(--green)":"var(--tx)"}}>{coaching}<span style={{fontSize:10,color:"var(--tx3)",fontWeight:400}}> / {coachingTarget}</span></span>
+                </div>
+                {miniBar(coaching, coachingTarget, coaching>=coachingTarget?"var(--green)":"var(--amber)")}
+              </div>
+              <div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:12,color:"var(--tx2)"}}>Side Tasks</span>
+                  <span style={{fontSize:13,fontWeight:700,color:stMins>=stTarget?"var(--green)":"var(--tx)"}}>{stMins>0?(stMins>=60?Math.floor(stMins/60)+"h "+Math.round(stMins%60)+"m":Math.round(stMins)+"m"):"0m"}<span style={{fontSize:10,color:"var(--tx3)",fontWeight:400}}> / {stTarget}m</span></span>
+                </div>
+                {miniBar(stMins, stTarget, stMins>=stTarget?"var(--green)":"var(--amber)")}
+              </div>
+              <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:12,color:"var(--tx2)"}}>Final Score</span>
+                  <span style={{fontSize:13,fontWeight:700,color:latestMtd?((latestMtd.final_performance||0)>=0.4?"var(--green)":(latestMtd.final_performance||0)>=0.25?"var(--amber)":"var(--red)"):"var(--tx3)"}}>
+                    {latestMtd ? ((latestMtd.final_performance||0)*100).toFixed(1)+"%" : "—"}
+                  </span>
+                </div>
+                <div style={{fontSize:10,color:"var(--tx3)"}}>{ latestMtd?.month || "No data"}</div>
+              </div>
+            </div>
+          </div>
+        </div>;
+      })()}
+
+      {/* Tasks summary row */}
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12,marginBottom:16}}>
         {/* Tasks */}
         <div className="card" style={{padding:16,textAlign:"center"}}>
           <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Tasks</div>
