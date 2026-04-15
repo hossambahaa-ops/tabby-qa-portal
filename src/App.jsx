@@ -353,10 +353,10 @@ function AppInner(){
             return <>
               <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
                 <span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:priorityStyle.bg,color:priorityStyle.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".5px"}}>{priorityStyle.label}</span>
-                {ann.target_type!=="all"&&<span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:"var(--bg2)",color:"var(--tx3)",fontWeight:600}}>To: {ann.target_type==="domain"?ann.target_value:ann.target_type==="team"?"Team: "+ann.target_value:ann.target_value}</span>}
+                {ann.target_type!=="all"&&<span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:"var(--bg2)",color:"var(--tx3)",fontWeight:600}}>To: {ann.target_type==="domain"?String(ann.target_value||""):ann.target_type==="team"?"Team: "+String(ann.target_value||""):String(ann.target_value||"")}</span>}
               </div>
-              <h3 style={{fontSize:18,fontWeight:700,marginBottom:12,letterSpacing:"-.3px",lineHeight:1.3}}>{ann.title}</h3>
-              <div style={{fontSize:14,color:"var(--tx2)",lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:300,overflowY:"auto"}}>{ann.message}</div>
+              <h3 style={{fontSize:18,fontWeight:700,marginBottom:12,letterSpacing:"-.3px",lineHeight:1.3}}>{typeof ann.title==="object"?JSON.stringify(ann.title):ann.title}</h3>
+              <div style={{fontSize:14,color:"var(--tx2)",lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:300,overflowY:"auto"}}>{typeof ann.message==="object"?JSON.stringify(ann.message):ann.message}</div>
             </>;
           })()}
         </div>
