@@ -18,12 +18,15 @@ const TARGET_METRICS = [
   {key:"occupancy_pct",label:"Occupancy %",type:"percent"},
   {key:"coaching_completion_pct",label:"Coaching completion %",type:"percent"},
   {key:"ontime_coaching_pct",label:"On-time coaching %",type:"percent"},
-  {key:"dsat_max",label:"Max DSAT / month",type:"number"},
   {key:"rtr_count",label:"RTR evaluations / month",type:"number"},
   {key:"calibration_count",label:"Calibrations / month",type:"number"},
   {key:"observed_coaching_count",label:"Coaching observations / month",type:"number"},
   {key:"ticket_per_day",label:"Tickets / day",type:"number"},
   {key:"final_performance",label:"Final performance score",type:"decimal"},
+  {key:"daily_working_hours",label:"Working hours / day",type:"number"},
+  {key:"sbs_duration_minutes",label:"SBS duration (minutes)",type:"number"},
+  {key:"non_sbs_duration_minutes",label:"Non-SBS duration (minutes)",type:"number"},
+  {key:"coaching_duration_minutes",label:"Coaching duration (minutes)",type:"number"},
 ];
 
 function TargetsPage() {
