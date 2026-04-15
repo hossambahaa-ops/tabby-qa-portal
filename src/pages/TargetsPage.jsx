@@ -39,6 +39,7 @@ function TargetsPage() {
   const [targets, setTargets] = useState([]);
   const [teams, setTeams] = useState([]);
   const [roster, setRoster] = useState([]);
+  const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selTeam, setSelTeam] = useState("Default");
   const [selDomain, setSelDomain] = useState("all");
@@ -61,14 +62,16 @@ function TargetsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [t, tm, r] = await Promise.all([
+      const [t, tm, r, pr] = await Promise.all([
         sb.query("team_targets", {select:"*",filters:"order=team_name.asc,metric.asc",token}).catch(()=>[]),
         sb.query("teams", {select:"id,name,lead_id,profiles!fk_teams_lead(email)",token}).catch(()=>[]),
         sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch(()=>[]),
+        dataCache.fetch("profiles_email_role",()=>sb.query("profiles", {select:"email,role",token}).catch(()=>[])),
       ]);
       setTargets(Array.isArray(t) ? t : []);
       setTeams(Array.isArray(tm) ? tm : []);
       setRoster(Array.isArray(r) ? r : []);
+      setProfiles(Array.isArray(pr) ? pr : []);
     } catch(e) { console.error("Targets load:", e); }
     setLoading(false);
   }, [token]);
@@ -173,8 +176,16 @@ function TargetsPage() {
   if (loading) return <div className="page"><SkeletonPage/></div>;
 
   // QA list for overrides — grouped by lead
-  const qaList = roster.filter(r => r.email).sort((a,b) => (a.email||"").localeCompare(b.email||""));
-  const leadEmails = [...new Set(qaList.map(r => r.manager_email?.toLowerCase()).filter(Boolean))].sort();
+  const excludeRoles = new Set(["qa_lead","qa_supervisor","admin","super_admin"]);
+  const nonQaEmails = new Set(profiles.filter(p => excludeRoles.has(p.role)).map(p => p.email?.toLowerCase()));
+  const qaList = roster.filter(r => {
+    const em = r.email?.toLowerCase();
+    if (!em || nonQaEmails.has(em)) return false;
+    const mgr = r.manager_email?.toLowerCase();
+    return mgr && qaLeadSet.has(mgr);
+  }).sort((a,b) => (a.email||"").localeCompare(b.email||""));
+  const qaLeadSet = new Set(profiles.filter(p => p.role === "qa_lead").map(p => p.email?.toLowerCase()));
+  const leadEmails = [...qaLeadSet].filter(Boolean).sort();
   const filteredQAList = qaList.filter(r => {
     if (selLead && r.manager_email?.toLowerCase() !== selLead) return false;
     if (qaSearch && !r.email.toLowerCase().includes(qaSearch.toLowerCase()) && !nameFromEmail(r.email).toLowerCase().includes(qaSearch.toLowerCase())) return false;
