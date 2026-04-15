@@ -3,13 +3,14 @@ import React from "react";
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
-    this.state = { hasError: false, error: null };
+    this.state = { hasError: false, error: null, stack: "" };
   }
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
   componentDidCatch(error, info) {
     console.error("App crash:", error, info);
+    this.setState({ stack: info?.componentStack || "" });
   }
   render() {
     if (this.state.hasError) {
@@ -23,8 +24,11 @@ class ErrorBoundary extends React.Component {
         React.createElement("p", { style: { marginTop: 8, color: "rgba(255,255,255,.5)", fontSize: 13, maxWidth: 400 } },
           "The app encountered an unexpected error. Click below to reload."
         ),
-        React.createElement("p", { style: { marginTop: 8, color: "rgba(255,255,255,.25)", fontSize: 11, maxWidth: 500, wordBreak: "break-all" } },
-          String(this.state.error?.message || "").slice(0, 200)
+        React.createElement("p", { style: { marginTop: 8, color: "#EF4444", fontSize: 12, maxWidth: 600, wordBreak: "break-all", background: "rgba(239,68,68,.1)", padding: "8px 12px", borderRadius: 8 } },
+          String(this.state.error?.message || "").slice(0, 300)
+        ),
+        this.state.stack && React.createElement("pre", { style: { marginTop: 8, color: "rgba(255,255,255,.5)", fontSize: 10, maxWidth: 600, textAlign: "left", whiteSpace: "pre-wrap", wordBreak: "break-all", background: "rgba(255,255,255,.05)", padding: "8px 12px", borderRadius: 8, maxHeight: 200, overflow: "auto" } },
+          this.state.stack.slice(0, 500)
         ),
         React.createElement("button", {
           onClick: () => window.location.reload(),
