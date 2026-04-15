@@ -228,14 +228,13 @@ function QAProfilePage() {
           <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Today's evals</div>
           {(()=>{
             const d = dailyScores.find(x => matchQA(x.qa_email));
-            const sbs = d?.sbs || 0;
-            const nonSbs = d?.non_sbs || 0;
+            const sbs = parseFloat(d?.sbs_count || d?.sbs || 0);
+            const nonSbs = parseFloat(d?.non_sbs_count || d?.non_sbs || 0);
             const totalEvals = sbs + nonSbs;
-            const coaching = d?.coaching_sessions || 0;
-            const stMins = d?.side_task_minutes || 0;
-            const occ = d?.occupancy_pct || 0;
+            const coaching = parseFloat(d?.coaching_count || d?.coaching_sessions || 0);
+            const stMins = parseFloat(d?.side_task_minutes || 0);
+            const occ = parseFloat(d?.occupancy_pct || 0);
             const occPct = occ > 2 ? occ : occ * 100;
-            // Get daily target from team_targets (with inheritance: team+domain → team+all → Default+domain → Default+all)
             const qaQueue = qa?.queue || "";
             const qaEmail = selectedQA?.toLowerCase() || "";
             const qaDomain = qaEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
@@ -248,16 +247,21 @@ function QAProfilePage() {
             const target = sbsTarget + nonSbsTarget;
             const pct = target > 0 ? Math.min(100, Math.round((totalEvals / target) * 100)) : 0;
             const circumference = 2 * Math.PI * 28;
-            const dashArray = `${(pct / 100) * circumference} ${circumference}`;
-            const ringColor = pct >= 80 ? "var(--green)" : pct >= 50 ? "var(--amber)" : "var(--red)";
+            const sbsFrac = totalEvals > 0 ? sbs / totalEvals : 0;
+            const nsbsFrac = totalEvals > 0 ? nonSbs / totalEvals : 0;
+            const sbsArc = sbsFrac * pct / 100 * circumference;
+            const nsbsArc = nsbsFrac * pct / 100 * circumference;
+            const remaining = circumference - sbsArc - nsbsArc;
             return <>
               <div style={{position:"relative",width:64,height:64,margin:"0 auto 8px"}}>
                 <svg width="64" height="64" viewBox="0 0 64 64">
                   <circle cx="32" cy="32" r="28" fill="none" stroke="var(--bd2)" strokeWidth="5"/>
-                  <circle cx="32" cy="32" r="28" fill="none" stroke={ringColor} strokeWidth="5" strokeLinecap="round"
-                    strokeDasharray={dashArray} transform="rotate(-90 32 32)"/>
+                  {sbs > 0 && <circle cx="32" cy="32" r="28" fill="none" stroke="var(--green)" strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray={`${sbsArc} ${circumference - sbsArc}`} transform="rotate(-90 32 32)"/>}
+                  {nonSbs > 0 && <circle cx="32" cy="32" r="28" fill="none" stroke="var(--blue)" strokeWidth="5" strokeLinecap="round"
+                    strokeDasharray={`${nsbsArc} ${circumference - nsbsArc}`} transform={`rotate(${-90 + sbsFrac * pct / 100 * 360} 32 32)`}/>}
                 </svg>
-                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:totalEvals>0?ringColor:"var(--tx3)"}}>{totalEvals>0?totalEvals:"—"}</div>
+                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:totalEvals>0?(pct>=80?"var(--green)":pct>=50?"var(--amber)":"var(--red)"):"var(--tx3)"}}>{totalEvals>0?totalEvals:"—"}</div>
               </div>
               <div style={{display:"flex",justifyContent:"center",gap:10,fontSize:10}}>
                 <span style={{color:"var(--green)",fontWeight:600}}>{sbs} SBS</span>
