@@ -261,7 +261,7 @@ function QAProfilePage() {
                   {nonSbs > 0 && <circle cx="32" cy="32" r="28" fill="none" stroke="var(--blue)" strokeWidth="5" strokeLinecap="round"
                     strokeDasharray={`${nsbsArc} ${circumference - nsbsArc}`} transform={`rotate(${-90 + sbsFrac * pct / 100 * 360} 32 32)`}/>}
                 </svg>
-                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:totalEvals>0?(pct>=80?"var(--green)":pct>=50?"var(--amber)":"var(--red)"):"var(--tx3)"}}>{totalEvals>0?totalEvals:"—"}</div>
+                <div style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:totalEvals>0?"var(--tx)":"var(--tx3)"}}>{totalEvals>0?totalEvals:"—"}</div>
               </div>
               <div style={{display:"flex",justifyContent:"center",gap:10,fontSize:10}}>
                 <span style={{color:"var(--green)",fontWeight:600}}>{sbs} SBS</span>
