@@ -6,10 +6,12 @@ import { Icon, icons } from "../components/Icons.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import CoachingCompose from "../components/coaching/CoachingCompose.jsx";
 import CoachingHistory from "../components/coaching/CoachingHistory.jsx";
+import useKeyboard from "../lib/useKeyboard.jsx";
 
 function CoachingPage() {
   const{token,profile,gf,rosterMap,globalToast}=useApp();
   const [tab, setTab] = useState("compose"); // compose | history
+  useKeyboard({"1":()=>setTab("compose"),"2":()=>setTab("history")});
   const [sessions, setSessions] = useState([]);
   const [roster, setRoster] = useState([]);
   const [activePlans, setActivePlans] = useState([]);

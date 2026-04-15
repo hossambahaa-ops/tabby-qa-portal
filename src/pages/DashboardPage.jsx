@@ -12,6 +12,7 @@ import DashboardTasks from "../components/dashboard/DashboardTasks.jsx";
 import AnnouncementForm from "../components/dashboard/AnnouncementForm.jsx";
 import APDetectionAlerts from "../components/dashboard/APDetectionAlerts.jsx";
 import TeamHealth from "../components/dashboard/TeamHealth.jsx";
+import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
 
 function DashboardPage(){
   const{profile,token,gf,globalToast}=useApp();
@@ -477,6 +478,9 @@ function DashboardPage(){
         </tbody></table></div>
       </div>}
     </>}
+
+    {/* QA Daily Progress */}
+    {myData&&<QADailyProgress dailyScores={dailyScores} myData={myData} myEmail={myEmail} roster={roster} months={months} mtd={mtd}/>}
 
     {/* Personal stats (everyone) */}
     {myData?<>

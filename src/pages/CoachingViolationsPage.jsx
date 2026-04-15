@@ -5,12 +5,14 @@ import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { PulseLoader } from "../components/Charts.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import useKeyboard from "../lib/useKeyboard.jsx";
 
 function CoachingViolationsPage() {
   const{token,profile,gf,globalToast}=useApp();
   const [violations, setViolations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("pending");
+  useKeyboard({"1":()=>setTab("pending"),"2":()=>setTab("reviewed")});
   const [reviewModal, setReviewModal] = useState(null);
   const [reviewStatus, setReviewStatus] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");

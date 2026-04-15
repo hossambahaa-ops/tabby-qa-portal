@@ -23,6 +23,12 @@ export function useConfirm(){
     setState({title,message,onYes,yesLabel,yesColor});
   };
   const close=()=>setState(null);
+  useEffect(()=>{
+    if(!state)return;
+    const handler=(e)=>{if(e.key==="Escape")close();};
+    document.addEventListener("keydown",handler);
+    return()=>document.removeEventListener("keydown",handler);
+  },[state]);
   const modalContent=state?<div role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title" style={{position:"fixed",inset:0,zIndex:99999,background:"rgba(0,0,0,0.55)",display:"flex",justifyContent:"center",alignItems:"center"}} onClick={close}>
     <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"0 25px 50px rgba(0,0,0,0.5)",width:"100%",maxWidth:400,padding:24,textAlign:"center",margin:16}}>
       <div style={{width:44,height:44,borderRadius:"50%",background:"var(--amber-bg)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>

@@ -11,6 +11,7 @@ import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { AppContext } from "./lib/AppContext.jsx";
 import { ToastProvider, useGlobalToast } from "./lib/ToastContext.jsx";
 import { subscribeRealtime } from "./lib/realtime.js";
+import useKeyboard from "./lib/useKeyboard.jsx";
 const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
 const ScoreEntryPage = lazy(() => import("./pages/ScoreEntryPage.jsx"));
 const TargetsPage = lazy(() => import("./pages/TargetsPage.jsx"));
@@ -62,6 +63,7 @@ function AppInner(){
   const[globalMonths,setGlobalMonths]=useState([]);
   const[pendingAnnouncements,setPendingAnnouncements]=useState([]);
   const[showFeedback,setShowFeedback]=useState(false);
+  const[showShortcutsHelp,setShowShortcutsHelp]=useState(false);
   const[feedbackForm,setFeedbackForm]=useState({category:"general",message:"",rating:0});
   const[feedbackSending,setFeedbackSending]=useState(false);
   const[feedbackSent,setFeedbackSent]=useState(false);
@@ -84,8 +86,8 @@ function AppInner(){
   useEffect(()=>{localStorage.setItem("sb_collapsed",sidebarCollapsed);},[sidebarCollapsed]);
   // Dark mode
   useEffect(()=>{document.documentElement.classList.toggle("dark",darkMode);localStorage.setItem("dark_mode",darkMode);},[darkMode]);
-  // Keyboard shortcut: Cmd/Ctrl+K for search
-  useEffect(()=>{const handler=(e)=>{if((e.metaKey||e.ctrlKey)&&e.key==="k"){e.preventDefault();setShowSearch(true);}};document.addEventListener("keydown",handler);return()=>document.removeEventListener("keydown",handler);},[]);
+  // Global keyboard shortcuts
+  useKeyboard({"Meta+k":()=>setShowSearch(true),"Ctrl+k":()=>setShowSearch(true),"Escape":()=>{if(showSearch)setShowSearch(false);else if(showFeedback)setShowFeedback(false);else if(showShortcutsHelp)setShowShortcutsHelp(false);},"?":()=>setShowShortcutsHelp(s=>!s)});
   // Auto-refresh JWT every 10 minutes to prevent expiry
   useEffect(()=>{
     if(!session?.refresh_token)return;
@@ -370,6 +372,20 @@ function AppInner(){
             onMouseLeave={e=>{e.currentTarget.style.background="var(--tabby-purple,#6A2C79)";e.currentTarget.style.transform="translateY(0)";}}
           >I Acknowledge</button>
         </div>
+      </div>
+    </div>}
+
+    {/* ═══ KEYBOARD SHORTCUTS HELP ═══ */}
+    {showShortcutsHelp&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}} onClick={()=>setShowShortcutsHelp(false)}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"0 20px 48px rgba(0,0,0,.35)",width:"100%",maxWidth:360,padding:24}}>
+        <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>Keyboard shortcuts</div>
+        {[["Cmd/Ctrl + K","Open search"],["Escape","Close overlay / modal"],["?","Toggle this help"],["1 - 4","Switch tabs (on tabbed pages)"]].map(([k,d])=>(
+          <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--bd2)"}}>
+            <span style={{fontSize:13,color:"var(--tx2)"}}>{d}</span>
+            <kbd style={{fontSize:11,padding:"2px 8px",borderRadius:6,background:"var(--bg)",border:"1px solid var(--bd)",fontFamily:"var(--font)",color:"var(--tx3)"}}>{k}</kbd>
+          </div>
+        ))}
+        <button className="btn btn-outline" style={{marginTop:16,width:"100%"}} onClick={()=>setShowShortcutsHelp(false)}>Close</button>
       </div>
     </div>}
 
