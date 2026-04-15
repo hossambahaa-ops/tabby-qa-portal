@@ -4,6 +4,8 @@ import { sb } from "../lib/supabase.js";
 import { Icon } from "./Icons.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
+const safe=(v)=>{if(v==null)return"";if(typeof v==="object")return JSON.stringify(v);return String(v);};
+
 function NotificationBell({ onNavigate }) {
   const{token,profile}=useApp();
   const [open, setOpen] = useState(false);
@@ -145,9 +147,9 @@ function NotificationBell({ onNavigate }) {
                 <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); dismiss(item.id); }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
-                    <span style={{ fontWeight: 500, fontSize: 12 }}>{item.title}</span>
+                    <span style={{ fontWeight: 500, fontSize: 12 }}>{safe(item.title)}</span>
                   </div>
-                  <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{item.sub} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
+                  <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{safe(item.sub)} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
                 </div>
                 <button onClick={(e) => { e.stopPropagation(); dismiss(item.id); }} title="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,padding:"2px",lineHeight:1,flexShrink:0,marginTop:2}}>×</button>
               </div>;
@@ -171,9 +173,9 @@ function NotificationBell({ onNavigate }) {
                 <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
-                    <span style={{ fontWeight: 500, fontSize: 12 }}>{item.title}</span>
+                    <span style={{ fontWeight: 500, fontSize: 12 }}>{safe(item.title)}</span>
                   </div>
-                  <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{item.sub} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
+                  <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{safe(item.sub)} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
                 </div>
               </div>;
             })}
@@ -191,9 +193,9 @@ function NotificationBell({ onNavigate }) {
                     <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
-                        <span style={{ fontWeight: 500, fontSize: 12 }}>{item.title}</span>
+                        <span style={{ fontWeight: 500, fontSize: 12 }}>{safe(item.title)}</span>
                       </div>
-                      <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{item.sub} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
+                      <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{safe(item.sub)} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
                     </div>
                   </div>;
                 })}

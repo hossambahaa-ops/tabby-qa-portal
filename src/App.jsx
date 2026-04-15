@@ -29,6 +29,13 @@ const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
 
 document.title = "Tabby Pulse — QA Performance & Analytics";
 
+/* Prevent React #310 — never render a raw object as JSX child */
+const safe = (v) => {
+  if (v === null || v === undefined) return "";
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v);
+};
+
 
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
@@ -233,9 +240,6 @@ function AppInner(){
     });
     return unsub;
   },[profile?.email,userRole]);
-  // DEBUG: find which field is an object causing #310
-  console.log("DEBUG profile:", JSON.stringify(profile));
-  console.log("DEBUG announcements:", JSON.stringify(pendingAnnouncements?.map(a=>({id:a.id,title:typeof a.title,message:typeof a.message,priority:typeof a.priority,target_type:typeof a.target_type,target_value:typeof a.target_value,sent_by:typeof a.sent_by}))));
   return(<AppContext.Provider value={appCtx}><div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
@@ -250,7 +254,7 @@ function AppInner(){
     <div className="main-content">
       {/* View-as banner for super admin */}
       {viewAsRole && <div className="view-as-bar">
-        <span>👁 Viewing as <strong>{ROLE_LABELS[viewAsRole]}</strong></span>
+        <span>👁 Viewing as <strong>{safe(ROLE_LABELS[viewAsRole])}</strong></span>
         <button onClick={()=>setViewAsRole("")} style={{background:"var(--amber)",color:"#fff",border:"none",borderRadius:4,padding:"2px 8px",fontSize:11,cursor:"pointer",fontFamily:"var(--font)"}}>Exit</button>
       </div>}
       <div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Icon d={icons.menu} size={22}/></button><span className="topbar-title">{NAV_ITEMS.find(n=>n.key===page)?.label||"Dashboard"}</span>
@@ -276,11 +280,11 @@ function AppInner(){
         <div style={{display:"flex",alignItems:"center",gap:10,marginLeft:8,paddingLeft:12,borderLeft:"1px solid var(--bd)"}}>
           <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0,cursor:"pointer",position:"relative"}} title="Change profile picture" onClick={()=>document.getElementById("avatar-upload")?.click()}>
             {profile?.avatar_url ? <img src={profile.avatar_url} alt="" style={{width:32,height:32,objectFit:"cover",borderRadius:"50%"}}/> :
-            <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-light))",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>}
+            <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-light))",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{safe(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>}
           </div>
           <input id="avatar-upload" type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
             const file=e.target.files?.[0]; if(!file)return;
-            if(file.size>2*1024*1024){show("error","Image must be under 2MB");return;}
+            if(file.size>2*1024*1024){globalToast("error","Image must be under 2MB");return;}
             try{
               const ext=file.name.split(".").pop();
               const path=`${profile.id}.${ext}`;
@@ -293,11 +297,11 @@ function AppInner(){
             e.target.value="";
           }}/>
           <div style={{display:"flex",flexDirection:"column",lineHeight:1.2}}>
-            <span style={{fontSize:13,fontWeight:600,color:"var(--tx)",letterSpacing:"-.2px"}}>{profile?.display_name||"User"}</span>
-            <span className={`role-badge role-${viewAsRole||profile?.role}`} style={{fontSize:9,padding:"1px 6px",alignSelf:"flex-start"}}>{ROLE_LABELS[viewAsRole||profile?.role]||"QA"}{viewAsRole?" (viewing)":""}</span>
+            <span style={{fontSize:13,fontWeight:600,color:"var(--tx)",letterSpacing:"-.2px"}}>{safe(profile?.display_name)||"User"}</span>
+            <span className={`role-badge role-${viewAsRole||profile?.role}`} style={{fontSize:9,padding:"1px 6px",alignSelf:"flex-start"}}>{safe(ROLE_LABELS[viewAsRole||profile?.role])||"QA"}{viewAsRole?" (viewing)":""}</span>
           </div>
         </div>
-        <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:profile?.domain==="tabby.sa"?"rgba(234,88,12,.1)":"rgba(79,70,229,.1)",color:profile?.domain==="tabby.sa"?"#EA580C":"#4F46E5",fontWeight:600}}>{profile?.domain}</span>
+        <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:safe(profile?.domain)==="tabby.sa"?"rgba(234,88,12,.1)":"rgba(79,70,229,.1)",color:safe(profile?.domain)==="tabby.sa"?"#EA580C":"#4F46E5",fontWeight:600}}>{safe(profile?.domain)}</span>
         <button onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{background:"none",border:"1px solid var(--bd)",borderRadius:8,padding:"5px 12px",fontSize:11,color:"var(--tx3)",cursor:"pointer",fontFamily:"var(--font)",fontWeight:500,transition:"all .2s"}}
           onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--red)";e.currentTarget.style.color="var(--red)";}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--bd)";e.currentTarget.style.color="var(--tx3)";}}
@@ -346,7 +350,7 @@ function AppInner(){
             <span style={{fontSize:16,fontWeight:700}}>Announcement</span>
             {pendingAnnouncements.length>1&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:"rgba(255,255,255,.15)",fontWeight:600}}>{pendingAnnouncements.length} messages</span>}
           </div>
-          <div style={{fontSize:12,color:"rgba(255,255,255,.6)"}}>From: {pendingAnnouncements[0].sent_by?.split("@")[0].split(".").map(p=>p.charAt(0).toUpperCase()+p.slice(1)).join(" ")} · {new Date(pendingAnnouncements[0].created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.6)"}}>From: {safe(pendingAnnouncements[0].sent_by).split("@")[0].split(".").map(p=>p.charAt(0).toUpperCase()+p.slice(1)).join(" ")} · {new Date(pendingAnnouncements[0].created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
         </div>
         {/* Body */}
         <div style={{padding:"24px"}}>
@@ -355,7 +359,7 @@ function AppInner(){
             const priorityStyle={urgent:{bg:"var(--red-bg)",color:"var(--red)",label:"URGENT"},important:{bg:"var(--amber-bg)",color:"var(--amber)",label:"IMPORTANT"},normal:{bg:"var(--primary-light)",color:"var(--tabby-purple,#6A2C79)",label:"INFO"}}[ann.priority]||{};
             return <>
               <div style={{display:"flex",gap:8,alignItems:"center",marginBottom:16,flexWrap:"wrap"}}>
-                <span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:priorityStyle.bg,color:priorityStyle.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".5px"}}>{priorityStyle.label}</span>
+                <span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:priorityStyle.bg,color:priorityStyle.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".5px"}}>{safe(priorityStyle.label)}</span>
                 {ann.target_type!=="all"&&<span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:"var(--bg2)",color:"var(--tx3)",fontWeight:600}}>To: {ann.target_type==="domain"?String(ann.target_value||""):ann.target_type==="team"?"Team: "+String(ann.target_value||""):String(ann.target_value||"")}</span>}
               </div>
               <h3 style={{fontSize:18,fontWeight:700,marginBottom:12,letterSpacing:"-.3px",lineHeight:1.3}}>{typeof ann.title==="object"?JSON.stringify(ann.title):ann.title}</h3>
