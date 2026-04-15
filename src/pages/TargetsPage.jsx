@@ -29,15 +29,24 @@ const TARGET_METRICS = [
   {key:"coaching_duration_minutes",label:"Coaching duration (minutes)",type:"number"},
 ];
 
+const ALL_OVERRIDE_METRICS = [
+  ...DAILY_TARGET_METRICS,
+  ...TARGET_METRICS,
+];
+
 function TargetsPage() {
   const{token,profile,globalToast}=useApp();
   const [targets, setTargets] = useState([]);
   const [teams, setTeams] = useState([]);
+  const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selTeam, setSelTeam] = useState("Default");
   const [selDomain, setSelDomain] = useState("all");
   const [editing, setEditing] = useState(null);
   const [editValue, setEditValue] = useState("");
+  const [tab, setTab] = useState("team"); // "team" | "qa"
+  const [selQA, setSelQA] = useState("");
+  const [qaSearch, setQaSearch] = useState("");
   const {ask: confirmAsk, el: confirmEl} = useConfirm();
 
   const isLead = hasRole(profile?.role, "qa_lead");
@@ -51,12 +60,14 @@ function TargetsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [t, tm] = await Promise.all([
+      const [t, tm, r] = await Promise.all([
         sb.query("team_targets", {select:"*",filters:"order=team_name.asc,metric.asc",token}).catch(()=>[]),
         sb.query("teams", {select:"id,name,lead_id,profiles!fk_teams_lead(email)",token}).catch(()=>[]),
+        sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch(()=>[]),
       ]);
       setTargets(Array.isArray(t) ? t : []);
       setTeams(Array.isArray(tm) ? tm : []);
+      setRoster(Array.isArray(r) ? r : []);
     } catch(e) { console.error("Targets load:", e); }
     setLoading(false);
   }, [token]);
@@ -99,22 +110,44 @@ function TargetsPage() {
     return null;
   };
 
-  const saveTarget = async (metric) => {
+  const saveTarget = async (metric, forQA) => {
     const val = parseFloat(editValue);
     if (isNaN(val)) { globalToast("error", "Invalid number"); return; }
     try {
-      const existing = targets.find(t => t.team_name === selTeam && t.domain === selDomain && t.metric === metric);
-      if (existing) {
-        await sb.query("team_targets", {token, method:"PATCH", body:{target_value:val, updated_by:myEmail, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
+      if (forQA) {
+        // Per-QA override
+        const existing = targets.find(t => t.qa_email?.toLowerCase() === forQA.toLowerCase() && t.metric === metric);
+        if (existing) {
+          await sb.query("team_targets", {token, method:"PATCH", body:{target_value:val, updated_by:myEmail, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
+        } else {
+          const label = ALL_OVERRIDE_METRICS.find(m=>m.key===metric)?.label || metric;
+          await fetch(`${SUPABASE_URL}/rest/v1/team_targets`, {
+            method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"return=minimal"},
+            body:JSON.stringify({team_name:"Override", domain:"all", metric, target_value:val, target_label:label, updated_by:myEmail, qa_email:forQA.toLowerCase()})
+          });
+        }
       } else {
-        const label = TARGET_METRICS.find(m=>m.key===metric)?.label || metric;
-        await fetch(`${SUPABASE_URL}/rest/v1/team_targets?on_conflict=team_name,domain,metric`, {
-          method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
-          body:JSON.stringify({team_name:selTeam, domain:selDomain, metric, target_value:val, target_label:label, updated_by:myEmail})
-        });
+        const existing = targets.find(t => t.team_name === selTeam && t.domain === selDomain && t.metric === metric && !t.qa_email);
+        if (existing) {
+          await sb.query("team_targets", {token, method:"PATCH", body:{target_value:val, updated_by:myEmail, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
+        } else {
+          const label = ALL_OVERRIDE_METRICS.find(m=>m.key===metric)?.label || metric;
+          await fetch(`${SUPABASE_URL}/rest/v1/team_targets?on_conflict=team_name,domain,metric`, {
+            method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
+            body:JSON.stringify({team_name:selTeam, domain:selDomain, metric, target_value:val, target_label:label, updated_by:myEmail})
+          });
+        }
       }
       globalToast("success", "Target updated");
       setEditing(null);
+      load();
+    } catch(e) { globalToast("error", safeError(e)); }
+  };
+
+  const deleteQAOverride = async (id) => {
+    try {
+      await sb.query("team_targets", {token, method:"DELETE", filters:`id=eq.${id}`});
+      globalToast("success", "Override removed");
       load();
     } catch(e) { globalToast("error", safeError(e)); }
   };
@@ -138,14 +171,31 @@ function TargetsPage() {
 
   if (loading) return <div className="page"><SkeletonPage/></div>;
 
+  // QA list for overrides
+  const qaList = roster.filter(r => r.email).sort((a,b) => (a.email||"").localeCompare(b.email||""));
+  const filteredQAList = qaSearch ? qaList.filter(r => r.email.toLowerCase().includes(qaSearch.toLowerCase()) || nameFromEmail(r.email).toLowerCase().includes(qaSearch.toLowerCase())) : qaList;
+  // QAs that already have overrides
+  const qasWithOverrides = [...new Set(targets.filter(t => t.qa_email).map(t => t.qa_email.toLowerCase()))];
+
   return (
     <div className="page">
       {confirmEl}
       <div className="page-header">
         <div className="page-title">QA Targets</div>
-        <div className="page-subtitle">Set KPI targets per team — changes apply across the app</div>
+        <div className="page-subtitle">Set KPI targets per team or per individual QA</div>
       </div>
 
+      {/* Tab switcher */}
+      <div style={{display:"flex",gap:0,marginBottom:16,borderBottom:"2px solid var(--bd)"}}>
+        {[{key:"team",label:"Team Defaults"},{key:"qa",label:"QA Overrides"}].map(t => (
+          <button key={t.key} onClick={()=>setTab(t.key)} style={{
+            padding:"10px 20px",fontSize:13,fontWeight:600,cursor:"pointer",border:"none",borderBottom:tab===t.key?"2px solid var(--tabby-purple)":"2px solid transparent",
+            background:"none",color:tab===t.key?"var(--tabby-purple)":"var(--tx3)",marginBottom:-2,fontFamily:"var(--font)",transition:"all .15s"
+          }}>{t.label}{t.key==="qa" && qasWithOverrides.length > 0 ? ` (${qasWithOverrides.length})` : ""}</button>
+        ))}
+      </div>
+
+      {tab === "team" && <>
       {/* Team & Domain selector */}
       <div className="card" style={{padding:"12px 16px",marginBottom:16}}>
         <div style={{display:"flex",gap:16,alignItems:"flex-start",flexWrap:"wrap"}}>
@@ -249,6 +299,103 @@ function TargetsPage() {
           })}
         </div>
       </div>
+      </>}
+
+      {/* ═══ QA OVERRIDES TAB ═══ */}
+      {tab === "qa" && <>
+        <div style={{display:"grid",gridTemplateColumns:"280px 1fr",gap:16}}>
+          {/* QA selector panel */}
+          <div className="card" style={{padding:0,maxHeight:"calc(100vh - 220px)",display:"flex",flexDirection:"column"}}>
+            <div style={{padding:"12px 12px 8px"}}>
+              <input className="form-input" placeholder="Search QA..." value={qaSearch} onChange={e=>setQaSearch(e.target.value)} style={{fontSize:12}}/>
+            </div>
+            {qasWithOverrides.length > 0 && !qaSearch && <div style={{padding:"0 12px 6px"}}>
+              <div style={{fontSize:9,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>With overrides</div>
+              {qasWithOverrides.map(em => (
+                <div key={em} onClick={()=>setSelQA(em)} style={{
+                  padding:"6px 8px",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:selQA===em?600:400,
+                  background:selQA===em?"var(--accent-light)":"transparent",color:selQA===em?"var(--accent-text)":"var(--tx2)",
+                  display:"flex",justifyContent:"space-between",alignItems:"center"
+                }}>
+                  <span>{nameFromEmail(em)}</span>
+                  <span style={{fontSize:9,color:"var(--tx3)"}}>{targets.filter(t=>t.qa_email?.toLowerCase()===em).length} metrics</span>
+                </div>
+              ))}
+              <div style={{borderBottom:"1px solid var(--bd)",margin:"6px 0"}}/>
+            </div>}
+            <div style={{flex:1,overflowY:"auto",padding:"0 12px 12px"}}>
+              <div style={{fontSize:9,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>All QAs</div>
+              {filteredQAList.map(r => {
+                const em = r.email?.toLowerCase();
+                const hasOverride = qasWithOverrides.includes(em);
+                return <div key={em} onClick={()=>setSelQA(em)} style={{
+                  padding:"6px 8px",borderRadius:6,cursor:"pointer",fontSize:12,
+                  fontWeight:selQA===em?600:400,
+                  background:selQA===em?"var(--accent-light)":"transparent",
+                  color:selQA===em?"var(--accent-text)":"var(--tx2)"
+                }}>
+                  {nameFromEmail(em)} {hasOverride && <span style={{fontSize:8,color:"var(--green)",fontWeight:700}}>●</span>}
+                </div>;
+              })}
+            </div>
+          </div>
+
+          {/* Override editor */}
+          {selQA ? <div>
+            <div className="card" style={{padding:16,marginBottom:12}}>
+              <div style={{display:"flex",alignItems:"center",gap:12}}>
+                <div style={{width:40,height:40,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700,color:"var(--accent-text)"}}>
+                  {nameFromEmail(selQA).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{fontSize:16,fontWeight:700}}>{nameFromEmail(selQA)}</div>
+                  <div style={{fontSize:11,color:"var(--tx3)"}}>{selQA}</div>
+                </div>
+              </div>
+            </div>
+            <div className="card">
+              <div className="card-header">
+                <span className="card-title">Target overrides</span>
+                <span style={{fontSize:11,color:"var(--tx3)"}}>Only set metrics that differ from team defaults</span>
+              </div>
+              <div style={{padding:"0 16px 16px"}}>
+                {ALL_OVERRIDE_METRICS.map(m => {
+                  const override = targets.find(t => t.qa_email?.toLowerCase() === selQA && t.metric === m.key);
+                  const isEdit = editing === "qa-"+m.key;
+                  const teamDefault = getTarget(m.key);
+                  return (
+                    <div key={m.key} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid var(--bd)"}}>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{m.label}</div>
+                        <div style={{fontSize:10,color:"var(--tx3)"}}>
+                          {override ? "Custom override" : `Default: ${teamDefault?.target_value ?? "—"}`}
+                        </div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        {isEdit ? <>
+                          <input type="number" step={m.type==="decimal"?"0.01":"1"} className="form-input" style={{width:80,fontSize:13,padding:"6px 10px",textAlign:"right"}} value={editValue} onChange={e=>setEditValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==="Enter")saveTarget(m.key,selQA);if(e.key==="Escape")setEditing(null);}}/>
+                          <button className="btn btn-primary btn-sm" style={{fontSize:10,padding:"4px 10px"}} onClick={()=>saveTarget(m.key,selQA)}>Save</button>
+                          <button className="btn btn-outline btn-sm" style={{fontSize:10,padding:"4px 8px"}} onClick={()=>setEditing(null)}>Cancel</button>
+                        </> : <>
+                          <span style={{fontSize:16,fontWeight:700,color:override?"var(--green)":"var(--tx3)",minWidth:50,textAlign:"right"}}>
+                            {override ? (m.type==="percent"?override.target_value+"%":m.type==="decimal"?(override.target_value*100).toFixed(0)+"%":override.target_value) : "—"}
+                          </span>
+                          <button className="btn btn-outline btn-sm" style={{fontSize:10,padding:"4px 8px"}} onClick={()=>{setEditing("qa-"+m.key);setEditValue(override?.target_value||teamDefault?.target_value||"");}}>
+                            {override?"Edit":"Set"}
+                          </button>
+                          {override && <button className="btn btn-outline btn-sm" style={{fontSize:10,padding:"4px 8px",color:"var(--red)",borderColor:"var(--red)"}} onClick={()=>deleteQAOverride(override.id)}>×</button>}
+                        </>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div> : <div className="card" style={{display:"flex",alignItems:"center",justifyContent:"center",padding:40,color:"var(--tx3)",fontSize:14}}>
+            Select a QA from the list to set individual target overrides
+          </div>}
+        </div>
+      </>}
     </div>
   );
 }

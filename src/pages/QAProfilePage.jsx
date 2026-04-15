@@ -241,7 +241,11 @@ function QAProfilePage() {
         const qaEmail = selectedQA?.toLowerCase() || "";
         const qaDomain = qaEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
         const findTgt = (metric) => {
-          const find = (team, dom) => teamTargets.find(t => t.team_name === team && t.domain === dom && t.metric === metric);
+          // 1. Per-QA override
+          const qaMatch = teamTargets.find(t => t.qa_email?.toLowerCase() === qaEmail && t.metric === metric);
+          if (qaMatch) return qaMatch;
+          // 2. Team+domain → team+all → Default+domain → Default+all
+          const find = (team, dom) => teamTargets.find(t => !t.qa_email && t.team_name === team && t.domain === dom && t.metric === metric);
           return find(qaQueue, qaDomain) || find(qaQueue, "all") || find("Default", qaDomain) || find("Default", "all");
         };
         const sbsTarget = parseFloat(findTgt("daily_sbs")?.target_value) || 3;
