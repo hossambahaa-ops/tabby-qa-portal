@@ -10,6 +10,7 @@ import GlobalSearch from "./components/GlobalSearch.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { AppContext } from "./lib/AppContext.jsx";
 import { ToastProvider, useGlobalToast } from "./lib/ToastContext.jsx";
+import { subscribeRealtime } from "./lib/realtime.js";
 const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
 const ScoreEntryPage = lazy(() => import("./pages/ScoreEntryPage.jsx"));
 const TargetsPage = lazy(() => import("./pages/TargetsPage.jsx"));
@@ -213,6 +214,23 @@ function AppInner(){
   const guardRole=(role,component,fallbackProps)=>(hasRole(userRole,role)||userRole==="auditor")?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
   const globalToast=useGlobalToast();
   const appCtx={token:session.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast};
+  // Realtime subscriptions
+  useEffect(()=>{
+    if(!profile?.email)return;
+    const myEmailLocal=profile.email.toLowerCase().split("@")[0];
+    const myEmailAlt=profile.email.toLowerCase().endsWith("@tabby.ai")?myEmailLocal+"@tabby.sa":myEmailLocal+"@tabby.ai";
+    const teamEmails=globalRoster.filter(r=>{const m=r.manager_email?.toLowerCase();return m&&(m===profile.email.toLowerCase()||m===myEmailAlt||m===myEmailLocal);}).map(r=>r.email?.toLowerCase());
+    const unsub=subscribeRealtime({
+      profile:effectiveProfile,
+      userRole,
+      teamEmails,
+      onEvent:(type,msg)=>{
+        globalToast("success",msg);
+        window.dispatchEvent(new CustomEvent("data-changed"));
+      },
+    });
+    return unsub;
+  },[profile?.email,userRole]);
   return(<AppContext.Provider value={appCtx}><div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
