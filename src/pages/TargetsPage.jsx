@@ -47,6 +47,7 @@ function TargetsPage() {
   const [tab, setTab] = useState("team"); // "team" | "qa"
   const [selQA, setSelQA] = useState("");
   const [qaSearch, setQaSearch] = useState("");
+  const [selLead, setSelLead] = useState("");
   const {ask: confirmAsk, el: confirmEl} = useConfirm();
 
   const isLead = hasRole(profile?.role, "qa_lead");
@@ -174,7 +175,6 @@ function TargetsPage() {
   // QA list for overrides — grouped by lead
   const qaList = roster.filter(r => r.email).sort((a,b) => (a.email||"").localeCompare(b.email||""));
   const leadEmails = [...new Set(qaList.map(r => r.manager_email?.toLowerCase()).filter(Boolean))].sort();
-  const [selLead, setSelLead] = useState("");
   const filteredQAList = qaList.filter(r => {
     if (selLead && r.manager_email?.toLowerCase() !== selLead) return false;
     if (qaSearch && !r.email.toLowerCase().includes(qaSearch.toLowerCase()) && !nameFromEmail(r.email).toLowerCase().includes(qaSearch.toLowerCase())) return false;
