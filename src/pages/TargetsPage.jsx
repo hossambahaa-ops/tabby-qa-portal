@@ -171,9 +171,15 @@ function TargetsPage() {
 
   if (loading) return <div className="page"><SkeletonPage/></div>;
 
-  // QA list for overrides
+  // QA list for overrides — grouped by lead
   const qaList = roster.filter(r => r.email).sort((a,b) => (a.email||"").localeCompare(b.email||""));
-  const filteredQAList = qaSearch ? qaList.filter(r => r.email.toLowerCase().includes(qaSearch.toLowerCase()) || nameFromEmail(r.email).toLowerCase().includes(qaSearch.toLowerCase())) : qaList;
+  const leadEmails = [...new Set(qaList.map(r => r.manager_email?.toLowerCase()).filter(Boolean))].sort();
+  const [selLead, setSelLead] = useState("");
+  const filteredQAList = qaList.filter(r => {
+    if (selLead && r.manager_email?.toLowerCase() !== selLead) return false;
+    if (qaSearch && !r.email.toLowerCase().includes(qaSearch.toLowerCase()) && !nameFromEmail(r.email).toLowerCase().includes(qaSearch.toLowerCase())) return false;
+    return true;
+  });
   // QAs that already have overrides
   const qasWithOverrides = [...new Set(targets.filter(t => t.qa_email).map(t => t.qa_email.toLowerCase()))];
 
@@ -303,40 +309,79 @@ function TargetsPage() {
 
       {/* ═══ QA OVERRIDES TAB ═══ */}
       {tab === "qa" && <>
-        <div style={{display:"grid",gridTemplateColumns:"280px 1fr",gap:16}}>
+        {/* Lead filter bar */}
+        <div className="card" style={{padding:"10px 16px",marginBottom:12}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+            <span style={{fontSize:10,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Filter by Lead:</span>
+            <button onClick={()=>setSelLead("")} style={{
+              padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid var(--bd)",fontFamily:"var(--font)",
+              background:!selLead?"var(--tabby-purple)":"transparent",color:!selLead?"#fff":"var(--tx2)"
+            }}>All</button>
+            {leadEmails.map(le => (
+              <button key={le} onClick={()=>setSelLead(le)} style={{
+                padding:"4px 10px",borderRadius:6,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid var(--bd)",fontFamily:"var(--font)",
+                background:selLead===le?"var(--tabby-purple)":"transparent",color:selLead===le?"#fff":"var(--tx2)"
+              }}>{nameFromEmail(le)}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:16}}>
           {/* QA selector panel */}
-          <div className="card" style={{padding:0,maxHeight:"calc(100vh - 220px)",display:"flex",flexDirection:"column"}}>
+          <div className="card" style={{padding:0,maxHeight:"calc(100vh - 270px)",display:"flex",flexDirection:"column"}}>
             <div style={{padding:"12px 12px 8px"}}>
-              <input className="form-input" placeholder="Search QA..." value={qaSearch} onChange={e=>setQaSearch(e.target.value)} style={{fontSize:12}}/>
+              <input className="form-input" placeholder="Search QA by name or email..." value={qaSearch} onChange={e=>setQaSearch(e.target.value)} style={{fontSize:12}}/>
             </div>
-            {qasWithOverrides.length > 0 && !qaSearch && <div style={{padding:"0 12px 6px"}}>
-              <div style={{fontSize:9,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>With overrides</div>
-              {qasWithOverrides.map(em => (
-                <div key={em} onClick={()=>setSelQA(em)} style={{
-                  padding:"6px 8px",borderRadius:6,cursor:"pointer",fontSize:12,fontWeight:selQA===em?600:400,
-                  background:selQA===em?"var(--accent-light)":"transparent",color:selQA===em?"var(--accent-text)":"var(--tx2)",
+            {qasWithOverrides.length > 0 && !qaSearch && !selLead && <div style={{padding:"0 12px 6px"}}>
+              <div style={{fontSize:9,fontWeight:700,color:"var(--green)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>With overrides ({qasWithOverrides.length})</div>
+              {qasWithOverrides.map(em => {
+                const r = roster.find(x => x.email?.toLowerCase() === em);
+                return <div key={em} onClick={()=>setSelQA(em)} style={{
+                  padding:"8px 10px",borderRadius:8,cursor:"pointer",fontSize:12,marginBottom:2,
+                  fontWeight:selQA===em?600:400,
+                  background:selQA===em?"var(--accent-light)":"transparent",
+                  color:selQA===em?"var(--accent-text)":"var(--tx2)",
                   display:"flex",justifyContent:"space-between",alignItems:"center"
                 }}>
-                  <span>{nameFromEmail(em)}</span>
-                  <span style={{fontSize:9,color:"var(--tx3)"}}>{targets.filter(t=>t.qa_email?.toLowerCase()===em).length} metrics</span>
-                </div>
-              ))}
-              <div style={{borderBottom:"1px solid var(--bd)",margin:"6px 0"}}/>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <div style={{width:24,height:24,borderRadius:"50%",background:"var(--green-bg)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"var(--green)",flexShrink:0}}>
+                      {nameFromEmail(em).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div style={{fontSize:12,fontWeight:600}}>{nameFromEmail(em)}</div>
+                      {r?.manager_email && <div style={{fontSize:9,color:"var(--tx3)"}}>Lead: {nameFromEmail(r.manager_email)}</div>}
+                    </div>
+                  </div>
+                  <span style={{fontSize:9,background:"var(--green-bg)",color:"var(--green)",padding:"2px 6px",borderRadius:4,fontWeight:700}}>{targets.filter(t=>t.qa_email?.toLowerCase()===em).length}</span>
+                </div>;
+              })}
+              <div style={{borderBottom:"1px solid var(--bd)",margin:"8px 0"}}/>
             </div>}
             <div style={{flex:1,overflowY:"auto",padding:"0 12px 12px"}}>
-              <div style={{fontSize:9,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>All QAs</div>
+              <div style={{fontSize:9,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>
+                {selLead ? `${nameFromEmail(selLead)}'s team (${filteredQAList.length})` : `All QAs (${filteredQAList.length})`}
+              </div>
               {filteredQAList.map(r => {
                 const em = r.email?.toLowerCase();
                 const hasOverride = qasWithOverrides.includes(em);
                 return <div key={em} onClick={()=>setSelQA(em)} style={{
-                  padding:"6px 8px",borderRadius:6,cursor:"pointer",fontSize:12,
+                  padding:"8px 10px",borderRadius:8,cursor:"pointer",fontSize:12,marginBottom:2,
                   fontWeight:selQA===em?600:400,
                   background:selQA===em?"var(--accent-light)":"transparent",
-                  color:selQA===em?"var(--accent-text)":"var(--tx2)"
+                  color:selQA===em?"var(--accent-text)":"var(--tx2)",
+                  display:"flex",alignItems:"center",gap:8
                 }}>
-                  {nameFromEmail(em)} {hasOverride && <span style={{fontSize:8,color:"var(--green)",fontWeight:700}}>●</span>}
+                  <div style={{width:24,height:24,borderRadius:"50%",background:hasOverride?"var(--green-bg)":"var(--bg3)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:hasOverride?"var(--green)":"var(--tx3)",flexShrink:0}}>
+                    {nameFromEmail(em).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+                  </div>
+                  <div style={{flex:1,minWidth:0}}>
+                    <div style={{fontSize:12,fontWeight:hasOverride?600:400,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nameFromEmail(em)}</div>
+                    <div style={{fontSize:9,color:"var(--tx3)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{em}</div>
+                  </div>
+                  {hasOverride && <span style={{fontSize:7,color:"var(--green)",fontWeight:700,flexShrink:0}}>●</span>}
                 </div>;
               })}
+              {filteredQAList.length === 0 && <div style={{padding:12,textAlign:"center",color:"var(--tx3)",fontSize:11}}>No QAs found</div>}
             </div>
           </div>
 
@@ -350,6 +395,7 @@ function TargetsPage() {
                 <div>
                   <div style={{fontSize:16,fontWeight:700}}>{nameFromEmail(selQA)}</div>
                   <div style={{fontSize:11,color:"var(--tx3)"}}>{selQA}</div>
+                  {(()=>{const r=roster.find(x=>x.email?.toLowerCase()===selQA);return r?.manager_email?<div style={{fontSize:10,color:"var(--tx3)"}}>Lead: {nameFromEmail(r.manager_email)}</div>:null;})()}
                 </div>
               </div>
             </div>

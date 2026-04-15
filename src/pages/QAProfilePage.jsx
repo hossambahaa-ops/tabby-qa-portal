@@ -259,7 +259,7 @@ function QAProfilePage() {
         const coachingDur = parseFloat(findTgt("coaching_duration_minutes")?.target_value) || 30;
         const shiftMins = whTarget * 60;
         const productiveMins = (sbs * sbsDur) + (nonSbs * nonSbsDur) + (coaching * coachingDur) + stMins;
-        const occPct = shiftMins > 0 ? Math.min(100, (productiveMins / shiftMins) * 100) : 0;
+        const occPct = shiftMins > 0 ? (productiveMins / shiftMins) * 100 : 0;
         const workingHrs = productiveMins / 60;
         const target = sbsTarget + nonSbsTarget;
         const pct = target > 0 ? Math.min(100, Math.round((totalEvals / target) * 100)) : 0;
@@ -268,7 +268,7 @@ function QAProfilePage() {
         const nsbsFrac = totalEvals > 0 ? nonSbs / totalEvals : 0;
         const sbsArc = sbsFrac * pct / 100 * circumference;
         const nsbsArc = nsbsFrac * pct / 100 * circumference;
-        const occPctOfTarget = occTarget > 0 ? Math.min(100, Math.round((occPct / occTarget) * 100)) : 0;
+        const occPctOfTarget = occTarget > 0 ? Math.round((occPct / occTarget) * 100) : 0;
         const miniBar = (val, max, color) => <div style={{width:"100%",height:4,borderRadius:2,background:"var(--bd2)",marginTop:4}}>
           <div style={{width:Math.min(100,max>0?(val/max)*100:0)+"%",height:4,borderRadius:2,background:color,transition:"width .4s"}}/>
         </div>;
