@@ -176,6 +176,8 @@ function TargetsPage() {
   if (loading) return <div className="page"><SkeletonPage/></div>;
 
   // QA list for overrides — grouped by lead
+  const qaLeadSet = new Set(profiles.filter(p => p.role === "qa_lead").map(p => p.email?.toLowerCase()));
+  const leadEmails = [...qaLeadSet].filter(Boolean).sort();
   const excludeRoles = new Set(["qa_lead","qa_supervisor","admin","super_admin"]);
   const nonQaEmails = new Set(profiles.filter(p => excludeRoles.has(p.role)).map(p => p.email?.toLowerCase()));
   const qaList = roster.filter(r => {
@@ -184,8 +186,6 @@ function TargetsPage() {
     const mgr = r.manager_email?.toLowerCase();
     return mgr && qaLeadSet.has(mgr);
   }).sort((a,b) => (a.email||"").localeCompare(b.email||""));
-  const qaLeadSet = new Set(profiles.filter(p => p.role === "qa_lead").map(p => p.email?.toLowerCase()));
-  const leadEmails = [...qaLeadSet].filter(Boolean).sort();
   const filteredQAList = qaList.filter(r => {
     if (selLead && r.manager_email?.toLowerCase() !== selLead) return false;
     if (qaSearch && !r.email.toLowerCase().includes(qaSearch.toLowerCase()) && !nameFromEmail(r.email).toLowerCase().includes(qaSearch.toLowerCase())) return false;
