@@ -27,16 +27,19 @@ function EvalHistory({ qaEmail, matchQA }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [view, setView] = useState("daily");
+  const today = new Date().toISOString().split("T")[0];
+  const thirtyAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split("T")[0]; })();
+  const [dateFrom, setDateFrom] = useState(thirtyAgo);
+  const [dateTo, setDateTo] = useState(today);
 
-  const load = async () => {
+  const load = async (from, to) => {
     setLoading(true);
+    const f = from || dateFrom;
+    const t = to || dateTo;
     try {
-      const since = new Date();
-      since.setDate(since.getDate() - 30);
-      const sinceStr = since.toISOString().split("T")[0];
       const rows = await sb.query("daily_scores", {
         select: "qa_email,date,sbs_count,non_sbs_count,coaching_count,side_task_count,occupancy_pct",
-        filters: `date=gte.${sinceStr}&order=date.desc`,
+        filters: `date=gte.${f}&date=lte.${t}&order=date.desc`,
         token,
       });
       const filtered = (rows || []).filter(r => matchQA(r.qa_email));
@@ -57,7 +60,7 @@ function EvalHistory({ qaEmail, matchQA }) {
         </div>
         <div style={{ padding: "24px 16px", textAlign: "center" }}>
           <div style={{ fontSize: 13, color: "var(--tx3)", marginBottom: 12 }}>Load the last 30 days of daily evaluation data</div>
-          <button className="btn btn-outline" onClick={load}>View History</button>
+          <button className="btn btn-outline" onClick={() => load()}>View History</button>
         </div>
       </div>
     );
@@ -128,6 +131,15 @@ function EvalHistory({ qaEmail, matchQA }) {
             boxShadow: view === "weekly" ? "var(--shadow)" : "none",
           }}>Weekly</button>
         </div>
+      </div>
+
+      {/* Date range picker */}
+      <div style={{ padding: "8px 16px 0", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <label style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>From</label>
+        <input type="date" className="form-input" value={dateFrom} max={dateTo} onChange={e => setDateFrom(e.target.value)} style={{ padding: "4px 8px", fontSize: 12, width: "auto" }} />
+        <label style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>To</label>
+        <input type="date" className="form-input" value={dateTo} min={dateFrom} max={today} onChange={e => setDateTo(e.target.value)} style={{ padding: "4px 8px", fontSize: 12, width: "auto" }} />
+        <button className="btn btn-primary btn-sm" onClick={() => load()} style={{ fontSize: 11, padding: "4px 12px" }}>Apply</button>
       </div>
 
       {/* Stacked bar chart */}
