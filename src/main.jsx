@@ -8,4 +8,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js');
+// Clear old caches on startup, then register updated SW
+if ('serviceWorker' in navigator) {
+  caches.keys().then(keys => keys.forEach(k => { if (k !== 'tabby-pulse-v2') caches.delete(k); }));
+  navigator.serviceWorker.register('/sw.js');
+}

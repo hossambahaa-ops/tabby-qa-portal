@@ -392,12 +392,12 @@ function QAProfilePage() {
                     {s.performance_rating && <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,
                       background:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green-bg)":"var(--amber-bg)",
                       color:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green)":"var(--amber)"
-                    }}>{s.performance_rating}</span>}
+                    }}>{safe(s.performance_rating)}</span>}
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s"}}><path d="M6 9l6 6 6-6"/></svg>
                   </div>
                 </div>
                 {isExpanded && <div style={{padding:"12px 0",borderBottom:"1px solid var(--bd)",background:"var(--bg)",borderRadius:8,padding:12,margin:"8px 0"}}>
-                  {s.email_subject && <div style={{fontSize:12,fontWeight:600,color:"var(--tx)",marginBottom:8}}>Subject: {s.email_subject}</div>}
+                  {s.email_subject && <div style={{fontSize:12,fontWeight:600,color:"var(--tx)",marginBottom:8}}>Subject: {safe(s.email_subject)}</div>}
                   {[["Topics",s.topics],["Strengths",s.strengths],["Areas for improvement",s.weaknesses],["Goals",s.goals],["Action items",s.action_items],["Notes",s.notes||s.agenda],["Next steps",s.next_steps]].map(([label,val])=>
                     val ? <div key={label} style={{marginBottom:8}}>
                       <div style={{fontSize:10,fontWeight:600,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
@@ -423,14 +423,14 @@ function QAProfilePage() {
               const isExp = expandedTask === t.id;
               return <div key={t.id}>
                 <div onClick={()=>setExpandedTask(isExp?null:t.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--bd)",cursor:"pointer"}}>
-                  <div style={{fontSize:12,color:t.status==="done"?"var(--tx3)":"var(--tx)",textDecoration:t.status==="done"?"line-through":"none",fontWeight:500}}>{t.title}</div>
+                  <div style={{fontSize:12,color:t.status==="done"?"var(--tx3)":"var(--tx)",textDecoration:t.status==="done"?"line-through":"none",fontWeight:500}}>{safe(t.title)}</div>
                   <span style={{fontSize:9,padding:"2px 6px",borderRadius:6,fontWeight:600,flexShrink:0,
                     background:t.status==="done"?"var(--green-bg)":t.status==="pending"?"var(--amber-bg)":"var(--blue-bg)",
                     color:t.status==="done"?"var(--green)":t.status==="pending"?"var(--amber)":"var(--blue)"
                   }}>{t.status}</span>
                 </div>
                 {isExp && <div style={{padding:10,margin:"4px 0 8px",background:"var(--bg)",borderRadius:8,fontSize:12}}>
-                  {t.description && <div style={{color:"var(--tx2)",marginBottom:6,whiteSpace:"pre-wrap"}}>{t.description}</div>}
+                  {t.description && <div style={{color:"var(--tx2)",marginBottom:6,whiteSpace:"pre-wrap"}}>{safe(t.description)}</div>}
                   <div style={{display:"flex",gap:12,flexWrap:"wrap",color:"var(--tx3)",fontSize:11}}>
                     {t.priority && <span>Priority: <strong style={{color:t.priority==="high"?"var(--red)":t.priority==="medium"?"var(--amber)":"var(--tx3)"}}>{t.priority}</strong></span>}
                     {t.due_date && <span>Due: {new Date(t.due_date).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>}
@@ -493,8 +493,8 @@ function QAProfilePage() {
                 </div>
                 {isExp && <div style={{padding:10,margin:"4px 0 8px",background:"var(--bg)",borderRadius:8,fontSize:12}}>
                   {p.created_by && <div style={{fontSize:11,color:"var(--tx3)",marginBottom:6}}>Created by: {nameFromEmail(p.created_by)}</div>}
-                  {p.reason && <div style={{fontSize:11,color:"var(--tx3)",marginBottom:6}}>Reason: {p.reason}</div>}
-                  {p.conclusion && <div style={{fontSize:11,color:p.conclusion.includes("pass")?"var(--green)":"var(--red)",marginBottom:8,fontWeight:600}}>Conclusion: {p.conclusion}</div>}
+                  {p.reason && <div style={{fontSize:11,color:"var(--tx3)",marginBottom:6}}>Reason: {safe(p.reason)}</div>}
+                  {p.conclusion && <div style={{fontSize:11,color:String(p.conclusion).includes("pass")?"var(--green)":"var(--red)",marginBottom:8,fontWeight:600}}>Conclusion: {safe(p.conclusion)}</div>}
                   {weeks.length > 0 && <div>
                     <div style={{fontSize:10,fontWeight:600,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>Weekly progress</div>
                     {weeks.map(w => (
