@@ -6,6 +6,9 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
 
+// Safe render: prevent objects/arrays from crashing React
+const safe = (v) => (v === null || v === undefined) ? "—" : (typeof v === "object" ? JSON.stringify(v) : v);
+
 function QAProfilePage() {
   const{token,profile,gf}=useApp();
   const [roster, setRoster] = useState([]);
@@ -326,7 +329,7 @@ function QAProfilePage() {
             ].map(([label, val], i) => (
               <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<9?"1px solid var(--bd)":"none"}}>
                 <span style={{fontSize:13,color:"var(--tx2)"}}>{label}</span>
-                <span style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{val ?? "—"}</span>
+                <span style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{safe(val)}</span>
               </div>
             ))}
           </div>;})()}
@@ -398,11 +401,11 @@ function QAProfilePage() {
                   {[["Topics",s.topics],["Strengths",s.strengths],["Areas for improvement",s.weaknesses],["Goals",s.goals],["Action items",s.action_items],["Notes",s.notes||s.agenda],["Next steps",s.next_steps]].map(([label,val])=>
                     val ? <div key={label} style={{marginBottom:8}}>
                       <div style={{fontSize:10,fontWeight:600,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
-                      <div style={{fontSize:12,color:"var(--tx2)",whiteSpace:"pre-wrap",lineHeight:1.5}}>{val}</div>
+                      <div style={{fontSize:12,color:"var(--tx2)",whiteSpace:"pre-wrap",lineHeight:1.5}}>{safe(val)}</div>
                     </div> : null
                   )}
-                  {s.outcome && <div style={{marginTop:4}}><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,background:s.outcome==="pass"?"var(--green-bg)":"var(--red-bg)",color:s.outcome==="pass"?"var(--green)":"var(--red)"}}>Outcome: {s.outcome}</span></div>}
-                  {s.conclusion && <div style={{marginTop:4}}><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,background:"var(--blue-bg)",color:"var(--blue)"}}>Conclusion: {s.conclusion}</span></div>}
+                  {s.outcome && <div style={{marginTop:4}}><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,background:s.outcome==="pass"?"var(--green-bg)":"var(--red-bg)",color:s.outcome==="pass"?"var(--green)":"var(--red)"}}>Outcome: {safe(s.outcome)}</span></div>}
+                  {s.conclusion && <div style={{marginTop:4}}><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,background:"var(--blue-bg)",color:"var(--blue)"}}>Conclusion: {safe(s.conclusion)}</span></div>}
                 </div>}
               </div>;
             })}
@@ -539,7 +542,7 @@ function QAProfilePage() {
                     {f.dam_rules?.recommended_action && <span>Action: <strong style={{color:"var(--amber)"}}>{f.dam_rules.recommended_action.replace(/_/g," ")}</strong></span>}
                   </div>
                   {f.reviewed_by && <div style={{fontSize:11,color:"var(--tx3)"}}>Reviewed by: {nameFromEmail(f.reviewed_by)} {f.reviewed_at ? "on " + new Date(f.reviewed_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"}) : ""}</div>}
-                  {f.notes && <div style={{fontSize:11,color:"var(--tx2)",marginTop:4,whiteSpace:"pre-wrap"}}>{f.notes}</div>}
+                  {f.notes && <div style={{fontSize:11,color:"var(--tx2)",marginTop:4,whiteSpace:"pre-wrap"}}>{safe(f.notes)}</div>}
                 </div>}
               </div>;
             })}
