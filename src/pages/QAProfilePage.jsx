@@ -7,7 +7,11 @@ import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
 
 // Safe render: prevent objects/arrays from crashing React
-const safe = (v) => (v === null || v === undefined) ? "—" : (typeof v === "object" ? JSON.stringify(v) : v);
+const safe = (v) => {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "object") { console.warn("safe() caught object:", v); return JSON.stringify(v); }
+  return String(v);
+};
 
 function QAProfilePage() {
   const{token,profile,gf}=useApp();
