@@ -11,6 +11,7 @@ import { useApp } from "../lib/AppContext.jsx";
 import DashboardTasks from "../components/dashboard/DashboardTasks.jsx";
 import AnnouncementForm from "../components/dashboard/AnnouncementForm.jsx";
 import APDetectionAlerts from "../components/dashboard/APDetectionAlerts.jsx";
+import TeamHealth from "../components/dashboard/TeamHealth.jsx";
 
 function DashboardPage(){
   const{profile,token,gf,globalToast}=useApp();
@@ -350,6 +351,9 @@ function DashboardPage(){
           </div>
         </div>
       </div>
+
+      {/* Team Health — KPI vs targets */}
+      <TeamHealth teamData={teamCurrent} allTeamEmails={allTeamEmails} qaQueue={roster.find(r=>r.email?.toLowerCase()===myEmail)?.queue||""} qaDomain={myEmail?.endsWith("@tabby.sa")?"tabby.sa":"tabby.ai"} />
 
       {/* Today's live activity */}
       {dailyScores.length>0&&<div className="card" style={{marginBottom:16}}>
