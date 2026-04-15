@@ -27,6 +27,10 @@ function ScoreEntryPage(){
   const [uploadOverwrite, setUploadOverwrite] = useState(false);
   const [uploadPreview, setUploadPreview] = useState([]);
   const [uploadFile, setUploadFile] = useState(null);
+  const [selectedRows, setSelectedRows] = useState(new Set());
+  const [bulkTaskModal, setBulkTaskModal] = useState(false);
+  const [bulkForm, setBulkForm] = useState({title:"",description:"",priority:"medium",due_date:""});
+  const [bulkSending, setBulkSending] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const [uploadLogs, setUploadLogs] = useState([]);
@@ -445,6 +449,7 @@ function ScoreEntryPage(){
           <table>
             <thead>
               <tr>
+                <th style={{width:36,textAlign:"center"}}><input type="checkbox" checked={sorted.length>0&&selectedRows.size===sorted.length} onChange={e=>{if(e.target.checked){setSelectedRows(new Set(sorted.map(r=>r.qa_email)));}else{setSelectedRows(new Set());}}} style={{cursor:"pointer"}}/></th>
                 <th style={{minWidth:160}}>Specialist</th>
                 <th>TL</th>
                 <th style={{textAlign:"right"}}>WDs</th>
@@ -476,7 +481,8 @@ function ScoreEntryPage(){
             </thead>
             <tbody>
               {sorted.map((r, i) => (
-                <tr key={r.id}>
+                <tr key={r.id} style={{background:selectedRows.has(r.qa_email)?"var(--primary-light)":undefined}}>
+                  <td style={{textAlign:"center"}}><input type="checkbox" checked={selectedRows.has(r.qa_email)} onChange={e=>{const next=new Set(selectedRows);if(e.target.checked)next.add(r.qa_email);else next.delete(r.qa_email);setSelectedRows(next);}} style={{cursor:"pointer"}} onClick={e=>e.stopPropagation()}/></td>
                   <td>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
                       <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>
@@ -741,6 +747,73 @@ function ScoreEntryPage(){
           </>}
           <button className="btn btn-primary" onClick={()=>setShowUpload(false)}>Done</button>
         </div>}
+      </div>
+    </div>}
+    {/* Floating action bar for bulk selection */}
+    {selectedRows.size>0&&<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:1000,background:"rgba(13,11,16,.85)",backdropFilter:"blur(12px)",borderRadius:14,padding:"12px 20px",display:"flex",alignItems:"center",gap:16,boxShadow:"0 12px 40px rgba(0,0,0,.4)",border:"1px solid rgba(255,255,255,.08)"}}>
+      <span style={{fontSize:13,fontWeight:600,color:"#fff"}}>{selectedRows.size} selected</span>
+      <button className="btn btn-primary btn-sm" onClick={()=>{setBulkTaskModal(true);setBulkForm({title:"",description:"",priority:"medium",due_date:""});}} style={{fontSize:12}}>
+        <Icon d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" size={14}/>Assign Task
+      </button>
+      <button onClick={()=>setSelectedRows(new Set())} style={{background:"none",border:"1px solid rgba(255,255,255,.2)",borderRadius:8,padding:"5px 12px",fontSize:12,color:"rgba(255,255,255,.7)",cursor:"pointer",fontFamily:"var(--font)",fontWeight:500}}>Clear</button>
+    </div>}
+
+    {/* Bulk task creation modal */}
+    {bulkTaskModal&&<div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.6)",backdropFilter:"blur(6px)",display:"flex",justifyContent:"center",alignItems:"center"}} onClick={()=>setBulkTaskModal(false)}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"0 25px 50px rgba(0,0,0,.5)",width:"100%",maxWidth:480,padding:24,margin:16}}>
+        <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>Assign Task to {selectedRows.size} QA{selectedRows.size!==1?"s":""}</div>
+        <div style={{fontSize:12,color:"var(--tx3)",marginBottom:16}}>One task will be created for each selected specialist</div>
+        <div className="form-group" style={{marginBottom:12}}>
+          <label className="form-label">Title</label>
+          <input className="form-input" value={bulkForm.title} onChange={e=>setBulkForm({...bulkForm,title:e.target.value})} placeholder="Task title..."/>
+        </div>
+        <div className="form-group" style={{marginBottom:12}}>
+          <label className="form-label">Description</label>
+          <textarea className="form-input" rows={3} value={bulkForm.description} onChange={e=>setBulkForm({...bulkForm,description:e.target.value})} placeholder="Optional description..." style={{resize:"vertical"}}/>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
+          <div className="form-group">
+            <label className="form-label">Priority</label>
+            <select className="form-input" value={bulkForm.priority} onChange={e=>setBulkForm({...bulkForm,priority:e.target.value})}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Due date</label>
+            <input type="date" className="form-input" value={bulkForm.due_date} onChange={e=>setBulkForm({...bulkForm,due_date:e.target.value})}/>
+          </div>
+        </div>
+        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
+          <button className="btn btn-outline" onClick={()=>setBulkTaskModal(false)}>Cancel</button>
+          <button className="btn btn-primary" disabled={!bulkForm.title.trim()||bulkSending} onClick={async()=>{
+            setBulkSending(true);
+            let created=0;
+            try{
+              for(const email of selectedRows){
+                await sb.query("tasks",{token,method:"POST",body:{
+                  assigned_to:email,
+                  created_by:profile?.email,
+                  title:bulkForm.title.trim(),
+                  description:bulkForm.description.trim()||null,
+                  priority:bulkForm.priority,
+                  due_date:bulkForm.due_date||null,
+                  status:"pending",
+                }});
+                created++;
+              }
+              globalToast("success",`Created ${created} task${created!==1?"s":""}`);
+              setBulkTaskModal(false);
+              setSelectedRows(new Set());
+            }catch(e){
+              globalToast("error",`Created ${created}/${selectedRows.size} — ${e.message||"error"}`);
+            }
+            setBulkSending(false);
+          }}>
+            {bulkSending?"Creating...":"Create tasks"}
+          </button>
+        </div>
       </div>
     </div>}
   </div>);
