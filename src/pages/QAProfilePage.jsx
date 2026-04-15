@@ -237,8 +237,6 @@ function QAProfilePage() {
         const totalEvals = sbs + nonSbs;
         const coaching = parseFloat(d?.coaching_count || d?.coaching_sessions || 0);
         const stMins = parseFloat(d?.side_task_minutes || 0);
-        const occ = parseFloat(d?.occupancy_pct || 0);
-        const occPct = occ > 2 ? occ : occ * 100;
         const qaQueue = qa?.queue || "";
         const qaEmail = selectedQA?.toLowerCase() || "";
         const qaDomain = qaEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
@@ -252,6 +250,13 @@ function QAProfilePage() {
         const coachingTarget = parseFloat(findTgt("daily_coaching")?.target_value) || 1;
         const stTarget = parseFloat(findTgt("daily_side_task_mins")?.target_value) || 60;
         const whTarget = parseFloat(findTgt("daily_working_hours")?.target_value) || 8;
+        const sbsDur = parseFloat(findTgt("sbs_duration_minutes")?.target_value) || 20;
+        const nonSbsDur = parseFloat(findTgt("non_sbs_duration_minutes")?.target_value) || 15;
+        const coachingDur = parseFloat(findTgt("coaching_duration_minutes")?.target_value) || 30;
+        const shiftMins = whTarget * 60;
+        const productiveMins = (sbs * sbsDur) + (nonSbs * nonSbsDur) + (coaching * coachingDur) + stMins;
+        const occPct = shiftMins > 0 ? Math.min(100, (productiveMins / shiftMins) * 100) : 0;
+        const workingHrs = productiveMins / 60;
         const target = sbsTarget + nonSbsTarget;
         const pct = target > 0 ? Math.min(100, Math.round((totalEvals / target) * 100)) : 0;
         const circumference = 2 * Math.PI * 28;
@@ -260,7 +265,6 @@ function QAProfilePage() {
         const sbsArc = sbsFrac * pct / 100 * circumference;
         const nsbsArc = nsbsFrac * pct / 100 * circumference;
         const occPctOfTarget = occTarget > 0 ? Math.min(100, Math.round((occPct / occTarget) * 100)) : 0;
-        const workingHrs = (occPct / 100) * whTarget;
         const miniBar = (val, max, color) => <div style={{width:"100%",height:4,borderRadius:2,background:"var(--bd2)",marginTop:4}}>
           <div style={{width:Math.min(100,max>0?(val/max)*100:0)+"%",height:4,borderRadius:2,background:color,transition:"width .4s"}}/>
         </div>;
