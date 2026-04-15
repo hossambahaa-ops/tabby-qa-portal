@@ -233,6 +233,9 @@ function AppInner(){
     });
     return unsub;
   },[profile?.email,userRole]);
+  // DEBUG: find which field is an object causing #310
+  console.log("DEBUG profile:", JSON.stringify(profile));
+  console.log("DEBUG announcements:", JSON.stringify(pendingAnnouncements?.map(a=>({id:a.id,title:typeof a.title,message:typeof a.message,priority:typeof a.priority,target_type:typeof a.target_type,target_value:typeof a.target_value,sent_by:typeof a.sent_by}))));
   return(<AppContext.Provider value={appCtx}><div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
