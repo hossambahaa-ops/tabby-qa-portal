@@ -133,6 +133,8 @@ body, html, #root { height: 100%; font-family: var(--font); background: var(--bg
 
 /* ── Table ── */
 .table-wrap { overflow-x: auto; overflow-y: visible; }
+.table-wrap-sticky { overflow: auto; max-height: calc(100vh - 280px); }
+.table-wrap-sticky thead th { position: sticky; top: 0; z-index: 2; background: var(--bg3); box-shadow: 0 1px 0 var(--bd); }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--tx3); font-weight: 600; padding: 12px 14px; border-bottom: 1px solid var(--bd); }
 td { padding: 14px; border-bottom: 1px solid var(--bd2); }

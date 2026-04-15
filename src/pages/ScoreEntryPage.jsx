@@ -421,7 +421,7 @@ function ScoreEntryPage(){
             </button>
           </div>
         </div>
-        {mtdView==="qa"&&<div className="table-wrap">
+        {mtdView==="qa"&&<div className="table-wrap table-wrap-sticky">
           <table>
             <thead>
               <tr>
@@ -528,7 +528,7 @@ function ScoreEntryPage(){
           });
           const avg=(arr)=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
           const leads=Object.values(leadMap).sort((a,b)=>avg(b.performance)-avg(a.performance));
-          return <div className="table-wrap"><table>
+          return <div className="table-wrap table-wrap-sticky"><table>
             <thead><tr>
               <th style={{minWidth:160}}>Lead</th>
               <th style={{textAlign:"right"}}>QAs</th>

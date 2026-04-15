@@ -270,12 +270,18 @@ function QAProfilePage() {
           })()}
         </div>
 
-        {/* Occupancy */}
-        <div className="card" style={{padding:16,textAlign:"center"}}>
-          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Occupancy</div>
-          <div style={{fontSize:28,fontWeight:800,color:latestMtd?.occupancy_pct?"var(--tx)":"var(--tx3)"}}>{latestMtd ? fmtPct(latestMtd.occupancy_pct) : "—"}</div>
-          <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>{latestMtd?.month || "No data"}</div>
-        </div>
+        {/* Occupancy — today's */}
+        {(()=>{
+          const d = dailyScores.find(x => matchQA(x.qa_email));
+          const occ = d?.occupancy_pct || 0;
+          const occPct = occ > 2 ? occ : occ * 100;
+          const hasOcc = occPct > 0;
+          return <div className="card" style={{padding:16,textAlign:"center"}}>
+            <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Today's occupancy</div>
+            <div style={{fontSize:28,fontWeight:800,color:hasOcc?"var(--tx)":"var(--tx3)"}}>{hasOcc ? occPct.toFixed(1)+"%" : "—"}</div>
+            <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>{hasOcc ? new Date().toLocaleDateString("en-GB",{day:"numeric",month:"short"}) : "No data today"}</div>
+          </div>;
+        })()}
 
         {/* Final Performance */}
         <div className="card" style={{padding:16,textAlign:"center"}}>
