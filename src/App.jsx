@@ -187,6 +187,29 @@ function AppInner(){
       setPendingAnnouncements(prev=>prev.filter(a=>a.id!==annId));
     }catch(e){console.error("Ack error:",e);}
   };
+  // ── Hooks that MUST run before any early return (Rules of Hooks) ──
+  const globalToast=useGlobalToast();
+  const realRole=profile?.role||"qa";
+  const userRole=viewAsRole||realRole;
+  const effectiveProfile=viewAsRole?{...profile,role:viewAsRole}:profile;
+  // Realtime subscriptions (guard: skips if no profile yet)
+  useEffect(()=>{
+    if(!profile?.email)return;
+    const myEmailLocal=profile.email.toLowerCase().split("@")[0];
+    const myEmailAlt=profile.email.toLowerCase().endsWith("@tabby.ai")?myEmailLocal+"@tabby.sa":myEmailLocal+"@tabby.ai";
+    const teamEmails=globalRoster.filter(r=>{const m=r.manager_email?.toLowerCase();return m&&(m===profile.email.toLowerCase()||m===myEmailAlt||m===myEmailLocal);}).map(r=>r.email?.toLowerCase());
+    const unsub=subscribeRealtime({
+      profile:effectiveProfile,
+      userRole,
+      teamEmails,
+      onEvent:(type,msg)=>{
+        globalToast("success",msg);
+        window.dispatchEvent(new CustomEvent("data-changed"));
+      },
+    });
+    return unsub;
+  },[profile?.email,userRole]);
+
   if(loading)return<div className="loading-fullscreen">
     <svg width="200" height="60" viewBox="0 0 200 60" fill="none" className="pulse-line-anim">
       <path d="M0 30 L40 30 L55 8 L75 52 L95 20 L110 30 L200 30" stroke="url(#pulseGrad)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
@@ -208,9 +231,6 @@ function AppInner(){
     <div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div>
     <div className="login-footer">Internal tool &middot; Tabby Pulse</div>
   </div></div>);
-  const realRole=profile?.role||"qa";
-  const userRole=viewAsRole||realRole;
-  const effectiveProfile=viewAsRole?{...profile,role:viewAsRole}:profile;
   const isAuditor = userRole === "auditor";
   const visibleNav=NAV_ITEMS.filter(n=>{
     if (n.key === "escalations") return true;
@@ -221,25 +241,7 @@ function AppInner(){
     return !n.minRole || hasRole(userRole, n.minRole);
   });let curSec=null;
   const guardRole=(role,component,fallbackProps)=>(hasRole(userRole,role)||userRole==="auditor")?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
-  const globalToast=useGlobalToast();
-  const appCtx={token:session.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast};
-  // Realtime subscriptions
-  useEffect(()=>{
-    if(!profile?.email)return;
-    const myEmailLocal=profile.email.toLowerCase().split("@")[0];
-    const myEmailAlt=profile.email.toLowerCase().endsWith("@tabby.ai")?myEmailLocal+"@tabby.sa":myEmailLocal+"@tabby.ai";
-    const teamEmails=globalRoster.filter(r=>{const m=r.manager_email?.toLowerCase();return m&&(m===profile.email.toLowerCase()||m===myEmailAlt||m===myEmailLocal);}).map(r=>r.email?.toLowerCase());
-    const unsub=subscribeRealtime({
-      profile:effectiveProfile,
-      userRole,
-      teamEmails,
-      onEvent:(type,msg)=>{
-        globalToast("success",msg);
-        window.dispatchEvent(new CustomEvent("data-changed"));
-      },
-    });
-    return unsub;
-  },[profile?.email,userRole]);
+  const appCtx={token:session?.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast};
   return(<AppContext.Provider value={appCtx}><div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
