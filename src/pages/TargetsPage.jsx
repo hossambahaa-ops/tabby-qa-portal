@@ -49,6 +49,7 @@ function TargetsPage() {
   const [selQA, setSelQA] = useState("");
   const [qaSearch, setQaSearch] = useState("");
   const [selLead, setSelLead] = useState("");
+  const [bulkMetrics, setBulkMetrics] = useState({});
   const {ask: confirmAsk, el: confirmEl} = useConfirm();
 
   const isLead = hasRole(profile?.role, "qa_lead");
@@ -114,22 +115,28 @@ function TargetsPage() {
     return null;
   };
 
+  const saveQAOverride = async (metric, qaEmail, value) => {
+    const val = typeof value === "number" ? value : parseFloat(editValue);
+    if (isNaN(val)) { globalToast("error", "Invalid number"); return; }
+    const existing = targets.find(t => t.qa_email?.toLowerCase() === qaEmail.toLowerCase() && t.metric === metric);
+    if (existing) {
+      await sb.query("team_targets", {token, method:"PATCH", body:{target_value:val, updated_by:myEmail, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
+    } else {
+      const label = ALL_OVERRIDE_METRICS.find(m=>m.key===metric)?.label || metric;
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/team_targets`, {
+        method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"return=minimal"},
+        body:JSON.stringify({team_name:"Override", domain:"all", metric, target_value:val, target_label:label, updated_by:myEmail, qa_email:qaEmail.toLowerCase()})
+      });
+      if (!res.ok) { const err = await res.json().catch(()=>({})); throw new Error(err.message || "Save failed — did you run the qa_email migration?"); }
+    }
+  };
+
   const saveTarget = async (metric, forQA) => {
     const val = parseFloat(editValue);
     if (isNaN(val)) { globalToast("error", "Invalid number"); return; }
     try {
       if (forQA) {
-        // Per-QA override
-        const existing = targets.find(t => t.qa_email?.toLowerCase() === forQA.toLowerCase() && t.metric === metric);
-        if (existing) {
-          await sb.query("team_targets", {token, method:"PATCH", body:{target_value:val, updated_by:myEmail, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
-        } else {
-          const label = ALL_OVERRIDE_METRICS.find(m=>m.key===metric)?.label || metric;
-          await fetch(`${SUPABASE_URL}/rest/v1/team_targets`, {
-            method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"return=minimal"},
-            body:JSON.stringify({team_name:"Override", domain:"all", metric, target_value:val, target_label:label, updated_by:myEmail, qa_email:forQA.toLowerCase()})
-          });
-        }
+        await saveQAOverride(metric, forQA, val);
       } else {
         const existing = targets.find(t => t.team_name === selTeam && t.domain === selDomain && t.metric === metric && !t.qa_email);
         if (existing) {
@@ -144,6 +151,25 @@ function TargetsPage() {
       }
       globalToast("success", "Target updated");
       setEditing(null);
+      load();
+    } catch(e) { globalToast("error", safeError(e)); }
+  };
+
+  // Bulk: apply overrides to entire lead's team
+  const saveBulkForTeam = async (leadEmail) => {
+    const teamQAs = qaList.filter(r => r.manager_email?.toLowerCase() === leadEmail);
+    const entries = Object.entries(bulkMetrics).filter(([,v]) => v !== "" && !isNaN(parseFloat(v)));
+    if (entries.length === 0) { globalToast("error", "Set at least one metric value"); return; }
+    try {
+      let count = 0;
+      for (const qa of teamQAs) {
+        for (const [metric, val] of entries) {
+          await saveQAOverride(metric, qa.email, parseFloat(val));
+          count++;
+        }
+      }
+      globalToast("success", `Updated ${entries.length} metrics for ${teamQAs.length} QAs (${count} total)`);
+      setBulkMetrics({});
       load();
     } catch(e) { globalToast("error", safeError(e)); }
   };
@@ -336,6 +362,30 @@ function TargetsPage() {
             ))}
           </div>
         </div>
+
+        {/* Bulk team override panel — shown when a lead is selected */}
+        {selLead && <div className="card" style={{padding:0,marginBottom:12}}>
+          <div className="card-header" style={{cursor:"pointer"}} onClick={()=>setBulkMetrics(prev=>prev._open?{}:{_open:true})}>
+            <span className="card-title">Set targets for {nameFromEmail(selLead)}'s entire team ({qaList.filter(r=>r.manager_email?.toLowerCase()===selLead).length} QAs)</span>
+            <span style={{fontSize:11,color:"var(--tx3)"}}>{bulkMetrics._open?"▲ Collapse":"▼ Expand"}</span>
+          </div>
+          {bulkMetrics._open && <div style={{padding:"0 16px 16px"}}>
+            <div style={{fontSize:11,color:"var(--tx3)",marginBottom:12}}>Set values for the metrics you want to override, then click Apply. Only filled metrics will be updated.</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"8px 16px"}}>
+              {ALL_OVERRIDE_METRICS.map(m => (
+                <div key={m.key} style={{display:"flex",alignItems:"center",gap:8}}>
+                  <label style={{fontSize:12,color:"var(--tx2)",flex:1,minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.label}</label>
+                  <input type="number" step={m.type==="decimal"?"0.01":"1"} className="form-input" style={{width:80,fontSize:12,padding:"5px 8px",textAlign:"right"}}
+                    placeholder="—" value={bulkMetrics[m.key]||""} onChange={e=>setBulkMetrics(prev=>({...prev,[m.key]:e.target.value}))}/>
+                </div>
+              ))}
+            </div>
+            <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:12}}>
+              <button className="btn btn-outline btn-sm" onClick={()=>setBulkMetrics({})}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={()=>saveBulkForTeam(selLead)}>Apply to all {qaList.filter(r=>r.manager_email?.toLowerCase()===selLead).length} QAs</button>
+            </div>
+          </div>}
+        </div>}
 
         <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:16}}>
           {/* QA selector panel */}
