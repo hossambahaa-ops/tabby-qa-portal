@@ -4,6 +4,7 @@ import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail } from "../lib/utils.js";
 import { PulseLoader } from "../components/Charts.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import EvalHistory from "../components/EvalHistory.jsx";
 
 function QAProfilePage() {
   const{token,profile,gf}=useApp();
@@ -535,6 +536,9 @@ function QAProfilePage() {
           </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No flags</div>}
         </div>
       </div>
+
+      {/* Evaluation History — on-demand */}
+      {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} />}
 
       {/* Score history */}
       {qaMtd.length > 1 && <div className="card" style={{marginTop:16}}>
