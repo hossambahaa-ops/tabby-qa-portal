@@ -23,7 +23,7 @@ const TARGET_METRICS = [
   {key:"observed_coaching_count",label:"Coaching observations / month",type:"number"},
   {key:"ticket_per_day",label:"Tickets / day",type:"number"},
   {key:"final_performance",label:"Final performance score",type:"decimal"},
-  {key:"daily_working_hours",label:"Working hours / day",type:"number"},
+  {key:"daily_working_hours",label:"Working hours / day",type:"hours"},
   {key:"sbs_duration_minutes",label:"SBS duration (minutes)",type:"number"},
   {key:"non_sbs_duration_minutes",label:"Non-SBS duration (minutes)",type:"number"},
   {key:"coaching_duration_minutes",label:"Coaching duration (minutes)",type:"number"},
@@ -327,7 +327,7 @@ function TargetsPage() {
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:8}}>
                   {isEdit ? <>
-                    <input type="number" step={m.type==="decimal"?"0.01":"1"} className="form-input" style={{width:80,fontSize:13,padding:"6px 10px",textAlign:"right"}} value={editValue} onChange={e=>setEditValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==="Enter")saveTarget(m.key);if(e.key==="Escape")setEditing(null);}}/>
+                    <input type="number" step={m.type==="decimal"||m.type==="hours"?"0.01":"1"} className="form-input" style={{width:80,fontSize:13,padding:"6px 10px",textAlign:"right"}} value={editValue} onChange={e=>setEditValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==="Enter")saveTarget(m.key);if(e.key==="Escape")setEditing(null);}}/>
                     <button className="btn btn-primary btn-sm" style={{fontSize:10,padding:"4px 10px"}} onClick={()=>saveTarget(m.key)}>Save</button>
                     <button className="btn btn-outline btn-sm" style={{fontSize:10,padding:"4px 8px"}} onClick={()=>setEditing(null)}>Cancel</button>
                   </> : <>
@@ -375,7 +375,7 @@ function TargetsPage() {
               {ALL_OVERRIDE_METRICS.map(m => (
                 <div key={m.key} style={{display:"flex",alignItems:"center",gap:8}}>
                   <label style={{fontSize:12,color:"var(--tx2)",flex:1,minWidth:0,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{m.label}</label>
-                  <input type="number" step={m.type==="decimal"?"0.01":"1"} className="form-input" style={{width:80,fontSize:12,padding:"5px 8px",textAlign:"right"}}
+                  <input type="number" step={m.type==="decimal"||m.type==="hours"?"0.01":"1"} className="form-input" style={{width:80,fontSize:12,padding:"5px 8px",textAlign:"right"}}
                     placeholder="—" value={bulkMetrics[m.key]||""} onChange={e=>setBulkMetrics(prev=>({...prev,[m.key]:e.target.value}))}/>
                 </div>
               ))}
@@ -480,7 +480,7 @@ function TargetsPage() {
                       </div>
                       <div style={{display:"flex",alignItems:"center",gap:8}}>
                         {isEdit ? <>
-                          <input type="number" step={m.type==="decimal"?"0.01":"1"} className="form-input" style={{width:80,fontSize:13,padding:"6px 10px",textAlign:"right"}} value={editValue} onChange={e=>setEditValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==="Enter")saveTarget(m.key,selQA);if(e.key==="Escape")setEditing(null);}}/>
+                          <input type="number" step={m.type==="decimal"||m.type==="hours"?"0.01":"1"} className="form-input" style={{width:80,fontSize:13,padding:"6px 10px",textAlign:"right"}} value={editValue} onChange={e=>setEditValue(e.target.value)} autoFocus onKeyDown={e=>{if(e.key==="Enter")saveTarget(m.key,selQA);if(e.key==="Escape")setEditing(null);}}/>
                           <button className="btn btn-primary btn-sm" style={{fontSize:10,padding:"4px 10px"}} onClick={()=>saveTarget(m.key,selQA)}>Save</button>
                           <button className="btn btn-outline btn-sm" style={{fontSize:10,padding:"4px 8px"}} onClick={()=>setEditing(null)}>Cancel</button>
                         </> : <>
