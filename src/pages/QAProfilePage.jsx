@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail } from "../lib/utils.js";
-import { PulseLoader } from "../components/Charts.jsx";
+import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
 
@@ -156,7 +156,7 @@ function QAProfilePage() {
     return n.toFixed(1) + "%";
   };
 
-  if (loading) return <div className="page"><PulseLoader/></div>;
+  if (loading) return <div className="page"><SkeletonPage/></div>;
 
   // ═══ LIST VIEW (no QA selected, or QA role sees own profile directly) ═══
   if (!selectedQA && !isQA) return (

@@ -5,7 +5,8 @@ import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { useAutoRefresh, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
-import { ProgressRing, MiniBarChart, SparkLine, SkeletonLoader, PulseLoader } from "../components/Charts.jsx";
+import { ProgressRing, MiniBarChart, SparkLine } from "../components/Charts.jsx";
+import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import DashboardTasks from "../components/dashboard/DashboardTasks.jsx";
@@ -259,7 +260,7 @@ function DashboardPage(){
         </div>
       </div>
     </div>
-    {loading?<PulseLoader/>:<>
+    {loading?<SkeletonPage/>:<>
 
     {/* User Task Management */}
     <DashboardTasks roster={roster} appProfiles={appProfiles} todayAttendance={todayAttendance} dailyScores={dailyScores}/>

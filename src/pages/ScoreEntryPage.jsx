@@ -3,7 +3,7 @@ import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, logActivity } from "../lib/utils.js";
 import { Icon, icons } from "../components/Icons.jsx";
-import { PulseLoader } from "../components/Charts.jsx";
+import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
@@ -308,7 +308,7 @@ function ScoreEntryPage(){
   const fpColor = (v) => v >= 0.4 ? "var(--green)" : v >= 0.25 ? "var(--amber)" : "var(--red)";
   const fpBg = (v) => v >= 0.4 ? "var(--green-bg)" : v >= 0.25 ? "var(--amber-bg)" : "var(--red-bg)";
 
-  if (loading) return <div className="page"><PulseLoader/></div>;
+  if (loading) return <div className="page"><SkeletonPage/></div>;
 
   return (<div className="page">
     <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>

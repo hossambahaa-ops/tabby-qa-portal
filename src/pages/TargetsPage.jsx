@@ -3,7 +3,7 @@ import { hasRole } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError } from "../lib/utils.js";
 import { useConfirm } from "../lib/hooks.jsx";
-import { PulseLoader } from "../components/Charts.jsx";
+import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 const DAILY_TARGET_METRICS = [
@@ -133,7 +133,7 @@ function TargetsPage() {
     }, "Copy", "var(--tabby-purple)");
   };
 
-  if (loading) return <div className="page"><PulseLoader/></div>;
+  if (loading) return <div className="page"><SkeletonPage/></div>;
 
   return (
     <div className="page">

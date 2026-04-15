@@ -4,7 +4,7 @@ import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
-import { PulseLoader } from "../components/Charts.jsx";
+import { SkeletonTable } from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 function TeamManagementPage(){
@@ -72,7 +72,7 @@ function TeamManagementPage(){
       <div className="form-group"><label className="form-label">Supervisor</label><select className="select form-input" value={form.supervisor_id} onChange={e=>setForm({...form,supervisor_id:e.target.value})}><option value="">— Select —</option>{supervisors.map(u=><option key={u.id} value={u.id}>{u.email}</option>)}</select></div></div>
       <div style={{display:"flex",gap:8,marginTop:16}}><button className="btn btn-primary" onClick={save}><Icon d={icons.check} size={16}/>{editId?"Update":"Create"}</button><button className="btn btn-outline" onClick={()=>{setShowForm(false);setEditId(null);}}>Cancel</button></div>
     </div>}
-    <div className="card">{loading?<PulseLoader/>:teams.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No teams yet. Teams are auto-created from the roster.</p></div>:
+    <div className="card">{loading?<SkeletonTable/>:teams.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No teams yet. Teams are auto-created from the roster.</p></div>:
       (()=>{
         // Build virtual teams: split each queue by email domain
         const virtualTeams=[];

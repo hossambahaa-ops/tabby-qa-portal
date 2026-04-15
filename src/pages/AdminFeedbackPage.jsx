@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { sb, dataCache } from "../lib/supabase.js";
 import { safeError } from "../lib/utils.js";
-import { PulseLoader } from "../components/Charts.jsx";
+import { SkeletonTable } from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 function AdminFeedbackPage(){
@@ -34,7 +34,7 @@ function AdminFeedbackPage(){
         {counts.planned>0&&<div style={{textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:"var(--tabby-purple,#6A2C79)"}}>{counts.planned}</div><div style={{fontSize:10,color:"var(--tx3)",fontWeight:600}}>PLANNED</div></div>}
       </div>}
     </div>
-    {loading?<PulseLoader/>:
+    {loading?<SkeletonTable/>:
     items.length===0?<div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No feedback yet.</p></div></div>:
     <div className="card"><div className="table-wrap"><table><thead><tr>
       <th style={{width:30}}></th>

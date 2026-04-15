@@ -4,7 +4,7 @@ import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
-import { PulseLoader } from "../components/Charts.jsx";
+import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import APDetectionTab from "../components/actionplan/APDetectionTab.jsx";
 import APCreateForm from "../components/actionplan/APCreateForm.jsx";
@@ -573,7 +573,7 @@ function ActionPlanPage() {
     return "fail";
   };
 
-  if (loading && plans.length === 0) return <div className="page"><PulseLoader/></div>;
+  if (loading && plans.length === 0) return <div className="page"><SkeletonPage/></div>;
 
   return (
     <div className="page">

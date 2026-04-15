@@ -4,7 +4,7 @@ import { sb, dataCache } from "../lib/supabase.js";
 import { safeError, logActivity } from "../lib/utils.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
-import { PulseLoader } from "../components/Charts.jsx";
+import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import useKeyboard from "../lib/useKeyboard.jsx";
@@ -74,7 +74,7 @@ function DAMPage(){
   const behaviorTypes=[{key:"manipulation",label:"Manipulation",color:"var(--red)"},{key:"performance_management",label:"Performance management",color:"var(--amber)"},{key:"completion_attainment",label:"Completion & attainment",color:"var(--accent-text)"}];
   const statusColors={pending:"var(--amber)",acknowledged:"var(--accent-text)",action_created:"var(--blue)",resolved:"var(--green)",dismissed:"var(--tx3)"};
 
-  if(loading)return<div className="page"><PulseLoader/></div>;
+  if(loading)return<div className="page"><SkeletonPage/></div>;
 
   return(<div className="page">
     <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>

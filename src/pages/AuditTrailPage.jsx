@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
 import { nameFromEmail } from "../lib/utils.js";
-import { PulseLoader } from "../components/Charts.jsx";
+import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 function AuditTrailPage() {
@@ -69,7 +69,7 @@ function AuditTrailPage() {
     return {bg:"var(--bg3)",color:"var(--tx3)"};
   };
 
-  if(loading) return <div className="page"><PulseLoader/></div>;
+  if(loading) return <div className="page"><SkeletonPage/></div>;
 
   return (
     <div className="page">

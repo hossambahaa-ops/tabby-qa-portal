@@ -3,7 +3,8 @@ import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail } from "../lib/utils.js";
 import { Icon, icons } from "../components/Icons.jsx";
-import { ProgressRing, PulseLoader } from "../components/Charts.jsx";
+import { ProgressRing } from "../components/Charts.jsx";
+import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
@@ -198,7 +199,7 @@ function LeaderboardPage() {
         </div>}
       </div>
 
-      {loading ? <PulseLoader/> : <>
+      {loading ? <SkeletonPage/> : <>
 
       <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:20}}>
         <div className="tabs">

@@ -3,7 +3,7 @@ import { hasRole, ROLE_LABELS, ROLE_LEVEL } from "../lib/constants.js";
 import { sb, SUPABASE_URL, dataCache } from "../lib/supabase.js";
 import { safeError, logActivity } from "../lib/utils.js";
 import { useConfirm } from "../lib/hooks.jsx";
-import { PulseLoader } from "../components/Charts.jsx";
+import { SkeletonTable } from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
@@ -69,7 +69,7 @@ function AdminUsersPage({teams}){
   }catch(e){globalToast("error",safeError(e));}};
   return(<div className="page">
     <div className="page-header"><div className="page-title">User management</div><div className="page-subtitle">{users.length} users</div></div>
-    <div className="card">{loading?<PulseLoader/>:
+    <div className="card">{loading?<SkeletonTable/>:
       <div className="table-wrap"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Email domain</th><th>Op. domain</th><th>Teams</th><th>Status</th><th></th></tr></thead><tbody>
         {users.map(u=>{const uTeams=getUserTeamNames(u);return(<tr key={u.id}><td style={{fontWeight:500}}>{u.display_name||"—"}</td><td style={{color:"var(--tx2)",fontSize:13}}>{u.email}</td>
         <td>{editingId===u.id?<SearchableSelect options={Object.entries(ROLE_LABELS).map(([k,v])=>({value:k,label:v}))} value={editRole} onChange={setEditRole} placeholder="Select role"/>:<span className={`role-badge role-${u.role}`}>{ROLE_LABELS[u.role]}</span>}</td>
