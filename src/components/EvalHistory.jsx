@@ -3,12 +3,19 @@ import { sb } from "../lib/supabase.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { PulseLoader } from "./Charts.jsx";
 
-function monday(d) {
-  const dt = new Date(d + "T00:00:00");
-  const day = dt.getDay();
-  const diff = dt.getDate() - day + (day === 0 ? -6 : 1);
-  dt.setDate(diff);
+function isoMonday(d) {
+  const dt = new Date(d + "T12:00:00");
+  const dow = dt.getDay() || 7; // Mon=1 … Sun=7
+  dt.setDate(dt.getDate() - (dow - 1));
   return dt.toISOString().split("T")[0];
+}
+
+function isoWeekNum(d) {
+  const dt = new Date(d + "T12:00:00");
+  const dow = dt.getDay() || 7;
+  dt.setDate(dt.getDate() + 4 - dow); // nearest Thursday
+  const yearStart = new Date(dt.getFullYear(), 0, 1);
+  return Math.ceil(((dt - yearStart) / 86400000 + 1) / 7);
 }
 
 function fmtDate(d) {
@@ -19,7 +26,8 @@ function fmtWeek(d) {
   const dt = new Date(d + "T00:00:00");
   const end = new Date(dt);
   end.setDate(end.getDate() + 6);
-  return `${dt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} — ${end.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
+  const wk = isoWeekNum(d);
+  return `W${wk}: ${dt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} — ${end.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
 }
 
 function EvalHistory({ qaEmail, matchQA }) {
@@ -90,7 +98,7 @@ function EvalHistory({ qaEmail, matchQA }) {
   const weeklyData = (() => {
     const groups = {};
     data.forEach(d => {
-      const wk = monday(d.date);
+      const wk = isoMonday(d.date);
       if (!groups[wk]) groups[wk] = { weekStart: wk, days: 0, sbs: 0, non_sbs: 0, coaching: 0, side: 0, occ: 0 };
       groups[wk].days++;
       groups[wk].sbs += num(d.sbs);
