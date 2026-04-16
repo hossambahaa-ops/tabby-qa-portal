@@ -208,7 +208,7 @@ export default function APActivePlanCard({
         {/* Actions */}
         <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }}>
           <button className="btn btn-outline btn-sm" style={{ color: "var(--accent-text)" }} onClick={() => {
-            window.dispatchEvent(new CustomEvent("navigate", { detail: "coaching" }));
+            window.dispatchEvent(new CustomEvent("navigate", { detail: "quality" }));
             setTimeout(() => {
               window.dispatchEvent(new CustomEvent("prefill-coaching", { detail: {
                 email: plan.qa_email,

@@ -23,6 +23,7 @@ const ActionPlanPage = lazy(() => import("./pages/ActionPlanPage.jsx"));
 const CoachingPage = lazy(() => import("./pages/CoachingPage.jsx"));
 const CoachingViolationsPage = lazy(() => import("./pages/CoachingViolationsPage.jsx"));
 const EscalationsPage = lazy(() => import("./pages/EscalationsPage.jsx"));
+const QualityControlPage = lazy(() => import("./pages/QualityControlPage.jsx"));
 const QAProfilePage = lazy(() => import("./pages/QAProfilePage.jsx"));
 const SchedulePage = lazy(() => import("./pages/SchedulePage.jsx"));
 const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
@@ -40,18 +41,14 @@ const safe = (v) => {
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
   {key:"leaderboard",label:"Leaderboard",icon:icons.leaderboard},
-  {key:"profile",label:"QA Profile",icon:icons.hr},
-  {key:"schedule",label:"Schedule",icon:icons.coaching},
-  {key:"scores",label:"MTD",icon:icons.scores,section:"Performance"},
+  {key:"profile",label:"QA Profile",icon:icons.hr,section:"Performance"},
+  {key:"scores",label:"MTD",icon:icons.scores},
   {key:"targets",label:"Targets",icon:icons.scores,minRole:"qa_lead"},
-  {key:"dam",label:"DAM flags",icon:icons.dam,minRole:"qa_lead"},
-  {key:"plans",label:"AP / PIP",icon:icons.plan,minRole:"qa_lead"},
-  {key:"coaching",label:"Coaching",icon:icons.coaching,minRole:"qa_lead",section:"Management"},
-  {key:"violations",label:"Violations",icon:icons.dam,minRole:"qa_lead"},
-  {key:"hr",label:"HR cases",icon:icons.hr,minRole:"qa_supervisor"},
+  {key:"schedule",label:"Schedule",icon:icons.coaching,section:"Management"},
+  {key:"quality",label:"Quality Control",icon:icons.dam,minRole:"qa_lead"},
   {key:"escalations",label:"Escalations",icon:icons.escalation},
-  {key:"audit",label:"Audit trail",icon:icons.settings,minRole:"admin",section:"System"},
-  {key:"admin",label:"Admin panel",icon:icons.settings,minRole:"admin"},
+  {key:"hr",label:"HR cases",icon:icons.hr,minRole:"qa_supervisor"},
+  {key:"admin",label:"Admin panel",icon:icons.settings,minRole:"admin",section:"System"},
 ];
 
 /* ═══ APP ═══ */
@@ -76,7 +73,7 @@ function AppInner(){
   const[feedbackSent,setFeedbackSent]=useState(false);
   const setPage=(p)=>navigate("/"+p);
   // Gmail OAuth redirect
-  useEffect(()=>{const urlP=new URLSearchParams(window.location.search);if(urlP.get("state")==="gmail_oauth"){navigate("/coaching",{replace:true});}},[]);
+  useEffect(()=>{const urlP=new URLSearchParams(window.location.search);if(urlP.get("state")==="gmail_oauth"){navigate("/quality",{replace:true});}},[]);
   // Dynamic page title
   useEffect(()=>{
     const item=NAV_ITEMS.find(n=>n.key===page);
@@ -322,11 +319,13 @@ function AppInner(){
       <Route path="/profile" element={<QAProfilePage/>}/>
       <Route path="/schedule" element={<SchedulePage/>}/>
       <Route path="/escalations" element={<EscalationsPage/>}/>
-      <Route path="/dam" element={guardRole("qa_lead",<DAMPage/>,{title:"DAM flags",icon:icons.dam})}/>
-      <Route path="/plans" element={guardRole("qa_lead",<ActionPlanPage/>,{title:"Action plans & PIPs",icon:icons.plan})}/>
-      <Route path="/coaching" element={hasRole(userRole,"qa_lead")&&userRole!=="auditor"?<CoachingPage/>:<PlaceholderPage title="Coaching sessions" icon={icons.coaching} minRole="qa_lead" userRole={userRole}/>}/>
-      <Route path="/violations" element={guardRole("qa_lead",<CoachingViolationsPage/>,{title:"Coaching Violations",icon:icons.dam})}/>
-      <Route path="/audit" element={hasRole(userRole,"admin")?<AuditTrailPage/>:<PlaceholderPage title="Audit trail" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
+      <Route path="/quality" element={guardRole("qa_lead",<QualityControlPage/>,{title:"Quality Control",icon:icons.dam})}/>
+      {/* Legacy redirects */}
+      <Route path="/dam" element={<Navigate to="/quality" replace/>}/>
+      <Route path="/plans" element={<Navigate to="/quality" replace/>}/>
+      <Route path="/coaching" element={<Navigate to="/quality" replace/>}/>
+      <Route path="/violations" element={<Navigate to="/quality" replace/>}/>
+      <Route path="/audit" element={<Navigate to="/admin" replace/>}/>
       <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
       <Route path="/hr" element={<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>}/>
       <Route path="*" element={<Navigate to="/dashboard" replace/>}/>

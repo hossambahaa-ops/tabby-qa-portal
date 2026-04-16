@@ -350,7 +350,7 @@ function DashboardPage(){
           <div className="stat-label">Pending DAM flags</div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div className="stat-value" style={{color:damCount>0?"var(--amber)":"var(--tx)"}}>{damCount}</div>
-            {damCount>0&&<button className="btn btn-outline btn-sm" onClick={()=>nav("dam")} style={{fontSize:11}}>Review →</button>}
+            {damCount>0&&<button className="btn btn-outline btn-sm" onClick={()=>nav("quality")} style={{fontSize:11}}>Review →</button>}
           </div>
         </div>
       </div>

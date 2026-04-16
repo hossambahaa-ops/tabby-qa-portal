@@ -20,7 +20,7 @@ function APDetectionAlerts({ apDetections, setApDetections, apDismissals, setApD
   return <>
     {/* AP/PIP Detection Alerts for TLs */}
     {isLead&&apDetections.length>0&&<div className="card" style={{marginBottom:16,borderLeft:"4px solid var(--amber)"}}>
-      <div className="card-header" style={{cursor:"pointer"}} onClick={()=>nav("plans")}>
+      <div className="card-header" style={{cursor:"pointer"}} onClick={()=>nav("quality")}>
         <span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{fontSize:18}}>⚠️</span>
           {apDetections.length} QA{apDetections.length!==1?"s":""} flagged for Action Plan
@@ -37,7 +37,7 @@ function APDetectionAlerts({ apDetections, setApDetections, apDismissals, setApD
             </div>
           </div>
           <div style={{display:"flex",gap:6}}>
-            <button className="btn btn-primary btn-sm" style={{fontSize:11,padding:"3px 10px",background:d.planType==="pip"?"var(--red)":"",color:d.planType==="pip"?"#fff":""}} onClick={(e)=>{e.stopPropagation();nav("plans");}}>Create {(d.planType||"pip").toUpperCase()}</button>
+            <button className="btn btn-primary btn-sm" style={{fontSize:11,padding:"3px 10px",background:d.planType==="pip"?"var(--red)":"",color:d.planType==="pip"?"#fff":""}} onClick={(e)=>{e.stopPropagation();nav("quality");}}>Create {(d.planType||"pip").toUpperCase()}</button>
             {hasRole(profile?.role,"super_admin") ?
               <button className="btn btn-outline btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={async(e)=>{e.stopPropagation();try{await sb.query("ap_dismissals",{token,method:"POST",body:{qa_email:d.email,dismissed_by:profile?.email,reason:"Dismissed by super admin",month:months[0]||"",detection_info:d.reason}});setApDetections(prev=>prev.filter(x=>x.email!==d.email));}catch(err){console.error(err);}}}>Dismiss</button> :
               <button className="btn btn-outline btn-sm" style={{fontSize:11,padding:"3px 10px"}} onClick={(e)=>{e.stopPropagation();setDismissModal(d);}}>Dismiss</button>
