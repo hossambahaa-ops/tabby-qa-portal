@@ -77,15 +77,11 @@ function DAMPage(){
   if(loading)return<div className="page"><SkeletonPage/></div>;
 
   return(<div className="page">
-    <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
-      <div>
-        <div className="page-title">DAM engine</div>
-        <div className="page-subtitle">Disciplinary Actions Matrix — behavioral accountability tracking</div>
-      </div>
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:16}}>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         {flags.filter(f=>f.status==="pending").length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--amber-bg)",color:"var(--amber)",fontSize:12,fontWeight:700}}>{flags.filter(f=>f.status==="pending").length} pending</span>}
-        <button className="btn btn-primary" onClick={()=>setShowCreate(!showCreate)}><Icon d={icons.plus} size={16}/>Create flag</button>
       </div>
+      <button className="btn btn-primary" onClick={()=>setShowCreate(!showCreate)}><Icon d={icons.plus} size={16}/>Create flag</button>
     </div>
 
     <div className="tab-bar">

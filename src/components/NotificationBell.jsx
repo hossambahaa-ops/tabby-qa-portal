@@ -66,13 +66,13 @@ function NotificationBell({ onNavigate }) {
           ...assignedTasks.map(t => ({ id: "t-"+t.id, type: "task", title: `Task: ${t.title}`, sub: `From: ${t.created_by?.split("@")[0]}${t.eta_date?" · ETA: "+new Date(t.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}`, time: t.created_at, page: "dashboard" })),
           ...escalations.map(e => ({ id: "e-"+e.id, type: "escalation", title: `Escalation: ${e.category}`, sub: "Anonymous submission", time: e.created_at, page: "escalations" })),
           ...myFeedback.filter(f => f.admin_response).map(f => ({ id: "fb-"+f.id, type: "feedback", title: `Feedback response: ${f.category}`, sub: `Status: ${f.status}`, time: f.created_at, page: "dashboard" })),
-          ...violations.map(v => ({ id: "v-"+v.id, type: "violation", title: `Violation: ${v.violation_type}`, sub: v.qa_emails?.split("\n")[0], time: v.created_at, page: "quality" })),
-          ...damFlags.map(f => ({ id: "d-"+f.id, type: "dam", title: `DAM: ${f.dam_rules?.name || "Flag"}`, sub: f.qa_email || "—", time: f.created_at, page: "quality" })),
+          ...violations.map(v => ({ id: "v-"+v.id, type: "violation", title: `Violation: ${v.violation_type}`, sub: v.qa_emails?.split("\n")[0], time: v.created_at, page: "quality", qcTab: "violations" })),
+          ...damFlags.map(f => ({ id: "d-"+f.id, type: "dam", title: `DAM: ${f.dam_rules?.name || "Flag"}`, sub: f.qa_email || "—", time: f.created_at, page: "quality", qcTab: "dam" })),
           ...activePlans.filter(p => {
             if (!p.end_date) return false;
             const daysLeft = (new Date(p.end_date) - new Date()) / (1000*60*60*24);
             return daysLeft <= 7 && daysLeft > -1;
-          }).map(p => ({ id: "ap-"+p.id, type: "plan", title: `${p.type.toUpperCase()} ending soon`, sub: `${p.qa_email?.split("@")[0]} — ${Math.ceil((new Date(p.end_date)-new Date())/(1000*60*60*24))} days left`, time: p.created_at, page: "quality" })),
+          }).map(p => ({ id: "ap-"+p.id, type: "plan", title: `${p.type.toUpperCase()} ending soon`, sub: `${p.qa_email?.split("@")[0]} — ${Math.ceil((new Date(p.end_date)-new Date())/(1000*60*60*24))} days left`, time: p.created_at, page: "quality", qcTab: "plans" })),
         ];
         // Daily task reminders — check auto-close tasks vs daily_scores
         try {
@@ -144,7 +144,7 @@ function NotificationBell({ onNavigate }) {
             {visible.slice(0, 5).map(item => {
               const tc = typeColor[item.type] || {};
               return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8}}>
-                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); dismiss(item.id); }}>
+                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); if(item.qcTab) setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:item.qcTab})),100); setOpen(false); dismiss(item.id); }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
                     <span style={{ fontWeight: 500, fontSize: 12 }}>{safe(item.title)}</span>

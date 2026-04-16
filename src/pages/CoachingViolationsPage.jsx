@@ -162,15 +162,9 @@ function CoachingViolationsPage() {
 
   return (
     <div className="page">
-      <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
-        <div>
-          <div className="page-title">Coaching Violations</div>
-          <div className="page-subtitle">Review coaching link violations detected by the audit script</div>
-        </div>
-        <div style={{display:"flex",gap:12,alignItems:"center"}}>
-          {pendingV.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--red-bg)",color:"var(--red)",fontSize:12,fontWeight:700}}>{pendingV.length} pending</span>}
-          <span style={{padding:"4px 12px",borderRadius:20,background:"var(--green-bg)",color:"var(--green)",fontSize:12,fontWeight:600}}>{reviewedV.length} reviewed</span>
-        </div>
+      <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:16}}>
+        {pendingV.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--red-bg)",color:"var(--red)",fontSize:12,fontWeight:700}}>{pendingV.length} pending</span>}
+        <span style={{padding:"4px 12px",borderRadius:20,background:"var(--green-bg)",color:"var(--green)",fontSize:12,fontWeight:600}}>{reviewedV.length} reviewed</span>
       </div>
 
       <div className="tab-bar" style={{marginBottom:16}}>

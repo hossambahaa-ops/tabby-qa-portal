@@ -577,12 +577,10 @@ function ActionPlanPage() {
 
   return (
     <div className="page">
-      <div className="page-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <div className="page-title">Action Plans & PIPs</div>
-          <div className="page-subtitle">
-            {activePlans.length} active plan{activePlans.length !== 1 ? "s" : ""} · {detections.length} detected
-          </div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:12}}>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <span style={{padding:"4px 12px",borderRadius:20,background:"var(--primary-light)",color:"var(--primary-text,var(--tabby-purple))",fontSize:12,fontWeight:600}}>{activePlans.length} active</span>
+          {detections.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--amber-bg)",color:"var(--amber)",fontSize:12,fontWeight:600}}>{detections.length} detected</span>}
         </div>
         <button className="btn btn-primary" onClick={() => startCreate("", "ap")}>
           <Icon d={icons.plus} size={16} />New plan
