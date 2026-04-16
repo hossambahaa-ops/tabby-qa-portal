@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { hasRole } from "../lib/constants.js";
-import { sb } from "../lib/supabase.js";
+import { sb, dataCache } from "../lib/supabase.js";
 import { Icon } from "./Icons.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
@@ -39,8 +39,8 @@ function NotificationBell({ onNavigate }) {
           sb.query("tasks", { select: "id,title,priority,created_by,eta_date,created_at", filters: `assigned_to=eq.${profile?.email}&status=neq.done&order=created_at.desc&limit=10`, token }).catch(() => []),
           // Escalations routed to ME
           sb.query("escalations", { select: "id,category,status,submitted_by,created_at", filters: `routed_to=eq.${profile?.email}&status=eq.open&order=created_at.desc&limit=10`, token }).catch(() => []),
-          // Announcements (everyone gets these)
-          sb.query("announcements", { select: "id,title,priority,sent_by,created_at", filters: "order=created_at.desc&limit=5", token }).catch(() => []),
+          // Announcements (everyone gets these) — cached
+          dataCache.fetch("notif_announcements",()=>sb.query("announcements", { select: "id,title,priority,sent_by,created_at", filters: "order=created_at.desc&limit=5", token })).catch(() => []),
           // Feedback responses to MY feedback (any role)
           sb.query("feedback", { select: "id,category,status,admin_response,created_at", filters: `user_email=eq.${profile?.email}&status=neq.new&order=created_at.desc&limit=5`, token }).catch(() => []),
         ];
@@ -109,7 +109,7 @@ function NotificationBell({ onNavigate }) {
       } catch {}
     };
     load();
-    const interval = setInterval(load, 60000);
+    const interval = setInterval(load, 180000); // 3 min instead of 1 min
     return () => clearInterval(interval);
   }, [token, profile?.email]);
 

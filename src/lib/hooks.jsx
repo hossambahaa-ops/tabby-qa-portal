@@ -5,13 +5,13 @@ import { dataCache } from "./supabase.js";
 export function useToast(){const[t,setT]=useState(null);const show=(type,msg)=>{setT({type,msg});setTimeout(()=>setT(null),3500);};const el=t?<div className={`toast toast-${t.type}`}>{t.msg}</div>:null;return{show,el};}
 
 /** Auto-refresh hook: re-runs loadFn on data-changed event + interval polling */
-export function useAutoRefresh(loadFn, intervalMs = 120000) {
+export function useAutoRefresh(loadFn, intervalMs = 300000) {
   const loadRef = useRef(loadFn);
   useEffect(() => { loadRef.current = loadFn; });
   useEffect(() => {
-    const onChanged = () => { dataCache.invalidate(); loadRef.current?.(); };
+    const onChanged = () => { loadRef.current?.(); }; // no full cache wipe on data-changed
     window.addEventListener("data-changed", onChanged);
-    const timer = intervalMs > 0 ? setInterval(() => { dataCache.invalidate(); loadRef.current?.(); }, intervalMs) : null;
+    const timer = intervalMs > 0 ? setInterval(() => { loadRef.current?.(); }, intervalMs) : null;
     return () => { window.removeEventListener("data-changed", onChanged); if (timer) clearInterval(timer); };
   }, [intervalMs]);
 }

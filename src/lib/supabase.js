@@ -52,7 +52,7 @@ export const sb = {
 /* ═══ GLOBAL DATA CACHE — avoids redundant fetches across pages ═══ */
 export const dataCache = {
   _store: {},
-  _ttl: 60000, // 60s cache lifetime
+  _ttl: 300000, // 5 min cache lifetime
   get(key) {
     const entry = this._store[key];
     if (!entry) return null;

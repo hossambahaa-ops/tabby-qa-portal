@@ -44,15 +44,15 @@ function DashboardPage(){
 
   const loadDashboard=useCallback(async()=>{try{
     const[mtdRows,rosterRows,profs]=await Promise.all([
-      dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores",{select:"*",filters:"order=month.desc",token}).catch(()=>[])),
+      dataCache.fetch("mtd_scores",()=>{const sixAgo=new Date();sixAgo.setMonth(sixAgo.getMonth()-6);const minMonth=sixAgo.toISOString().slice(0,7);return sb.query("mtd_scores",{select:"*",filters:`month=gte.${minMonth}&order=month.desc`,token}).catch(()=>[]);}),
       dataCache.fetch("qa_roster",()=>sb.query("qa_roster",{select:"*",token}).catch(()=>[])),
       dataCache.fetch("profiles",()=>sb.query("profiles",{select:"id,email,display_name,role,status",filters:"status=eq.active",token}).catch(()=>[])),
     ]);
     const[damFlagsRaw,plans,planWeeks,dismissals,damStepsRaw]=await Promise.all([
-      sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
+      dataCache.fetch("dam_flags_full",()=>sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)",filters:"order=triggered_at.desc",token}).catch(()=>[])),
       dataCache.fetch("action_plans",()=>sb.query("action_plans",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[])),
       dataCache.fetch("action_plan_weeks",()=>sb.query("action_plan_weeks",{select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch(()=>[])),
-      sb.query("ap_dismissals",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
+      dataCache.fetch("ap_dismissals",()=>sb.query("ap_dismissals",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[])),
       dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action",token}).catch(()=>[])),
     ]);
     const nonQaProfsD = profs.filter(p => p.role !== "qa");
@@ -163,7 +163,7 @@ function DashboardPage(){
     }
   }catch(e){console.error("Dashboard:",e);}setLoading(false);},[token]);
   useEffect(()=>{loadDashboard();},[loadDashboard]);
-  useAutoRefresh(loadDashboard, 120000);
+  useAutoRefresh(loadDashboard, 300000); // 5 min
 
   const months=sortMonthsDesc([...new Set(mtd.map(r=>r.month))]);
   const latestMonth=months[0]||"—";
