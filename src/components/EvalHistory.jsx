@@ -38,7 +38,7 @@ function EvalHistory({ qaEmail, matchQA }) {
     const t = to || dateTo;
     try {
       const rows = await sb.query("daily_scores", {
-        select: "qa_email,date,sbs_count,non_sbs_count,coaching_count,side_task_count,occupancy_pct",
+        select: "qa_email,date,sbs,non_sbs,coaching_sessions,side_task_minutes,occupancy_pct",
         filters: `date=gte.${f}&date=lte.${t}&order=date.desc`,
         token,
       });
@@ -93,10 +93,10 @@ function EvalHistory({ qaEmail, matchQA }) {
       const wk = monday(d.date);
       if (!groups[wk]) groups[wk] = { weekStart: wk, days: 0, sbs: 0, non_sbs: 0, coaching: 0, side: 0, occ: 0 };
       groups[wk].days++;
-      groups[wk].sbs += num(d.sbs_count);
-      groups[wk].non_sbs += num(d.non_sbs_count);
-      groups[wk].coaching += num(d.coaching_count);
-      groups[wk].side += num(d.side_task_count);
+      groups[wk].sbs += num(d.sbs);
+      groups[wk].non_sbs += num(d.non_sbs);
+      groups[wk].coaching += num(d.coaching_sessions);
+      groups[wk].side += num(d.side_task_minutes);
       groups[wk].occ += num(d.occupancy_pct);
     });
     return Object.values(groups).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
@@ -109,7 +109,7 @@ function EvalHistory({ qaEmail, matchQA }) {
   const gap = view === "daily" ? 4 : 8;
   const chartH = 120;
   const chartW = Math.max(300, rows.length * (barW + gap) + 40);
-  const maxTotal = Math.max(...rows.map(r => view === "daily" ? num(r.sbs_count) + num(r.non_sbs_count) : r.sbs + r.non_sbs), 1);
+  const maxTotal = Math.max(...rows.map(r => view === "daily" ? num(r.sbs) + num(r.non_sbs) : r.sbs + r.non_sbs), 1);
 
   return (
     <div className="card" style={{ marginTop: 16 }}>
@@ -156,8 +156,8 @@ function EvalHistory({ qaEmail, matchQA }) {
           })}
           {/* Bars */}
           {rows.map((r, i) => {
-            const sbs = view === "daily" ? num(r.sbs_count) : r.sbs;
-            const nsbs = view === "daily" ? num(r.non_sbs_count) : r.non_sbs;
+            const sbs = view === "daily" ? num(r.sbs) : r.sbs;
+            const nsbs = view === "daily" ? num(r.non_sbs) : r.non_sbs;
             const total = sbs + nsbs;
             const barH = total > 0 ? (total / maxTotal) * (chartH - 20) : 0;
             const sbsH = total > 0 ? (sbs / total) * barH : 0;
@@ -207,10 +207,10 @@ function EvalHistory({ qaEmail, matchQA }) {
             </tr></thead>
             <tbody>
               {(view === "daily" ? [...data].reverse() : [...weeklyData].reverse()).map((r, i) => {
-                const sbs = view === "daily" ? num(r.sbs_count) : r.sbs;
-                const nsbs = view === "daily" ? num(r.non_sbs_count) : r.non_sbs;
-                const coaching = view === "daily" ? num(r.coaching_count) : r.coaching;
-                const side = view === "daily" ? num(r.side_task_count) : r.side;
+                const sbs = view === "daily" ? num(r.sbs) : r.sbs;
+                const nsbs = view === "daily" ? num(r.non_sbs) : r.non_sbs;
+                const coaching = view === "daily" ? num(r.coaching_sessions) : r.coaching;
+                const side = view === "daily" ? num(r.side_task_minutes) : r.side;
                 const occ = view === "daily" ? num(r.occupancy_pct) : (r.days > 0 ? r.occ / r.days : 0);
                 const total = sbs + nsbs;
                 return <tr key={i}>
