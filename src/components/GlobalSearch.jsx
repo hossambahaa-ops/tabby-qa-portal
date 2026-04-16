@@ -23,9 +23,9 @@ function GlobalSearch({ onNavigate, onClose }) {
           sb.query("escalations", { select: "id,category,about_person,status", filters: `or=(about_person.ilike.%${q}%,category.ilike.%${q}%)&limit=5`, token }).catch(() => []),
         ]);
         const all = [
-          ...profiles.map(p => ({ id: p.id, type: "profile", label: p.display_name || p.email, sub: `${ROLE_LABELS[p.role]} · ${p.email}`, page: "admin" })),
-          ...violations.map(v => ({ id: v.id, type: "violation", label: v.violation_type, sub: v.qa_emails?.split("\n")[0], page: "violations" })),
-          ...damFlags.map(f => ({ id: f.id, type: "dam", label: f.dam_rules?.name || "DAM Flag", sub: f.qa_email, page: "dam" })),
+          ...profiles.map(p => ({ id: p.id, type: "profile", label: p.display_name || p.email, sub: `${ROLE_LABELS[p.role]} · ${p.email}`, page: "profile" })),
+          ...violations.map(v => ({ id: v.id, type: "violation", label: v.violation_type, sub: v.qa_emails?.split("\n")[0], page: "quality" })),
+          ...damFlags.map(f => ({ id: f.id, type: "dam", label: f.dam_rules?.name || "DAM Flag", sub: f.qa_email, page: "quality" })),
           ...escalations.map(e => ({ id: e.id, type: "escalation", label: e.category, sub: e.about_person || "—", page: "escalations" })),
         ];
         setResults(all);
@@ -40,6 +40,23 @@ function GlobalSearch({ onNavigate, onClose }) {
     <div className="search-overlay" role="dialog" aria-label="Global search" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="search-box">
         <input ref={inputRef} className="search-input" aria-label="Search QAs, violations, flags, escalations" placeholder="Search QAs, violations, flags, escalations..." value={query} onChange={e => setQuery(e.target.value)} onKeyDown={e => { if (e.key === "Escape") onClose(); }} />
+        {/* Quick actions when no query */}
+        {query.length < 2 && <div className="search-results">
+          <div style={{padding:"8px 16px 4px",fontSize:10,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Quick actions</div>
+          {[
+            {icon:"📋",label:"Log Coaching",sub:"Open coaching composer",page:"quality",qcTab:"coaching"},
+            {icon:"👤",label:"Check QA Profile",sub:"View any QA's performance",page:"profile"},
+            {icon:"📊",label:"Leaderboard",sub:"See team rankings",page:"leaderboard"},
+            {icon:"🎯",label:"MTD Scores",sub:"Monthly score entry",page:"scores"},
+            {icon:"⚠️",label:"DAM Flags",sub:"Review pending flags",page:"quality",qcTab:"dam"},
+            {icon:"📅",label:"Schedule",sub:"Attendance & shifts",page:"schedule"},
+          ].map(a => (
+            <div key={a.label} className="search-result" onClick={() => { onNavigate(a.page); if(a.qcTab) setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:a.qcTab})),100); onClose(); }}>
+              <span style={{fontSize:18,width:28,textAlign:"center"}}>{a.icon}</span>
+              <div><div style={{fontWeight:500}}>{a.label}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{a.sub}</div></div>
+            </div>
+          ))}
+        </div>}
         {results.length > 0 && <div className="search-results">
           {results.map(r => {
             const tc = typeColors[r.type] || {};

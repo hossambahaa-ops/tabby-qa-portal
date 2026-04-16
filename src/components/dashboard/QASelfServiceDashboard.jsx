@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { sb, dataCache } from "../../lib/supabase.js";
 import { useApp } from "../../lib/AppContext.jsx";
+import HelpTip from "../HelpTip.jsx";
 
 const fmtPct = (v) => { const n = parseFloat(v); return isNaN(n) ? "—" : n.toFixed(1) + "%"; };
 
@@ -123,7 +124,7 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
         {/* Total Evals */}
         <div className="card" style={{ padding: 20, textAlign: "center" }}>
-          <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>Today's Evals</div>
+          <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>Today's Evals<HelpTip text="SBS (side-by-side) + Non-SBS evaluations completed today vs your daily target."/></div>
           <div style={{ position: "relative", width: 72, height: 72, margin: "0 auto 10px" }}>
             <svg width="72" height="72" viewBox="0 0 64 64">
               <circle cx="32" cy="32" r="28" fill="none" stroke="var(--bd2)" strokeWidth="5" />
@@ -143,7 +144,7 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
 
         {/* Occupancy */}
         <div className="card" style={{ padding: 20, textAlign: "center" }}>
-          <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>Occupancy</div>
+          <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>Occupancy<HelpTip text={`Productive time / shift hours. SBS=${sbsDur}min, Non-SBS=${nonSbsDur}min, Coaching=${coachingDur}min + side tasks.`}/></div>
           <div style={{ fontSize: 36, fontWeight: 800, color: occPct > 0 ? pctColor(occPct, occTarget) : "var(--tx3)", lineHeight: 1.1 }}>
             {occPct > 0 ? occPct.toFixed(1) + "%" : "—"}
           </div>
@@ -153,7 +154,7 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
 
         {/* Working Hours */}
         <div className="card" style={{ padding: 20, textAlign: "center" }}>
-          <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>Working Hours</div>
+          <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>Working Hours<HelpTip text="Total productive time in hours, calculated from your evaluations, coaching, and side tasks."/></div>
           <div style={{ fontSize: 36, fontWeight: 800, color: workingHrs > 0 ? pctColor(workingHrs, whTarget) : "var(--tx3)", lineHeight: 1.1 }}>
             {workingHrs > 0 ? workingHrs.toFixed(1) + "h" : "—"}
           </div>
