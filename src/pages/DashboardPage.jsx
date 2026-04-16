@@ -14,6 +14,7 @@ import AnnouncementForm from "../components/dashboard/AnnouncementForm.jsx";
 import APDetectionAlerts from "../components/dashboard/APDetectionAlerts.jsx";
 import TeamHealth from "../components/dashboard/TeamHealth.jsx";
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
+import QASelfServiceDashboard from "../components/dashboard/QASelfServiceDashboard.jsx";
 
 function DashboardPage(){
   const{profile,token,gf,globalToast}=useApp();
@@ -480,11 +481,14 @@ function DashboardPage(){
       </div>}
     </>}
 
-    {/* QA Daily Progress */}
-    {myData&&<QADailyProgress dailyScores={dailyScores} myData={myData} myEmail={myEmail} roster={roster} months={months} mtd={mtd}/>}
+    {/* QA Self-Service Dashboard for QA/Senior QA roles */}
+    {!isLead&&!hasRole(profile?.role,"qa_supervisor")&&<QASelfServiceDashboard dailyScores={dailyScores} myData={myData} myEmail={myEmail} roster={roster} ranked={ranked} myRank={myRank} maxScore={maxScore} getScore={getScore} latestMonth={latestMonth}/>}
 
-    {/* Personal stats (everyone) */}
-    {myData?<>
+    {/* QA Daily Progress (for leads viewing their own data) */}
+    {isLead&&myData&&<QADailyProgress dailyScores={dailyScores} myData={myData} myEmail={myEmail} roster={roster} months={months} mtd={mtd}/>}
+
+    {/* Personal stats (leads/supervisors only — QAs see the self-service dashboard above) */}
+    {myData&&(isLead||hasRole(profile?.role,"qa_supervisor"))?<>
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">My score</div>
@@ -631,8 +635,8 @@ function DashboardPage(){
         <svg width="100%" height="100" viewBox={`0 0 ${myHistory.length*100} 100`} style={{overflow:"visible"}}><polyline fill="none" stroke="var(--accent-text)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" points={myHistory.map((d,i)=>{const y=90-(d.score/maxScore)*70;return`${i*100+50},${Math.max(10,Math.min(90,y))}`;}).join(" ")}/>{myHistory.map((d,i)=>{const y=90-(d.score/maxScore)*70;const cy=Math.max(10,Math.min(90,y));return(<g key={i}><circle cx={i*100+50} cy={cy} r="4" fill="var(--accent-text)"/><text x={i*100+50} y={cy-12} textAnchor="middle" fontSize="11" fontWeight="600" fill="var(--tx)" fontFamily="var(--font)">{d.score.toFixed(1)}</text><text x={i*100+50} y={cy+18} textAnchor="middle" fontSize="10" fill="var(--tx3)" fontFamily="var(--font)">{d.month}</text></g>);})}</svg>
       </div>}
     </>:
-    /* No personal MTD data */
-    (!isLead&&!hasRole(profile?.role,"qa_supervisor"))?<div style={{padding:"16px 0",marginBottom:20,color:"var(--tx3)",fontSize:13}}>No performance data found for your email ({profile?.email}). Data syncs from Metabase hourly.</div>:null}
+    /* No personal MTD data for leads/supervisors */
+    (isLead||hasRole(profile?.role,"qa_supervisor"))?<div style={{padding:"16px 0",marginBottom:20,color:"var(--tx3)",fontSize:13}}>No performance data found for your email ({profile?.email}). Data syncs from Metabase hourly.</div>:null}
 
     {/* Global stats (for admins/supervisors) */}
     {hasRole(profile?.role,"qa_supervisor")&&(()=>{
