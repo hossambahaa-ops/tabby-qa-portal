@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { hasRole, sortMonthsDesc } from "../../lib/constants.js";
 import { sb } from "../../lib/supabase.js";
 import { safeError } from "../../lib/utils.js";
@@ -27,6 +27,39 @@ export default function APActivePlanCard({
   loading,
 }) {
   const { token, profile, globalToast } = useApp();
+  const [editingWeek, setEditingWeek] = useState(null); // week id being manually edited
+  const [manualValues, setManualValues] = useState({});
+
+  const saveManualActuals = async (weekId, targets) => {
+    const week = plan.action_plan_weeks?.find(w => w.id === weekId);
+    if (!week) return;
+    const targetData = safeJson(week.target_data);
+    const actualData = {};
+    targets.forEach(t => {
+      const key = t.kpi_key || t.label;
+      const val = manualValues[key];
+      if (val !== undefined && val !== "") actualData[key] = parseFloat(val);
+    });
+    if (Object.keys(actualData).length === 0) { globalToast("error", "Enter at least one value"); return; }
+    const metTargets = Object.keys(targetData).every(key => {
+      const actual = actualData[key];
+      const target = targetData[key];
+      if (actual === null || actual === undefined) return true;
+      if (target === null || target === undefined || target === "") return true;
+      return Number(actual) >= Number(target);
+    });
+    try {
+      await sb.query("action_plan_weeks", {
+        token, method: "PATCH",
+        body: { actual_data: JSON.stringify(actualData), met_targets: metTargets, updated_at: new Date().toISOString() },
+        filters: `id=eq.${weekId}`,
+      });
+      globalToast("success", "Actuals saved manually");
+      setWeeks(prev => prev.map(w => w.id === weekId ? { ...w, actual_data: JSON.stringify(actualData), met_targets: metTargets } : w));
+      setEditingWeek(null);
+      setManualValues({});
+    } catch (e) { globalToast("error", safeError(e)); }
+  };
 
   const prog = getPlanProgress(plan);
   const isExp = expandedPlan === plan.id;
@@ -132,26 +165,38 @@ export default function APActivePlanCard({
                       const target = targetData[tKey];
                       const actual = actualData?.[tKey];
                       const met = actual !== null && actual !== undefined && target !== undefined && Number(actual) >= Number(target);
+                      const isEditing = editingWeek === week.id;
                       return (
                         <td key={tKey} style={{ textAlign: "center" }}>
                           <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target !== undefined ? target + (t.is_custom ? "" : "%") : "—"}</div>
-                          {hasActuals && <div style={{ fontSize: 12, fontWeight: 600, color: met ? "var(--green)" : "var(--red)" }}>
+                          {isEditing ? <input type="number" step="0.01" className="form-input" style={{width:60,fontSize:11,padding:"3px 6px",textAlign:"center",fontWeight:600}}
+                            placeholder="—" value={manualValues[tKey]??""}
+                            onChange={e=>setManualValues(prev=>({...prev,[tKey]:e.target.value}))} /> :
+                          hasActuals ? <div style={{ fontSize: 12, fontWeight: 600, color: met ? "var(--green)" : "var(--red)" }}>
                             A: {actual !== null && actual !== undefined ? (typeof actual === "number" ? actual.toFixed(1) + "%" : actual) : "—"}
-                          </div>}
+                          </div> : null}
                         </td>
                       );
                     })}
                     <td style={{ textAlign: "center" }}>
-                      {hasActuals ? (
+                      {hasActuals && !editingWeek ? (
                         week.met_targets ?
                           <span style={{ fontSize: 12, fontWeight: 700, color: "var(--green)" }}>✅</span> :
                           <span style={{ fontSize: 12, fontWeight: 700, color: "var(--red)" }}>❌</span>
                       ) : <span style={{ color: "var(--tx3)" }}>—</span>}
                     </td>
                     <td>
-                      {!hasActuals && <button className="btn btn-outline btn-sm" onClick={() => updateWeekActuals(week.id, plan.qa_email)} style={{ fontSize: 10, padding: "2px 8px" }}>
-                        Pull MTD
-                      </button>}
+                      {editingWeek === week.id ? <div style={{display:"flex",gap:4}}>
+                        <button className="btn btn-primary btn-sm" onClick={()=>saveManualActuals(week.id,targets)} style={{fontSize:10,padding:"2px 8px"}}>Save</button>
+                        <button className="btn btn-outline btn-sm" onClick={()=>{setEditingWeek(null);setManualValues({});}} style={{fontSize:10,padding:"2px 6px"}}>✕</button>
+                      </div> : <div style={{display:"flex",gap:4,flexDirection:"column"}}>
+                        {!hasActuals && <button className="btn btn-outline btn-sm" onClick={() => updateWeekActuals(week.id, plan.qa_email)} style={{ fontSize: 10, padding: "2px 8px" }}>
+                          Pull MTD
+                        </button>}
+                        <button className="btn btn-outline btn-sm" onClick={()=>{setEditingWeek(week.id);setManualValues(hasActuals?{...actualData}:{});}} style={{fontSize:10,padding:"2px 8px",color:"var(--accent-text)"}}>
+                          {hasActuals?"Edit":"Manual"}
+                        </button>
+                      </div>}
                     </td>
                   </tr>
                 );
