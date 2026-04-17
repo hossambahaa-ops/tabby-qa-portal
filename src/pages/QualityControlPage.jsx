@@ -7,15 +7,15 @@ import CoachingPage from "./CoachingPage.jsx";
 import ActionPlanPage from "./ActionPlanPage.jsx";
 
 const TABS = [
-  { key: "dam", label: "DAM Flags" },
   { key: "violations", label: "Violations" },
-  { key: "coaching", label: "Coaching" },
   { key: "plans", label: "AP / PIP" },
+  { key: "coaching", label: "Coaching" },
+  { key: "dam", label: "DAM Flags" },
 ];
 
 function QualityControlPage() {
   const { profile } = useApp();
-  const [tab, setTab] = useState("coaching");
+  const [tab, setTab] = useState("violations");
 
   // Listen for direct navigation requests (e.g., from notification clicks)
   useEffect(() => {
