@@ -43,6 +43,8 @@ function NotificationBell({ onNavigate }) {
           dataCache.fetch("notif_announcements",()=>sb.query("announcements", { select: "id,title,priority,sent_by,created_at", filters: "order=created_at.desc&limit=5", token })).catch(() => []),
           // Feedback responses to MY feedback (any role)
           sb.query("feedback", { select: "id,category,status,admin_response,created_at", filters: `user_email=eq.${profile?.email}&status=neq.new&order=created_at.desc&limit=5`, token }).catch(() => []),
+          // Coaching sessions where I'm the member (for QAs)
+          sb.query("coaching_sessions", { select: "id,meeting_type,sender_email,session_date,created_at", filters: `member_email=eq.${profile?.email}&order=created_at.desc&limit=5`, token }).catch(() => []),
         ];
         // QA Lead gets violations for THEIR team only, DAM flags, and their APs
         if (isLead && !isSv) {
@@ -57,15 +59,16 @@ function NotificationBell({ onNavigate }) {
           queries.push(sb.query("action_plans", { select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: "status=eq.active&order=created_at.desc&limit=10", token }).catch(() => []));
         }
         const results = await Promise.all(queries);
-        const [assignedTasks, escalations, announcements, myFeedback] = results;
-        const violations = (isLead || isSv) ? (results[4] || []) : [];
-        const damFlags = (isLead || isSv) ? (results[5] || []) : [];
-        const activePlans = (isLead || isSv) ? (results[6] || []) : [];
+        const [assignedTasks, escalations, announcements, myFeedback, myCoaching] = results;
+        const violations = (isLead || isSv) ? (results[5] || []) : [];
+        const damFlags = (isLead || isSv) ? (results[6] || []) : [];
+        const activePlans = (isLead || isSv) ? (results[7] || []) : [];
 
         const all = [
           ...assignedTasks.map(t => ({ id: "t-"+t.id, type: "task", title: `Task: ${t.title}`, sub: `From: ${t.created_by?.split("@")[0]}${t.eta_date?" · ETA: "+new Date(t.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}`, time: t.created_at, page: "dashboard" })),
           ...escalations.map(e => ({ id: "e-"+e.id, type: "escalation", title: `Escalation: ${e.category}`, sub: "Anonymous submission", time: e.created_at, page: "escalations" })),
           ...myFeedback.filter(f => f.admin_response).map(f => ({ id: "fb-"+f.id, type: "feedback", title: `Feedback response: ${f.category}`, sub: `Status: ${f.status}`, time: f.created_at, page: "dashboard" })),
+          ...(!isLead && !isSv ? (myCoaching || []) : []).map(c => ({ id: "c-"+c.id, type: "coaching", title: `Coaching logged: ${c.meeting_type || "Session"}`, sub: c.sender_email ? `From ${c.sender_email.split("@")[0]}` : "—", time: c.created_at, page: "profile" })),
           ...violations.map(v => ({ id: "v-"+v.id, type: "violation", title: `Violation: ${v.violation_type}`, sub: v.qa_emails?.split("\n")[0], time: v.created_at, page: "quality", qcTab: "violations" })),
           ...damFlags.map(f => ({ id: "d-"+f.id, type: "dam", title: `DAM: ${f.dam_rules?.name || "Flag"}`, sub: f.qa_email || "—", time: f.created_at, page: "quality", qcTab: "dam" })),
           ...activePlans.filter(p => {
@@ -121,7 +124,7 @@ function NotificationBell({ onNavigate }) {
 
   const visible = items.filter(i => !dismissed.includes(i.id));
   const count = visible.length;
-  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" } };
+  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" }, coaching: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" } };
 
   return (
     <div ref={ref} style={{ position: "relative" }}>

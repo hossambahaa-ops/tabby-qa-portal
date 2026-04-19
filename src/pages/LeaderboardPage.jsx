@@ -23,6 +23,7 @@ function LeaderboardPage() {
   const [selQuarter, setSelQuarter] = useState("");
   const [selYear, setSelYear] = useState("");
   const [selQaQuarterly, setSelQaQuarterly] = useState("");
+  const [selectedEmails, setSelectedEmails] = useState(new Set());
 
   // Sync global filters to local state — runs whenever global filters change
   useEffect(() => {
@@ -415,7 +416,32 @@ function LeaderboardPage() {
             </div>
           </div>
           {visibleRanked.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {selMonth}.</p></div> :
+          <>
+          {/* Bulk action toolbar */}
+          {selectedEmails.size > 0 && <div style={{padding:"10px 16px",marginBottom:8,background:"var(--accent-light)",borderRadius:8,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+            <span style={{fontSize:13,fontWeight:600,color:"var(--accent-text)"}}>{selectedEmails.size} selected</span>
+            <button className="btn btn-primary btn-sm" style={{fontSize:11}} onClick={()=>{
+              window.dispatchEvent(new CustomEvent("navigate",{detail:"quality"}));
+              setTimeout(()=>{
+                window.dispatchEvent(new CustomEvent("qc-tab",{detail:"coaching"}));
+                window.dispatchEvent(new CustomEvent("prefill-coaching",{detail:{emails:[...selectedEmails]}}));
+              },200);
+            }}>Send Coaching</button>
+            <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>{
+              const csv=["Name,Email,TL,Total Score"];
+              [...selectedEmails].forEach(em=>{
+                const row=ranked.find(r=>r.qa_email?.toLowerCase()===em);
+                if(row)csv.push(`"${nameFromEmail(row.qa_email)}",${row.qa_email},"${row.qa_tl?nameFromEmail(row.qa_tl):""}",${getTotalScore(row).toFixed(1)}`);
+              });
+              const blob=new Blob([csv.join("\n")],{type:"text/csv"});
+              const url=URL.createObjectURL(blob);
+              const a=document.createElement("a");a.href=url;a.download=`selection-${selMonth||"latest"}.csv`;a.click();
+              URL.revokeObjectURL(url);
+            }}>Export CSV</button>
+            <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setSelectedEmails(new Set())}>Clear</button>
+          </div>}
           <div className="table-wrap"><table><thead><tr>
+            <th style={{width:32}}><input type="checkbox" style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}} checked={visibleRanked.length>0&&visibleRanked.every(r=>selectedEmails.has(r.qa_email?.toLowerCase()))} onChange={()=>{const allSel=visibleRanked.every(r=>selectedEmails.has(r.qa_email?.toLowerCase()));setSelectedEmails(prev=>{const n=new Set(prev);visibleRanked.forEach(r=>{const e=r.qa_email?.toLowerCase();if(e){allSel?n.delete(e):n.add(e);}});return n;});}}/></th>
             <th style={{width:50}}>#</th>
             <th>Specialist</th>
             <th>TL</th>
@@ -432,7 +458,8 @@ function LeaderboardPage() {
               const total = kpis.reduce((s, k) => s + k.score, 0);
               return (<React.Fragment key={r.id || r.qa_email}>
                 {showGap && <tr><td colSpan={4 + Object.keys(KPI_SLABS).length} style={{textAlign:"center",padding:"6px",color:"var(--tx3)",fontSize:12,background:"var(--bg)"}}>···</td></tr>}
-                <tr onClick={() => setExpandedRow(isExp ? null : r.id)} style={{cursor:"pointer",background:isMe?"var(--accent-light)":"transparent"}}>
+                <tr onClick={() => setExpandedRow(isExp ? null : r.id)} style={{cursor:"pointer",background:selectedEmails.has(r.qa_email?.toLowerCase())?"var(--accent-light)":isMe?"var(--accent-light)":"transparent"}}>
+                  <td onClick={e=>e.stopPropagation()}><input type="checkbox" style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}} checked={selectedEmails.has(r.qa_email?.toLowerCase())} onChange={()=>{const em=r.qa_email?.toLowerCase();setSelectedEmails(prev=>{const n=new Set(prev);n.has(em)?n.delete(em):n.add(em);return n;});}}/></td>
                   <td>{rank <= 3 ? <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",fontWeight:700,fontSize:12,background:rank===1?"linear-gradient(135deg,#FEF3C7,#FDE68A)":rank===2?"linear-gradient(135deg,#F3F4F6,#E5E7EB)":"linear-gradient(135deg,#FED7AA,#FDBA74)",color:rank===1?"#92400E":rank===2?"#374151":"#9A3412",boxShadow:rank===1?"0 2px 8px rgba(245,158,11,.3)":"none"}}>{rank}</span> : <span style={{color:"var(--tx3)",fontWeight:600,fontSize:13}}>{rank}</span>}</td>
                   <td><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:"var(--primary-light)",color:"var(--tabby-purple-light,var(--accent-text))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,border:"2px solid var(--bd2)"}}>{initialsFromEmail(r.qa_email)}</div><div><div style={{fontWeight:600,fontSize:13.5,letterSpacing:"-.2px"}}>{nameFromEmail(r.qa_email)}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{r.qa_email}</div></div></div></td>
                   <td style={{fontSize:13,color:"var(--tx2)"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
@@ -486,7 +513,8 @@ function LeaderboardPage() {
                 </div></td></tr>}
               </React.Fragment>);
             })}
-          </tbody></table></div>}
+          </tbody></table></div>
+          </>}
         </div>
       </>;
       })()}
