@@ -45,6 +45,7 @@ function SchedulePage() {
   const [bulkScope, setBulkScope] = useState("my_team");
   const [bulkPerson, setBulkPerson] = useState("");
   const [bulkDayFilter, setBulkDayFilter] = useState("all");
+  const [selectedQAs, setSelectedQAs] = useState(new Set());
   const [editCell, setEditCell] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
@@ -209,6 +210,7 @@ function SchedulePage() {
     let targets = [];
     if (bulkScope === "my_team") targets = visibleQAs.map(r => r.email?.toLowerCase());
     else if (bulkScope === "specific" && bulkPerson) targets = [bulkPerson.toLowerCase()];
+    else if (bulkScope === "selected") targets = [...selectedQAs];
     else targets = visibleQAs.map(r => r.email?.toLowerCase());
     if (targets.length === 0) { globalToast("error", "No QAs selected"); return; }
 
@@ -394,11 +396,19 @@ function SchedulePage() {
       </div>
 
       {/* Calendar grid */}
+      {isLead&&selectedQAs.size>0&&<div className="card" style={{padding:"10px 16px",marginBottom:12,background:"var(--accent-light)",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        <span style={{fontSize:13,fontWeight:600,color:"var(--accent-text)"}}>{selectedQAs.size} QAs selected</span>
+        <button className="btn btn-primary btn-sm" style={{fontSize:11}} onClick={()=>{setBulkScope("selected");setBulkModal(true);}}>Bulk mark attendance</button>
+        <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setSelectedQAs(new Set())}>Clear</button>
+      </div>}
       <div className="card" style={{overflow:"auto"}}>
         <table style={{fontSize:11,whiteSpace:"nowrap",minWidth:800}}>
           <thead>
             <tr>
-              <th style={{position:"sticky",left:0,background:"var(--bg3)",zIndex:2,minWidth:140}}>QA</th>
+              {isLead&&<th style={{position:"sticky",left:0,background:"var(--bg3)",zIndex:3,width:28,padding:"4px 6px"}}>
+                <input type="checkbox" style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}} checked={visibleQAs.length>0&&visibleQAs.every(r=>selectedQAs.has(r.email?.toLowerCase()))} onChange={()=>{const allSel=visibleQAs.every(r=>selectedQAs.has(r.email?.toLowerCase()));setSelectedQAs(prev=>{const n=new Set(prev);visibleQAs.forEach(r=>{const e=r.email?.toLowerCase();if(e){allSel?n.delete(e):n.add(e);}});return n;});}}/>
+              </th>}
+              <th style={{position:"sticky",left:isLead?28:0,background:"var(--bg3)",zIndex:2,minWidth:140}}>QA</th>
               {days.map(d => (
                 <th key={d.num} style={{textAlign:"center",padding:"4px 2px",minWidth:36,background:d.isWeekend?"rgba(156,163,175,0.1)":"transparent"}}>
                   <div style={{fontSize:9,color:d.isWeekend?"var(--tx3)":"var(--tx2)"}}>{d.dayName}</div>
@@ -416,8 +426,11 @@ function SchedulePage() {
               const em = qa.email?.toLowerCase();
               const counts = countByStatus(em);
               return (
-                <tr key={em}>
-                  <td style={{position:"sticky",left:0,background:"var(--bg3)",zIndex:1,fontWeight:600,fontSize:12,padding:"6px 8px",borderRight:"1px solid var(--bd)"}}>
+                <tr key={em} style={{background:selectedQAs.has(em)?"var(--accent-light)":"transparent"}}>
+                  {isLead&&<td style={{position:"sticky",left:0,background:selectedQAs.has(em)?"var(--accent-light)":"var(--bg3)",zIndex:1,width:28,padding:"6px 6px",borderRight:"1px solid var(--bd)"}}>
+                    <input type="checkbox" style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}} checked={selectedQAs.has(em)} onChange={()=>setSelectedQAs(prev=>{const n=new Set(prev);n.has(em)?n.delete(em):n.add(em);return n;})}/>
+                  </td>}
+                  <td style={{position:"sticky",left:isLead?28:0,background:selectedQAs.has(em)?"var(--accent-light)":"var(--bg3)",zIndex:1,fontWeight:600,fontSize:12,padding:"6px 8px",borderRight:"1px solid var(--bd)"}}>
                     <div style={{display:"flex",alignItems:"center",gap:6}}>
                       <div style={{width:22,height:22,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:8,fontWeight:700,color:"var(--accent-text)",flexShrink:0}}>
                         {nameFromEmail(em).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
@@ -543,6 +556,7 @@ function SchedulePage() {
               <select className="select form-input" value={bulkScope} onChange={e=>setBulkScope(e.target.value)}>
                 <option value="my_team">{isLead&&!hasRole(profile?.role,"qa_supervisor")?"My team":"All QAs"}</option>
                 <option value="specific">Specific person</option>
+                {selectedQAs.size>0&&<option value="selected">Selected QAs ({selectedQAs.size})</option>}
               </select>
             </div>
             {bulkScope==="specific"&&<div className="form-group"><label className="form-label">Person</label>
