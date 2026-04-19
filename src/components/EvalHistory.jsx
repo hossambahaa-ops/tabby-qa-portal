@@ -114,18 +114,20 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
     return shiftMins > 0 ? (productive / shiftMins) * 100 : 0;
   };
 
-  // Weekly aggregation
+  // Weekly aggregation — occupancy is AVERAGE of working-day occupancies
   const weeklyData = (() => {
     const groups = {};
     data.forEach(d => {
       const wk = isoMonday(d.date);
-      if (!groups[wk]) groups[wk] = { weekStart: wk, days: 0, sbs: 0, non_sbs: 0, coaching: 0, side: 0, occ: 0 };
+      if (!groups[wk]) groups[wk] = { weekStart: wk, days: 0, workDays: 0, sbs: 0, non_sbs: 0, coaching: 0, side: 0, occSum: 0 };
       groups[wk].days++;
-      groups[wk].sbs += num(d.sbs);
-      groups[wk].non_sbs += num(d.non_sbs);
-      groups[wk].coaching += num(d.coaching_sessions);
-      groups[wk].side += num(d.side_task_minutes);
-      groups[wk].occ += num(d.occupancy_pct);
+      const daySbs = num(d.sbs), dayNsbs = num(d.non_sbs), dayCoach = num(d.coaching_sessions), daySide = num(d.side_task_minutes);
+      groups[wk].sbs += daySbs;
+      groups[wk].non_sbs += dayNsbs;
+      groups[wk].coaching += dayCoach;
+      groups[wk].side += daySide;
+      const dayOcc = calcOcc(daySbs, dayNsbs, dayCoach, daySide);
+      if (dayOcc > 0) { groups[wk].occSum += dayOcc; groups[wk].workDays++; }
     });
     return Object.values(groups).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
   })();
@@ -239,7 +241,7 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
                 const nsbs = view === "daily" ? num(r.non_sbs) : r.non_sbs;
                 const coaching = view === "daily" ? num(r.coaching_sessions) : r.coaching;
                 const side = view === "daily" ? num(r.side_task_minutes) : r.side;
-                const occ = calcOcc(sbs, nsbs, coaching, side);
+                const occ = view === "daily" ? calcOcc(sbs, nsbs, coaching, side) : (r.workDays > 0 ? r.occSum / r.workDays : 0);
                 const total = sbs + nsbs;
                 return <tr key={i}>
                   <td style={{ fontWeight: 500, whiteSpace: "nowrap" }}>
