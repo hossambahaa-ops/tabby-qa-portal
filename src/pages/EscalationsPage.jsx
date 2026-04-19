@@ -77,6 +77,7 @@ function EscalationsPage() {
   // Form state
   const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
+  const [ccReviewers, setCcReviewers] = useState([]);
   const [aboutPerson, setAboutPerson] = useState("");
   const [isAnonymous] = useState(true);
 
@@ -194,12 +195,29 @@ function EscalationsPage() {
         }
       }
 
-      globalToast("success", `Escalation submitted — routed to ${nameFromEmail(routedTo)}`);
-      logActivity(token, profile?.email, "escalation_created", "escalations", null, `Category: ${category}, Routed to: ${routing.email}`);
+      // Create copies for each CC reviewer so they see the escalation in their "routed to me" list
+      if (Array.isArray(ccReviewers) && ccReviewers.length > 0) {
+        for (const cc of ccReviewers) {
+          if (!cc || cc.toLowerCase() === routedTo.toLowerCase()) continue;
+          await sb.query("escalations", {
+            token, method: "POST",
+            body: {
+              submitted_by: myEmail, submitted_role: myRole, is_anonymous: isAnonymous,
+              about_person: aboutPerson.trim() || null,
+              category, description: description.trim(),
+              routed_to: cc, status: "open", attachments: [],
+            },
+          });
+        }
+      }
+      const totalReviewers = 1 + (ccReviewers?.length || 0);
+      globalToast("success", totalReviewers > 1 ? `Escalation sent to ${totalReviewers} reviewers` : `Escalation submitted — routed to ${nameFromEmail(routedTo)}`);
+      logActivity(token, profile?.email, "escalation_created", "escalations", null, `Category: ${category}, Routed to: ${routing.email}${ccReviewers.length?", CC: "+ccReviewers.join(","):""}`);
       setShowForm(false);
       setCategory("");
       setDescription("");
       setAboutPerson("");
+      setCcReviewers([]);
       setAttachments([]);
       // Optimistic: reload to get new escalation with ID
       load();
@@ -287,11 +305,27 @@ function EscalationsPage() {
           </div>
 
           {/* Live routing display */}
-          <div style={{ padding: "10px 14px", background: routing.email ? "var(--bg)" : "var(--amber-bg)", borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
+          <div style={{ padding: "10px 14px", background: routing.email ? "var(--bg)" : "var(--amber-bg)", borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
             {routing.email
               ? <><span style={{color:"var(--tx3)"}}>Will be routed to: </span><strong style={{color:"var(--accent)"}}>{routing.label}</strong></>
               : <span style={{color:"var(--amber)"}}>{routing.label}</span>
             }
+          </div>
+
+          {/* Optional: CC additional reviewers */}
+          <div className="form-group" style={{ marginBottom: 16 }}>
+            <label className="form-label" style={{fontSize:12}}>Also notify <span style={{fontWeight:400,color:"var(--tx3)"}}>(optional — each gets a copy)</span></label>
+            <SearchableSelect
+              multi
+              options={allProfiles.filter(p =>
+                (p.role === "qa_lead" || p.role === "qa_supervisor" || p.role === "admin" || p.role === "super_admin")
+                && p.email?.toLowerCase() !== myEmail
+                && p.email?.toLowerCase() !== routing.email?.toLowerCase()
+              ).map(p => ({ value: p.email, label: `${nameFromEmail(p.email)} (${ROLE_LABELS[p.role] || p.role})` }))}
+              value={ccReviewers}
+              onChange={v => setCcReviewers(Array.isArray(v) ? v : [])}
+              placeholder="Add additional reviewers..."
+            />
           </div>
 
           <div className="form-group" style={{ marginBottom: 12 }}>

@@ -313,26 +313,31 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
     }
     setLoading(true);
     try {
-      await sb.query("coaching_sessions", {
-        token, method: "POST",
-        body: {
-          sender_email: profile?.email || "",
-          member_email: toEmail,
-          cc_email: ccEmail,
-          session_date: sessionDate,
-          meeting_type: MEETING_TYPE_ENUM[meetingType] || "ad_hoc",
-          topics, strengths, weaknesses, goals,
-          action_items: actions,
-          performance_rating: perfRating,
-          target_data: isTargetType ? serializeTargets() : null,
-          follow_up: false,
-          outcome: outcome || null,
-          next_steps: nextSteps || null,
-          sig_name: sigName,
-          sig_title: sigTitle,
-          email_subject: emailSubject,
-        }
-      });
+      // Parse toEmail for multiple recipients (comma/space separated)
+      const memberEmails = toEmail.split(/[,;\s]+/).map(e=>e.trim()).filter(Boolean);
+      // Create one coaching session record per member (group coaching)
+      for (const em of memberEmails) {
+        await sb.query("coaching_sessions", {
+          token, method: "POST",
+          body: {
+            sender_email: profile?.email || "",
+            member_email: em,
+            cc_email: ccEmail,
+            session_date: sessionDate,
+            meeting_type: MEETING_TYPE_ENUM[meetingType] || "ad_hoc",
+            topics, strengths, weaknesses, goals,
+            action_items: actions,
+            performance_rating: perfRating,
+            target_data: isTargetType ? serializeTargets() : null,
+            follow_up: false,
+            outcome: outcome || null,
+            next_steps: nextSteps || null,
+            sig_name: sigName,
+            sig_title: sigTitle,
+            email_subject: emailSubject,
+          }
+        });
+      }
 
       try {
         const htmlBody = buildEmailBody();
