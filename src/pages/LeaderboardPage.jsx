@@ -421,10 +421,13 @@ function LeaderboardPage() {
           {selectedEmails.size > 0 && <div style={{padding:"10px 16px",marginBottom:8,background:"var(--accent-light)",borderRadius:8,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
             <span style={{fontSize:13,fontWeight:600,color:"var(--accent-text)"}}>{selectedEmails.size} selected</span>
             <button className="btn btn-primary btn-sm" style={{fontSize:11}} onClick={()=>{
+              const emails=[...selectedEmails];
               window.dispatchEvent(new CustomEvent("navigate",{detail:"quality"}));
               setTimeout(()=>{
                 window.dispatchEvent(new CustomEvent("qc-tab",{detail:"coaching"}));
-                window.dispatchEvent(new CustomEvent("prefill-coaching",{detail:{emails:[...selectedEmails]}}));
+                setTimeout(()=>{
+                  window.dispatchEvent(new CustomEvent("prefill-coaching",{detail:{emails}}));
+                },300);
               },200);
             }}>Send Coaching</button>
             <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>{

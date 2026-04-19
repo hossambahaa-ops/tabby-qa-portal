@@ -210,11 +210,14 @@ export default function APActivePlanCard({
           <button className="btn btn-outline btn-sm" style={{ color: "var(--accent-text)" }} onClick={() => {
             window.dispatchEvent(new CustomEvent("navigate", { detail: "quality" }));
             setTimeout(() => {
-              window.dispatchEvent(new CustomEvent("prefill-coaching", { detail: {
-                email: plan.qa_email,
-                type: plan.type === "pip" ? "PIP Review" : "Action Plan Review",
-              }}));
-            }, 300);
+              window.dispatchEvent(new CustomEvent("qc-tab", { detail: "coaching" }));
+              setTimeout(() => {
+                window.dispatchEvent(new CustomEvent("prefill-coaching", { detail: {
+                  email: plan.qa_email,
+                  type: plan.type === "pip" ? "PIP Review" : "Action Plan Review",
+                }}));
+              }, 300);
+            }, 200);
           }}>
             <Icon d={icons.coaching} size={14} />Send Review Email
           </button>
