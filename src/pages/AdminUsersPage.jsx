@@ -21,6 +21,7 @@ function AdminUsersPage({teams}){
   const[viewMode,setViewMode]=useState("list"); // "list" | "role"
   const[selected,setSelected]=useState(new Set());
   const[bulkRole,setBulkRole]=useState("");
+  const[bulkTeam,setBulkTeam]=useState("");
   const[bulkSaving,setBulkSaving]=useState(false);
   const[collapsedRoles,setCollapsedRoles]=useState(new Set());
   const[search,setSearch]=useState("");
@@ -109,6 +110,34 @@ function AdminUsersPage({teams}){
     },"Update","var(--tabby-purple)");
   };
 
+  // Bulk team reassignment
+  const bulkReassignTeam=async()=>{
+    if(!bulkTeam||selected.size===0)return;
+    const team=teams.find(t=>t.id===bulkTeam);
+    confirmAsk("Bulk team move?",`Move ${selected.size} user${selected.size>1?"s":""} to "${team?.name||"team"}"? Existing team memberships will be replaced.`,async()=>{
+      setBulkSaving(true);
+      try{
+        let count=0;
+        for(const uid of selected){
+          const u=users.find(x=>x.id===uid);
+          if(!u)continue;
+          // Update profiles.team_id (legacy) and user_teams junction
+          await sb.query("profiles",{token,method:"PATCH",body:{team_id:bulkTeam},filters:`id=eq.${uid}`});
+          await sb.query("user_teams",{token,method:"DELETE",filters:`user_id=eq.${uid}`}).catch(()=>{});
+          await sb.query("user_teams",{token,method:"POST",body:{user_id:uid,team_id:bulkTeam}}).catch(()=>{});
+          logActivity(token,profile?.email,"user_updated","profiles",uid,`${u.email}: bulk moved to team ${team?.name}`);
+          count++;
+        }
+        dataCache.invalidate("profiles");dataCache.invalidate("profiles_slim");
+        setUsers(prev=>prev.map(u=>selected.has(u.id)?{...u,team_id:bulkTeam}:u));
+        setUserTeamsMap(prev=>{const n={...prev};[...selected].forEach(uid=>{n[uid]=[bulkTeam];});return n;});
+        globalToast("success",`Moved ${count} user${count>1?"s":""} to ${team?.name}`);
+        setSelected(new Set());setBulkTeam("");
+      }catch(e){globalToast("error",safeError(e));}
+      setBulkSaving(false);
+    },"Move","var(--tabby-purple)");
+  };
+
   // Toggle selection
   const toggleSelect=(id)=>setSelected(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
   const toggleSelectAll=(list)=>{
@@ -183,7 +212,10 @@ function AdminUsersPage({teams}){
           <span style={{fontSize:12,fontWeight:600,color:"var(--accent-text)"}}>{selected.size} selected</span>
           <SearchableSelect options={Object.entries(ROLE_LABELS).map(([k,v])=>({value:k,label:v}))} value={bulkRole} onChange={setBulkRole} placeholder="New role..." />
           <button className="btn btn-primary btn-sm" disabled={!bulkRole||bulkSaving} onClick={bulkUpdateRole} style={{fontSize:11}}>{bulkSaving?"Saving...":"Update role"}</button>
-          <button className="btn btn-outline btn-sm" onClick={()=>{setSelected(new Set());setBulkRole("");}} style={{fontSize:11}}>Clear</button>
+          <div style={{height:20,width:1,background:"var(--bd)"}}/>
+          <SearchableSelect options={teams.map(t=>({value:t.id,label:`${t.name} (${t.domain})`}))} value={bulkTeam} onChange={setBulkTeam} placeholder="Move to team..."/>
+          <button className="btn btn-primary btn-sm" disabled={!bulkTeam||bulkSaving} onClick={bulkReassignTeam} style={{fontSize:11}}>Move to team</button>
+          <button className="btn btn-outline btn-sm" onClick={()=>{setSelected(new Set());setBulkRole("");setBulkTeam("");}} style={{fontSize:11}}>Clear</button>
         </>}
       </div>
     </div>

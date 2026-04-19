@@ -275,6 +275,23 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
       {/* Task form */}
       {showTaskForm&&<div style={{marginBottom:16,padding:16,background:"var(--bg)",borderRadius:10,border:"1px solid var(--bd2)"}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr",gap:10}}>
+          {!editingTask && hasRole(profile?.role,"qa_lead") && <div className="form-group">
+            <label className="form-label" style={{fontSize:11}}>Quick template (optional)</label>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+              {[
+                {label:"📝 Daily Check-in",title:"Daily check-in",description:"Please share today's progress and any blockers.",priority:"medium"},
+                {label:"🎯 Weekly Review",title:"Weekly performance review",description:"Review your metrics for the week and identify areas to improve.",priority:"medium"},
+                {label:"📊 Coaching Follow-up",title:"Coaching follow-up",description:"Apply action items from our last coaching session.",priority:"high"},
+                {label:"⚡ Hit Daily Target",title:"Hit today's eval target",description:"Focus on completing your daily SBS/Non-SBS target.",priority:"high"},
+                {label:"🔍 Review DAM Flag",title:"Review flagged behavior",description:"Review the flagged behavior and respond to your lead.",priority:"urgent"},
+              ].map(tpl=>(
+                <button key={tpl.label} type="button" onClick={()=>setTaskForm({...taskForm,title:tpl.title,description:tpl.description,priority:tpl.priority})}
+                  style={{padding:"5px 10px",fontSize:11,fontWeight:500,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:6,cursor:"pointer",fontFamily:"var(--font)",color:"var(--tx2)"}}>
+                  {tpl.label}
+                </button>
+              ))}
+            </div>
+          </div>}
           <div className="form-group"><label className="form-label">Title *</label><input className="form-input" value={taskForm.title} onChange={e=>setTaskForm({...taskForm,title:e.target.value})} placeholder="What needs to be done?" autoFocus/></div>
           <div className="form-group"><label className="form-label">Description</label><textarea className="form-input" rows={2} value={taskForm.description} onChange={e=>setTaskForm({...taskForm,description:e.target.value})} placeholder="Add details..." style={{resize:"vertical"}}/></div>
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>

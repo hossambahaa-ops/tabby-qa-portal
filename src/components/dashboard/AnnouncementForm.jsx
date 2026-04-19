@@ -14,7 +14,23 @@ function AnnouncementForm({ roster, onClose }){
   const sendAnnouncement=async()=>{
     if(!annForm.title.trim()||!annForm.message.trim()){globalToast("error","Title and message are required");return;}
     if(annForm.target_type!=="all"&&annForm.target_type!=="my_team"&&!annForm.target_value){globalToast("error","Please select a target");return;}
+    if(annForm.target_type==="individuals"&&(!Array.isArray(annForm.target_value)||annForm.target_value.length===0)){globalToast("error","Select at least one person");return;}
     try{
+      // For "individuals" (multi-select), create one announcement per person using target_type="individual"
+      if(annForm.target_type==="individuals"){
+        for(const em of annForm.target_value){
+          await sb.query("announcements",{token,method:"POST",body:{
+            title:annForm.title,message:annForm.message,priority:annForm.priority,
+            target_type:"individual",target_value:em,
+            sent_by:profile?.email,requires_ack:true,
+          }});
+        }
+        logActivity(token,profile?.email,"announcement_sent","announcements",null,`Title: ${annForm.title}, Target: ${annForm.target_value.length} individuals`);
+        onClose();
+        setAnnForm({title:"",message:"",priority:"normal",target_type:"my_team",target_value:""});
+        globalToast("success",`Announcement sent to ${annForm.target_value.length} people!`);
+        return;
+      }
       const targetValue = annForm.target_type==="all"?null:annForm.target_type==="my_team"?profile?.email:annForm.target_value;
       const result = await sb.query("announcements",{token,method:"POST",body:{
         title:annForm.title,message:annForm.message,priority:annForm.priority,
@@ -53,7 +69,8 @@ function AnnouncementForm({ roster, onClose }){
           {value:"my_team",label:"My team"},
           {value:"team",label:"Specific team"},
           {value:"individual",label:"Individual person"},
-        ]} value={annForm.target_type} onChange={v=>setAnnForm({...annForm,target_type:v,target_value:""})} placeholder="Select audience"/>
+          {value:"individuals",label:"Multiple people"},
+        ]} value={annForm.target_type} onChange={v=>setAnnForm({...annForm,target_type:v,target_value:v==="individuals"?[]:""})} placeholder="Select audience"/>
       </div>
       {annForm.target_type==="domain"&&<div className="form-group">
         <label className="form-label">Domain</label>
@@ -66,6 +83,10 @@ function AnnouncementForm({ roster, onClose }){
       {annForm.target_type==="individual"&&<div className="form-group">
         <label className="form-label">Person</label>
         <SearchableSelect options={roster.map(r=>({value:r.email,label:r.email+` (${nameFromEmail(r.email)})`}))} value={annForm.target_value} onChange={v=>setAnnForm({...annForm,target_value:v})} placeholder="Select person"/>
+      </div>}
+      {annForm.target_type==="individuals"&&<div className="form-group" style={{gridColumn:"1/-1"}}>
+        <label className="form-label">People ({Array.isArray(annForm.target_value)?annForm.target_value.length:0} selected)</label>
+        <SearchableSelect multi options={roster.map(r=>({value:r.email,label:nameFromEmail(r.email)+` (${r.email})`}))} value={Array.isArray(annForm.target_value)?annForm.target_value:[]} onChange={v=>setAnnForm({...annForm,target_value:v})} placeholder="Select multiple people..."/>
       </div>}
     </div>
     <div style={{display:"flex",gap:8,marginTop:16}}>
