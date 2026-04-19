@@ -16,6 +16,7 @@ function DAMPage(){
   const[loading,setLoading]=useState(true);const[showCreate,setShowCreate]=useState(false);
   const[selRule,setSelRule]=useState("");const[selProfile,setSelProfile]=useState("");const[flagNotes,setFlagNotes]=useState("");
   const[profiles,setProfiles]=useState([]);
+  const[selectedFlags,setSelectedFlags]=useState(new Set());
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   const load=useCallback(async()=>{try{
@@ -70,6 +71,20 @@ function DAMPage(){
       globalToast("success","Flag updated");
     }catch(e){globalToast("error",safeError(e));load();}
   };
+  const bulkUpdateFlags=async(status)=>{
+    if(selectedFlags.size===0)return;
+    const ids=[...selectedFlags];
+    setFlags(prev=>prev.map(f=>selectedFlags.has(f.id)?{...f,status,reviewed_by:profile.id,reviewed_at:new Date().toISOString()}:f));
+    try{
+      for(const id of ids){
+        await sb.query("dam_flags",{token,method:"PATCH",body:{status,reviewed_by:profile.id,reviewed_at:new Date().toISOString()},filters:`id=eq.${id}`});
+        logActivity(token,profile?.email,`dam_flag_${status}`,"dam_flags",id,`Bulk status change: ${status}`);
+      }
+      globalToast("success",`${ids.length} flag${ids.length>1?"s":""} updated`);
+      setSelectedFlags(new Set());
+    }catch(e){globalToast("error",safeError(e));load();}
+  };
+  const toggleFlagSel=(id)=>setSelectedFlags(prev=>{const n=new Set(prev);n.has(id)?n.delete(id):n.add(id);return n;});
 
   const behaviorTypes=[{key:"manipulation",label:"Manipulation",color:"var(--red)"},{key:"performance_management",label:"Performance management",color:"var(--amber)"},{key:"completion_attainment",label:"Completion & attainment",color:"var(--accent-text)"}];
   const statusColors={pending:"var(--amber)",acknowledged:"var(--accent-text)",action_created:"var(--blue)",resolved:"var(--green)",dismissed:"var(--tx3)"};
@@ -126,10 +141,22 @@ function DAMPage(){
     {tab==="flags"&&<div className="card">
       {flags.filter(f=>f.status!=="resolved"&&f.status!=="dismissed").length===0?
         <div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No active flags. Create one above or wait for auto-detection.</p></div>:
-        <div className="table-wrap"><table><thead><tr><th>Person</th><th>Behavior</th><th>Category</th><th>Occurrence</th><th>Escalation</th><th>Status</th><th>Date</th><th></th></tr></thead><tbody>
+        <>
+        {selectedFlags.size>0&&<div style={{padding:"10px 16px",margin:"12px 16px 0",background:"var(--accent-light)",borderRadius:8,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+          <span style={{fontSize:13,fontWeight:600,color:"var(--accent-text)"}}>{selectedFlags.size} selected</span>
+          <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>bulkUpdateFlags("acknowledged")}>Acknowledge all</button>
+          <button className="btn btn-outline btn-sm" style={{fontSize:11,color:"var(--green)"}} onClick={()=>bulkUpdateFlags("resolved")}>Resolve all</button>
+          <button className="btn btn-outline btn-sm" style={{fontSize:11,color:"var(--tx3)"}} onClick={()=>bulkUpdateFlags("dismissed")}>Dismiss all</button>
+          <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setSelectedFlags(new Set())}>Clear</button>
+        </div>}
+        <div className="table-wrap"><table><thead><tr>
+          <th style={{width:32}}><input type="checkbox" style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}} checked={(()=>{const active=flags.filter(f=>f.status!=="resolved"&&f.status!=="dismissed");return active.length>0&&active.every(f=>selectedFlags.has(f.id));})()} onChange={()=>{const active=flags.filter(f=>f.status!=="resolved"&&f.status!=="dismissed");const allSel=active.every(f=>selectedFlags.has(f.id));setSelectedFlags(prev=>{const n=new Set(prev);active.forEach(f=>{allSel?n.delete(f.id):n.add(f.id);});return n;});}}/></th>
+          <th>Person</th><th>Behavior</th><th>Category</th><th>Occurrence</th><th>Escalation</th><th>Status</th><th>Date</th><th></th>
+        </tr></thead><tbody>
           {flags.filter(f=>f.status!=="resolved"&&f.status!=="dismissed").map(f=>{
             const step=f.escalation_step_id?steps.find(s=>s.id===f.escalation_step_id):getStepsForRule(f.rule_id).find(s=>s.occurrence===f.occurrence_number);
-            return(<tr key={f.id}>
+            return(<tr key={f.id} style={{background:selectedFlags.has(f.id)?"var(--accent-light)":"transparent"}}>
+              <td><input type="checkbox" style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}} checked={selectedFlags.has(f.id)} onChange={()=>toggleFlagSel(f.id)}/></td>
               <td style={{fontWeight:500}}>{f.profiles?.display_name||f.profiles?.email||f.qa_email||"—"}</td>
               <td style={{fontSize:13}}>{f.dam_rules?.name||"—"}</td>
               <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,background:f.dam_rules?.behavior_type==="manipulation"?"var(--red-bg)":f.dam_rules?.behavior_type==="performance_management"?"var(--amber-bg)":"var(--accent-light)",color:f.dam_rules?.behavior_type==="manipulation"?"var(--red)":f.dam_rules?.behavior_type==="performance_management"?"var(--amber)":"var(--accent-text)",fontWeight:500}}>{f.dam_rules?.behavior_type?.replace(/_/g," ")||"—"}</span></td>
@@ -143,7 +170,8 @@ function DAMPage(){
                 {f.status==="pending"&&<button className="btn btn-outline btn-sm" onClick={()=>updateFlagStatus(f.id,"dismissed")} style={{color:"var(--tx3)"}}>Dismiss</button>}
               </div></td>
             </tr>);})}
-        </tbody></table></div>}
+        </tbody></table></div>
+        </>}
     </div>}
 
     {tab==="rules"&&<div>{behaviorTypes.map(bt=><div key={bt.key} className="card" style={{marginBottom:16}}>
