@@ -593,7 +593,7 @@ function QAProfilePage() {
       </div>
 
       {/* Evaluation History — on-demand */}
-      {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} />}
+      {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} />}
 
       {/* Score history */}
       {qaMtd.length > 1 && <div className="card" style={{marginTop:16}}>

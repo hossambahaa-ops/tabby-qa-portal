@@ -30,7 +30,7 @@ function fmtWeek(d) {
   return `W${wk}: ${dt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} — ${end.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
 }
 
-function EvalHistory({ qaEmail, matchQA }) {
+function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
   const { token, globalToast } = useApp();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -93,6 +93,26 @@ function EvalHistory({ qaEmail, matchQA }) {
   }
 
   const num = (v) => parseFloat(v) || 0;
+
+  // Resolve targets for in-app occupancy calculation
+  const qaEmailLow = qaEmail?.toLowerCase() || "";
+  const qaDomain = qaEmailLow.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
+  const qaQueue = qa?.queue || "Default";
+  const findTgt = (metric) => {
+    const qaMatch = teamTargets.find(t => t.qa_email?.toLowerCase() === qaEmailLow && t.metric === metric);
+    if (qaMatch) return qaMatch;
+    const find = (team, dom) => teamTargets.find(t => !t.qa_email && t.team_name === team && t.domain === dom && t.metric === metric);
+    return find(qaQueue, qaDomain) || find(qaQueue, "all") || find("Default", qaDomain) || find("Default", "all");
+  };
+  const whTarget = parseFloat(findTgt("daily_working_hours")?.target_value) || 8;
+  const sbsDur = parseFloat(findTgt("sbs_duration_minutes")?.target_value) || 20;
+  const nonSbsDur = parseFloat(findTgt("non_sbs_duration_minutes")?.target_value) || 15;
+  const coachingDur = parseFloat(findTgt("coaching_duration_minutes")?.target_value) || 30;
+  const shiftMins = whTarget * 60;
+  const calcOcc = (sbs, nsbs, coaching, side) => {
+    const productive = (sbs * sbsDur) + (nsbs * nonSbsDur) + (coaching * coachingDur) + side;
+    return shiftMins > 0 ? (productive / shiftMins) * 100 : 0;
+  };
 
   // Weekly aggregation
   const weeklyData = (() => {
@@ -219,7 +239,7 @@ function EvalHistory({ qaEmail, matchQA }) {
                 const nsbs = view === "daily" ? num(r.non_sbs) : r.non_sbs;
                 const coaching = view === "daily" ? num(r.coaching_sessions) : r.coaching;
                 const side = view === "daily" ? num(r.side_task_minutes) : r.side;
-                const occ = view === "daily" ? num(r.occupancy_pct) : (r.days > 0 ? r.occ / r.days : 0);
+                const occ = calcOcc(sbs, nsbs, coaching, side);
                 const total = sbs + nsbs;
                 return <tr key={i}>
                   <td style={{ fontWeight: 500, whiteSpace: "nowrap" }}>
@@ -230,7 +250,7 @@ function EvalHistory({ qaEmail, matchQA }) {
                   <td style={{ textAlign: "center", color: "var(--blue)", fontWeight: 600 }}>{nsbs || "—"}</td>
                   <td style={{ textAlign: "center" }}>{coaching || "—"}</td>
                   <td style={{ textAlign: "center" }}>{side || "—"}</td>
-                  <td style={{ textAlign: "center" }}>{occ > 0 ? (occ > 2 ? occ.toFixed(1) : (occ * 100).toFixed(1)) + "%" : "—"}</td>
+                  <td style={{ textAlign: "center", color: occ >= 95 ? "var(--green)" : occ >= 60 ? "var(--amber)" : occ > 0 ? "var(--red)" : "var(--tx3)", fontWeight: 600 }}>{occ > 0 ? occ.toFixed(1) + "%" : "—"}</td>
                   <td style={{ textAlign: "center", fontWeight: 700, color: total > 0 ? "var(--tx)" : "var(--tx3)" }}>{total || "—"}</td>
                 </tr>;
               })}
