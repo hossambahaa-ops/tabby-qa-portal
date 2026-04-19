@@ -7,6 +7,7 @@ import { Icon, icons, GoogleLogo } from "./components/Icons.jsx";
 import GlobalFilterBar from "./components/GlobalFilterBar.jsx";
 import NotificationBell from "./components/NotificationBell.jsx";
 import GlobalSearch from "./components/GlobalSearch.jsx";
+import OnboardingTour from "./components/OnboardingTour.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { AppContext } from "./lib/AppContext.jsx";
 import { ToastProvider, useGlobalToast } from "./lib/ToastContext.jsx";
@@ -68,6 +69,7 @@ function AppInner(){
   const[pendingAnnouncements,setPendingAnnouncements]=useState([]);
   const[showFeedback,setShowFeedback]=useState(false);
   const[showShortcutsHelp,setShowShortcutsHelp]=useState(false);
+  const[showTour,setShowTour]=useState(false);
   const[feedbackForm,setFeedbackForm]=useState({category:"general",message:"",rating:0});
   const[feedbackSending,setFeedbackSending]=useState(false);
   const[feedbackSent,setFeedbackSent]=useState(false);
@@ -189,6 +191,19 @@ function AppInner(){
   const realRole=profile?.role||"qa";
   const userRole=viewAsRole||realRole;
   const effectiveProfile=viewAsRole?{...profile,role:viewAsRole}:profile;
+  // Show onboarding tour once for new leads/supervisors
+  useEffect(()=>{
+    if(!profile?.email)return;
+    const isLead=hasRole(profile?.role,"qa_lead");
+    const tourKey=`tour_seen_${profile.email.toLowerCase()}`;
+    if(isLead&&!localStorage.getItem(tourKey)){
+      setTimeout(()=>setShowTour(true),1500);
+    }
+  },[profile?.email,profile?.role]);
+  const dismissTour=()=>{
+    if(profile?.email)localStorage.setItem(`tour_seen_${profile.email.toLowerCase()}`,"1");
+    setShowTour(false);
+  };
   // Realtime subscriptions (guard: skips if no profile yet)
   useEffect(()=>{
     if(!profile?.email)return;
@@ -311,6 +326,7 @@ function AppInner(){
     <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} teams={[]} roster={globalRoster} profile={effectiveProfile} role={userRole}/>
     {/* Search overlay */}
     {showSearch&&<GlobalSearch onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
+    {showTour&&<OnboardingTour onDismiss={dismissTour}/>}
     <div className="page-animate"><Suspense fallback={<div style={{display:"flex",justifyContent:"center",alignItems:"center",minHeight:200}}><div className="pulse-loader"/></div>}><Routes>
       <Route path="/dashboard" element={<DashboardPage/>}/>
       <Route path="/scores" element={<ScoreEntryPage/>}/>
@@ -393,7 +409,8 @@ function AppInner(){
             <kbd style={{fontSize:11,padding:"2px 8px",borderRadius:6,background:"var(--bg)",border:"1px solid var(--bd)",fontFamily:"var(--font)",color:"var(--tx3)"}}>{k}</kbd>
           </div>
         ))}
-        <button className="btn btn-outline" style={{marginTop:16,width:"100%"}} onClick={()=>setShowShortcutsHelp(false)}>Close</button>
+        {hasRole(userRole,"qa_lead")&&<button className="btn btn-outline" style={{marginTop:12,width:"100%",fontSize:12}} onClick={()=>{setShowShortcutsHelp(false);setShowTour(true);}}>🎯 Replay onboarding tour</button>}
+        <button className="btn btn-outline" style={{marginTop:8,width:"100%"}} onClick={()=>setShowShortcutsHelp(false)}>Close</button>
       </div>
     </div>}
 

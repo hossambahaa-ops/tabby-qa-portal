@@ -15,7 +15,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [taskView, setTaskView] = useState("list");
   const [hideCompleted, setHideCompleted] = useState(true);
-  const [taskForm, setTaskForm] = useState({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});
+  const [taskForm, setTaskForm] = useState({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:[]});
   const [editingTask, setEditingTask] = useState(null);
   const [postponeModal, setPostponeModal] = useState(null);
   const [postponeDate, setPostponeDate] = useState("");
@@ -180,39 +180,44 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   // Task CRUD
   const saveTask=async(forceAssign)=>{
     if(!taskForm.title.trim()){globalToast("error","Task title is required");return;}
-    if(taskForm.assigned_to&&!editingTask&&!forceAssign){
+    const assignees = Array.isArray(taskForm.assigned_to) ? taskForm.assigned_to : (taskForm.assigned_to?[taskForm.assigned_to]:[]);
+    if(assignees.length>0&&!editingTask&&!forceAssign){
       try{
         const todayStr=new Date().toISOString().split("T")[0];
         const absentStatuses=new Set(["AL","Paid SL","ML","UL","NSNC","OFF","X"]);
-        const attCheck=await sb.query("qa_attendance",{select:"status",filters:`email=eq.${taskForm.assigned_to.toLowerCase()}&date=eq.${todayStr}`,token}).catch(()=>[]);
-        const att=Array.isArray(attCheck)&&attCheck.length>0?attCheck[0]:null;
-        if(att&&absentStatuses.has(att.status)){
-          const ATTENDANCE_TYPES = undefined; // not available in this context
-          const statusLabel=ATTENDANCE_TYPES?.find(t=>t.code===att.status)?.label||att.status;
-          setAttWarning({name:nameFromEmail(taskForm.assigned_to),status:statusLabel});
-          return;
+        for(const em of assignees){
+          const attCheck=await sb.query("qa_attendance",{select:"status",filters:`email=eq.${em.toLowerCase()}&date=eq.${todayStr}`,token}).catch(()=>[]);
+          const att=Array.isArray(attCheck)&&attCheck.length>0?attCheck[0]:null;
+          if(att&&absentStatuses.has(att.status)){
+            setAttWarning({name:nameFromEmail(em),status:att.status});
+            return;
+          }
         }
       }catch{}
     }
     try{
-      const body={title:taskForm.title,description:taskForm.description||null,priority:taskForm.priority,due_date:taskForm.due_date||null,eta_date:taskForm.eta_date||null,created_by:profile?.email,assigned_to:taskForm.assigned_to||null,updated_at:new Date().toISOString()};
       if(editingTask){
+        const body={title:taskForm.title,description:taskForm.description||null,priority:taskForm.priority,due_date:taskForm.due_date||null,eta_date:taskForm.eta_date||null,created_by:profile?.email,assigned_to:assignees[0]||null,updated_at:new Date().toISOString()};
         await sb.query("tasks",{token,method:"PATCH",body,filters:`id=eq.${editingTask.id}`});
         setUserTasks(prev=>prev.map(t=>t.id===editingTask.id?{...t,...body}:t));
         logActivity(token,profile?.email,"task_updated","tasks",editingTask.id,`Title: ${taskForm.title}`);
         globalToast("success","Task updated");
       }else{
-        const result = await sb.query("tasks",{token,method:"POST",body});
-        const created = Array.isArray(result) ? result[0] : result;
-        if(created?.id) {
-          setUserTasks(prev=>[created,...prev]);
-        } else {
-          setUserTasks(prev=>[{...body, id:"temp-"+Date.now(), status:"pending", created_at:new Date().toISOString()}, ...prev]);
+        // Create one task per assignee (or one unassigned task)
+        const targets = assignees.length>0 ? assignees : [null];
+        const createdTasks = [];
+        for(const em of targets){
+          const body={title:taskForm.title,description:taskForm.description||null,priority:taskForm.priority,due_date:taskForm.due_date||null,eta_date:taskForm.eta_date||null,created_by:profile?.email,assigned_to:em||null,updated_at:new Date().toISOString()};
+          const result = await sb.query("tasks",{token,method:"POST",body});
+          const created = Array.isArray(result) ? result[0] : result;
+          if(created?.id){createdTasks.push(created);}
+          else{createdTasks.push({...body, id:"temp-"+Date.now()+"-"+Math.random(), status:"pending", created_at:new Date().toISOString()});}
+          logActivity(token,profile?.email,"task_created","tasks",null,`Title: ${taskForm.title}${em?", Assigned to: "+em:""}`);
         }
-        logActivity(token,profile?.email,"task_created","tasks",null,`Title: ${taskForm.title}${taskForm.assigned_to?", Assigned to: "+taskForm.assigned_to:""}`);
-        globalToast("success",taskForm.assigned_to?`Task created and assigned to ${nameFromEmail(taskForm.assigned_to)}`:"Task created");
+        setUserTasks(prev=>[...createdTasks,...prev]);
+        globalToast("success", assignees.length>1?`Task created for ${assignees.length} QAs`:assignees.length===1?`Task assigned to ${nameFromEmail(assignees[0])}`:"Task created");
       }
-      setShowTaskForm(false);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});
+      setShowTaskForm(false);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:[]});
     }catch(e){globalToast("error",safeError(e));}
   };
 
@@ -261,7 +266,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
             <button onClick={()=>setTaskView("list")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:taskView==="list"?"var(--tabby-purple)":"transparent",color:taskView==="list"?"#fff":"var(--tx3)"}}>List</button>
             {hasRole(profile?.role,"qa_lead")&&<button onClick={()=>setTaskView("templates")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:taskView==="templates"?"var(--tabby-purple)":"transparent",color:taskView==="templates"?"#fff":"var(--tx3)"}}>Recurring{taskTemplates.length>0?` (${taskTemplates.length})`:""}</button>}
           </div>
-          <button className="btn btn-primary btn-sm" onClick={()=>{setShowTaskForm(true);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:""});}}>
+          <button className="btn btn-primary btn-sm" onClick={()=>{setShowTaskForm(true);setEditingTask(null);setTaskForm({title:"",description:"",priority:"medium",due_date:"",eta_date:"",assigned_to:[]});}}>
             <Icon d={icons.plus} size={14}/>New task
           </button>
         </div>
@@ -336,7 +341,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
               }
               return opts.sort((a,b)=>a.label.localeCompare(b.label));
             })()}
-              value={taskForm.assigned_to} onChange={v=>setTaskForm({...taskForm,assigned_to:v})} placeholder="Assign to someone..."/>
+              value={taskForm.assigned_to} onChange={v=>setTaskForm({...taskForm,assigned_to:Array.isArray(v)?v:(v?[v]:[])})} placeholder="Assign to one or more people..." multi={!editingTask}/>
           </div>}
         </div>
         <div style={{display:"flex",gap:8,marginTop:12}}>
@@ -448,7 +453,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
                   </div>
                 </div>
                 <div style={{display:"flex",gap:2,flexShrink:0}}>
-                  <button onClick={()=>{setEditingTask(task);setTaskForm({title:task.title,description:task.description||"",priority:task.priority,due_date:"",eta_date:task.eta_date||"",assigned_to:task.assigned_to||""});setShowTaskForm(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:5,borderRadius:6,color:"var(--tx3)"}} title="Edit"><Icon d={icons.edit} size={14}/></button>
+                  <button onClick={()=>{setEditingTask(task);setTaskForm({title:task.title,description:task.description||"",priority:task.priority,due_date:"",eta_date:task.eta_date||"",assigned_to:task.assigned_to?[task.assigned_to]:[]});setShowTaskForm(true);}} style={{background:"none",border:"none",cursor:"pointer",padding:5,borderRadius:6,color:"var(--tx3)"}} title="Edit"><Icon d={icons.edit} size={14}/></button>
                   <button onClick={()=>deleteTask(task)} style={{background:"none",border:"none",cursor:"pointer",padding:5,borderRadius:6,color:"var(--tx3)"}} title="Delete"><Icon d={icons.trash} size={14}/></button>
                 </div>
               </div>;
@@ -675,7 +680,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
             <button className={`btn ${isDone?"btn-outline":"btn-primary"} btn-sm`} style={isDone?{}:{background:"var(--green)"}} onClick={()=>{toggleTaskDone(t);setSelectedTask(null);}}>
               {isDone?"Reopen task":"Mark as done"}
             </button>
-            <button className="btn btn-outline btn-sm" onClick={()=>{setEditingTask(t);setTaskForm({title:t.title,description:t.description||"",priority:t.priority,due_date:"",eta_date:t.eta_date||"",assigned_to:t.assigned_to||""});setShowTaskForm(true);setSelectedTask(null);}}>
+            <button className="btn btn-outline btn-sm" onClick={()=>{setEditingTask(t);setTaskForm({title:t.title,description:t.description||"",priority:t.priority,due_date:"",eta_date:t.eta_date||"",assigned_to:t.assigned_to?[t.assigned_to]:[]});setShowTaskForm(true);setSelectedTask(null);}}>
               <Icon d={icons.edit} size={14}/>Edit
             </button>
             <button className="btn btn-outline btn-sm" onClick={()=>{setPostponeModal(t);setSelectedTask(null);}}>
