@@ -7,6 +7,7 @@ import { ProgressRing } from "../components/Charts.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import { useUrlState } from "../lib/useUrlState.jsx";
 
 function LeaderboardPage() {
   const{token,profile,gf,globalToast}=useApp();
@@ -14,10 +15,10 @@ function LeaderboardPage() {
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState([]);
-  const [selMonth, setSelMonth] = useState("");
+  const [selMonth, setSelMonth] = useUrlState("month", "");
   const [selTeam, setSelTeam] = useState("");
   const [selDomain, setSelDomain] = useState("");
-  const [view, setView] = useState("individual");
+  const [view, setView] = useUrlState("view", "individual");
   const [expandedRow, setExpandedRow] = useState(null);
   const [search, setSearch] = useState("");
   const [selQuarter, setSelQuarter] = useState("");

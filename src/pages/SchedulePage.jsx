@@ -7,6 +7,7 @@ import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import { useUrlState } from "../lib/useUrlState.jsx";
 
 const ATTENDANCE_TYPES = [
   {code:"P",label:"Present",color:"#22C55E",bg:"#22C55E20"},
@@ -30,10 +31,7 @@ function SchedulePage() {
   const [attendance, setAttendance] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selMonth, setSelMonth] = useState(() => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-  });
+  const [selMonth, setSelMonth] = useUrlState("month", (()=>{const now=new Date();return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;})());
   const [bulkModal, setBulkModal] = useState(false);
   const [bulkStatus, setBulkStatus] = useState("OFF");
   const [csvUpload, setCsvUpload] = useState(false);

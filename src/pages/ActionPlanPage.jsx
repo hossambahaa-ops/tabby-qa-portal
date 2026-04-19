@@ -12,10 +12,11 @@ import APConcludeModal from "../components/actionplan/APConcludeModal.jsx";
 import APActivePlanCard from "../components/actionplan/APActivePlanCard.jsx";
 import APHistoryTab from "../components/actionplan/APHistoryTab.jsx";
 import useKeyboard from "../lib/useKeyboard.jsx";
+import { useUrlState } from "../lib/useUrlState.jsx";
 
 function ActionPlanPage() {
   const{token,profile,globalToast}=useApp();
-  const [tab, setTab] = useState("active"); // active | create | detection | history
+  const [tab, setTab] = useUrlState("ap_tab", "active"); // active | create | detection | history
   useKeyboard({"1":()=>setTab("active"),"2":()=>setTab("detection"),"3":()=>setTab("create"),"4":()=>setTab("history")});
   const [loading, setLoading] = useState(true);
   const [plans, setPlans] = useState([]);

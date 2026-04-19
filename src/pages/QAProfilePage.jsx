@@ -5,6 +5,7 @@ import { nameFromEmail } from "../lib/utils.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
+import { useUrlState } from "../lib/useUrlState.jsx";
 
 // Safe render: prevent objects/arrays from crashing React
 const safe = (v) => {
@@ -25,7 +26,7 @@ function QAProfilePage() {
   const [dailyScores, setDailyScores] = useState([]);
   const [teamTargets, setTeamTargets] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedQA, setSelectedQA] = useState("");
+  const [selectedQA, setSelectedQA] = useUrlState("qa", "");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSession, setExpandedSession] = useState(null);
   const [expandedFlag, setExpandedFlag] = useState(null);

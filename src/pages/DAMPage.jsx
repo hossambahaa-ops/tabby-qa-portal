@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { useUrlState } from "../lib/useUrlState.jsx";
 import { hasRole, ROLE_LABELS } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { safeError, logActivity } from "../lib/utils.js";
@@ -11,7 +12,7 @@ import useKeyboard from "../lib/useKeyboard.jsx";
 
 function DAMPage(){
   const{token,profile,gf,globalToast}=useApp();
-  const[tab,setTab]=useState("flags");
+  const[tab,setTab]=useUrlState("dam_tab","flags");
   useKeyboard({"1":()=>setTab("flags"),"2":()=>setTab("rules"),"3":()=>setTab("history")});const[rules,setRules]=useState([]);const[flags,setFlags]=useState([]);const[steps,setSteps]=useState([]);
   const[loading,setLoading]=useState(true);const[showCreate,setShowCreate]=useState(false);
   const[selRule,setSelRule]=useState("");const[selProfile,setSelProfile]=useState("");const[flagNotes,setFlagNotes]=useState("");

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { hasRole } from "../lib/constants.js";
 import { useApp } from "../lib/AppContext.jsx";
+import { useUrlState } from "../lib/useUrlState.jsx";
 import DAMPage from "./DAMPage.jsx";
 import CoachingViolationsPage from "./CoachingViolationsPage.jsx";
 import CoachingPage from "./CoachingPage.jsx";
@@ -15,7 +16,7 @@ const TABS = [
 
 function QualityControlPage() {
   const { profile } = useApp();
-  const [tab, setTab] = useState("violations");
+  const [tab, setTab] = useUrlState("tab", "violations");
 
   // Listen for direct navigation requests (e.g., from notification clicks)
   useEffect(() => {

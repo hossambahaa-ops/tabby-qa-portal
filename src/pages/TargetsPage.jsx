@@ -5,6 +5,7 @@ import { nameFromEmail, safeError } from "../lib/utils.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import { useUrlState } from "../lib/useUrlState.jsx";
 
 const DAILY_TARGET_METRICS = [
   {key:"daily_sbs",label:"SBS evals",icon:"📋",unit:"evals",type:"number"},
@@ -45,7 +46,7 @@ function TargetsPage() {
   const [selDomain, setSelDomain] = useState("all");
   const [editing, setEditing] = useState(null);
   const [editValue, setEditValue] = useState("");
-  const [tab, setTab] = useState("team"); // "team" | "qa"
+  const [tab, setTab] = useUrlState("target_tab", "team"); // "team" | "qa"
   const [selQA, setSelQA] = useState("");
   const [qaSearch, setQaSearch] = useState("");
   const [selLead, setSelLead] = useState("");
