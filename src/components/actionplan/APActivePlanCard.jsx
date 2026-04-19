@@ -30,8 +30,7 @@ export default function APActivePlanCard({
   const [editingWeek, setEditingWeek] = useState(null); // week id being manually edited
   const [manualValues, setManualValues] = useState({});
 
-  const saveManualActuals = async (weekId, targets) => {
-    const week = plan.action_plan_weeks?.find(w => w.id === weekId);
+  const saveManualActuals = async (weekId, targets, week) => {
     if (!week) return;
     const targetData = safeJson(week.target_data);
     const actualData = {};
@@ -187,7 +186,7 @@ export default function APActivePlanCard({
                     </td>
                     <td>
                       {editingWeek === week.id ? <div style={{display:"flex",gap:4}}>
-                        <button className="btn btn-primary btn-sm" onClick={()=>saveManualActuals(week.id,targets)} style={{fontSize:10,padding:"2px 8px"}}>Save</button>
+                        <button className="btn btn-primary btn-sm" onClick={()=>saveManualActuals(week.id,targets,week)} style={{fontSize:10,padding:"2px 8px"}}>Save</button>
                         <button className="btn btn-outline btn-sm" onClick={()=>{setEditingWeek(null);setManualValues({});}} style={{fontSize:10,padding:"2px 6px"}}>✕</button>
                       </div> : <div style={{display:"flex",gap:4,flexDirection:"column"}}>
                         {!hasActuals && <button className="btn btn-outline btn-sm" onClick={() => updateWeekActuals(week.id, plan.qa_email)} style={{ fontSize: 10, padding: "2px 8px" }}>

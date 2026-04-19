@@ -93,10 +93,11 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
   const pendingPrefillTypeRef = useRef(null);
   useEffect(() => {
     const handler = (e) => {
-      if (e.detail?.email) {
-        setToEmail(e.detail.email);
+      const emails = e.detail?.emails || (e.detail?.email ? [e.detail.email] : null);
+      if (emails && emails.length > 0) {
+        setToEmail(emails.join(", "));
         if (e.detail.type) setMeetingType(e.detail.type);
-        pendingPrefillRef.current = e.detail.email;
+        pendingPrefillRef.current = emails[0];
         pendingPrefillTypeRef.current = e.detail.type;
       }
     };
