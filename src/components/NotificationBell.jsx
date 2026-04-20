@@ -23,6 +23,7 @@ function NotificationBell({ onNavigate }) {
   const ref = useRef(null);
   const isLead = hasRole(profile?.role, "qa_lead");
   const isSv = hasRole(profile?.role, "qa_supervisor");
+  const isAdmin = hasRole(profile?.role, "admin");
 
   const dismiss = (id) => {
     const updated = [...dismissed, id];
@@ -63,11 +64,18 @@ function NotificationBell({ onNavigate }) {
           queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
           queries.push(listPlans({ token, select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: "status=eq.active&order=created_at.desc&limit=10" }));
         }
+        // Admins (and super admins) see new user feedback submissions
+        let newFeedbackIdx = -1;
+        if (isAdmin) {
+          newFeedbackIdx = queries.length;
+          queries.push(sb.query("feedback", { select: "id,user_name,user_email,category,message,created_at", filters: "status=eq.new&order=created_at.desc&limit=10", token }).catch(() => []));
+        }
         const results = await Promise.all(queries);
         const [assignedTasks, escalations, announcements, myFeedback, myCoaching] = results;
         const violations = (isLead || isSv) ? (results[5] || []) : [];
         const damFlags = (isLead || isSv) ? (results[6] || []) : [];
         const activePlans = (isLead || isSv) ? (results[7] || []) : [];
+        const newFeedback = newFeedbackIdx >= 0 ? (results[newFeedbackIdx] || []) : [];
 
         const all = [
           ...assignedTasks.map(t => ({ id: "t-"+t.id, type: "task", title: `Task: ${t.title}`, sub: `From: ${t.created_by?.split("@")[0]}${t.eta_date?" · ETA: "+new Date(t.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}`, time: t.created_at, page: "dashboard" })),
@@ -81,6 +89,15 @@ function NotificationBell({ onNavigate }) {
             const daysLeft = (new Date(p.end_date) - new Date()) / (1000*60*60*24);
             return daysLeft <= 7 && daysLeft > -1;
           }).map(p => ({ id: "ap-"+p.id, type: "plan", title: `${p.type.toUpperCase()} ending soon`, sub: `${p.qa_email?.split("@")[0]} — ${Math.ceil((new Date(p.end_date)-new Date())/(1000*60*60*24))} days left`, time: p.created_at, page: "quality", qcTab: "plans" })),
+          ...newFeedback.filter(f => f.user_email?.toLowerCase() !== myEmail).map(f => ({
+            id: "nf-"+f.id,
+            type: "feedback",
+            title: `New feedback: ${f.category || "general"}`,
+            sub: `${f.user_name || f.user_email?.split("@")[0] || "Someone"}${f.message ? " · " + f.message.slice(0, 70) + (f.message.length > 70 ? "…" : "") : ""}`,
+            time: f.created_at,
+            page: "admin",
+            adminTab: "feedback",
+          })),
         ];
         // Daily task reminders — check auto-close tasks vs daily_scores
         try {
@@ -152,7 +169,7 @@ function NotificationBell({ onNavigate }) {
             {visible.slice(0, 5).map(item => {
               const tc = typeColor[item.type] || {};
               return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8}}>
-                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); if(item.qcTab) setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:item.qcTab})),100); setOpen(false); dismiss(item.id); }}>
+                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); if(item.qcTab) setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:item.qcTab})),100); if(item.adminTab) setTimeout(()=>{const h=window.location.hash||"#/";const [b,q=""]=h.split("?");const p=new URLSearchParams(q);p.set("tab",item.adminTab);window.location.hash=`${b}?${p.toString()}`;},150); setOpen(false); dismiss(item.id); }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
                     <span style={{ fontWeight: 500, fontSize: 12 }}>{safe(item.title)}</span>
