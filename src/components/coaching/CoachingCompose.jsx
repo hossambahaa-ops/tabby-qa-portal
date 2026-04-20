@@ -67,6 +67,81 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
   const [showPreview, setShowPreview] = useState(false);
   const [loading, setLoading] = useState(false);
 
+  // ── Draft persistence ──
+  // Form content auto-saves to localStorage (debounced). On mount, if a draft
+  // exists from a previous session, we surface a banner with Restore / Discard
+  // rather than auto-overwriting the current form.
+  const draftKey = `coaching:draft:${(profile?.email || "anon").toLowerCase()}`;
+  const [draftAvailable, setDraftAvailable] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState(null);
+
+  const draftHasContent = (d) => !!(d && (d.toEmail || d.topics || d.strengths || d.weaknesses || d.goals || d.actions || d.outcome || d.nextSteps));
+
+  useEffect(() => {
+    if (!profile?.email) return;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) return;
+      const d = JSON.parse(raw);
+      if (!draftHasContent(d)) { localStorage.removeItem(draftKey); return; }
+      setDraftAvailable(true);
+      setDraftSavedAt(d.savedAt || null);
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.email]);
+
+  useEffect(() => {
+    if (!profile?.email) return;
+    const t = setTimeout(() => {
+      const d = { toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps, savedAt: Date.now() };
+      try {
+        if (draftHasContent(d)) localStorage.setItem(draftKey, JSON.stringify(d));
+        else localStorage.removeItem(draftKey);
+      } catch {}
+    }, 500);
+    return () => clearTimeout(t);
+  }, [profile?.email, draftKey, toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps]);
+
+  const restoreDraft = () => {
+    try {
+      const d = JSON.parse(localStorage.getItem(draftKey) || "null");
+      if (!d) { setDraftAvailable(false); return; }
+      if (d.toEmail !== undefined) setToEmail(d.toEmail);
+      if (d.ccEmail !== undefined) setCcEmail(d.ccEmail);
+      if (d.sessionDate !== undefined) setSessionDate(d.sessionDate);
+      if (d.meetingType !== undefined) setMeetingType(d.meetingType);
+      if (d.topics !== undefined) setTopics(d.topics);
+      if (d.strengths !== undefined) setStrengths(d.strengths);
+      if (d.weaknesses !== undefined) setWeaknesses(d.weaknesses);
+      if (d.goals !== undefined) setGoals(d.goals);
+      if (d.actions !== undefined) setActions(d.actions);
+      if (d.perfRating !== undefined) setPerfRating(d.perfRating);
+      if (d.sigName !== undefined) setSigName(d.sigName);
+      if (d.sigTitle !== undefined) setSigTitle(d.sigTitle);
+      if (Array.isArray(d.targetRows) && d.targetRows.length > 0) setTargetRows(d.targetRows);
+      if (d.outcome !== undefined) setOutcome(d.outcome);
+      if (d.nextSteps !== undefined) setNextSteps(d.nextSteps);
+      setDraftAvailable(false);
+      globalToast("success", "Draft restored");
+    } catch {}
+  };
+
+  const discardDraft = () => {
+    try { localStorage.removeItem(draftKey); } catch {}
+    setDraftAvailable(false);
+  };
+
+  const clearDraft = () => { try { localStorage.removeItem(draftKey); } catch {} };
+
+  const fmtDraftAgo = (ts) => {
+    if (!ts) return "";
+    const s = Math.floor((Date.now() - ts) / 1000);
+    if (s < 60) return "just now";
+    if (s < 3600) return `${Math.floor(s/60)}m ago`;
+    if (s < 86400) return `${Math.floor(s/3600)}h ago`;
+    return `${Math.floor(s/86400)}d ago`;
+  };
+
   const isTargetType = TARGET_TYPES.includes(meetingType);
 
   const nameFromEmail = (email) => {
@@ -412,6 +487,7 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
         globalToast("success", "Email sent and session logged successfully!");
       }
       logActivity(token, profile?.email, "coaching_session_created", "coaching_sessions", null, `Member: ${toEmail}, Type: ${meetingType}`);
+      clearDraft();
       setShowPreview(false);
     } catch (e) {
       globalToast("error", safeError(e));
@@ -425,6 +501,7 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
     setMeetingType("1:1 Meeting");setTopics("");setStrengths("");setWeaknesses("");
     setGoals("");setActions("");setPerfRating("");setOutcome("");setNextSteps("");
     setTargetRows([{metric:"",start:"",w1:"",w2:"",w3:"",w4:"",a1:"",a2:"",a3:"",a4:""}]);
+    clearDraft();
     setShowPreview(false);
   };
 
@@ -433,6 +510,21 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
 
       {/* LEFT — Form */}
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
+
+        {/* Draft restore banner */}
+        {draftAvailable && (
+          <div className="card" style={{ padding: 12, display: "flex", alignItems: "center", gap: 12, background: "var(--amber-bg)", borderColor: "var(--amber)" }}>
+            <span style={{ fontSize: 20, lineHeight: 1 }}>💾</span>
+            <div style={{ flex: 1, fontSize: 13 }}>
+              <div style={{ fontWeight: 700, color: "var(--amber)" }}>Unsent draft from earlier</div>
+              <div style={{ color: "var(--tx2)", fontSize: 12, marginTop: 2 }}>
+                {draftSavedAt ? `Saved ${fmtDraftAgo(draftSavedAt)}` : "Saved from a previous session"} — restore to continue, or discard it.
+              </div>
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={restoreDraft}>Restore</button>
+            <button className="btn btn-outline btn-sm" onClick={discardDraft}>Discard</button>
+          </div>
+        )}
 
         {/* Signature block */}
         <div className="card">
