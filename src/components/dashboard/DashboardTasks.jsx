@@ -3,6 +3,7 @@ import ReactDOM from "react-dom";
 import { hasRole, ROLE_LABELS } from "../../lib/constants.js";
 import { sb, dataCache } from "../../lib/supabase.js";
 import { safeError, logActivity } from "../../lib/utils.js";
+import { listTasks } from "../../api/tasks.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import SearchableSelect from "../SearchableSelect.jsx";
@@ -36,7 +37,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   // Load user tasks
   const loadTasks=useCallback(async()=>{try{
     const myEm=profile?.email?.toLowerCase();
-    const t=await sb.query("tasks",{select:"*",filters:"order=priority.asc,due_date.asc",token}).catch(()=>[]);
+    const t=await listTasks({ token, filters: "order=priority.asc,due_date.asc" });
     const mine=t.filter(tk=>tk.created_by?.toLowerCase()===myEm||tk.assigned_to?.toLowerCase()===myEm);
     setUserTasks(mine);
     if(hasRole(profile?.role,"qa_lead")){

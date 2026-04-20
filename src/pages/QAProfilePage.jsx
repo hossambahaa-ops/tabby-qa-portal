@@ -5,6 +5,9 @@ import { nameFromEmail } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
+import { listTasks } from "../api/tasks.js";
+import { listCoachingSessions } from "../api/coachingSessions.js";
+import { listTeamTargets } from "../api/teamTargets.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
@@ -54,14 +57,14 @@ function QAProfilePage() {
         const [r, m, s, ap, t, f, profs, att, ds, tgt] = await Promise.all([
           listRoster({ token, select: "email,display_name,manager_email,queue,country,hiring_date", cacheKey: "qa_roster_full" }),
           listMtd({ token }),
-          sb.query("coaching_sessions", {select:"id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass",filters:"order=session_date.desc",token}).catch(()=>[]),
+          listCoachingSessions({ token, select: "id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass", filters: "order=session_date.desc" }),
           dataCache.fetch("action_plans_full",()=>sb.query("action_plans", {select:"id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)",token}).catch(()=>[])),
-          sb.query("tasks", {select:"*",filters:"order=created_at.desc",token}).catch(()=>[]),
+          listTasks({ token }),
           sb.query("dam_flags", {select:"id,qa_email,severity,status,triggered_at,occurrence_number,reviewed_by,reviewed_at,notes,dam_rules(name,behavior_type,recommended_action)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
           listProfiles({ token, select: "email,role", filters: "", cacheKey: "profiles_email_role" }),
           sb.query("qa_attendance", {select:"email,date,status",filters:`date=gte.${curMonth}-01&order=date.asc`,token}).catch(()=>[]),
           sb.query("daily_scores", {select:"*",filters:`date=eq.${new Date().toISOString().split("T")[0]}`,token}).catch(()=>[]),
-          dataCache.fetch("team_targets",()=>sb.query("team_targets", {select:"team_name,domain,metric,target_value",token}).catch(()=>[])),
+          listTeamTargets({ token }),
         ]);
         setRoster(Array.isArray(r) ? r : []);
         setMtd(Array.isArray(m) ? m : []);

@@ -4,6 +4,7 @@ import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
+import { listTeamTargets } from "../api/teamTargets.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
@@ -67,7 +68,7 @@ function TargetsPage() {
   const load = useCallback(async () => {
     try {
       const [t, tm, r, pr] = await Promise.all([
-        sb.query("team_targets", {select:"*",filters:"order=team_name.asc,metric.asc",token}).catch(()=>[]),
+        listTeamTargets({ token, select: "*", filters: "order=team_name.asc,metric.asc", cache: false }),
         sb.query("teams", {select:"id,name,lead_id,profiles!fk_teams_lead(email)",token}).catch(()=>[]),
         listRoster({ token, cache: false }),
         listProfiles({ token, select: "email,role", filters: "", cacheKey: "profiles_email_role" }),

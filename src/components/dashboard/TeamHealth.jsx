@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { sb, dataCache } from "../../lib/supabase.js";
 import { useApp } from "../../lib/AppContext.jsx";
+import { listTeamTargets } from "../../api/teamTargets.js";
 
 const KPI_DEFS = [
   { key: "sbs", label: "SBS", field: "sbs", type: "sum" },
@@ -47,7 +48,7 @@ function TeamHealth({ teamData, allTeamEmails, qaQueue, qaDomain }) {
   const [targets, setTargets] = useState(null);
 
   useEffect(() => {
-    dataCache.fetch("team_targets", () => sb.query("team_targets", { select: "team_name,domain,metric,target_value", token }).catch(() => []))
+    listTeamTargets({ token })
       .then(t => setTargets(t || []));
   }, [token]);
 

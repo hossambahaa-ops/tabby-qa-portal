@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { sb, dataCache } from "../../lib/supabase.js";
 import { useApp } from "../../lib/AppContext.jsx";
+import { listTeamTargets } from "../../api/teamTargets.js";
 import HelpTip from "../HelpTip.jsx";
 
 const fmtPct = (v) => { const n = parseFloat(v); return isNaN(n) ? "—" : n.toFixed(1) + "%"; };
@@ -10,7 +11,7 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
   const [teamTargets, setTeamTargets] = useState([]);
 
   useEffect(() => {
-    dataCache.fetch("team_targets", () => sb.query("team_targets", { select: "team_name,domain,metric,target_value,qa_email", token }).catch(() => []))
+    listTeamTargets({ token, select: "team_name,domain,metric,target_value,qa_email" })
       .then(t => setTeamTargets(Array.isArray(t) ? t : []));
   }, [token]);
 

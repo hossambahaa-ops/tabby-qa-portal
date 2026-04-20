@@ -3,6 +3,8 @@ import { hasRole } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { Icon } from "./Icons.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import { listTasks } from "../api/tasks.js";
+import { listCoachingSessions } from "../api/coachingSessions.js";
 
 const safe=(v)=>{if(v==null)return"";if(typeof v==="object")return JSON.stringify(v);return String(v);};
 
@@ -36,7 +38,7 @@ function NotificationBell({ onNavigate }) {
         const myEmail = profile?.email?.toLowerCase();
         const queries = [
           // Tasks assigned to ME
-          sb.query("tasks", { select: "id,title,priority,created_by,eta_date,created_at", filters: `assigned_to=eq.${profile?.email}&status=neq.done&order=created_at.desc&limit=10`, token }).catch(() => []),
+          listTasks({ token, select: "id,title,priority,created_by,eta_date,created_at", filters: `assigned_to=eq.${profile?.email}&status=neq.done&order=created_at.desc&limit=10` }),
           // Escalations routed to ME
           sb.query("escalations", { select: "id,category,status,submitted_by,created_at", filters: `routed_to=eq.${profile?.email}&status=eq.open&order=created_at.desc&limit=10`, token }).catch(() => []),
           // Announcements (everyone gets these) — cached
@@ -44,7 +46,7 @@ function NotificationBell({ onNavigate }) {
           // Feedback responses to MY feedback (any role)
           sb.query("feedback", { select: "id,category,status,admin_response,created_at", filters: `user_email=eq.${profile?.email}&status=neq.new&order=created_at.desc&limit=5`, token }).catch(() => []),
           // Coaching sessions where I'm the member (for QAs)
-          sb.query("coaching_sessions", { select: "id,meeting_type,sender_email,session_date,created_at", filters: `member_email=eq.${profile?.email}&order=created_at.desc&limit=5`, token }).catch(() => []),
+          listCoachingSessions({ token, select: "id,meeting_type,sender_email,session_date,created_at", filters: `member_email=eq.${profile?.email}&order=created_at.desc&limit=5` }),
         ];
         // QA Lead gets violations for THEIR team only, DAM flags, and their APs
         if (isLead && !isSv) {
@@ -82,7 +84,7 @@ function NotificationBell({ onNavigate }) {
           const todayStr = new Date().toISOString().split("T")[0];
           const [dailyDs, allTodayTasks] = await Promise.all([
             sb.query("daily_scores", {select:"*",filters:`date=eq.${todayStr}`,token}).catch(()=>[]),
-            sb.query("tasks", {select:"id,title,assigned_to,target_metric,target_value,auto_close,status,due_date",filters:`due_date=eq.${todayStr}&auto_close=eq.true&status=eq.pending`,token}).catch(()=>[]),
+            listTasks({ token, select: "id,title,assigned_to,target_metric,target_value,auto_close,status,due_date", filters: `due_date=eq.${todayStr}&auto_close=eq.true&status=eq.pending` }),
           ]);
           const myAutoTasks = allTodayTasks.filter(t => t.assigned_to?.toLowerCase() === myEmail);
           for (const task of myAutoTasks) {

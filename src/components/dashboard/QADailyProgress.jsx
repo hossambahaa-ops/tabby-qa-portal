@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { sb, SUPABASE_URL, SUPABASE_ANON } from "../../lib/supabase.js";
 import { useApp } from "../../lib/AppContext.jsx";
+import { listTeamTargets } from "../../api/teamTargets.js";
 
 const KPI_CONFIG = [
   { key: "occupancy_pct", label: "Occupancy", thresholds: [95, 98, 100], tip: "Focus on reducing idle time between evaluations" },
@@ -59,7 +60,7 @@ function QADailyProgress({ dailyScores, myData, myEmail, teamTargets, roster, mo
   // Fetch team_targets
   useEffect(() => {
     if (teamTargets) { setTargets(teamTargets); return; }
-    sb.query("team_targets", { select: "team_name,domain,metric,target_value", token }).catch(() => [])
+    listTeamTargets({ token, cache: false })
       .then(t => setTargets(t || []));
   }, [token, teamTargets]);
 
