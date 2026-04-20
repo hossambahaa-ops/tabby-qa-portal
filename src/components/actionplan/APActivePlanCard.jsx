@@ -29,6 +29,52 @@ export default function APActivePlanCard({
   const { token, profile, globalToast } = useApp();
   const [editingWeek, setEditingWeek] = useState(null); // week id being manually edited
   const [manualValues, setManualValues] = useState({});
+  const [editingStartDate, setEditingStartDate] = useState(null); // null | YYYY-MM-DD while super-admin is editing
+  const [savingDate, setSavingDate] = useState(false);
+
+  const saveStartDate = async () => {
+    if (!editingStartDate) { globalToast("error", "Pick a start date"); return; }
+    setSavingDate(true);
+    try {
+      const targetsData = parseTargets(plan.targets);
+      const followUpMode = targetsData.follow_up_mode || "weekly";
+      const duration = plan.duration_weeks || 4;
+      const perDays = followUpMode === "monthly" ? 30 : 7;
+      const newStart = editingStartDate;
+      const newStartMs = new Date(newStart + "T00:00:00").getTime();
+      const newEnd = new Date(newStartMs + duration * perDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+
+      await sb.query("action_plans", {
+        token, method: "PATCH",
+        body: { start_date: newStart, end_date: newEnd, updated_at: new Date().toISOString() },
+        filters: `id=eq.${plan.id}`,
+      });
+
+      // Shift every week's start proportionally
+      const planWeeks = prog.planWeeks || [];
+      for (const w of planWeeks) {
+        const wStart = new Date(newStartMs + (w.week_number - 1) * perDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        await sb.query("action_plan_weeks", {
+          token, method: "PATCH",
+          body: { week_start: wStart, updated_at: new Date().toISOString() },
+          filters: `id=eq.${w.id}`,
+        });
+      }
+
+      setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, start_date: newStart, end_date: newEnd } : p));
+      setWeeks(prev => prev.map(w => {
+        if (w.plan_id !== plan.id) return w;
+        const wStart = new Date(newStartMs + (w.week_number - 1) * perDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        return { ...w, week_start: wStart };
+      }));
+      globalToast("success", "Plan dates updated");
+      setEditingStartDate(null);
+    } catch (e) {
+      globalToast("error", safeError(e));
+    } finally {
+      setSavingDate(false);
+    }
+  };
 
   const saveManualActuals = async (weekId, targets, week) => {
     if (!week) return;
@@ -256,7 +302,20 @@ export default function APActivePlanCard({
             <Icon d={icons.dam} size={14} />Escalate to PIP
           </button>}
 
-          {hasRole(profile?.role, "super_admin") && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)", marginLeft: "auto" }} onClick={async (e) => {
+          {hasRole(profile?.role, "super_admin") && (editingStartDate !== null ? (
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginLeft: "auto", padding: "4px 8px", background: "var(--bg)", borderRadius: 6, border: "1px solid var(--bd)" }} onClick={e => e.stopPropagation()}>
+              <span style={{ fontSize: 11, color: "var(--tx3)" }}>Start:</span>
+              <input type="date" className="form-input" style={{ fontSize: 11, padding: "3px 6px" }} value={editingStartDate} onChange={e => setEditingStartDate(e.target.value)} />
+              <button className="btn btn-primary btn-sm" disabled={savingDate} onClick={saveStartDate} style={{ fontSize: 11, padding: "3px 10px" }}>{savingDate ? "…" : "Save"}</button>
+              <button className="btn btn-outline btn-sm" disabled={savingDate} onClick={() => setEditingStartDate(null)} style={{ fontSize: 11, padding: "3px 8px" }}>✕</button>
+            </div>
+          ) : (
+            <button className="btn btn-outline btn-sm" style={{ color: "var(--accent-text)", marginLeft: "auto" }} onClick={e => { e.stopPropagation(); setEditingStartDate(plan.start_date || new Date().toISOString().split("T")[0]); }}>
+              <Icon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={14} />Edit dates
+            </button>
+          ))}
+
+          {hasRole(profile?.role, "super_admin") && <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={async (e) => {
             e.stopPropagation();
             confirmAsk(`Delete ${plan.type.toUpperCase()}?`,`Permanently delete this plan for ${nameFromEmail(plan.qa_email)}? This cannot be undone.`,async()=>{
             try {
