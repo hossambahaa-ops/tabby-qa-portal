@@ -17,6 +17,7 @@ import { KPI_SLABS, parseRaw, calcSlab, scoreColor, scoreBg, safeJson, safeJsonA
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
+import { listPlans, listPlanWeeks } from "../api/plans.js";
 
 function ActionPlanPage() {
   const{token,profile,globalToast}=useApp();
@@ -54,8 +55,8 @@ function ActionPlanPage() {
   const load = useCallback(async () => {
     try {
       const [planRows, weekRows, mtdRows, rosterRows, profRows, dismissalRows, damFlags, damSteps] = await Promise.all([
-        sb.query("action_plans", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
-        sb.query("action_plan_weeks", { select: "*", filters: "order=plan_id.asc,week_number.asc", token }).catch(() => []),
+        listPlans({ token }),
+        listPlanWeeks({ token }),
         listMtd({ token }),
         listRoster({ token }),
         listProfiles({ token }),

@@ -3,6 +3,7 @@ import { hasRole } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { listRoster } from "../api/roster.js";
 import { listCoachingSessions } from "../api/coachingSessions.js";
+import { listPlans, listPlanWeeks } from "../api/plans.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { useApp } from "../lib/AppContext.jsx";
@@ -105,8 +106,8 @@ function CoachingPage() {
         const [r, s, ap, apw] = await Promise.all([
           listRoster({ token }),
           listCoachingSessions({ token }),
-          sb.query("action_plans", {select:"*",filters:"status=eq.active",token}).catch((e)=>{console.error("ap err:",e);return[];}),
-          sb.query("action_plan_weeks", {select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch((e)=>{console.error("apw err:",e);return[];}),
+          listPlans({ token, filters: "status=eq.active" }),
+          listPlanWeeks({ token }),
         ]);
         const sessionsArr = Array.isArray(s) ? s : [];
         const rosterArr = Array.isArray(r) ? r : [];

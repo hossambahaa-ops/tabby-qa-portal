@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import DOMPurify from "dompurify";
 import { sb, SUPABASE_URL, SUPABASE_ANON } from "../../lib/supabase.js";
 import { safeError, logActivity } from "../../lib/utils.js";
+import { listPlans } from "../../api/plans.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
@@ -146,7 +147,7 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
       || plans.find(p => p.qa_email?.toLowerCase() === email.toLowerCase());
     if (!plan) {
       if (plans.length === 0) {
-        sb.query("action_plans", {select:"*", filters:`qa_email=eq.${email}&status=eq.active&type=eq.${wantType}`, token}).then(directPlans => {
+        listPlans({ token, filters: `qa_email=eq.${email}&status=eq.active&type=eq.${wantType}` }).then(directPlans => {
           if (directPlans.length > 0) fillTargetsFromPlan(directPlans[0]);
         }).catch(() => {});
       }

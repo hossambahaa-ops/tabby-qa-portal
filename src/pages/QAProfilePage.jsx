@@ -8,6 +8,7 @@ import { listMtd } from "../api/mtd.js";
 import { listTasks } from "../api/tasks.js";
 import { listCoachingSessions } from "../api/coachingSessions.js";
 import { listTeamTargets } from "../api/teamTargets.js";
+import { listPlans } from "../api/plans.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
@@ -58,7 +59,7 @@ function QAProfilePage() {
           listRoster({ token, select: "email,display_name,manager_email,queue,country,hiring_date", cacheKey: "qa_roster_full" }),
           listMtd({ token }),
           listCoachingSessions({ token, select: "id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass", filters: "order=session_date.desc" }),
-          dataCache.fetch("action_plans_full",()=>sb.query("action_plans", {select:"id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)",token}).catch(()=>[])),
+          listPlans({ token, select: "id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)", filters: "", cacheKey: "action_plans_full", cache: true }),
           listTasks({ token }),
           sb.query("dam_flags", {select:"id,qa_email,severity,status,triggered_at,occurrence_number,reviewed_by,reviewed_at,notes,dam_rules(name,behavior_type,recommended_action)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
           listProfiles({ token, select: "email,role", filters: "", cacheKey: "profiles_email_role" }),

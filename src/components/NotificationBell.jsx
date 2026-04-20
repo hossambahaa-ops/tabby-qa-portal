@@ -5,6 +5,7 @@ import { Icon } from "./Icons.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { listTasks } from "../api/tasks.js";
 import { listCoachingSessions } from "../api/coachingSessions.js";
+import { listPlans } from "../api/plans.js";
 
 const safe=(v)=>{if(v==null)return"";if(typeof v==="object")return JSON.stringify(v);return String(v);};
 
@@ -52,13 +53,13 @@ function NotificationBell({ onNavigate }) {
         if (isLead && !isSv) {
           queries.push(sb.query("coaching_violations", { select: "id,violation_type,qa_emails,lead_email,created_at", filters: `lead_email=eq.${myEmail}&status=eq.pending&order=created_at.desc&limit=10`, token }).catch(() => []));
           queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
-          queries.push(sb.query("action_plans", { select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: `tl_email=eq.${myEmail}&status=eq.active&order=created_at.desc&limit=10`, token }).catch(() => []));
+          queries.push(listPlans({ token, select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: `tl_email=eq.${myEmail}&status=eq.active&order=created_at.desc&limit=10` }));
         }
         // Supervisors see their domain's violations + DAM flags
         if (isSv) {
           queries.push(sb.query("coaching_violations", { select: "id,violation_type,qa_emails,lead_email,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
           queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
-          queries.push(sb.query("action_plans", { select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: "status=eq.active&order=created_at.desc&limit=10", token }).catch(() => []));
+          queries.push(listPlans({ token, select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: "status=eq.active&order=created_at.desc&limit=10" }));
         }
         const results = await Promise.all(queries);
         const [assignedTasks, escalations, announcements, myFeedback, myCoaching] = results;
