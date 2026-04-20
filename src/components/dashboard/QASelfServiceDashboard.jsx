@@ -107,8 +107,33 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
   const remSt = Math.max(0, stTarget - stMins);
   const allMet = remSbs === 0 && remNsbs === 0 && remCoaching === 0 && remSt === 0;
 
+  // Side-task reminder: red when 0 logged today, amber when below target, hidden once on/over target
+  const stState = stMins <= 0 ? "missing" : stMins < stTarget ? "partial" : "met";
+
   return (
     <div>
+      {/* Daily Side Task reminder */}
+      {stState !== "met" && (
+        <div style={{
+          padding: "12px 16px", borderRadius: 12, marginBottom: 12,
+          background: stState === "missing" ? "var(--red-bg)" : "var(--amber-bg)",
+          border: `1px solid ${stState === "missing" ? "var(--red)" : "var(--amber)"}`,
+          display: "flex", alignItems: "flex-start", gap: 12,
+        }}>
+          <span style={{ fontSize: 22, lineHeight: 1 }}>{stState === "missing" ? "⏰" : "📝"}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: stState === "missing" ? "var(--red)" : "var(--amber)" }}>
+              {stState === "missing"
+                ? "Submit today's Side Tasks"
+                : `Side Tasks logged: ${Math.round(stMins)}m of ${stTarget}m — keep going`}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--tx2)", marginTop: 3, lineHeight: 1.45 }}>
+              Log your Side Tasks every day — they count toward your Occupancy. Make sure minutes are accurate and aligned with your QA Lead.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Motivational banner */}
       <div style={{ padding: "14px 20px", borderRadius: 12, background: statusBg, marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
         <span style={{ fontSize: 22 }}>{!hasStarted ? "☀️" : evalPct >= 1 ? "🎉" : evalPct >= shiftProgress ? "💪" : "⚡"}</span>
