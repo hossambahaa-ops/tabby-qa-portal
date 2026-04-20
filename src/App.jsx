@@ -191,17 +191,17 @@ function AppInner(){
   const realRole=profile?.role||"qa";
   const userRole=viewAsRole||realRole;
   const effectiveProfile=viewAsRole?{...profile,role:viewAsRole}:profile;
-  // Show onboarding tour once for new leads/supervisors
+  // Show role-specific onboarding tour once per user
   useEffect(()=>{
     if(!profile?.email)return;
-    const isLead=hasRole(profile?.role,"qa_lead");
-    const tourKey=`tour_seen_${profile.email.toLowerCase()}`;
-    if(isLead&&!localStorage.getItem(tourKey)){
+    // Key includes role so if user is promoted they get the new role's training
+    const tourKey=`tour_seen_${profile.email.toLowerCase()}_${profile.role||"qa"}`;
+    if(!localStorage.getItem(tourKey)){
       setTimeout(()=>setShowTour(true),1500);
     }
   },[profile?.email,profile?.role]);
   const dismissTour=()=>{
-    if(profile?.email)localStorage.setItem(`tour_seen_${profile.email.toLowerCase()}`,"1");
+    if(profile?.email)localStorage.setItem(`tour_seen_${profile.email.toLowerCase()}_${profile.role||"qa"}`,"1");
     setShowTour(false);
   };
   // Realtime subscriptions (guard: skips if no profile yet)
@@ -326,7 +326,7 @@ function AppInner(){
     <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} teams={[]} roster={globalRoster} profile={effectiveProfile} role={userRole}/>
     {/* Search overlay */}
     {showSearch&&<GlobalSearch onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
-    {showTour&&<OnboardingTour onDismiss={dismissTour}/>}
+    {showTour&&<OnboardingTour onDismiss={dismissTour} role={profile?.role}/>}
     <div className="page-animate"><Suspense fallback={<div style={{display:"flex",justifyContent:"center",alignItems:"center",minHeight:200}}><div className="pulse-loader"/></div>}><Routes>
       <Route path="/dashboard" element={<DashboardPage/>}/>
       <Route path="/scores" element={<ScoreEntryPage/>}/>
@@ -409,7 +409,7 @@ function AppInner(){
             <kbd style={{fontSize:11,padding:"2px 8px",borderRadius:6,background:"var(--bg)",border:"1px solid var(--bd)",fontFamily:"var(--font)",color:"var(--tx3)"}}>{k}</kbd>
           </div>
         ))}
-        {hasRole(userRole,"qa_lead")&&<button className="btn btn-outline" style={{marginTop:12,width:"100%",fontSize:12}} onClick={()=>{setShowShortcutsHelp(false);setShowTour(true);}}>🎯 Replay onboarding tour</button>}
+        <button className="btn btn-outline" style={{marginTop:12,width:"100%",fontSize:12}} onClick={()=>{setShowShortcutsHelp(false);setShowTour(true);}}>🎯 Replay onboarding tour</button>
         <button className="btn btn-outline" style={{marginTop:8,width:"100%"}} onClick={()=>setShowShortcutsHelp(false)}>Close</button>
       </div>
     </div>}
