@@ -14,6 +14,9 @@ import APHistoryTab from "../components/actionplan/APHistoryTab.jsx";
 import useKeyboard from "../lib/useKeyboard.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import { KPI_SLABS, parseRaw, calcSlab, scoreColor, scoreBg, safeJson, safeJsonArr, parseTargets, getKpiScores, getTotalScore, generateTargets as buildTargets, computeDetections } from "../lib/actionPlan.js";
+import { listRoster } from "../api/roster.js";
+import { listProfiles } from "../api/profiles.js";
+import { listMtd } from "../api/mtd.js";
 
 function ActionPlanPage() {
   const{token,profile,globalToast}=useApp();
@@ -53,9 +56,9 @@ function ActionPlanPage() {
       const [planRows, weekRows, mtdRows, rosterRows, profRows, dismissalRows, damFlags, damSteps] = await Promise.all([
         sb.query("action_plans", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
         sb.query("action_plan_weeks", { select: "*", filters: "order=plan_id.asc,week_number.asc", token }).catch(() => []),
-        dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", { select: "*", filters: "order=month.desc", token }).catch(() => [])),
-        dataCache.fetch("qa_roster",()=>sb.query("qa_roster", { select: "email,display_name,queue,manager_email", token }).catch(() => [])),
-        dataCache.fetch("profiles",()=>sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => [])),
+        listMtd({ token }),
+        listRoster({ token }),
+        listProfiles({ token }),
         sb.query("ap_dismissals", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
         sb.query("dam_flags", { select: "id,profile_id,rule_id,occurrence_number,status,notes,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)", filters: "order=triggered_at.desc", token }).catch(() => []),
         dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps", { select: "id,rule_id,occurrence,action,includes_pip,pip_action", token }).catch(() => [])),
