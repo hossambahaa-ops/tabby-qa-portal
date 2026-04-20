@@ -252,8 +252,6 @@ function QAProfilePage() {
         const sbsTarget = parseFloat(findTgt("daily_sbs")?.target_value) || 3;
         const nonSbsTarget = parseFloat(findTgt("daily_non_sbs")?.target_value) || 10;
         const occTarget = parseFloat(findTgt("occupancy_pct")?.target_value) || 95;
-        const coachingTarget = parseFloat(findTgt("daily_coaching")?.target_value) || 1;
-        const stTarget = parseFloat(findTgt("daily_side_task_mins")?.target_value) || 60;
         const whTarget = parseFloat(findTgt("daily_working_hours")?.target_value) || 8;
         const sbsDur = parseFloat(findTgt("sbs_duration_minutes")?.target_value) || 20;
         const nonSbsDur = parseFloat(findTgt("non_sbs_duration_minutes")?.target_value) || 15;
@@ -315,16 +313,14 @@ function QAProfilePage() {
               <div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>Coaching</span>
-                  <span style={{fontSize:13,fontWeight:700,color:coaching>=coachingTarget?"var(--green)":"var(--tx)"}}>{coaching}<span style={{fontSize:10,color:"var(--tx3)",fontWeight:400}}> / {coachingTarget}</span></span>
+                  <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{coaching}</span>
                 </div>
-                {miniBar(coaching, coachingTarget, coaching>=coachingTarget?"var(--green)":"var(--amber)")}
               </div>
               <div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>Side Tasks</span>
-                  <span style={{fontSize:13,fontWeight:700,color:stMins>=stTarget?"var(--green)":"var(--tx)"}}>{stMins>0?(stMins>=60?Math.floor(stMins/60)+"h "+Math.round(stMins%60)+"m":Math.round(stMins)+"m"):"0m"}<span style={{fontSize:10,color:"var(--tx3)",fontWeight:400}}> / {stTarget}m</span></span>
+                  <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{stMins>0?(stMins>=60?Math.floor(stMins/60)+"h "+Math.round(stMins%60)+"m":Math.round(stMins)+"m"):"0m"}</span>
                 </div>
-                {miniBar(stMins, stTarget, stMins>=stTarget?"var(--green)":"var(--amber)")}
               </div>
               <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
