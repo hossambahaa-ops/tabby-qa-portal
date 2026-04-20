@@ -32,6 +32,7 @@ function ActionPlanPage() {
   const [selQaEmail, setSelQaEmail] = useState("");
   const [planType, setPlanType] = useState("ap"); // ap | pip
   const [planDuration, setPlanDuration] = useState(4);
+  const [planStartDate, setPlanStartDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [planReason, setPlanReason] = useState("");
   const [planTargets, setPlanTargets] = useState([]);
   const [selectedKpis, setSelectedKpis] = useState([]);
@@ -206,6 +207,7 @@ function ActionPlanPage() {
     setSelQaEmail(qaEmail || "");
     setPlanType(type || "ap");
     setPlanDuration(type === "pip" ? 8 : 4);
+    setPlanStartDate(new Date().toISOString().split("T")[0]);
     setPlanReason("");
     setSelectedKpis([]);
     setPlanTargets([]);
@@ -265,9 +267,10 @@ function ActionPlanPage() {
 
     setLoading(true);
     try {
-      const startDate = new Date().toISOString().split("T")[0];
+      const startDate = planStartDate || new Date().toISOString().split("T")[0];
+      const startMs = new Date(startDate + "T00:00:00").getTime();
       const periodDays = followUpMode === "monthly" ? planDuration * 30 : planDuration * 7;
-      const endDate = new Date(Date.now() + periodDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const endDate = new Date(startMs + periodDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
 
       // Serialize all targets (KPIs + custom)
       const targetsJson = [
@@ -307,7 +310,7 @@ function ActionPlanPage() {
         const periodBodies = [];
         for (let p = 1; p <= planDuration; p++) {
           const pDays = followUpMode === "monthly" ? (p - 1) * 30 : (p - 1) * 7;
-          const periodStart = new Date(Date.now() + pDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+          const periodStart = new Date(startMs + pDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
           const targetData = {};
           planTargets.forEach(t => { targetData[t.kpi_key] = t.weekly_targets[p - 1] ?? t.target_value; });
           customMetrics.forEach((c, i) => { targetData["custom_" + i] = c.targets[p - 1] ?? ""; });
@@ -618,6 +621,7 @@ function ActionPlanPage() {
         selQaEmail={selQaEmail}
         planType={planType}
         planDuration={planDuration}
+        planStartDate={planStartDate}
         planReason={planReason}
         planTargets={planTargets}
         selectedKpis={selectedKpis}
@@ -630,6 +634,7 @@ function ActionPlanPage() {
         handleQaEmailChange={handleQaEmailChange}
         setPlanType={setPlanType}
         setPlanDuration={setPlanDuration}
+        setPlanStartDate={setPlanStartDate}
         setPlanReason={setPlanReason}
         setPlanTargets={setPlanTargets}
         setFollowUpMode={setFollowUpMode}

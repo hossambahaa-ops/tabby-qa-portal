@@ -7,6 +7,7 @@ export default function APCreateForm({
   selQaEmail,
   planType,
   planDuration,
+  planStartDate,
   planReason,
   planTargets,
   selectedKpis,
@@ -20,6 +21,7 @@ export default function APCreateForm({
   handleQaEmailChange,
   setPlanType,
   setPlanDuration,
+  setPlanStartDate,
   setPlanReason,
   setPlanTargets,
   setFollowUpMode,
@@ -100,6 +102,11 @@ export default function APCreateForm({
                 📆 Monthly
               </button>
             </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Start date</label>
+            <input type="date" className="form-input" value={planStartDate || ""} onChange={e => setPlanStartDate(e.target.value)} max={new Date().toISOString().split("T")[0]} />
+            <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 4 }}>Defaults to today. Backdate for plans that already started.</div>
           </div>
           <div className="form-group" style={{ gridColumn: "1/-1" }}>
             <label className="form-label">Reason / justification</label>
