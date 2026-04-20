@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole, ROLE_LABELS } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
+import { listRoster } from "../api/roster.js";
+import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
@@ -98,9 +100,9 @@ function EscalationsPage() {
     try {
       const [e, r, svProfs, profs] = await Promise.all([
         sb.query("escalations", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
-        dataCache.fetch("qa_roster",()=>sb.query("qa_roster", { select: "email,manager_email,queue,display_name", token }).catch(() => [])),
-        sb.query("profiles", { select: "email,display_name,role,operational_domain", filters: "role=eq.qa_supervisor&status=eq.active", token }).catch(() => []),
-        dataCache.fetch("profiles_all",()=>sb.query("profiles", { select: "email,display_name,role,domain", token }).catch(() => [])),
+        listRoster({ token }),
+        listProfiles({ token, select: "email,display_name,role,operational_domain", filters: "role=eq.qa_supervisor&status=eq.active", cache: false }),
+        listProfiles({ token, select: "email,display_name,role,domain", filters: "", cacheKey: "profiles_all" }),
       ]);
       setRoster(r);
       setSupervisors(svProfs);

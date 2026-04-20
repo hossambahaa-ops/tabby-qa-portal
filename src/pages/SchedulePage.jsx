@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError } from "../lib/utils.js";
+import { listRoster } from "../api/roster.js";
+import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
@@ -71,7 +73,7 @@ function SchedulePage() {
       const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
       const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status`;
       const [r, a1, a2, a3] = await Promise.all([
-        dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,display_name,manager_email,queue,country",token}).catch(()=>[])),
+        listRoster({ token, select: "email,display_name,manager_email,queue,country" }),
         fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(chunk1End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
         chunk1End < dim ? fetch(`${base}&date=gte.${fmtD(chunk1End+1)}&date=lte.${fmtD(chunk2End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]) : Promise.resolve([]),
         chunk2End < dim ? fetch(`${base}&date=gte.${fmtD(chunk2End+1)}&date=lte.${fmtD(chunk3End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]) : Promise.resolve([]),
@@ -144,7 +146,7 @@ function SchedulePage() {
   // Get QA lead emails for filtering
   const [profiles, setProfiles] = useState([]);
   useEffect(() => {
-    sb.query("profiles", {select:"email,role",token}).then(p => setProfiles(Array.isArray(p)?p:[])).catch(()=>{});
+    listProfiles({ token, select: "email,role", filters: "", cache: false }).then(p => setProfiles(Array.isArray(p)?p:[]));
   }, [token]);
   const qaLeadSet = new Set(profiles.filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase()));
 

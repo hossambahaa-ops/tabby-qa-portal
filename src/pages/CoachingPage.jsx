@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
+import { listRoster } from "../api/roster.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { useApp } from "../lib/AppContext.jsx";
@@ -101,7 +102,7 @@ function CoachingPage() {
     (async () => {
       try {
         const [r, s, ap, apw] = await Promise.all([
-          dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch((e)=>{console.error("roster err:",e);return[];})),
+          listRoster({ token }),
           sb.query("coaching_sessions", {select:"*",filters:"order=created_at.desc&limit=100",token}).catch((e)=>{console.error("sessions err:",e);return[];}),
           sb.query("action_plans", {select:"*",filters:"status=eq.active",token}).catch((e)=>{console.error("ap err:",e);return[];}),
           sb.query("action_plan_weeks", {select:"*",filters:"order=plan_id.asc,week_number.asc",token}).catch((e)=>{console.error("apw err:",e);return[];}),

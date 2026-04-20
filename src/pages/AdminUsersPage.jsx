@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole, ROLE_LABELS, ROLE_LEVEL } from "../lib/constants.js";
 import { sb, SUPABASE_URL, dataCache } from "../lib/supabase.js";
 import { safeError, logActivity } from "../lib/utils.js";
+import { listRoster } from "../api/roster.js";
+import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { SkeletonTable } from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -50,8 +52,8 @@ function AdminUsersPage({teams}){
 
   const load=useCallback(async()=>{try{
     const[d,r,ut]=await Promise.all([
-      sb.query("profiles",{select:"id,email,display_name,role,domain,operational_domain,team_id,status",token}),
-      sb.query("qa_roster",{select:"email,queue,manager_email",token}).catch(()=>[]),
+      listProfiles({ token, select: "id,email,display_name,role,domain,operational_domain,team_id,status", filters: "", cache: false }),
+      listRoster({ token, select: "email,queue,manager_email", cache: false }),
       sb.query("user_teams",{select:"user_id,team_id",token}).catch(()=>[]),
     ]);
     setUsers(d.sort((a,b)=>ROLE_LEVEL[b.role]-ROLE_LEVEL[a.role]));

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { ROLE_LABELS } from "../lib/constants.js";
 import { sb } from "../lib/supabase.js";
+import { listProfiles } from "../api/profiles.js";
 import { useApp } from "../lib/AppContext.jsx";
 
 function GlobalSearch({ onNavigate, onClose }) {
@@ -17,7 +18,7 @@ function GlobalSearch({ onNavigate, onClose }) {
       try {
         const q = query.toLowerCase();
         const [profiles, violations, damFlags, escalations] = await Promise.all([
-          sb.query("profiles", { select: "id,email,display_name,role", filters: `or=(email.ilike.%${q}%,display_name.ilike.%${q}%)&limit=5`, token }).catch(() => []),
+          listProfiles({ token, filters: `or=(email.ilike.%${q}%,display_name.ilike.%${q}%)&limit=5`, cache: false }),
           sb.query("coaching_violations", { select: "id,qa_emails,violation_type,status", filters: `qa_emails.ilike.%${q}%&limit=5`, token }).catch(() => []),
           sb.query("dam_flags", { select: "id,qa_email,dam_rules(name)", filters: `qa_email.ilike.%${q}%&limit=5`, token }).catch(() => []),
           sb.query("escalations", { select: "id,category,about_person,status", filters: `or=(about_person.ilike.%${q}%,category.ilike.%${q}%)&limit=5`, token }).catch(() => []),

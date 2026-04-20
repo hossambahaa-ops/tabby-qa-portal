@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
+import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
@@ -33,7 +34,7 @@ function CoachingViolationsPage() {
     try {
       const [v, p, r] = await Promise.all([
         sb.query("coaching_violations", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
-        dataCache.fetch("profiles",()=>sb.query("profiles", { select: "id,email,display_name,role", filters: "status=eq.active", token }).catch(() => [])),
+        listProfiles({ token }),
         dataCache.fetch("dam_rules",()=>sb.query("dam_rules", { select: "id,name,behavior_type", filters: "is_active=eq.true&order=name.asc", token }).catch(() => [])),
       ]);
       // Domain scope for supervisors

@@ -3,6 +3,8 @@ import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "r
 import "./index.css";
 import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc } from "./lib/constants.js";
 import { sb, SUPABASE_URL } from "./lib/supabase.js";
+import { listRoster } from "./api/roster.js";
+import { listMtd } from "./api/mtd.js";
 import { Icon, icons, GoogleLogo } from "./components/Icons.jsx";
 import GlobalFilterBar from "./components/GlobalFilterBar.jsx";
 import NotificationBell from "./components/NotificationBell.jsx";
@@ -136,8 +138,8 @@ function AppInner(){
   // Load global filter data (roster + months)
   useEffect(()=>{if(!session)return;(async()=>{try{
     const[r,m]=await Promise.all([
-      sb.query("qa_roster",{select:"email,queue,manager_email",token:session.access_token}).catch(()=>[]),
-      sb.query("mtd_scores",{select:"month",token:session.access_token}).catch(()=>[]),
+      listRoster({ token: session.access_token, select: "email,queue,manager_email", cache: false }),
+      listMtd({ token: session.access_token, select: "month", filters: "", cache: false }),
     ]);
     setGlobalRoster(r);
     // Build roster map for global filter team lookups

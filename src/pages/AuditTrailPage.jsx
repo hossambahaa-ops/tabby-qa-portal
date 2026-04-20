@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
 import { nameFromEmail } from "../lib/utils.js";
+import { listProfiles } from "../api/profiles.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
@@ -24,7 +25,7 @@ function AuditTrailPage() {
         const [activities, audits, profs] = await Promise.all([
           sb.query("activity_log", {select:"*",filters:"order=created_at.desc&limit=500",token}).catch(()=>[]),
           sb.query("audit_trail", {select:"*",filters:"order=created_at.desc&limit=500",token}).catch(()=>[]),
-          sb.query("profiles", {select:"email,role",token}).catch(()=>[]),
+          listProfiles({ token, select: "email,role", filters: "", cache: false }),
         ]);
         // Build super_admin email set to exclude their actions
         const superAdminEmails = new Set(

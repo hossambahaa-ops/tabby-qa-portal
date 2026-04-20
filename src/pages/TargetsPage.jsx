@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError } from "../lib/utils.js";
+import { listRoster } from "../api/roster.js";
+import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
@@ -67,8 +69,8 @@ function TargetsPage() {
       const [t, tm, r, pr] = await Promise.all([
         sb.query("team_targets", {select:"*",filters:"order=team_name.asc,metric.asc",token}).catch(()=>[]),
         sb.query("teams", {select:"id,name,lead_id,profiles!fk_teams_lead(email)",token}).catch(()=>[]),
-        sb.query("qa_roster", {select:"email,display_name,manager_email,queue",token}).catch(()=>[]),
-        dataCache.fetch("profiles_email_role",()=>sb.query("profiles", {select:"email,role",token}).catch(()=>[])),
+        listRoster({ token, cache: false }),
+        listProfiles({ token, select: "email,role", filters: "", cacheKey: "profiles_email_role" }),
       ]);
       setTargets(Array.isArray(t) ? t : []);
       setTeams(Array.isArray(tm) ? tm : []);

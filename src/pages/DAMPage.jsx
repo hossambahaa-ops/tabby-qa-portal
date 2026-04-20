@@ -3,6 +3,7 @@ import { useUrlState } from "../lib/useUrlState.jsx";
 import { hasRole, ROLE_LABELS } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { safeError, logActivity } from "../lib/utils.js";
+import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
@@ -25,7 +26,7 @@ function DAMPage(){
       dataCache.fetch("dam_rules",()=>sb.query("dam_rules",{select:"id,name,description,behavior_type,dam_reference,severity,auditing_flow,executor_role,auditor_role,goal,compliant_action",filters:"is_active=eq.true&order=behavior_type.asc,name.asc",token})),
       sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,severity,recommended_action,triggered_at,status,notes,occurrence_number,reviewed_by,reviewed_at,profiles!dam_flags_profile_id_fkey(display_name,email),dam_rules(name,behavior_type,dam_reference)",filters:"order=triggered_at.desc&limit=100",token}).catch(()=>[]),
       dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action,deduction_days,is_hr_investigation",filters:"order=rule_id.asc,occurrence.asc",token})),
-      dataCache.fetch("profiles",()=>sb.query("profiles",{select:"id,display_name,email,role",filters:"status=eq.active",token})),
+      listProfiles({ token, select: "id,display_name,email,role" }),
     ]);
     setRules(r);
     // Scope flags and profiles by domain for supervisors

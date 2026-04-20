@@ -3,6 +3,8 @@ import ReactDOM from "react-dom";
 import { hasRole, ROLE_LABELS, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
+import { listRoster } from "../api/roster.js";
+import { listProfiles } from "../api/profiles.js";
 import { useAutoRefresh, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { ProgressRing, MiniBarChart, SparkLine } from "../components/Charts.jsx";
@@ -46,8 +48,8 @@ function DashboardPage(){
   const loadDashboard=useCallback(async()=>{try{
     const[mtdRows,rosterRows,profs]=await Promise.all([
       dataCache.fetch("mtd_scores",()=>{const sixAgo=new Date();sixAgo.setMonth(sixAgo.getMonth()-6);const minMonth=sixAgo.toISOString().slice(0,7);return sb.query("mtd_scores",{select:"*",filters:`month=gte.${minMonth}&order=month.desc`,token}).catch(()=>[]);}),
-      dataCache.fetch("qa_roster",()=>sb.query("qa_roster",{select:"*",token}).catch(()=>[])),
-      dataCache.fetch("profiles",()=>sb.query("profiles",{select:"id,email,display_name,role,status",filters:"status=eq.active",token}).catch(()=>[])),
+      listRoster({ token, select: "*" }),
+      listProfiles({ token, select: "id,email,display_name,role,status" }),
     ]);
     const[damFlagsRaw,plans,planWeeks,dismissals,damStepsRaw]=await Promise.all([
       dataCache.fetch("dam_flags_full",()=>sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)",filters:"order=triggered_at.desc",token}).catch(()=>[])),
