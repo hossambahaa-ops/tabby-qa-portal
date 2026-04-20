@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
-import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
+import { nameFromEmail, initialsFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
@@ -13,7 +13,7 @@ import APActivePlanCard from "../components/actionplan/APActivePlanCard.jsx";
 import APHistoryTab from "../components/actionplan/APHistoryTab.jsx";
 import useKeyboard from "../lib/useKeyboard.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-import { KPI_SLABS, parseRaw, calcSlab, scoreColor, scoreBg, safeJson, safeJsonArr, parseTargets } from "../lib/actionPlan.js";
+import { KPI_SLABS, parseRaw, calcSlab, scoreColor, scoreBg, safeJson, safeJsonArr, parseTargets, getKpiScores, getTotalScore, generateTargets as buildTargets, computeDetections } from "../lib/actionPlan.js";
 
 function ActionPlanPage() {
   const{token,profile,globalToast}=useApp();
@@ -47,31 +47,6 @@ function ActionPlanPage() {
   const [conclusionNotes, setConclusionNotes] = useState("");
   const [pullMonth, setPullMonth] = useState(""); // month to pull MTD data from
 
-  const getKpiScores = (row) => {
-    return Object.entries(KPI_SLABS).map(([key, def]) => {
-      const rawPct = parseRaw(row[def.rawKey]);
-      const slab = calcSlab(rawPct, def.thresholds);
-      const score = (def.weight * slab.pct) / 100;
-      return { key, label: def.label, weight: def.weight, rawPct, slab, score, thresholds: def.thresholds, rawKey: def.rawKey };
-    });
-  };
-
-  const getTotalScore = (row) => getKpiScores(row).reduce((s, k) => s + k.score, 0);
-
-  const nameFromEmail = (email) => {
-    if (!email) return "—";
-    return email.split("@")[0].split(".").map(p => {
-      const c = p.replace(/[\d]+$/, "");
-      return c ? c.charAt(0).toUpperCase() + c.slice(1) : "";
-    }).filter(Boolean).join(" ");
-  };
-
-  const initialsFromEmail = (email) => {
-    const name = nameFromEmail(email);
-    const parts = name.split(" ");
-    return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
-  };
-
   // ── Data loading ──
   const load = useCallback(async () => {
     try {
@@ -92,7 +67,11 @@ function ActionPlanPage() {
       setProfiles(profRows);
 
       // ── Auto-detection engine (DAM-driven) ──
-      runDetection(mtdRows, planRows, dismissalRows, damFlags, damSteps);
+      setDetections(computeDetections({
+        mtdRows, existingPlans: planRows, dismissalRows,
+        damFlagRows: damFlags, damStepRows: damSteps,
+        sortMonthsDesc, nameFromEmail,
+      }));
     } catch (e) { console.error("AP/PIP load:", e); }
     setLoading(false);
   }, [token]);
@@ -100,78 +79,9 @@ function ActionPlanPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
-  // ── Auto-detection: DAM-driven — only flag QAs with DAM escalation that includes AP/PIP ──
-  const runDetection = (mtdRows, existingPlans, dismissalRows, damFlagRows, damStepRows) => {
-    const activePlanEmails = existingPlans
-      .filter(p => p.status === "active" || p.status === "pending_review")
-      .map(p => p.qa_email?.toLowerCase());
-    const dismissedEmails = new Set((dismissalRows || []).map(d => d.qa_email?.toLowerCase()));
-    const months = sortMonthsDesc([...new Set(mtdRows.map(r => r.month))]);
-    const latestMonth = months[0] || "—";
-    const activeFlags = (damFlagRows || []).filter(f => f.status === "pending" || f.status === "acknowledged");
-    const flagged = [];
-
-    activeFlags.forEach(flag => {
-      const email = flag.profiles?.email||flag.qa_email?.toLowerCase();
-      if (!email) return;
-      if (activePlanEmails.includes(email)) return;
-      if (dismissedEmails.has(email)) return;
-      if (flagged.find(f => f.email?.toLowerCase() === email)) return;
-
-      const step = (damStepRows || []).find(s => s.rule_id === flag.rule_id && s.occurrence === flag.occurrence_number);
-      if (!step || !step.includes_pip) return;
-
-      const row = mtdRows.find(r => r.qa_email?.toLowerCase() === email && r.month === latestMonth);
-      const totalScore = row ? getTotalScore(row) : 0;
-      const kpis = row ? getKpiScores(row) : [];
-      const ruleName = flag.dam_rules?.name || "Unknown";
-      const behaviorType = flag.dam_rules?.behavior_type?.replace(/_/g, " ") || "";
-      const pipAction = step.pip_action || step.action || "Action Plan required";
-
-      flagged.push({
-        email: flag.profiles?.email||flag.qa_email || email,
-        name: flag.profiles?.display_name || nameFromEmail(email),
-        reason: `DAM: ${ruleName} (${behaviorType}) — Occurrence #${flag.occurrence_number}: ${pipAction}`,
-        severity: flag.occurrence_number >= 3 ? "critical" : flag.occurrence_number >= 2 ? "warning" : "notice",
-        totalScore, kpis, latestMonth,
-        tl: row?.qa_tl,
-        damFlagId: flag.id,
-        planType: step.includes_pip ? "pip" : "ap",
-        pipActionType: step.pip_action || "new",
-      });
-    });
-
-    const sevOrder = { critical: 0, warning: 1, notice: 2 };
-    flagged.sort((a, b) => (sevOrder[a.severity] ?? 9) - (sevOrder[b.severity] ?? 9) || a.totalScore - b.totalScore);
-    setDetections(flagged);
-  };
-
-  // ── Generate suggested targets based on current scores ──
-  const generateTargets = (qaEmail, kpiKeys) => {
-    const months = sortMonthsDesc([...new Set(mtd.map(r => r.month))]);
-    const latestMonth = months[0];
-    const row = mtd.find(r => r.month === latestMonth && r.qa_email?.toLowerCase() === qaEmail.toLowerCase());
-    const periods = followUpMode === "monthly" ? planDuration : planDuration;
-
-    return (kpiKeys || []).map(key => {
-      const def = KPI_SLABS[key];
-      if (!def) return null;
-      const rawPct = row ? parseRaw(row[def.rawKey]) : null;
-      const slab = rawPct !== null ? calcSlab(rawPct, def.thresholds) : { slab: 0, label: "No data" };
-
-      return {
-        kpi_key: key,
-        label: def.label,
-        raw_key: def.rawKey,
-        current_value: rawPct,
-        current_slab: slab.label,
-        target_value: "",
-        weekly_targets: Array(periods).fill(""),
-        weight: def.weight,
-        thresholds: def.thresholds,
-      };
-    }).filter(Boolean);
-  };
+  // Generate suggested targets for the currently-selected QA using shared MTD data.
+  const generateTargets = (qaEmail, kpiKeys) =>
+    buildTargets({ qaEmail, kpiKeys, mtd, duration: planDuration, sortMonthsDesc, nameFromEmail });
 
   // ── Start creating a plan (from detection or manually) ──
   const startCreate = (qaEmail, type) => {

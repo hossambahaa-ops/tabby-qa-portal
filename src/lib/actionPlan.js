@@ -42,3 +42,86 @@ export const parseTargets = (str) => {
     return { follow_up_mode: "weekly", metrics: [] };
   } catch { return { follow_up_mode: "weekly", metrics: [] }; }
 };
+
+// Per-row KPI scores using the slab engine.
+export const getKpiScores = (row) => {
+  return Object.entries(KPI_SLABS).map(([key, def]) => {
+    const rawPct = parseRaw(row[def.rawKey]);
+    const slab = calcSlab(rawPct, def.thresholds);
+    const score = (def.weight * slab.pct) / 100;
+    return { key, label: def.label, weight: def.weight, rawPct, slab, score, thresholds: def.thresholds, rawKey: def.rawKey };
+  });
+};
+
+export const getTotalScore = (row) => getKpiScores(row).reduce((s, k) => s + k.score, 0);
+
+// Build default target rows for a QA based on their latest MTD snapshot.
+export const generateTargets = ({ qaEmail, kpiKeys, mtd, duration, sortMonthsDesc, nameFromEmail }) => {
+  const months = sortMonthsDesc([...new Set(mtd.map(r => r.month))]);
+  const latestMonth = months[0];
+  const row = mtd.find(r => r.month === latestMonth && r.qa_email?.toLowerCase() === qaEmail.toLowerCase());
+
+  return (kpiKeys || []).map(key => {
+    const def = KPI_SLABS[key];
+    if (!def) return null;
+    const rawPct = row ? parseRaw(row[def.rawKey]) : null;
+    const slab = rawPct !== null ? calcSlab(rawPct, def.thresholds) : { slab: 0, label: "No data" };
+    return {
+      kpi_key: key,
+      label: def.label,
+      raw_key: def.rawKey,
+      current_value: rawPct,
+      current_slab: slab.label,
+      target_value: "",
+      weekly_targets: Array(duration).fill(""),
+      weight: def.weight,
+      thresholds: def.thresholds,
+    };
+  }).filter(Boolean);
+};
+
+// DAM-driven auto-detection. Pure — returns a sorted array of flagged QAs.
+export const computeDetections = ({ mtdRows, existingPlans, dismissalRows, damFlagRows, damStepRows, sortMonthsDesc, nameFromEmail }) => {
+  const activePlanEmails = existingPlans
+    .filter(p => p.status === "active" || p.status === "pending_review")
+    .map(p => p.qa_email?.toLowerCase());
+  const dismissedEmails = new Set((dismissalRows || []).map(d => d.qa_email?.toLowerCase()));
+  const months = sortMonthsDesc([...new Set(mtdRows.map(r => r.month))]);
+  const latestMonth = months[0] || "—";
+  const activeFlags = (damFlagRows || []).filter(f => f.status === "pending" || f.status === "acknowledged");
+  const flagged = [];
+
+  activeFlags.forEach(flag => {
+    const email = flag.profiles?.email || flag.qa_email?.toLowerCase();
+    if (!email) return;
+    if (activePlanEmails.includes(email)) return;
+    if (dismissedEmails.has(email)) return;
+    if (flagged.find(f => f.email?.toLowerCase() === email)) return;
+
+    const step = (damStepRows || []).find(s => s.rule_id === flag.rule_id && s.occurrence === flag.occurrence_number);
+    if (!step || !step.includes_pip) return;
+
+    const row = mtdRows.find(r => r.qa_email?.toLowerCase() === email && r.month === latestMonth);
+    const totalScore = row ? getTotalScore(row) : 0;
+    const kpis = row ? getKpiScores(row) : [];
+    const ruleName = flag.dam_rules?.name || "Unknown";
+    const behaviorType = flag.dam_rules?.behavior_type?.replace(/_/g, " ") || "";
+    const pipAction = step.pip_action || step.action || "Action Plan required";
+
+    flagged.push({
+      email: flag.profiles?.email || flag.qa_email || email,
+      name: flag.profiles?.display_name || nameFromEmail(email),
+      reason: `DAM: ${ruleName} (${behaviorType}) — Occurrence #${flag.occurrence_number}: ${pipAction}`,
+      severity: flag.occurrence_number >= 3 ? "critical" : flag.occurrence_number >= 2 ? "warning" : "notice",
+      totalScore, kpis, latestMonth,
+      tl: row?.qa_tl,
+      damFlagId: flag.id,
+      planType: step.includes_pip ? "pip" : "ap",
+      pipActionType: step.pip_action || "new",
+    });
+  });
+
+  const sevOrder = { critical: 0, warning: 1, notice: 2 };
+  flagged.sort((a, b) => (sevOrder[a.severity] ?? 9) - (sevOrder[b.severity] ?? 9) || a.totalScore - b.totalScore);
+  return flagged;
+};

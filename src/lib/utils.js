@@ -12,6 +12,12 @@ export const nameFromEmail = (email) => {
   }).filter(Boolean).join(" ");
 };
 
+export const initialsFromEmail = (email) => {
+  const name = nameFromEmail(email);
+  const parts = name.split(" ");
+  return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
+};
+
 /* ═══ GLOBAL FILTER HELPERS ═══ */
 export function applyGF(rows, gf, emailField = "qa_email", rosterMap) {
   if (!gf || !rows) return rows;
