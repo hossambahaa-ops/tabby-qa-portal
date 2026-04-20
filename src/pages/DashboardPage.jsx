@@ -6,6 +6,7 @@ import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listPlans, listPlanWeeks } from "../api/plans.js";
+import { parseRawD, KPI_SLABS_D, calcSlabD, getScore, MAX_SCORE, scoreColor, scoreBg } from "../lib/dashboardScore.js";
 import { useAutoRefresh, useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { ProgressRing, MiniBarChart, SparkLine } from "../components/Charts.jsx";
@@ -37,14 +38,7 @@ function DashboardPage(){
   const nameFromEmailLocal=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
   const fmt=(val)=>{if(val===null||val===undefined||val==="")return"—";const s=String(val).trim();if(s.includes("%"))return s;const n=parseFloat(s.replace(",","."));if(isNaN(n))return s;if(n>=0&&n<=2)return(n*100).toFixed(1)+"%";if(n>2&&!Number.isInteger(n))return n.toFixed(1)+"%";return String(val);};
 
-  // Slab engine for dashboard
-  const parseRawD=(val)=>{if(!val&&val!==0)return null;const s=String(val).trim().replace(",",".");if(s.includes("%"))return parseFloat(s.replace("%",""));const n=parseFloat(s);if(isNaN(n))return null;if(n>=0&&n<=2)return n*100;return n;};
-  const KPI_SLABS_D={occupancy:{weight:15,thresholds:[95,98,100],rawKey:"occupancy_pct"},coaching:{weight:10,thresholds:[90,93,95],rawKey:"ontime_coaching_pct"},calibration:{weight:10,thresholds:[85,90,95],rawKey:"avg_calibration_match_rate"},observation:{weight:10,thresholds:[82,85,88],rawKey:"avg_observation_score_pct"},rtr:{weight:10,thresholds:[80,85,90],rawKey:"avg_rtr_score"}};
-  const calcSlabD=(rawPct,th)=>{if(rawPct===null)return 0;if(rawPct>=th[2])return 100;if(rawPct>=th[1])return 75;if(rawPct>=th[0])return 50;return 0;};
-  const getScore=(row)=>{return Object.values(KPI_SLABS_D).reduce((sum,def)=>{const raw=parseRawD(row[def.rawKey]);return sum+(def.weight*calcSlabD(raw,def.thresholds))/100;},0);};
-  const maxScore=55;
-  const scoreColor=(v)=>v>=maxScore*0.7?"var(--green)":v>=maxScore*0.4?"var(--amber)":"var(--red)";
-  const scoreBg=(v)=>v>=maxScore*0.7?"var(--green-bg)":v>=maxScore*0.4?"var(--amber-bg)":"var(--red-bg)";
+  const maxScore = MAX_SCORE;
 
   const loadDashboard=useCallback(async()=>{try{
     const[mtdRows,rosterRows,profs]=await Promise.all([
