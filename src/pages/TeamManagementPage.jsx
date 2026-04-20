@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
+import { listRoster } from "../api/roster.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { SkeletonTable } from "../components/Skeleton.jsx";
@@ -15,7 +16,7 @@ function TeamManagementPage(){
   const load=useCallback(async()=>{try{const[t,u,r]=await Promise.all([
     sb.query("teams",{select:"id,name,domain,lead_id,supervisor_id,profiles!fk_teams_lead(display_name,email),sup:profiles!fk_teams_supervisor(display_name,email)",token}),
     sb.query("profiles",{select:"id,display_name,email,role,domain",token}),
-    sb.query("qa_roster",{select:"email,display_name,queue,manager_email",token}).catch(()=>[]),
+    listRoster({ token, cache: false }),
   ]);setTeams(t);setUsers(u);setRoster(r);
 
   // Auto-create teams: one DB entry per queue+domain combination

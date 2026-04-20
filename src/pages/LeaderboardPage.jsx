@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail } from "../lib/utils.js";
+import { listRoster } from "../api/roster.js";
+import { listProfiles } from "../api/profiles.js";
+import { listMtd } from "../api/mtd.js";
 import { Icon, icons } from "../components/Icons.jsx";
 import { ProgressRing } from "../components/Charts.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
@@ -41,9 +44,9 @@ function LeaderboardPage() {
     (async () => {
       try {
         const [rows, rosterRows, profRows] = await Promise.all([
-          dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", {select:"*",filters:"order=month.desc,final_performance.desc",token})),
-          dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[])),
-          dataCache.fetch("profiles_slim",()=>sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[])),
+          listMtd({ token, filters: "order=month.desc,final_performance.desc" }),
+          listRoster({ token, select: "email,queue,manager_email" }),
+          listProfiles({ token, select: "id,email,role", cacheKey: "profiles_slim" }),
         ]);
         setData(rows);
         setRoster(rosterRows);

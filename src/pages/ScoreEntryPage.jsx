@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, logActivity } from "../lib/utils.js";
+import { listRoster } from "../api/roster.js";
+import { listProfiles } from "../api/profiles.js";
+import { listMtd } from "../api/mtd.js";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -40,9 +43,9 @@ function ScoreEntryPage(){
     (async () => {
       try {
         const [rows, rosterRows, profRows] = await Promise.all([
-          dataCache.fetch("mtd_scores",()=>sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token})),
-          dataCache.fetch("qa_roster",()=>sb.query("qa_roster", {select:"email,queue,manager_email",token}).catch(()=>[])),
-          dataCache.fetch("profiles_slim",()=>sb.query("profiles", {select:"id,email,role",filters:"status=eq.active",token}).catch(()=>[])),
+          listMtd({ token, filters: "order=month.desc,qa_email.asc" }),
+          listRoster({ token, select: "email,queue,manager_email" }),
+          listProfiles({ token, select: "id,email,role", cacheKey: "profiles_slim" }),
         ]);
         setRoster(rosterRows);
         // Build blacklist: exclude both domain variants of non-QA users
