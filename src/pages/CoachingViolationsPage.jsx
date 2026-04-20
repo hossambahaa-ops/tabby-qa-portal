@@ -3,6 +3,7 @@ import { hasRole } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { listProfiles } from "../api/profiles.js";
+import { listViolations } from "../api/violations.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
@@ -33,7 +34,7 @@ function CoachingViolationsPage() {
   const load = useCallback(async () => {
     try {
       const [v, p, r] = await Promise.all([
-        sb.query("coaching_violations", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
+        listViolations({ token }),
         listProfiles({ token }),
         dataCache.fetch("dam_rules",()=>sb.query("dam_rules", { select: "id,name,behavior_type", filters: "is_active=eq.true&order=name.asc", token }).catch(() => [])),
       ]);

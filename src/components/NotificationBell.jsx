@@ -6,6 +6,8 @@ import { useApp } from "../lib/AppContext.jsx";
 import { listTasks } from "../api/tasks.js";
 import { listCoachingSessions } from "../api/coachingSessions.js";
 import { listPlans } from "../api/plans.js";
+import { listViolations } from "../api/violations.js";
+import { listEscalations } from "../api/escalations.js";
 
 const safe=(v)=>{if(v==null)return"";if(typeof v==="object")return JSON.stringify(v);return String(v);};
 
@@ -41,7 +43,7 @@ function NotificationBell({ onNavigate }) {
           // Tasks assigned to ME
           listTasks({ token, select: "id,title,priority,created_by,eta_date,created_at", filters: `assigned_to=eq.${profile?.email}&status=neq.done&order=created_at.desc&limit=10` }),
           // Escalations routed to ME
-          sb.query("escalations", { select: "id,category,status,submitted_by,created_at", filters: `routed_to=eq.${profile?.email}&status=eq.open&order=created_at.desc&limit=10`, token }).catch(() => []),
+          listEscalations({ token, select: "id,category,status,submitted_by,created_at", filters: `routed_to=eq.${profile?.email}&status=eq.open&order=created_at.desc&limit=10` }),
           // Announcements (everyone gets these) — cached
           dataCache.fetch("notif_announcements",()=>sb.query("announcements", { select: "id,title,priority,sent_by,created_at", filters: "order=created_at.desc&limit=5", token })).catch(() => []),
           // Feedback responses to MY feedback (any role)
@@ -51,13 +53,13 @@ function NotificationBell({ onNavigate }) {
         ];
         // QA Lead gets violations for THEIR team only, DAM flags, and their APs
         if (isLead && !isSv) {
-          queries.push(sb.query("coaching_violations", { select: "id,violation_type,qa_emails,lead_email,created_at", filters: `lead_email=eq.${myEmail}&status=eq.pending&order=created_at.desc&limit=10`, token }).catch(() => []));
+          queries.push(listViolations({ token, select: "id,violation_type,qa_emails,lead_email,created_at", filters: `lead_email=eq.${myEmail}&status=eq.pending&order=created_at.desc&limit=10` }));
           queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
           queries.push(listPlans({ token, select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: `tl_email=eq.${myEmail}&status=eq.active&order=created_at.desc&limit=10` }));
         }
         // Supervisors see their domain's violations + DAM flags
         if (isSv) {
-          queries.push(sb.query("coaching_violations", { select: "id,violation_type,qa_emails,lead_email,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
+          queries.push(listViolations({ token, select: "id,violation_type,qa_emails,lead_email,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10" }));
           queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
           queries.push(listPlans({ token, select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: "status=eq.active&order=created_at.desc&limit=10" }));
         }

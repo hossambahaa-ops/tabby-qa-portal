@@ -4,6 +4,7 @@ import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
+import { listEscalations } from "../api/escalations.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
@@ -99,7 +100,7 @@ function EscalationsPage() {
   const load = useCallback(async () => {
     try {
       const [e, r, svProfs, profs] = await Promise.all([
-        sb.query("escalations", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
+        listEscalations({ token }),
         listRoster({ token }),
         listProfiles({ token, select: "email,display_name,role,operational_domain", filters: "role=eq.qa_supervisor&status=eq.active", cache: false }),
         listProfiles({ token, select: "email,display_name,role,domain", filters: "", cacheKey: "profiles_all" }),
