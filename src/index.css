@@ -874,3 +874,150 @@ html, .main-content, .sidebar-nav, .table-wrap, .notif-dropdown, .search-results
 .dark html, .dark .main-content, .dark .sidebar-nav, .dark .table-wrap, .dark .notif-dropdown, .dark .search-results {
   scrollbar-color: rgba(106,44,121,.3) transparent;
 }
+
+/* ═══════════════════════════════════════════════ */
+/* ══ VISUAL POLISH PASS                        ══ */
+/* ══ 1. hierarchy · 2. card depth · 3. color   ══ */
+/* ═══════════════════════════════════════════════ */
+
+/* ── 1. Type hierarchy ───────────────────────── */
+.eyebrow,
+.stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--tx3);
+}
+.card-title { font-size: 16px; font-weight: 700; letter-spacing: -.3px; }
+.page-title { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
+.page-subtitle { font-size: 14px; color: var(--tx2); line-height: 1.5; }
+.stat-value { font-size: 32px; font-weight: 800; letter-spacing: -1.5px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.section-title { font-size: 12px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--tx2); }
+
+/* ── 2. Card depth & polish ─────────────────── */
+.card {
+  position: relative;
+  transition: transform .22s var(--ease), box-shadow .22s var(--ease), border-color .22s var(--ease);
+}
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.55), transparent 25%);
+  opacity: .4;
+}
+.dark .card::before {
+  background: linear-gradient(180deg, rgba(255,255,255,.035), transparent 35%);
+  opacity: 1;
+}
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+.dark .card:hover { border-color: rgba(106,44,121,.22); }
+.stat-card:hover { transform: translateY(-2px); }
+
+/* Refined shadow scale in dark mode — real depth without haze */
+.dark {
+  --shadow: 0 1px 2px rgba(0,0,0,.45), 0 1px 3px rgba(0,0,0,.25);
+  --shadow-md: 0 6px 18px rgba(0,0,0,.4), 0 2px 6px rgba(106,44,121,.12);
+  --shadow-lg: 0 22px 52px rgba(0,0,0,.45), 0 10px 20px rgba(106,44,121,.14);
+}
+
+/* ── 3. Color discipline ─────────────────────── */
+/* Softer semantic backgrounds in dark mode — status should whisper, not shout */
+.dark {
+  --green-bg: #103024;
+  --amber-bg: #2A210E;
+  --red-bg:   #2A1414;
+  --blue-bg:  #112338;
+  --teal-bg:  #0F2E2A;
+}
+
+/* Status pills — unified compact style */
+.status-active,
+.status-inactive,
+.status-on_leave,
+.role-badge,
+.status-badge {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: .3px;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+/* Neutral accent for non-status emphasis (replaces ad-hoc green) */
+.accent-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--primary-light);
+  color: var(--primary-text);
+  border: 1px solid rgba(106,44,121,.12);
+}
+.dark .accent-chip {
+  background: rgba(106,44,121,.18);
+  color: var(--tabby-purple-light);
+  border-color: rgba(106,44,121,.25);
+}
+
+/* Outline button: calmer hover — neutral border, purple text only on intent */
+.btn-outline {
+  background: var(--bg3);
+  color: var(--tx);
+  border-color: var(--bd);
+}
+.btn-outline:hover {
+  background: var(--bg2);
+  border-color: var(--bd);
+  color: var(--tabby-purple);
+}
+.dark .btn-outline:hover {
+  background: var(--bg2);
+  border-color: rgba(106,44,121,.45);
+  color: var(--tabby-purple-light);
+}
+
+/* Table header weight — a touch more legible */
+th {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--tx3);
+}
+.dark th { color: var(--tx2); }
+
+/* Section dividers in cards — subtle rhythm */
+.card .card-header {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--bd2);
+  margin-bottom: 16px;
+}
+.dark .card .card-header { border-color: rgba(255,255,255,.05); }
+
+/* Input/select focus ring — consistent across all inputs */
+.form-input:focus,
+.input:focus,
+.select:focus,
+textarea:focus,
+input[type="date"]:focus,
+input[type="month"]:focus,
+input[type="number"]:focus,
+input[type="text"]:focus {
+  border-color: var(--tabby-purple);
+  box-shadow: 0 0 0 3px rgba(106,44,121,.12);
+}
+.dark .form-input:focus,
+.dark .input:focus,
+.dark .select:focus,
+.dark textarea:focus {
+  border-color: var(--tabby-purple-light);
+  box-shadow: 0 0 0 3px rgba(139,77,153,.18);
+}
