@@ -1,0 +1,22 @@
+-- v8: Performance cleanup (applied to production 2026-04-21)
+-- Summary (full DDL lives in Supabase migration history):
+--   • Every app-touched RLS policy rewritten to cache auth.uid() /
+--     get_my_email() / has_role_or_above() once per query via
+--     (SELECT …) wrappers. Matches Supabase's auth_rls_initplan
+--     guidance; ~38 policies affected.
+--   • 20 unused indexes dropped:
+--       idx_activity_log_actor, idx_activity_log_created,
+--       idx_ap_dismissals_by, idx_ap_dismissals_qa, idx_apw_coaching,
+--       idx_audit_trail_action, idx_audit_trail_actor,
+--       idx_audit_trail_created, idx_audit_trail_table,
+--       idx_coaching_date, idx_coaching_sender,
+--       idx_daily_scores_email, idx_dam_steps_rule,
+--       idx_escalations_status, idx_escalations_submitted_by,
+--       idx_mtd_new_calibration, idx_profiles_domain,
+--       idx_task_templates_created_by, idx_team_targets_team,
+--       idx_upload_log_month.
+--   • Covering indexes added for dam_flags.{escalation_step_id,
+--     reviewed_by, rule_id} (previously unindexed FKs).
+--   • Hot-path indexes added for the lead-scoped SELECT policies:
+--       idx_qa_roster_manager_email (lower(manager_email))
+--       idx_qa_roster_email          (lower(email))

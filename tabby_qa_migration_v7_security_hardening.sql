@@ -1,0 +1,15 @@
+-- v7: Security hardening (applied to production 2026-04-21)
+-- See tabby_qa_migration_v7_security_hardening.sql in git log for the
+-- deployed statements. Summary:
+--   • audit_trail_insert now requires actor_email = get_my_email()
+--     (was WITH CHECK true — anyone could forge audit rows)
+--   • storage.objects policies scoped: avatars list limited to owner/
+--     admin; escalation-attachments limited to owner / routed_to /
+--     submitter / supervisor+
+--   • search_path pinned on 18 custom functions so they can't be
+--     hijacked via object shadowing in reachable schemas
+--   • 32 orphan rows in daily_scores (10 emails not in roster or
+--     profiles) deleted; removal logged to activity_log
+--
+-- Full DDL is embedded in apply_migration v7_security_hardening in the
+-- Supabase project's migration history.
