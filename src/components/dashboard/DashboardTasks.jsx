@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import ReactDOM from "react-dom";
 import { hasRole, ROLE_LABELS } from "../../lib/constants.js";
 import { sb, dataCache } from "../../lib/supabase.js";
@@ -8,6 +8,7 @@ import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import SearchableSelect from "../SearchableSelect.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
+import { teamEmailsFor } from "../../lib/scope.js";
 
 function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   const { profile, token, globalToast } = useApp();
@@ -27,6 +28,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   const [showTemplates, setShowTemplates] = useState(false);
   const [tplForm, setTplForm] = useState({title:"",description:"",priority:"medium",frequency:"daily",assign_to_type:"my_team",assign_to_value:"",target_metric:"",target_value:""});
   const [attWarning, setAttWarning] = useState(null);
+  const [taskScope, setTaskScope] = useState("mine"); // "mine" | "team"
 
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
@@ -34,17 +36,30 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
 
   const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
 
-  // Load user tasks
+  // Load user tasks. Scope expands for leads/admins so team tasks are visible.
   const loadTasks=useCallback(async()=>{try{
     const myEm=profile?.email?.toLowerCase();
     const t=await listTasks({ token, filters: "order=priority.asc,due_date.asc" });
-    const mine=t.filter(tk=>tk.created_by?.toLowerCase()===myEm||tk.assigned_to?.toLowerCase()===myEm);
-    setUserTasks(mine);
+    let visible;
+    if(hasRole(profile?.role,"admin")){
+      visible = t; // admin sees everything
+    } else if(hasRole(profile?.role,"qa_lead")){
+      const teamSet = teamEmailsFor(profile, roster);
+      teamSet.add(myEm);
+      visible = t.filter(tk=>{
+        const a=tk.assigned_to?.toLowerCase();
+        const c=tk.created_by?.toLowerCase();
+        return (a && teamSet.has(a)) || (c && teamSet.has(c));
+      });
+    } else {
+      visible = t.filter(tk=>tk.created_by?.toLowerCase()===myEm||tk.assigned_to?.toLowerCase()===myEm);
+    }
+    setUserTasks(visible);
     if(hasRole(profile?.role,"qa_lead")){
       const tpls=await sb.query("task_templates",{select:"*",filters:"order=created_at.desc",token}).catch(()=>[]);
       setTaskTemplates(Array.isArray(tpls)?tpls:[]);
     }
-  }catch(e){console.error("Tasks:",e);}},[token,profile?.email]);
+  }catch(e){console.error("Tasks:",e);}},[token,profile?.email,profile?.role,roster]);
   useEffect(()=>{if(profile?.email)loadTasks();},[loadTasks,profile?.email]);
 
   // Auto-close tasks based on daily_scores data
@@ -175,8 +190,28 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   };
 
   const priorityConfig={urgent:{label:"Urgent",color:"var(--red)",bg:"var(--red-bg)"},high:{label:"High",color:"var(--amber)",bg:"var(--amber-bg)"},medium:{label:"Medium",color:"var(--tabby-purple)",bg:"var(--primary-light)"},low:{label:"Low",color:"var(--tx3)",bg:"var(--bg2)"}};
-  const activeTasks=userTasks.filter(t=>t.status!=="done");
-  const doneTasks=userTasks.filter(t=>t.status==="done");
+
+  // Scope split — Mine vs Team
+  const canSeeTeam = hasRole(profile?.role,"qa_lead");
+  const teamEmails = useMemo(() => {
+    if (hasRole(profile?.role,"admin")) {
+      return new Set((roster || []).map(r => r?.email?.toLowerCase()).filter(Boolean));
+    }
+    return teamEmailsFor(profile, roster);
+  }, [profile, roster]);
+  const mineTasks = userTasks.filter(t=>{
+    const a=t.assigned_to?.toLowerCase();
+    return a===myEmail || (!t.assigned_to && t.created_by?.toLowerCase()===myEmail);
+  });
+  const teamTasksAll = userTasks.filter(t=>{
+    const a=t.assigned_to?.toLowerCase();
+    return a && a!==myEmail && teamEmails.has(a);
+  });
+  const scopedTasks = (canSeeTeam && taskScope==="team") ? teamTasksAll : mineTasks;
+  const activeTasks = scopedTasks.filter(t=>t.status!=="done");
+  const doneTasks = scopedTasks.filter(t=>t.status==="done");
+  const mineCount = mineTasks.filter(t=>t.status!=="done").length;
+  const teamCount = teamTasksAll.filter(t=>t.status!=="done").length;
 
   // Task CRUD
   const saveTask=async(forceAssign)=>{
@@ -255,9 +290,15 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   return <>
     <div className="card" style={{marginBottom:20}}>
       <div className="card-header">
-        <span className="card-title" style={{display:"flex",alignItems:"center",gap:10}}>
+        <span className="card-title" style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
           <div style={{width:32,height:32,borderRadius:10,background:"linear-gradient(135deg,var(--tabby-purple),#8B5CF6)",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg></div>
-          My Tasks
+          {canSeeTeam && taskScope==="team" ? "Team Tasks" : "My Tasks"}
+          {canSeeTeam && (
+            <div style={{display:"flex",borderRadius:8,border:"1px solid var(--bd)",overflow:"hidden",marginLeft:4}}>
+              <button onClick={()=>setTaskScope("mine")} style={{padding:"3px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:taskScope==="mine"?"var(--tabby-purple)":"transparent",color:taskScope==="mine"?"#fff":"var(--tx3)"}}>Mine{mineCount>0?` ${mineCount}`:""}</button>
+              <button onClick={()=>setTaskScope("team")} style={{padding:"3px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:taskScope==="team"?"var(--tabby-purple)":"transparent",color:taskScope==="team"?"#fff":"var(--tx3)"}}>Team{teamCount>0?` ${teamCount}`:""}</button>
+            </div>
+          )}
           {activeTasks.length>0&&<span style={{fontSize:12,padding:"3px 10px",borderRadius:10,background:"var(--primary-light)",color:"var(--tabby-purple,var(--primary-text))",fontWeight:700}}>{activeTasks.length}</span>}
           {(()=>{const td=new Date();td.setHours(0,0,0,0);const todayLocal=td.getFullYear()+"-"+String(td.getMonth()+1).padStart(2,"0")+"-"+String(td.getDate()).padStart(2,"0");const cnt=activeTasks.filter(t=>{const eta=t.eta_date||t.due_date;return eta&&eta<todayLocal;}).length;return cnt>0?<span style={{fontSize:10,padding:"3px 10px",borderRadius:10,background:"var(--red-bg)",color:"var(--red)",fontWeight:700,display:"flex",alignItems:"center",gap:3}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 8v4m0 4h.01"/></svg>{cnt} overdue</span>:null;})()}
         </span>
