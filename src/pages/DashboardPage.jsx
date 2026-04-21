@@ -14,6 +14,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import DashboardTasks from "../components/dashboard/DashboardTasks.jsx";
+import MyResponsibilities from "../components/dashboard/MyResponsibilities.jsx";
 import AnnouncementForm from "../components/dashboard/AnnouncementForm.jsx";
 import APDetectionAlerts from "../components/dashboard/APDetectionAlerts.jsx";
 import TeamHealth from "../components/dashboard/TeamHealth.jsx";
@@ -263,6 +264,9 @@ function DashboardPage(){
       </div>
     </div>
     {loading?<SkeletonPage/>:<>
+
+    {/* What needs the lead's attention — deep-links to detail pages */}
+    <MyResponsibilities roster={roster} onNavigate={nav}/>
 
     {/* User Task Management */}
     <DashboardTasks roster={roster} appProfiles={appProfiles} todayAttendance={todayAttendance} dailyScores={dailyScores}/>

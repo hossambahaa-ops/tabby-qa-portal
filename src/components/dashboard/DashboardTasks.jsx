@@ -491,9 +491,14 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
       {activeTasks.length===0&&!showTaskForm?<div style={{textAlign:"center",padding:"24px 0",color:"var(--tx3)",fontSize:13}}>No active tasks</div>:
         <div>
           {(()=>{
-            const myOwnTasks=activeTasks.filter(t=>!t.assigned_to||t.assigned_to?.toLowerCase()===myEmail);
-            const assignedOut=activeTasks.filter(t=>t.assigned_to&&t.assigned_to?.toLowerCase()!==myEmail&&t.created_by?.toLowerCase()===myEmail);
-            const assignedToMe=activeTasks.filter(t=>t.assigned_to?.toLowerCase()===myEmail&&t.created_by?.toLowerCase()!==myEmail);
+            // In Team view, group every task by its assignee regardless of creator.
+            // In Mine view, use the original three-bucket layout.
+            const isTeamView = canSeeTeam && taskScope === "team";
+            const myOwnTasks = isTeamView ? [] : activeTasks.filter(t=>!t.assigned_to||t.assigned_to?.toLowerCase()===myEmail);
+            const assignedToMe = isTeamView ? [] : activeTasks.filter(t=>t.assigned_to?.toLowerCase()===myEmail&&t.created_by?.toLowerCase()!==myEmail);
+            const assignedOut = isTeamView
+              ? activeTasks.filter(t=>t.assigned_to&&t.assigned_to?.toLowerCase()!==myEmail)
+              : activeTasks.filter(t=>t.assigned_to&&t.assigned_to?.toLowerCase()!==myEmail&&t.created_by?.toLowerCase()===myEmail);
             const byPerson={};
             assignedOut.forEach(t=>{const to=t.assigned_to?.toLowerCase()||"";if(!byPerson[to])byPerson[to]=[];byPerson[to].push(t);});
 
