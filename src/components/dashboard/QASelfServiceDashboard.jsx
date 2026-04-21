@@ -26,6 +26,15 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
   const totalEvals = sbs + nonSbs;
   const coaching = parseFloat(d?.coaching_count || d?.coaching_sessions || 0);
   const stMins = parseFloat(d?.side_task_minutes || 0);
+  // Ticket handling day metrics — login_hours drives occupancy like side tasks
+  const loginHrs = parseFloat(d?.login_hours || 0);
+  const loginMins = loginHrs * 60;
+  const csatScore = d?.csat_score !== null && d?.csat_score !== undefined ? parseFloat(d.csat_score) : null;
+  const ticketsHandled = parseFloat(d?.tickets_handled || 0);
+  const apt = d?.apt !== null && d?.apt !== undefined ? parseFloat(d.apt) : null;
+  const agpt = d?.agpt !== null && d?.agpt !== undefined ? parseFloat(d.agpt) : null;
+  const productivity = loginHrs > 0 ? ticketsHandled / loginHrs : 0;
+  const isTicketDay = loginHrs > 0;
 
   // Resolve targets
   const qaEmail = myEmail?.toLowerCase() || "";
@@ -53,7 +62,7 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
   const coachingDur = parseFloat(findTgt("coaching_duration_minutes")?.target_value) || 30;
 
   const shiftMins = whTarget * 60;
-  const productiveMins = (sbs * sbsDur) + (nonSbs * nonSbsDur) + (coaching * coachingDur) + stMins;
+  const productiveMins = (sbs * sbsDur) + (nonSbs * nonSbsDur) + (coaching * coachingDur) + stMins + loginMins;
   const occPct = shiftMins > 0 ? (productiveMins / shiftMins) * 100 : 0;
   const workingHrs = productiveMins / 60;
   const totalTarget = sbsTarget + nonSbsTarget;
@@ -164,7 +173,7 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
 
         {/* Occupancy */}
         <div className="card" style={{ padding: 20, textAlign: "center" }}>
-          <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>Occupancy<HelpTip text={`Productive time / shift hours. SBS=${sbsDur}min, Non-SBS=${nonSbsDur}min, Coaching=${coachingDur}min + side tasks.`}/></div>
+          <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>Occupancy<HelpTip text={`Productive time / shift hours. SBS=${sbsDur}min, Non-SBS=${nonSbsDur}min, Coaching=${coachingDur}min + side tasks + ticket login hours.`}/></div>
           <div style={{ fontSize: 36, fontWeight: 800, color: occPct > 0 ? pctColor(occPct, occTarget) : "var(--tx3)", lineHeight: 1.1 }}>
             {occPct > 0 ? occPct.toFixed(1) + "%" : "—"}
           </div>
@@ -209,6 +218,34 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
           })}
         </div>
       </div>
+
+      {/* Ticket handling — only shown when QA was logged in for tickets today */}
+      {isTicketDay && (
+        <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+          <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+            Ticket Handling
+            <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "var(--primary-light)", color: "var(--primary-text)", fontWeight: 700, textTransform: "none", letterSpacing: 0 }}>Today</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+            {[
+              { label: "Login Hours", val: loginHrs.toFixed(1) + "h", color: "var(--tx)" },
+              { label: "Tickets Handled", val: Math.round(ticketsHandled), color: "var(--tx)" },
+              { label: "Productivity", val: loginHrs > 0 ? productivity.toFixed(1) + "/h" : "—", color: "var(--accent-text)", hint: "Tickets per login hour" },
+              { label: "CSAT", val: csatScore !== null ? csatScore.toFixed(1) + "%" : "—", color: csatScore !== null && csatScore >= 90 ? "var(--green)" : csatScore !== null && csatScore >= 75 ? "var(--amber)" : "var(--red)" },
+              { label: "APT", val: apt !== null ? apt.toFixed(1) + "m" : "—", color: "var(--tx)", hint: "Average Basket Time" },
+              { label: "AGPT", val: agpt !== null ? agpt.toFixed(1) + "m" : "—", color: "var(--tx)", hint: "Average Group Basket Time" },
+            ].map(m => (
+              <div key={m.label} style={{ padding: "10px 12px", background: "var(--bg)", borderRadius: 8 }}>
+                <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+                  {m.label}
+                  {m.hint && <HelpTip text={m.hint} />}
+                </div>
+                <div style={{ fontSize: 18, fontWeight: 700, color: m.color, marginTop: 2 }}>{m.val}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Remaining work */}
       <div className="card" style={{ padding: 16, marginBottom: 16 }}>

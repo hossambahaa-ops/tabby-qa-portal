@@ -245,6 +245,14 @@ function QAProfilePage() {
         const totalEvals = sbs + nonSbs;
         const coaching = parseFloat(d?.coaching_count || d?.coaching_sessions || 0);
         const stMins = parseFloat(d?.side_task_minutes || 0);
+        const loginHrs = parseFloat(d?.login_hours || 0);
+        const loginMins = loginHrs * 60;
+        const csatScore = d?.csat_score !== null && d?.csat_score !== undefined ? parseFloat(d.csat_score) : null;
+        const ticketsHandled = parseFloat(d?.tickets_handled || 0);
+        const apt = d?.apt !== null && d?.apt !== undefined ? parseFloat(d.apt) : null;
+        const agpt = d?.agpt !== null && d?.agpt !== undefined ? parseFloat(d.agpt) : null;
+        const productivity = loginHrs > 0 ? ticketsHandled / loginHrs : 0;
+        const isTicketDay = loginHrs > 0;
         const qaQueue = qa?.queue || "";
         const qaEmail = selectedQA?.toLowerCase() || "";
         const qaDomain = qaEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
@@ -264,7 +272,7 @@ function QAProfilePage() {
         const nonSbsDur = parseFloat(findTgt("non_sbs_duration_minutes")?.target_value) || 15;
         const coachingDur = parseFloat(findTgt("coaching_duration_minutes")?.target_value) || 30;
         const shiftMins = whTarget * 60;
-        const productiveMins = (sbs * sbsDur) + (nonSbs * nonSbsDur) + (coaching * coachingDur) + stMins;
+        const productiveMins = (sbs * sbsDur) + (nonSbs * nonSbsDur) + (coaching * coachingDur) + stMins + loginMins;
         const occPct = shiftMins > 0 ? (productiveMins / shiftMins) * 100 : 0;
         const workingHrs = productiveMins / 60;
         const target = sbsTarget + nonSbsTarget;
@@ -329,6 +337,35 @@ function QAProfilePage() {
                   <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{stMins>0?(stMins>=60?Math.floor(stMins/60)+"h "+Math.round(stMins%60)+"m":Math.round(stMins)+"m"):"0m"}</span>
                 </div>
               </div>
+              {isTicketDay && <>
+                <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
+                  <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>Ticket Handling</div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                    <span style={{fontSize:12,color:"var(--tx2)"}}>Login Hours</span>
+                    <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{loginHrs.toFixed(1)}h</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                    <span style={{fontSize:12,color:"var(--tx2)"}}>Tickets Handled</span>
+                    <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{Math.round(ticketsHandled)}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                    <span style={{fontSize:12,color:"var(--tx2)"}}>Productivity</span>
+                    <span style={{fontSize:13,fontWeight:700,color:"var(--accent-text)"}}>{productivity.toFixed(1)}/h</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                    <span style={{fontSize:12,color:"var(--tx2)"}}>CSAT</span>
+                    <span style={{fontSize:13,fontWeight:700,color:csatScore!==null?(csatScore>=90?"var(--green)":csatScore>=75?"var(--amber)":"var(--red)"):"var(--tx3)"}}>{csatScore!==null?csatScore.toFixed(1)+"%":"—"}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                    <span style={{fontSize:12,color:"var(--tx2)"}}>APT</span>
+                    <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{apt!==null?apt.toFixed(1)+"m":"—"}</span>
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:12,color:"var(--tx2)"}}>AGPT</span>
+                    <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{agpt!==null?agpt.toFixed(1)+"m":"—"}</span>
+                  </div>
+                </div>
+              </>}
               <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>Final Score</span>
@@ -365,20 +402,39 @@ function QAProfilePage() {
               {qaMtd.map(m=><option key={m.month} value={m.month}>{m.month}</option>)}
             </select>}
           </div>
-          {(()=>{const m = selMonth ? qaMtd.find(x=>x.month===selMonth) : latestMtd; if(!m) return <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No MTD data available</div>; return <div style={{padding:"0 16px 16px"}}>
-            {[
+          {(()=>{
+            const m = selMonth ? qaMtd.find(x=>x.month===selMonth) : latestMtd;
+            if(!m) return <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No MTD data available</div>;
+            const totalLogin = parseFloat(m.total_login_hours || 0);
+            const totalTickets = parseFloat(m.total_tickets_handled || 0);
+            const avgProd = totalLogin > 0 ? totalTickets / totalLogin : null;
+            const rows = [
               ["SBS", m.sbs],["Non-SBS", m.non_sbs],["DSAT", m.dsat],
               ["RTR Score", fmtPct(m.avg_rtr_score)],["Calibration", fmtPct(m.avg_calibration_match_rate)],
               ["CO Score", fmtPct(m.avg_observation_score_pct)],["Coaching on-time", fmtPct(m.ontime_coaching_pct)],
               ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"],
               ["Occupancy", fmtPct(m.occupancy_pct)],["JKQ", m.jkq_score || "—"],
-            ].map(([label, val], i) => (
-              <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<9?"1px solid var(--bd)":"none"}}>
-                <span style={{fontSize:13,color:"var(--tx2)"}}>{label}</span>
-                <span style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{safe(val)}</span>
-              </div>
-            ))}
-          </div>;})()}
+            ];
+            // Ticket handling rows — only include if there's any ticket activity this month
+            if (totalLogin > 0 || totalTickets > 0 || m.avg_csat_score != null || m.avg_apt != null || m.avg_agpt != null) {
+              rows.push(
+                ["Login Hours (total)", totalLogin > 0 ? totalLogin.toFixed(1) + "h" : "—"],
+                ["Tickets Handled (total)", totalTickets > 0 ? Math.round(totalTickets) : "—"],
+                ["Productivity (avg)", avgProd !== null ? avgProd.toFixed(1) + "/h" : "—"],
+                ["CSAT (avg)", m.avg_csat_score != null ? Number(m.avg_csat_score).toFixed(1) + "%" : "—"],
+                ["APT (avg)", m.avg_apt != null ? Number(m.avg_apt).toFixed(1) + "m" : "—"],
+                ["AGPT (avg)", m.avg_agpt != null ? Number(m.avg_agpt).toFixed(1) + "m" : "—"],
+              );
+            }
+            return <div style={{padding:"0 16px 16px"}}>
+              {rows.map(([label, val], i) => (
+                <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<rows.length-1?"1px solid var(--bd)":"none"}}>
+                  <span style={{fontSize:13,color:"var(--tx2)"}}>{label}</span>
+                  <span style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{safe(val)}</span>
+                </div>
+              ))}
+            </div>;
+          })()}
         </div>
 
         {/* Individual Performance Trend */}
