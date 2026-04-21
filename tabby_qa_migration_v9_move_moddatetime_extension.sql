@@ -1,0 +1,4 @@
+-- v9: Move moddatetime out of public schema (applied to production 2026-04-21)
+-- Only one trigger depends on it (set_profiles_updated_at); dropped, moved,
+-- recreated pointing at extensions.moddatetime. Clears the
+-- extension_in_public advisor warning.

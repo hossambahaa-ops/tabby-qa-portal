@@ -1,0 +1,21 @@
+-- v10: Finish the auth_rls_initplan cleanup + the remaining unindexed FKs
+-- (applied to production 2026-04-21)
+--
+-- Rewrites every remaining RLS policy in the public schema so that calls
+-- to auth.uid(), auth.role(), get_my_email(), has_role_or_above() are
+-- wrapped in (SELECT …) — Postgres then evaluates them once per query
+-- instead of once per row. 38 → 0 auth_rls_initplan WARNs.
+--
+-- Policies rewritten: profiles_select / _update_self / _update_admin,
+-- esc_insert, teams_insert/_update/_delete, al_insert, ack_insert,
+-- fb_insert, ap_select_auditor, apw_select_auditor, apd_select_auditor,
+-- cv_select_auditor, dam_flags_select_auditor, dam_rules_select_auditor,
+-- dam_steps_select_auditor, gmail_own_select/_insert/_update/_delete,
+-- task_templates_insert/_update/_delete, attendance_insert/_update/_delete,
+-- targets_insert/_update/_delete, daily_scores_read, eval_time_config_read.
+--
+-- FK indexes added:
+--   idx_apw_coaching_session  (action_plan_weeks.coaching_session_id)
+--   idx_teams_lead_id         (teams.lead_id)
+--   idx_teams_supervisor_id   (teams.supervisor_id)
+--   idx_user_teams_team_id    (user_teams.team_id)
