@@ -2,6 +2,9 @@ import React, { useState, useEffect } from "react";
 import { sb, dataCache } from "../../lib/supabase.js";
 import { useApp } from "../../lib/AppContext.jsx";
 import { listTeamTargets } from "../../api/teamTargets.js";
+import { listTasks } from "../../api/tasks.js";
+import { listPlans } from "../../api/plans.js";
+import { listViolations } from "../../api/violations.js";
 
 const KPI_DEFS = [
   { key: "sbs", label: "SBS", field: "sbs", type: "sum" },
@@ -46,11 +49,40 @@ function fmtVal(v, pct) {
 function TeamHealth({ teamData, allTeamEmails, qaQueue, qaDomain }) {
   const { token } = useApp();
   const [targets, setTargets] = useState(null);
+  const [ops, setOps] = useState(null);
 
   useEffect(() => {
     listTeamTargets({ token })
       .then(t => setTargets(t || []));
   }, [token]);
+
+  // Operational counts for the team — open tasks, pending violations, active APs/PIPs
+  useEffect(() => {
+    if (!allTeamEmails?.length) { setOps(null); return; }
+    const teamSet = new Set(allTeamEmails.map(e => e?.toLowerCase()).filter(Boolean));
+    (async () => {
+      const [tasks, plans, violations] = await Promise.all([
+        listTasks({ token, select: "id,status,assigned_to", filters: "status=neq.done" }),
+        listPlans({ token, select: "id,qa_email,status,end_date", filters: "status=eq.active" }),
+        listViolations({ token, select: "id,status,qa_emails", filters: "status=eq.pending" }),
+      ]);
+      const openTasks = (tasks || []).filter(t => t.assigned_to && teamSet.has(t.assigned_to.toLowerCase())).length;
+      const activePlans = (plans || []).filter(p => p.qa_email && teamSet.has(p.qa_email.toLowerCase())).length;
+      const now = new Date();
+      const plansEndingSoon = (plans || []).filter(p => {
+        if (!p.qa_email || !teamSet.has(p.qa_email.toLowerCase()) || !p.end_date) return false;
+        const d = (new Date(p.end_date) - now) / 86400000;
+        return d >= 0 && d <= 7;
+      }).length;
+      const pendingViolations = (violations || []).filter(v => {
+        if (!v.qa_emails) return false;
+        const lower = v.qa_emails.toLowerCase();
+        for (const em of teamSet) if (em && lower.includes(em)) return true;
+        return false;
+      }).length;
+      setOps({ openTasks, activePlans, plansEndingSoon, pendingViolations });
+    })().catch(() => setOps(null));
+  }, [token, allTeamEmails?.join("|")]);
 
   if (!targets || !teamData.length) return null;
 
@@ -114,6 +146,17 @@ function TeamHealth({ teamData, allTeamEmails, qaQueue, qaDomain }) {
           </div>
         ))}
       </div>
+
+      {/* Team operations strip */}
+      {ops && (
+        <div style={{ display: "flex", gap: 16, padding: "10px 16px", borderTop: "1px solid var(--bd2)", fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", flexWrap: "wrap" }}>
+          <span>Ops:</span>
+          <span>Open tasks <strong style={{ color: ops.openTasks > 0 ? "var(--tabby-purple)" : "var(--tx3)", fontWeight: 800 }}>{ops.openTasks}</strong></span>
+          <span>Pending violations <strong style={{ color: ops.pendingViolations > 0 ? "var(--amber)" : "var(--tx3)", fontWeight: 800 }}>{ops.pendingViolations}</strong></span>
+          <span>Active AP/PIP <strong style={{ color: ops.activePlans > 0 ? "var(--tx)" : "var(--tx3)", fontWeight: 800 }}>{ops.activePlans}</strong></span>
+          {ops.plansEndingSoon > 0 && <span>Ending ≤7d <strong style={{ color: "var(--amber)", fontWeight: 800 }}>{ops.plansEndingSoon}</strong></span>}
+        </div>
+      )}
     </div>
   );
 }

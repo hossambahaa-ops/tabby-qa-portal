@@ -195,7 +195,7 @@ function DAMPage(){
     </div>)}</div>}
 
     {tab==="history"&&<div className="card">
-      {flags.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No flags in history yet.</p></div>:
+      {flags.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>{hasRole(profile?.role,"admin")?"No flags in history yet.":hasRole(profile?.role,"qa_supervisor")?"No flags in your domain yet.":"No flags on your team yet."}</p></div>:
       <>
       {hasRole(profile?.role,"super_admin")&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
         <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{

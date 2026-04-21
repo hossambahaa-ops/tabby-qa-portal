@@ -525,8 +525,8 @@ function ActionPlanPage() {
         {activePlans.length === 0 ? (
           <div className="card"><div className="placeholder" style={{ padding: "40px" }}>
             <div className="placeholder-icon"><Icon d={icons.plan} size={28} /></div>
-            <h3>No active plans</h3>
-            <p>Create a new Action Plan or PIP from the Detection tab or the button above.</p>
+            <h3>{isAdmin ? "No active plans" : isSupervisor ? "No active plans in your domain" : "No active plans for your team"}</h3>
+            <p>{isAdmin ? "Create a new Action Plan or PIP from the Detection tab or the button above." : isSupervisor ? "No QA in your operational domain currently has an active AP or PIP. Check the Detection tab for QAs who may need one." : "None of your direct reports is currently on an AP or PIP. Check the Detection tab for QAs who may need one."}</p>
           </div></div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>

@@ -181,7 +181,7 @@ function CoachingViolationsPage() {
       {tab === "pending" && <div className="card">
         {pendingV.length === 0 ? (
           <div className="placeholder" style={{ padding: 40 }}>
-            <p style={{ color: "var(--tx3)" }}>No pending violations to review.</p>
+            <p style={{ color: "var(--tx3)" }}>{hasRole(profile?.role,"admin")?"No pending violations to review.":hasRole(profile?.role,"qa_supervisor")?"No pending violations in your domain.":"No pending violations for your team."}</p>
           </div>
         ) : (
           <div className="table-wrap"><table>
