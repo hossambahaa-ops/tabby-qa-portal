@@ -245,16 +245,11 @@ function AppInner(){
     <div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div>
     <div className="login-footer">Internal tool &middot; Tabby Pulse</div>
   </div></div>);
-  const isAuditor = userRole === "auditor";
   const visibleNav=NAV_ITEMS.filter(n=>{
     if (n.key === "escalations") return true;
-    if (isAuditor) {
-      // Auditors see: dashboard, leaderboard, scores, dam, violations, plans, escalations
-      return !n.minRole || ["dam","violations","plans"].includes(n.key);
-    }
     return !n.minRole || hasRole(userRole, n.minRole);
   });let curSec=null;
-  const guardRole=(role,component,fallbackProps)=>(hasRole(userRole,role)||userRole==="auditor")?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
+  const guardRole=(role,component,fallbackProps)=>hasRole(userRole,role)?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
   const appCtx={token:session?.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast};
   return(<AppContext.Provider value={appCtx}><div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
