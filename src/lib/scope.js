@@ -3,6 +3,21 @@
 // Previously duplicated across ActionPlan, Coaching, Dashboard, Tasks,
 // Leaderboard with subtle drift. All scope questions should go through
 // teamEmailsFor / domainEmailsFor / scopeEmailsFor.
+//
+// Membership authority model:
+//   • qa_roster.manager_email → the ONLY source of truth for team
+//     membership. A QA "reports to" whoever's email is in that column.
+//   • teams.lead_id / teams.supervisor_id → display metadata for the
+//     Team Management page (who leads team X). NOT used to resolve
+//     membership or scope — those questions always go through
+//     qa_roster.manager_email.
+//   • profiles.team_id / user_teams → legacy assignment data
+//     maintained by the admin UI but not consulted for runtime scope.
+//
+// Consequence: if admin sets teams.lead_id but forgets to update
+// qa_roster.manager_email for that team's members, scope queries will
+// still reflect the old lead. That's by design — the roster sync is
+// the authoritative path.
 // ═══════════════════════════════════════════════════════════════════
 
 // Tabby QAs sometimes have email addresses on both tabby.ai and tabby.sa
