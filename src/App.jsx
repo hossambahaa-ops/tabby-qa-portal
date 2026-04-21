@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "r
 import "./index.css";
 import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc } from "./lib/constants.js";
 import { sb, SUPABASE_URL } from "./lib/supabase.js";
+import { initErrorLog } from "./lib/errorLog.js";
 import { listRoster } from "./api/roster.js";
 import { listMtd } from "./api/mtd.js";
 import { Icon, icons, GoogleLogo } from "./components/Icons.jsx";
@@ -76,6 +77,13 @@ function AppInner(){
   const[feedbackSending,setFeedbackSending]=useState(false);
   const[feedbackSent,setFeedbackSent]=useState(false);
   const setPage=(p)=>navigate("/"+p);
+  // Global runtime error capture → Supabase public.client_errors
+  useEffect(() => {
+    initErrorLog({
+      getToken: () => session?.access_token,
+      getUser: () => ({ email: profile?.email, role: profile?.role }),
+    });
+  }, [session?.access_token, profile?.email, profile?.role]);
   // Gmail OAuth redirect
   useEffect(()=>{const urlP=new URLSearchParams(window.location.search);if(urlP.get("state")==="gmail_oauth"){navigate("/quality",{replace:true});}},[]);
   // Dynamic page title

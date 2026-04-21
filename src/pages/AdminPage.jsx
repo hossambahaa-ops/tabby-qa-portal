@@ -4,6 +4,7 @@ import { useApp } from "../lib/AppContext.jsx";
 import AdminUsersPage from "./AdminUsersPage.jsx";
 import TeamManagementPage from "./TeamManagementPage.jsx";
 import AdminFeedbackPage from "./AdminFeedbackPage.jsx";
+import AdminErrorsPage from "./AdminErrorsPage.jsx";
 import AuditTrailPage from "./AuditTrailPage.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 
@@ -12,7 +13,7 @@ function AdminPage(){
   const[tab,setTab]=useUrlState("tab","users");const[teams,setTeams]=useState([]);
   useEffect(()=>{sb.query("teams",{select:"id,name,domain",token}).then(setTeams).catch(()=>{});},[token]);
   return(<div><div className="page" style={{paddingBottom:0}}><div className="page-header" style={{marginBottom:16}}><div className="page-title">Admin panel</div></div>
-    <div className="tab-bar" style={{marginBottom:0}}><button className={`tab-btn ${tab==="users"?"active":""}`} onClick={()=>setTab("users")}>Users</button><button className={`tab-btn ${tab==="teams"?"active":""}`} onClick={()=>setTab("teams")}>Teams</button><button className={`tab-btn ${tab==="audit"?"active":""}`} onClick={()=>setTab("audit")}>Audit trail</button><button className={`tab-btn ${tab==="feedback"?"active":""}`} onClick={()=>setTab("feedback")}>Feedback</button></div></div>
-    {tab==="users"&&<AdminUsersPage teams={teams}/>}{tab==="teams"&&<TeamManagementPage/>}{tab==="audit"&&<AuditTrailPage/>}{tab==="feedback"&&<AdminFeedbackPage/>}</div>);
+    <div className="tab-bar" style={{marginBottom:0}}><button className={`tab-btn ${tab==="users"?"active":""}`} onClick={()=>setTab("users")}>Users</button><button className={`tab-btn ${tab==="teams"?"active":""}`} onClick={()=>setTab("teams")}>Teams</button><button className={`tab-btn ${tab==="audit"?"active":""}`} onClick={()=>setTab("audit")}>Audit trail</button><button className={`tab-btn ${tab==="feedback"?"active":""}`} onClick={()=>setTab("feedback")}>Feedback</button><button className={`tab-btn ${tab==="errors"?"active":""}`} onClick={()=>setTab("errors")}>Errors</button></div></div>
+    {tab==="users"&&<AdminUsersPage teams={teams}/>}{tab==="teams"&&<TeamManagementPage/>}{tab==="audit"&&<AuditTrailPage/>}{tab==="feedback"&&<AdminFeedbackPage/>}{tab==="errors"&&<AdminErrorsPage/>}</div>);
 }
 export default AdminPage;

@@ -1,0 +1,12 @@
+-- v11: public.client_errors (applied to production 2026-04-21)
+-- Table + RLS for the runtime-error capture pipeline.
+-- Populated by src/lib/errorLog.js (window.onerror,
+-- unhandledrejection, React ErrorBoundary). Read in the Admin panel
+-- via the new "Errors" tab.
+--
+-- Policies:
+--   ce_insert  INSERT  authenticated  — any signed-in user logs their own errors
+--   ce_select  SELECT  authenticated  — admin+ only
+--   ce_delete  DELETE  authenticated  — super_admin only
+--
+-- Notification bell surfaces last-24h entries to admins.

@@ -70,12 +70,20 @@ function NotificationBell({ onNavigate }) {
           newFeedbackIdx = queries.length;
           queries.push(sb.query("feedback", { select: "id,user_name,user_email,category,message,created_at", filters: "status=eq.new&order=created_at.desc&limit=10", token }).catch(() => []));
         }
+        // Admins also get alerted when the client-error log picks up new entries
+        let newErrorsIdx = -1;
+        if (isAdmin) {
+          const since = new Date(Date.now() - 24*60*60*1000).toISOString();
+          newErrorsIdx = queries.length;
+          queries.push(sb.query("client_errors", { select: "id,source,message,user_email,created_at", filters: `created_at=gte.${since}&order=created_at.desc&limit=10`, token }).catch(() => []));
+        }
         const results = await Promise.all(queries);
         const [assignedTasks, escalations, announcements, myFeedback, myCoaching] = results;
         const violations = (isLead || isSv) ? (results[5] || []) : [];
         const damFlags = (isLead || isSv) ? (results[6] || []) : [];
         const activePlans = (isLead || isSv) ? (results[7] || []) : [];
         const newFeedback = newFeedbackIdx >= 0 ? (results[newFeedbackIdx] || []) : [];
+        const newErrors  = newErrorsIdx  >= 0 ? (results[newErrorsIdx]  || []) : [];
 
         const all = [
           ...assignedTasks.map(t => ({ id: "t-"+t.id, type: "task", title: `Task: ${t.title}`, sub: `From: ${t.created_by?.split("@")[0]}${t.eta_date?" · ETA: "+new Date(t.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}`, time: t.created_at, page: "dashboard" })),
@@ -97,6 +105,15 @@ function NotificationBell({ onNavigate }) {
             time: f.created_at,
             page: "admin",
             adminTab: "feedback",
+          })),
+          ...newErrors.map(e => ({
+            id: "err-" + e.id,
+            type: "error",
+            title: `Runtime error (${e.source})`,
+            sub: `${(e.message || "").slice(0, 70)}${(e.message || "").length > 70 ? "…" : ""}${e.user_email ? " — " + e.user_email.split("@")[0] : ""}`,
+            time: e.created_at,
+            page: "admin",
+            adminTab: "errors",
           })),
         ];
         // Daily task reminders — check auto-close tasks vs daily_scores
@@ -146,7 +163,7 @@ function NotificationBell({ onNavigate }) {
 
   const visible = items.filter(i => !dismissed.includes(i.id));
   const count = visible.length;
-  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" }, coaching: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" } };
+  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" }, coaching: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, error: { bg: "var(--red-bg)", color: "var(--red)" } };
 
   return (
     <div ref={ref} style={{ position: "relative" }}>

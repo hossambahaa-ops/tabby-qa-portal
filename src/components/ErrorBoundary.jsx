@@ -1,4 +1,5 @@
 import React from "react";
+import { logClientError } from "../lib/errorLog.js";
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -11,6 +12,12 @@ class ErrorBoundary extends React.Component {
   componentDidCatch(error, info) {
     console.error("App crash:", error, info);
     this.setState({ stack: info?.componentStack || "" });
+    logClientError({
+      source: "react_boundary",
+      message: error?.message || String(error),
+      stack: error?.stack,
+      context: { componentStack: (info?.componentStack || "").slice(0, 2000) },
+    });
   }
   render() {
     if (this.state.hasError) {
