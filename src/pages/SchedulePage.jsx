@@ -554,7 +554,7 @@ function SchedulePage() {
             </div>
             <div className="form-group"><label className="form-label">Apply to</label>
               <select className="select form-input" value={bulkScope} onChange={e=>setBulkScope(e.target.value)}>
-                <option value="my_team">{isLead&&!hasRole(profile?.role,"qa_supervisor")?"My team":"All QAs"}</option>
+                <option value="my_team">{isLead&&!hasRole(profile?.role,"qa_supervisor")?"My team (direct reports)":hasRole(profile?.role,"qa_supervisor")?"All QAs in my domain":"All QAs"}</option>
                 <option value="specific">Specific person</option>
                 {selectedQAs.size>0&&<option value="selected">Selected QAs ({selectedQAs.size})</option>}
               </select>
