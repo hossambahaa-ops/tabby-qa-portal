@@ -195,7 +195,7 @@ function LeaderboardPage() {
 
       {view==="individual" && (()=>{
         const myEmailInd = profile?.email?.toLowerCase();
-        const isQaInd = profile?.role === "qa";
+        const isQaInd = profile?.role === "qa" || profile?.role === "senior_qa";
         const isLeadInd = hasRole(profile?.role, "qa_lead") && !hasRole(profile?.role, "qa_supervisor");
         
         // For QA leads: filter to their team only (cross-domain)
@@ -204,8 +204,13 @@ function LeaderboardPage() {
         const myTeamEmailsInd = roster.filter(r => {const m=r.manager_email?.toLowerCase();return m&&(m===myEmailInd||m===myAltInd||m===myLocalInd);}).map(r => r.email?.toLowerCase());
         
         let visibleRanked = ranked;
-        if (isQaInd) {
-          // QAs: top 3 + their own rank
+        if (profile?.role === "senior_qa") {
+          // Senior QA: only their own row
+          const myRankIdx = ranked.findIndex(r => r.qa_email?.toLowerCase() === myEmailInd);
+          const myEntry = myRankIdx >= 0 ? ranked[myRankIdx] : null;
+          visibleRanked = myEntry ? [{ ...myEntry, _myRank: myRankIdx + 1 }] : [];
+        } else if (profile?.role === "qa") {
+          // QA: top 3 + their own rank
           const top3 = ranked.slice(0, 3);
           const myRankIdx = ranked.findIndex(r => r.qa_email?.toLowerCase() === myEmailInd);
           const myEntry = myRankIdx >= 0 ? ranked[myRankIdx] : null;
@@ -224,7 +229,9 @@ function LeaderboardPage() {
 
         return <>
         {isQaInd && <div style={{padding:"8px 14px",background:"var(--bg)",borderRadius:8,marginBottom:12,fontSize:12,color:"var(--tx3)"}}>
-          Showing top 3 performers and your position. Full rankings are visible to team leads.
+          {profile?.role === "senior_qa"
+            ? "Showing your position only. Full rankings are visible to team leads."
+            : "Showing top 3 performers and your position. Full rankings are visible to team leads."}
         </div>}
 
         {/* ── QA Self-Service: My Performance Panel ── */}
@@ -236,7 +243,7 @@ function LeaderboardPage() {
           const myTotal = myKpis.reduce((s,k) => s + k.score, 0);
           // Historical scores across months
           const history = months.slice(0,6).reverse().map(m => {
-            const row = mtd.find(r => r.month === m && r.qa_email?.toLowerCase() === myEmailInd);
+            const row = data.find(r => r.month === m && r.qa_email?.toLowerCase() === myEmailInd);
             if (!row) return { month: m, score: null };
             const ks = getKpiScores(row);
             return { month: m, score: ks.reduce((s,k) => s + k.score, 0) };
@@ -302,8 +309,8 @@ function LeaderboardPage() {
           </div>;
         })()}
 
-        {/* Podium top 3 */}
-        {ranked.length >= 3 && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:20,marginBottom:32,flexWrap:"wrap"}}>
+        {/* Podium top 3 — hidden for senior_qa (they see only their own row) */}
+        {ranked.length >= 3 && profile?.role !== "senior_qa" && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:20,marginBottom:32,flexWrap:"wrap"}}>
           {[1,0,2].map(idx => {
             const r = ranked[idx]; const rank = idx + 1; const isGold = rank === 1;
             const total = getTotalScore(r);
@@ -601,7 +608,7 @@ function LeaderboardPage() {
 
         // Visibility
         const myEmailQ = profile?.email?.toLowerCase();
-        const isQaQ = profile?.role === "qa";
+        const isQaQ = profile?.role === "qa" || profile?.role === "senior_qa";
         const isLeadQ = hasRole(profile?.role, "qa_lead");
         const isSupervisorQ = hasRole(profile?.role, "qa_supervisor");
         const isAdminQ = hasRole(profile?.role, "admin");
@@ -616,6 +623,11 @@ function LeaderboardPage() {
         if (isAdminQ) { visibleQas = allQas; }
         else if (isSupervisorQ) { visibleQas = allQas.filter(qa => qa.email?.endsWith("@" + myDomainQ)); }
         else if (isLeadQ) { visibleQas = allQas.filter(qa => teamEmailsQ.includes(qa.email?.toLowerCase()) || qa.email?.toLowerCase() === myEmailQ); }
+        else if (profile?.role === "senior_qa") {
+          const myEntry = allQas.find(qa => qa.email?.toLowerCase() === myEmailQ);
+          const myRankIdx = allQas.findIndex(qa => qa.email?.toLowerCase() === myEmailQ);
+          visibleQas = myEntry ? [{ ...myEntry, _myRank: myRankIdx + 1 }] : [];
+        }
         else {
           const top3 = allQas.slice(0, 3);
           const myEntry = allQas.find(qa => qa.email?.toLowerCase() === myEmailQ);
@@ -686,7 +698,7 @@ function LeaderboardPage() {
             </div>}
           </div>
 
-          {allQas.length >= 3 && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:20,marginBottom:32,flexWrap:"wrap"}}>
+          {allQas.length >= 3 && profile?.role !== "senior_qa" && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:20,marginBottom:32,flexWrap:"wrap"}}>
             {[1,0,2].map(idx => {
               const qa = allQas[idx]; const rank = idx + 1; const isGold = rank === 1;
               const podiumColors = {
@@ -712,7 +724,9 @@ function LeaderboardPage() {
           </div>}
 
           {isQaQ && <div style={{padding:"8px 14px",background:"var(--bg)",borderRadius:8,marginBottom:12,fontSize:12,color:"var(--tx3)"}}>
-            Showing top 3 performers and your position. Full rankings are visible to team leads.
+            {profile?.role === "senior_qa"
+              ? "Showing your position only. Full rankings are visible to team leads."
+              : "Showing top 3 performers and your position. Full rankings are visible to team leads."}
           </div>}
 
           <div className="card">
