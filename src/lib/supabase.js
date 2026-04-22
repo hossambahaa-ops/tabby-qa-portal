@@ -80,16 +80,36 @@ export const sb = {
         }
       }
       if (tokenParams && tokenParams.get("access_token")) {
+        const access_token = tokenParams.get("access_token");
         const s = {
-          access_token: tokenParams.get("access_token"),
+          access_token,
           refresh_token: tokenParams.get("refresh_token"),
           expires_at: Number(tokenParams.get("expires_at")),
           user: null,
         };
+        // Decode the JWT payload to get identity without a second network
+        // hop. The token is already signed by Supabase so we trust the
+        // claims; a later profile fetch uses the same token as Bearer.
         try {
-          const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${s.access_token}` } });
-          if (r.ok) s.user = await r.json();
+          const [, payload] = access_token.split(".");
+          if (payload) {
+            const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+            const claims = JSON.parse(decodeURIComponent(escape(json)));
+            s.user = {
+              id: claims.sub,
+              email: claims.email,
+              user_metadata: claims.user_metadata || {},
+              app_metadata: claims.app_metadata || {},
+            };
+          }
         } catch {}
+        // Belt and braces: if JWT decode ever fails, try the /user endpoint.
+        if (!s.user) {
+          try {
+            const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${access_token}` } });
+            if (r.ok) s.user = await r.json();
+          } catch {}
+        }
         localStorage.setItem("sb_session", JSON.stringify(s));
         window.history.replaceState(null, "", window.location.pathname);
         return s;
