@@ -2,6 +2,23 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 
+// Supabase OAuth implicit flow returns tokens in the URL hash:
+//   /#access_token=…&refresh_token=…&expires_at=…
+// HashRouter boots synchronously and rewrites any hash that doesn't
+// match its "#/route" convention, which wipes the tokens before
+// handleCallback can read them. Capture + stash the hash here before
+// React mounts; handleCallback in supabase.js will pick it up from
+// sessionStorage and clear it.
+(() => {
+  const h = window.location.hash || "";
+  if (h.includes("access_token=") && h.includes("refresh_token=")) {
+    try { sessionStorage.setItem("sb_oauth_hash", h.replace(/^#/, "")); } catch {}
+    // Strip the hash so HashRouter starts clean and tokens don't sit
+    // in the URL bar / browser history.
+    window.history.replaceState(null, "", window.location.pathname + window.location.search);
+  }
+})();
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />

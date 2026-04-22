@@ -59,7 +59,60 @@ export const sb = {
     async getSession() { const s = localStorage.getItem("sb_session"); if (!s) return null; try { const p = JSON.parse(s); if (p.expires_at && Date.now()/1000 > p.expires_at-60) return sb.auth.refresh(p.refresh_token); return p; } catch { localStorage.removeItem("sb_session"); return null; } },
     async refresh(rt) { try { const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, { method:"POST", headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"}, body:JSON.stringify({refresh_token:rt}) }); if(!r.ok){localStorage.removeItem("sb_session");return null;} const d=await r.json(); const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user}; localStorage.setItem("sb_session",JSON.stringify(s)); return s; } catch{localStorage.removeItem("sb_session");return null;} },
     signInWithGoogle(){window.location.href=`${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(CANONICAL_APP_URL)}`;},
-    async handleCallback(){const h=window.location.hash;if(h&&h.includes("access_token")){const p=new URLSearchParams(h.substring(1));const s={access_token:p.get("access_token"),refresh_token:p.get("refresh_token"),expires_at:Number(p.get("expires_at")),user:null};try{const r=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:SUPABASE_ANON,Authorization:`Bearer ${s.access_token}`}});if(r.ok)s.user=await r.json();}catch{}localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}const urlParams=new URLSearchParams(window.location.search);const c=urlParams.get("code");const state=urlParams.get("state");/* Skip Gmail OAuth codes — they are handled by CoachingPage */if(c&&state==="gmail_oauth"){return null;}if(c){try{const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=authorization_code`,{method:"POST",headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"},body:JSON.stringify({auth_code:c,code_verifier:sessionStorage.getItem("code_verifier")||""})});if(r.ok){const d=await r.json();const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user};localStorage.setItem("sb_session",JSON.stringify(s));window.history.replaceState(null,"",window.location.pathname);return s;}}catch{}}return null;},
+    async handleCallback(){
+      // main.jsx stashes any access_token=... hash into sessionStorage
+      // before HashRouter boots (HashRouter would otherwise normalize
+      // the hash and wipe the tokens before this runs). Fall back to
+      // reading window.location.hash directly in case the stash didn't
+      // happen (older bundle still cached, etc.).
+      let tokenParams = null;
+      try {
+        const stashed = sessionStorage.getItem("sb_oauth_hash");
+        if (stashed && stashed.includes("access_token")) {
+          tokenParams = new URLSearchParams(stashed);
+          sessionStorage.removeItem("sb_oauth_hash");
+        }
+      } catch {}
+      if (!tokenParams) {
+        const h = window.location.hash || "";
+        if (h.includes("access_token")) {
+          tokenParams = new URLSearchParams(h.replace(/^#/, ""));
+        }
+      }
+      if (tokenParams && tokenParams.get("access_token")) {
+        const s = {
+          access_token: tokenParams.get("access_token"),
+          refresh_token: tokenParams.get("refresh_token"),
+          expires_at: Number(tokenParams.get("expires_at")),
+          user: null,
+        };
+        try {
+          const r = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${s.access_token}` } });
+          if (r.ok) s.user = await r.json();
+        } catch {}
+        localStorage.setItem("sb_session", JSON.stringify(s));
+        window.history.replaceState(null, "", window.location.pathname);
+        return s;
+      }
+      const urlParams = new URLSearchParams(window.location.search);
+      const c = urlParams.get("code");
+      const state = urlParams.get("state");
+      /* Skip Gmail OAuth codes — they are handled by CoachingPage */
+      if (c && state === "gmail_oauth") { return null; }
+      if (c) {
+        try {
+          const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=authorization_code`, { method: "POST", headers: { apikey: SUPABASE_ANON, "Content-Type": "application/json" }, body: JSON.stringify({ auth_code: c, code_verifier: sessionStorage.getItem("code_verifier") || "" }) });
+          if (r.ok) {
+            const d = await r.json();
+            const s = { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: d.expires_at, user: d.user };
+            localStorage.setItem("sb_session", JSON.stringify(s));
+            window.history.replaceState(null, "", window.location.pathname);
+            return s;
+          }
+        } catch {}
+      }
+      return null;
+    },
     signOut(){dataCache.invalidate();localStorage.removeItem("sb_session");sessionStorage.clear();window.location.href=window.location.origin;},
   },
 };
