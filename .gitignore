@@ -4,4 +4,4 @@ node_modules/
 dist/
 *.zip
 client_secret_*.json
-.vercel/
+.wrangler/

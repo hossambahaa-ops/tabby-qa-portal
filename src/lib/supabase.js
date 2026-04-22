@@ -2,10 +2,10 @@ export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 export const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Canonical production URL. Used as the OAuth redirect target so that
-// even if someone loads the app at a stale / mirror domain (e.g. an
-// orphaned Vercel preview, a bookmark to an old host), the sign-in flow
-// always lands them on the supported domain and Google sees a
-// redirect_uri that matches the Cloud Console allow-list.
+// even if someone loads the app at a stale / mirror domain (e.g. a
+// preview build or a bookmark to an old host), the sign-in flow always
+// lands them on the supported domain and Google sees a redirect_uri
+// that matches the Cloud Console allow-list.
 // Overridable via VITE_APP_URL for preview/staging builds; dev defaults
 // to window.location.origin so localhost still works.
 const _envAppUrl = import.meta.env.VITE_APP_URL;
