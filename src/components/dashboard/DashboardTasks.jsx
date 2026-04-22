@@ -170,6 +170,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   // Delete all tasks in the "Assigned to team" bucket.
   // In Team view: every active task assigned to someone other than me (any creator).
   // In Mine view: only tasks I created and assigned to someone else.
+  // Batched via `id=in.(...)` so 145 deletes take ~1 request, not 145.
   const deleteAllAssignedTasks=()=>{
     const isTeamView = (hasRole(profile?.role,"qa_lead") || hasRole(profile?.role,"qa_supervisor") || hasRole(profile?.role,"admin")) && taskScope==="team";
     const base = userTasks.filter(t=>t.assigned_to&&t.assigned_to?.toLowerCase()!==myEmail&&t.status!=="done");
@@ -179,19 +180,36 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
       ? `This will delete ${assignedOut.length} task${assignedOut.length!==1?"s":""} assigned to team members. Tasks assigned to yourself will be kept.`
       : `This will delete ${assignedOut.length} task${assignedOut.length!==1?"s":""} you assigned to other people. Tasks assigned to yourself will be kept.`;
     confirmAsk("Delete all assigned tasks?",bodyLine,async()=>{
+      const ids = assignedOut.map(t=>t.id);
+      const idSet = new Set(ids);
       try{
-        let deleted=0, failed=0;
-        for(const t of assignedOut){
+        // Optimistic: remove from local state immediately so the UI reflects
+        // the delete without waiting for a round-trip + re-fetch.
+        setUserTasks(prev => prev.filter(t => !idSet.has(t.id)));
+        // Batch in chunks of 100 to stay well under URL length limits.
+        const CHUNK = 100;
+        let deleted = 0, failed = 0;
+        for (let i=0; i<ids.length; i+=CHUNK){
+          const slice = ids.slice(i, i+CHUNK);
           try{
-            await sb.query("tasks",{token,method:"DELETE",filters:`id=eq.${t.id}`});
-            deleted++;
-          }catch(err){ failed++; console.error("Failed to delete task",t.id,err); }
+            await sb.query("tasks",{token,method:"DELETE",filters:`id=in.(${slice.join(",")})`});
+            deleted += slice.length;
+          }catch(err){
+            failed += slice.length;
+            console.error("Batch delete failed",err);
+          }
         }
         logActivity(token,profile?.email,"bulk_tasks_deleted","tasks",null,`Deleted ${deleted} assigned tasks${failed?` (${failed} failed)`:""}`);
-        if(failed>0) globalToast("error",`Deleted ${deleted}, ${failed} failed (check permissions)`);
-        else globalToast("success",`Deleted ${deleted} assigned task${deleted!==1?"s":""}`);
-        loadTasks();
-      }catch(e){globalToast("error",safeError(e));}
+        if(failed>0){
+          globalToast("error",`Deleted ${deleted}, ${failed} failed (refetching)`);
+          loadTasks(); // refetch to reconcile any failures
+        } else {
+          globalToast("success",`Deleted ${deleted} assigned task${deleted!==1?"s":""}`);
+        }
+      }catch(e){
+        globalToast("error",safeError(e));
+        loadTasks(); // reconcile on any unexpected error
+      }
     },"Delete all","var(--red)");
   };
 
