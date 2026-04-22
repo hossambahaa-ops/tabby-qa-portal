@@ -267,7 +267,7 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
       </div>
 
       {/* Quick stats row */}
-      {myData && <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 16 }}>
+      {myData && <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
         <div className="card" style={{ padding: "14px 16px", textAlign: "center" }}>
           <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>MTD Score</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: myData.final_performance >= 0.4 ? "var(--green)" : myData.final_performance >= 0.25 ? "var(--amber)" : "var(--red)", marginTop: 4 }}>
@@ -288,6 +288,15 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
             {fmtPct(myData.ontime_coaching_pct)}
           </div>
           <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{latestMonth}</div>
+        </div>
+        <div className="card" style={{ padding: "14px 16px", textAlign: "center", cursor: "pointer" }}
+             onClick={()=>window.dispatchEvent(new CustomEvent("navigate",{detail:"scores"}))}
+             title="View CSAT breakdown">
+          <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>CSAT %</div>
+          <div style={{ fontSize: 22, fontWeight: 800, color: myData.avg_csat_score != null ? (Number(myData.avg_csat_score) >= 90 ? "var(--green)" : Number(myData.avg_csat_score) >= 75 ? "var(--amber)" : "var(--red)") : "var(--tx3)", marginTop: 4 }}>
+            {myData.avg_csat_score != null ? Number(myData.avg_csat_score).toFixed(1) + "%" : "—"}
+          </div>
+          <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{myData.total_surveys != null ? `${myData.total_surveys} surveys` : "No surveys"}</div>
         </div>
       </div>}
     </div>

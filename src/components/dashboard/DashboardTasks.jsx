@@ -167,19 +167,29 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
     },"Delete","var(--red)");
   };
 
-  // Delete all tasks I assigned to others
+  // Delete all tasks in the "Assigned to team" bucket.
+  // In Team view: every active task assigned to someone other than me (any creator).
+  // In Mine view: only tasks I created and assigned to someone else.
   const deleteAllAssignedTasks=()=>{
-    const assignedOut=userTasks.filter(t=>t.created_by?.toLowerCase()===myEmail&&t.assigned_to&&t.assigned_to?.toLowerCase()!==myEmail&&t.status!=="done");
+    const isTeamView = (hasRole(profile?.role,"qa_lead") || hasRole(profile?.role,"qa_supervisor") || hasRole(profile?.role,"admin")) && taskScope==="team";
+    const base = userTasks.filter(t=>t.assigned_to&&t.assigned_to?.toLowerCase()!==myEmail&&t.status!=="done");
+    const assignedOut = isTeamView ? base : base.filter(t=>t.created_by?.toLowerCase()===myEmail);
     if(assignedOut.length===0){globalToast("error","No assigned tasks to delete");return;}
-    confirmAsk("Delete all assigned tasks?",`This will delete ${assignedOut.length} task${assignedOut.length!==1?"s":""} you assigned to other people. Tasks assigned to yourself will be kept.`,async()=>{
+    const bodyLine = isTeamView
+      ? `This will delete ${assignedOut.length} task${assignedOut.length!==1?"s":""} assigned to team members. Tasks assigned to yourself will be kept.`
+      : `This will delete ${assignedOut.length} task${assignedOut.length!==1?"s":""} you assigned to other people. Tasks assigned to yourself will be kept.`;
+    confirmAsk("Delete all assigned tasks?",bodyLine,async()=>{
       try{
-        let deleted=0;
+        let deleted=0, failed=0;
         for(const t of assignedOut){
-          await sb.query("tasks",{token,method:"DELETE",filters:`id=eq.${t.id}`});
-          deleted++;
+          try{
+            await sb.query("tasks",{token,method:"DELETE",filters:`id=eq.${t.id}`});
+            deleted++;
+          }catch(err){ failed++; console.error("Failed to delete task",t.id,err); }
         }
-        logActivity(token,profile?.email,"bulk_tasks_deleted","tasks",null,`Deleted ${deleted} assigned tasks`);
-        globalToast("success",`Deleted ${deleted} assigned task${deleted!==1?"s":""}`);
+        logActivity(token,profile?.email,"bulk_tasks_deleted","tasks",null,`Deleted ${deleted} assigned tasks${failed?` (${failed} failed)`:""}`);
+        if(failed>0) globalToast("error",`Deleted ${deleted}, ${failed} failed (check permissions)`);
+        else globalToast("success",`Deleted ${deleted} assigned task${deleted!==1?"s":""}`);
         loadTasks();
       }catch(e){globalToast("error",safeError(e));}
     },"Delete all","var(--red)");

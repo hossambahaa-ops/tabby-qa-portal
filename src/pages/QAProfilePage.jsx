@@ -337,6 +337,17 @@ function QAProfilePage() {
                   <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{stMins>0?(stMins>=60?Math.floor(stMins/60)+"h "+Math.round(stMins%60)+"m":Math.round(stMins)+"m"):"0m"}</span>
                 </div>
               </div>
+              <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
+                <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>CSAT ({latestMtd?.month || "—"})</div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                  <span style={{fontSize:12,color:"var(--tx2)"}}>CSAT %</span>
+                  <span style={{fontSize:13,fontWeight:700,color:latestMtd?.avg_csat_score!=null?(Number(latestMtd.avg_csat_score)>=90?"var(--green)":Number(latestMtd.avg_csat_score)>=75?"var(--amber)":"var(--red)"):"var(--tx3)"}}>{latestMtd?.avg_csat_score!=null?Number(latestMtd.avg_csat_score).toFixed(1)+"%":"—"}</span>
+                </div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span style={{fontSize:12,color:"var(--tx2)"}}>Surveys</span>
+                  <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{latestMtd?.total_surveys ?? "—"}</span>
+                </div>
+              </div>
               {isTicketDay && <>
                 <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
                   <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>Ticket Handling</div>
@@ -351,10 +362,6 @@ function QAProfilePage() {
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                     <span style={{fontSize:12,color:"var(--tx2)"}}>Productivity</span>
                     <span style={{fontSize:13,fontWeight:700,color:"var(--accent-text)"}}>{productivity.toFixed(1)}/h</span>
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                    <span style={{fontSize:12,color:"var(--tx2)"}}>CSAT</span>
-                    <span style={{fontSize:13,fontWeight:700,color:csatScore!==null?(csatScore>=90?"var(--green)":csatScore>=75?"var(--amber)":"var(--red)"):"var(--tx3)"}}>{csatScore!==null?csatScore.toFixed(1)+"%":"—"}</span>
                   </div>
                   <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                     <span style={{fontSize:12,color:"var(--tx2)"}}>APT</span>
@@ -414,14 +421,15 @@ function QAProfilePage() {
               ["CO Score", fmtPct(m.avg_observation_score_pct)],["Coaching on-time", fmtPct(m.ontime_coaching_pct)],
               ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"],
               ["Occupancy", fmtPct(m.occupancy_pct)],["JKQ", m.jkq_score || "—"],
+              ["CSAT %", m.avg_csat_score != null ? Number(m.avg_csat_score).toFixed(1) + "%" : "—"],
+              ["Surveys", m.total_surveys ?? "—"],
             ];
             // Ticket handling rows — only include if there's any ticket activity this month
-            if (totalLogin > 0 || totalTickets > 0 || m.avg_csat_score != null || m.avg_apt != null || m.avg_agpt != null) {
+            if (totalLogin > 0 || totalTickets > 0 || m.avg_apt != null || m.avg_agpt != null) {
               rows.push(
                 ["Login Hours (total)", totalLogin > 0 ? totalLogin.toFixed(1) + "h" : "—"],
                 ["Tickets Handled (total)", totalTickets > 0 ? Math.round(totalTickets) : "—"],
                 ["Productivity (avg)", avgProd !== null ? avgProd.toFixed(1) + "/h" : "—"],
-                ["CSAT (avg)", m.avg_csat_score != null ? Number(m.avg_csat_score).toFixed(1) + "%" : "—"],
                 ["APT (avg)", m.avg_apt != null ? Number(m.avg_apt).toFixed(1) + "m" : "—"],
                 ["AGPT (avg)", m.avg_agpt != null ? Number(m.avg_agpt).toFixed(1) + "m" : "—"],
               );
