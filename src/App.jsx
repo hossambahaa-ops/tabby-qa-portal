@@ -18,6 +18,7 @@ import { subscribeRealtime } from "./lib/realtime.js";
 import useKeyboard from "./lib/useKeyboard.jsx";
 const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
 const ScoreEntryPage = lazy(() => import("./pages/ScoreEntryPage.jsx"));
+const CSATPage = lazy(() => import("./pages/CSATPage.jsx"));
 const TargetsPage = lazy(() => import("./pages/TargetsPage.jsx"));
 const AuditTrailPage = lazy(() => import("./pages/AuditTrailPage.jsx"));
 const AdminPage = lazy(() => import("./pages/AdminPage.jsx"));
@@ -47,6 +48,7 @@ const NAV_ITEMS=[
   {key:"leaderboard",label:"Leaderboard",icon:icons.leaderboard},
   {key:"profile",label:"QA Profile",icon:icons.hr,section:"Performance"},
   {key:"scores",label:"MTD",icon:icons.scores},
+  {key:"csat",label:"CSAT",icon:icons.leaderboard},
   {key:"targets",label:"Targets",icon:icons.scores,minRole:"qa_lead"},
   {key:"schedule",label:"Schedule",icon:icons.coaching,section:"Management"},
   {key:"quality",label:"Quality Control",icon:icons.dam,minRole:"qa_lead"},
@@ -335,6 +337,7 @@ function AppInner(){
     <div className="page-animate"><Suspense fallback={<div style={{display:"flex",justifyContent:"center",alignItems:"center",minHeight:200}}><div className="pulse-loader"/></div>}><Routes>
       <Route path="/dashboard" element={<DashboardPage/>}/>
       <Route path="/scores" element={<ScoreEntryPage/>}/>
+      <Route path="/csat" element={<CSATPage/>}/>
       <Route path="/targets" element={<TargetsPage/>}/>
       <Route path="/leaderboard" element={<LeaderboardPage/>}/>
       <Route path="/profile" element={<QAProfilePage/>}/>

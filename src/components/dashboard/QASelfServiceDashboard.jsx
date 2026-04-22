@@ -290,7 +290,7 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
           <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{latestMonth}</div>
         </div>
         <div className="card" style={{ padding: "14px 16px", textAlign: "center", cursor: "pointer" }}
-             onClick={()=>window.dispatchEvent(new CustomEvent("navigate",{detail:"scores"}))}
+             onClick={()=>window.dispatchEvent(new CustomEvent("navigate",{detail:"csat"}))}
              title="View CSAT breakdown">
           <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>CSAT %</div>
           <div style={{ fontSize: 22, fontWeight: 800, color: myData.avg_csat_score != null ? (Number(myData.avg_csat_score) >= 90 ? "var(--green)" : Number(myData.avg_csat_score) >= 75 ? "var(--amber)" : "var(--red)") : "var(--tx3)", marginTop: 4 }}>

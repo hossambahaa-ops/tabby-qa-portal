@@ -37,13 +37,6 @@ function ScoreEntryPage(){
   const [uploading, setUploading] = useState(false);
   const [uploadResult, setUploadResult] = useState(null);
   const [uploadLogs, setUploadLogs] = useState([]);
-  const [csatView, setCsatView] = useState("qa"); // qa | lead
-  const [expandedCsatEmail, setExpandedCsatEmail] = useState(null);
-  const [expandedCsatLead, setExpandedCsatLead] = useState(null);
-  const [csatTopics, setCsatTopics] = useState({}); // keyed by `${email}__${month}` -> array of topic rows
-  const [csatLeadTopics, setCsatLeadTopics] = useState({}); // keyed by `${leadEmail}__${month}` -> array of aggregated topic rows
-  const [csatTopicsLoading, setCsatTopicsLoading] = useState(null);
-  const [csatLeadTopicsLoading, setCsatLeadTopicsLoading] = useState(null);
   const isUploadAllowed = hasRole(profile?.role,"admin");
 
   useEffect(() => {
@@ -401,245 +394,6 @@ function ScoreEntryPage(){
       </div>
     </div>
 
-    {(() => {
-      const csatSorted = [...sorted].sort((a,b) => (b.avg_csat_score ?? -1) - (a.avg_csat_score ?? -1));
-      const csatColor = (v) => v==null?"var(--tx3)":v>=90?"var(--green)":v>=75?"var(--amber)":"var(--red)";
-      const monthDate = selMonth ? `${selMonth}-01` : null;
-      const topicKey = (email) => `${email}__${monthDate}`;
-      const toggleCsatRow = async (email) => {
-        if (expandedCsatEmail === email) { setExpandedCsatEmail(null); return; }
-        setExpandedCsatEmail(email);
-        const key = topicKey(email);
-        if (csatTopics[key] || !monthDate) return;
-        setCsatTopicsLoading(email);
-        try {
-          const rows = await sb.query("csat_by_topic", {
-            select: "topic,csat_score,surveys_count",
-            filters: `qa_email=eq.${encodeURIComponent(email)}&month=eq.${monthDate}&order=csat_score.desc.nullslast`,
-            token
-          });
-          setCsatTopics(prev => ({ ...prev, [key]: rows || [] }));
-        } catch (e) {
-          setCsatTopics(prev => ({ ...prev, [key]: [] }));
-        }
-        setCsatTopicsLoading(null);
-      };
-
-      // Aggregate per lead — weighted by survey count when available, falls back to arithmetic mean
-      const csatLeads = (() => {
-        const map = {};
-        csatSorted.forEach(r => {
-          const tl = (r.qa_tl || "unknown").toLowerCase();
-          if (!map[tl]) map[tl] = { tl: r.qa_tl || "Unknown", emails: [], count: 0, weightedSum: 0, weight: 0, simpleSum: 0, simpleCount: 0, surveys: 0 };
-          const l = map[tl];
-          l.emails.push(r.qa_email);
-          l.count++;
-          if (r.avg_csat_score != null) {
-            const score = Number(r.avg_csat_score);
-            const surveys = Number(r.total_surveys || 0);
-            l.simpleSum += score; l.simpleCount++;
-            if (surveys > 0) { l.weightedSum += score * surveys; l.weight += surveys; }
-            l.surveys += surveys;
-          }
-        });
-        return Object.values(map).map(l => ({
-          ...l,
-          csat: l.weight > 0 ? l.weightedSum / l.weight : (l.simpleCount > 0 ? l.simpleSum / l.simpleCount : null),
-        })).sort((a,b) => (b.csat ?? -1) - (a.csat ?? -1));
-      })();
-
-      const toggleCsatLeadRow = async (lead) => {
-        const tlKey = (lead.tl || "unknown").toLowerCase();
-        if (expandedCsatLead === tlKey) { setExpandedCsatLead(null); return; }
-        setExpandedCsatLead(tlKey);
-        const key = `${tlKey}__${monthDate}`;
-        if (csatLeadTopics[key] || !monthDate || lead.emails.length === 0) return;
-        setCsatLeadTopicsLoading(tlKey);
-        try {
-          const emailList = lead.emails.map(e => `"${e}"`).join(",");
-          const rows = await sb.query("csat_by_topic", {
-            select: "topic,csat_score,surveys_count",
-            filters: `qa_email=in.(${emailList})&month=eq.${monthDate}`,
-            token
-          });
-          const agg = {};
-          (rows || []).forEach(t => {
-            if (!agg[t.topic]) agg[t.topic] = { topic: t.topic, weightedSum: 0, weight: 0, simpleSum: 0, simpleCount: 0, surveys: 0 };
-            const a = agg[t.topic];
-            if (t.csat_score != null) {
-              const score = Number(t.csat_score);
-              const surveys = Number(t.surveys_count || 0);
-              a.simpleSum += score; a.simpleCount++;
-              if (surveys > 0) { a.weightedSum += score * surveys; a.weight += surveys; }
-              a.surveys += surveys;
-            }
-          });
-          const aggRows = Object.values(agg).map(a => ({
-            topic: a.topic,
-            csat_score: a.weight > 0 ? a.weightedSum / a.weight : (a.simpleCount > 0 ? a.simpleSum / a.simpleCount : null),
-            surveys_count: a.surveys,
-          })).sort((x,y) => (y.csat_score ?? -1) - (x.csat_score ?? -1));
-          setCsatLeadTopics(prev => ({ ...prev, [key]: aggRows }));
-        } catch (e) {
-          setCsatLeadTopics(prev => ({ ...prev, [key]: [] }));
-        }
-        setCsatLeadTopicsLoading(null);
-      };
-
-      const csatCard = sorted.length > 0 ? (
-        <div className="card" style={{marginTop:16}}>
-          <div className="card-header">
-            <span className="card-title">CSAT — {selMonth}</span>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <div style={{display:"flex",borderRadius:8,border:"1px solid var(--bd)",overflow:"hidden"}}>
-                <button onClick={()=>setCsatView("qa")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:csatView==="qa"?"var(--tabby-purple)":"transparent",color:csatView==="qa"?"#fff":"var(--tx3)"}}>By QA</button>
-                <button onClick={()=>setCsatView("lead")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:csatView==="lead"?"var(--tabby-purple)":"transparent",color:csatView==="lead"?"#fff":"var(--tx3)"}}>By Lead</button>
-              </div>
-              <span style={{fontSize:12,color:"var(--tx3)"}}>Click a row to see per-topic breakdown</span>
-            </div>
-          </div>
-          {csatView === "qa" ? (
-          <div className="table-wrap table-wrap-sticky">
-            <table>
-              <thead>
-                <tr>
-                  <th style={{width:32}}></th>
-                  <th style={{minWidth:180}}>Specialist</th>
-                  <th>TL</th>
-                  <th style={{textAlign:"right"}}>CSAT %</th>
-                  <th style={{textAlign:"right"}}>Surveys</th>
-                </tr>
-              </thead>
-              <tbody>
-                {csatSorted.map(r => {
-                  const isExpanded = expandedCsatEmail === r.qa_email;
-                  const topics = csatTopics[topicKey(r.qa_email)];
-                  const isLoading = csatTopicsLoading === r.qa_email;
-                  return <React.Fragment key={r.id+"-csat"}>
-                    <tr onClick={()=>toggleCsatRow(r.qa_email)} style={{cursor:"pointer",background:isExpanded?"var(--accent-light)":undefined}}>
-                      <td style={{textAlign:"center"}}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s",color:"var(--tx3)"}}><path d="M6 9l6 6 6-6"/></svg>
-                      </td>
-                      <td>
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>
-                            {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
-                          </div>
-                          <div style={{fontWeight:500,fontSize:13,whiteSpace:"nowrap"}}>{nameFromEmail(r.qa_email)}</div>
-                        </div>
-                      </td>
-                      <td style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
-                      <td style={{textAlign:"right",fontWeight:600,color:csatColor(r.avg_csat_score)}}>{r.avg_csat_score!=null?Number(r.avg_csat_score).toFixed(1)+"%":"—"}</td>
-                      <td style={{textAlign:"right"}}>{r.total_surveys ?? "—"}</td>
-                    </tr>
-                    {isExpanded && <tr>
-                      <td colSpan={5} style={{padding:"0 16px 16px 52px",background:"var(--bg)"}}>
-                        {isLoading ? (
-                          <div style={{padding:"12px 0",fontSize:12,color:"var(--tx3)"}}>Loading topics…</div>
-                        ) : !topics || topics.length === 0 ? (
-                          <div style={{padding:"12px 0",fontSize:12,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
-                        ) : (
-                          <table style={{width:"100%",marginTop:8}}>
-                            <thead>
-                              <tr style={{borderBottom:"1px solid var(--bd2)"}}>
-                                <th style={{textAlign:"left",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Topic</th>
-                                <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>CSAT %</th>
-                                <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Surveys</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {topics.map((t,i)=>(
-                                <tr key={i}>
-                                  <td style={{padding:"6px 8px",fontSize:13}}>{t.topic}</td>
-                                  <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",fontWeight:600,color:csatColor(t.csat_score)}}>{t.csat_score!=null?Number(t.csat_score).toFixed(1)+"%":"—"}</td>
-                                  <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",color:"var(--tx2)"}}>{t.surveys_count ?? 0}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                      </td>
-                    </tr>}
-                  </React.Fragment>;
-                })}
-              </tbody>
-            </table>
-          </div>
-          ) : (
-          <div className="table-wrap table-wrap-sticky">
-            <table>
-              <thead>
-                <tr>
-                  <th style={{width:32}}></th>
-                  <th style={{minWidth:180}}>Lead</th>
-                  <th style={{textAlign:"right"}}>QAs</th>
-                  <th style={{textAlign:"right"}}>CSAT %</th>
-                  <th style={{textAlign:"right"}}>Surveys</th>
-                </tr>
-              </thead>
-              <tbody>
-                {csatLeads.map(l => {
-                  const tlKey = (l.tl || "unknown").toLowerCase();
-                  const isExpanded = expandedCsatLead === tlKey;
-                  const topics = csatLeadTopics[`${tlKey}__${monthDate}`];
-                  const isLoading = csatLeadTopicsLoading === tlKey;
-                  return <React.Fragment key={tlKey+"-csat-lead"}>
-                    <tr onClick={()=>toggleCsatLeadRow(l)} style={{cursor:"pointer",background:isExpanded?"var(--accent-light)":undefined}}>
-                      <td style={{textAlign:"center"}}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s",color:"var(--tx3)"}}><path d="M6 9l6 6 6-6"/></svg>
-                      </td>
-                      <td>
-                        <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>
-                            {nameFromEmail(l.tl).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
-                          </div>
-                          <div>
-                            <div style={{fontWeight:600,fontSize:13}}>{nameFromEmail(l.tl)}</div>
-                            <div style={{fontSize:10,color:"var(--tx3)"}}>{l.count} QA{l.count!==1?"s":""}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{textAlign:"right",fontWeight:600}}>{l.count}</td>
-                      <td style={{textAlign:"right",fontWeight:600,color:csatColor(l.csat)}}>{l.csat!=null?l.csat.toFixed(1)+"%":"—"}</td>
-                      <td style={{textAlign:"right"}}>{l.surveys || "—"}</td>
-                    </tr>
-                    {isExpanded && <tr>
-                      <td colSpan={5} style={{padding:"0 16px 16px 52px",background:"var(--bg)"}}>
-                        {isLoading ? (
-                          <div style={{padding:"12px 0",fontSize:12,color:"var(--tx3)"}}>Loading topics…</div>
-                        ) : !topics || topics.length === 0 ? (
-                          <div style={{padding:"12px 0",fontSize:12,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
-                        ) : (
-                          <table style={{width:"100%",marginTop:8}}>
-                            <thead>
-                              <tr style={{borderBottom:"1px solid var(--bd2)"}}>
-                                <th style={{textAlign:"left",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Topic</th>
-                                <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>CSAT %</th>
-                                <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Surveys</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {topics.map((t,i)=>(
-                                <tr key={i}>
-                                  <td style={{padding:"6px 8px",fontSize:13}}>{t.topic}</td>
-                                  <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",fontWeight:600,color:csatColor(t.csat_score)}}>{t.csat_score!=null?Number(t.csat_score).toFixed(1)+"%":"—"}</td>
-                                  <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",color:"var(--tx2)"}}>{t.surveys_count ?? 0}</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        )}
-                      </td>
-                    </tr>}
-                  </React.Fragment>;
-                })}
-              </tbody>
-            </table>
-          </div>
-          )}
-        </div>
-      ) : null;
-      return <>
     {sorted.length === 0 ? (
       <div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No MTD data for {selMonth}. Check that the Google Sheet sync is running.</p></div></div>
     ) : (
@@ -794,7 +548,7 @@ function ScoreEntryPage(){
           const leadMap={};
           sorted.forEach(r=>{
             const tl=(r.qa_tl||"unknown").toLowerCase();
-            if(!leadMap[tl])leadMap[tl]={tl:r.qa_tl||"Unknown",count:0,sbs:0,non_sbs:0,dsat:0,late:0,never:0,valid:0,invalid:0,sessions:0,ontime:0,eligible:0,not_coached:0,rtr:0,rtr_scores:[],obs:0,obs_scores:[],calib:0,calib_scores:[],completion:[],ontime_pct:[],tickets:[],occupancy:[],days:0,st_mins:0,performance:[]};
+            if(!leadMap[tl])leadMap[tl]={tl:r.qa_tl||"Unknown",count:0,sbs:0,non_sbs:0,dsat:0,late:0,never:0,valid:0,invalid:0,sessions:0,ontime:0,eligible:0,not_coached:0,rtr:0,rtr_scores:[],obs:0,obs_scores:[],calib:0,calib_scores:[],completion:[],ontime_pct:[],tickets:[],occupancy:[],days:0,st_mins:0,performance:[],csat_weighted_sum:0,csat_weight:0,csat_simple_sum:0,csat_simple_count:0,total_surveys:0};
             const l=leadMap[tl];
             l.count++;l.sbs+=(r.sbs||0);l.non_sbs+=(r.non_sbs||0);l.dsat+=(r.dsat||0);l.late+=(r.late_count||0);l.never+=(r.never_count||0);l.valid+=(r.valid_count||0);l.invalid+=(r.invalid_count||0);
             l.sessions+=(r.coaching_sessions||0);l.ontime+=(r.total_ontime_coachings||0);l.eligible+=(r.coaching_eligibility_count||0);l.not_coached+=(r.not_coached||0);
@@ -807,13 +561,24 @@ function ScoreEntryPage(){
             if(r.occupancy_pct)l.occupancy.push(parseFloat(r.occupancy_pct)||0);
             l.days+=(r.working_days||0);l.st_mins+=(r.side_tasks_duration_mins||0);
             if(r.final_performance)l.performance.push(parseFloat(r.final_performance)||0);
+            if(r.avg_csat_score!=null){
+              const score=Number(r.avg_csat_score);
+              const surveys=Number(r.total_surveys||0);
+              l.csat_simple_sum+=score; l.csat_simple_count++;
+              if(surveys>0){ l.csat_weighted_sum+=score*surveys; l.csat_weight+=surveys; }
+              l.total_surveys+=surveys;
+            }
           });
           const avg=(arr)=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
+          const leadCsat=(l)=>l.csat_weight>0?l.csat_weighted_sum/l.csat_weight:(l.csat_simple_count>0?l.csat_simple_sum/l.csat_simple_count:null);
+          const csatColor=(v)=>v==null?"var(--tx3)":v>=90?"var(--green)":v>=75?"var(--amber)":"var(--red)";
           const leads=Object.values(leadMap).sort((a,b)=>avg(b.performance)-avg(a.performance));
           return <div className="table-wrap table-wrap-sticky"><table>
             <thead><tr>
               <th style={{minWidth:160}}>Lead</th>
               <th style={{textAlign:"right"}}>QAs</th>
+              <th style={{textAlign:"right"}}>CSAT %</th>
+              <th style={{textAlign:"right"}}>Surveys</th>
               <th style={{textAlign:"right"}}>SBS</th>
               <th style={{textAlign:"right"}}>Non-SBS</th>
               <th style={{textAlign:"right"}}>DSAT</th>
@@ -842,6 +607,8 @@ function ScoreEntryPage(){
                     <div><div style={{fontWeight:600,fontSize:13}}>{nameFromEmail(l.tl)}</div><div style={{fontSize:10,color:"var(--tx3)"}}>{l.count} QA{l.count!==1?"s":""}</div></div>
                   </div></td>
                   <td style={{textAlign:"right",fontWeight:600}}>{l.count}</td>
+                  <td style={{textAlign:"right",fontWeight:600,color:csatColor(leadCsat(l))}}>{leadCsat(l)!=null?leadCsat(l).toFixed(1)+"%":"—"}</td>
+                  <td style={{textAlign:"right"}}>{l.total_surveys || "—"}</td>
                   <td style={{textAlign:"right"}}>{l.sbs}</td>
                   <td style={{textAlign:"right"}}>{l.non_sbs}</td>
                   <td style={{textAlign:"right",color:"var(--tx2)"}}>{l.dsat}</td>
@@ -869,9 +636,6 @@ function ScoreEntryPage(){
         })()}
       </div>
     )}
-    {csatCard}
-      </>;
-    })()}
 
     {/* Upload Data Modal */}
     {showUpload&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"60px 20px 20px"}} onClick={e=>{if(e.target===e.currentTarget)setShowUpload(false);}}>

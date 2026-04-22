@@ -520,7 +520,7 @@ function DashboardPage(){
           <div className="stat-label">DSAT</div>
           <div className="stat-value">{myData.dsat??0}</div>
         </div>
-        <div className="stat-card" onClick={()=>nav("scores")} style={{cursor:"pointer"}} title="View CSAT breakdown">
+        <div className="stat-card" onClick={()=>nav("csat")} style={{cursor:"pointer"}} title="View CSAT breakdown">
           <div className="stat-label">CSAT %</div>
           <div className="stat-value" style={{color:myData.avg_csat_score!=null?(Number(myData.avg_csat_score)>=90?"var(--green)":Number(myData.avg_csat_score)>=75?"var(--amber)":"var(--red)"):undefined}}>
             {myData.avg_csat_score!=null?Number(myData.avg_csat_score).toFixed(1)+"%":"—"}
