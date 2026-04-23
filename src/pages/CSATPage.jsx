@@ -102,8 +102,6 @@ export default function CSATPage() {
     })();
   }, [token, gf?.domain, gf?.month, gf?.teams]);
 
-  if (loading) return <div className="page"><SkeletonPage /></div>;
-
   const monthData = data.filter(r => r.month === selMonth);
   const rosterMap = {}; roster.forEach(r => { rosterMap[r.email?.toLowerCase()] = r; });
   const scoreTeams = [...new Set(roster.filter(r => r.queue && (!selDomain || r.email?.endsWith("@" + selDomain))).map(r => r.queue))].sort();
@@ -261,6 +259,8 @@ export default function CSATPage() {
     const hue = Math.max(0, Math.min(120, Math.round((score / 100) * 120)));
     return { background: `hsl(${hue}, 55%, 38%)`, color: "#fff", fontWeight: 600 };
   };
+
+  if (loading) return <div className="page"><SkeletonPage /></div>;
 
   return <div className="page">
     <div className="page-header">
