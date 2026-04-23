@@ -249,7 +249,29 @@ export default function CSATPage() {
   }, [csatView, monthKey, scopedEmailsKey, token]);
 
   const matrix = topicMatrixByMonth[monthKey + "::" + scopedEmailsKey];
-  const visibleTopics = matrix ? matrix.topics.filter(t => (matrix.totalsByTopic[t]?.s || 0) >= topicMinSurveys) : [];
+  const visibleTopics = matrix ? matrix.topics.filter(t => (matrix.totalsByTopic[t]?.s || 0) >= Math.max(1, topicMinSurveys)) : [];
+  // Only show specialists who have at least one survey in the visible topics —
+  // otherwise the matrix is hundreds of blank rows.
+  const visibleAgents = matrix
+    ? csatSorted.filter(r => {
+        const a = matrix.totalsByAgent[r.qa_email];
+        if (!a || a.s <= 0) return false;
+        return visibleTopics.some(t => matrix.cells[r.qa_email + "\u0000" + t]?.surveys > 0);
+      }).sort((a, b) => {
+        const ta = matrix.totalsByAgent[a.qa_email];
+        const tb = matrix.totalsByAgent[b.qa_email];
+        const ca = ta && ta.n > 0 ? ta.w / ta.n : -1;
+        const cb = tb && tb.n > 0 ? tb.w / tb.n : -1;
+        return cb - ca;
+      })
+    : [];
+  // Short topic label: split on separator ("Category - Subcategory"), show
+  // subcategory if present so the header stays legible, full name in tooltip.
+  const shortTopic = (t) => {
+    const parts = t.split(" - ").map(s => s.trim()).filter(Boolean);
+    if (parts.length > 1) return parts[parts.length - 1];
+    return t.length > 24 ? t.slice(0, 22) + "…" : t;
+  };
 
   // Muted HSL gradient 0 (red) → 120 (green) — a tinted background paired
   // with a matching pastel foreground, so scanning the whole matrix
@@ -341,34 +363,38 @@ export default function CSATPage() {
             <div className="placeholder" style={{padding:40,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
           ) : visibleTopics.length === 0 ? (
             <div className="placeholder" style={{padding:40,color:"var(--tx3)"}}>No topics with ≥ {topicMinSurveys} surveys. Lower the threshold.</div>
+          ) : visibleAgents.length === 0 ? (
+            <div className="placeholder" style={{padding:40,color:"var(--tx3)"}}>No specialists have surveys in {selMonth}.</div>
           ) : (
             <div style={{padding:"0 0 12px"}}>
-              <div style={{overflow:"auto",maxHeight:"70vh",borderTop:"1px solid var(--bd2)"}}>
-                <table style={{borderCollapse:"separate",borderSpacing:0,fontSize:12}}>
+              <div style={{overflow:"auto",maxHeight:"72vh",borderTop:"1px solid var(--bd2)"}}>
+                <table style={{borderCollapse:"separate",borderSpacing:0,fontSize:12,width:"100%"}}>
                   <thead>
                     <tr>
-                      <th style={{position:"sticky",left:0,top:0,zIndex:3,background:"var(--bg2)",padding:"8px 12px",textAlign:"left",borderBottom:"1px solid var(--bd2)",borderRight:"1px solid var(--bd2)",minWidth:200,fontSize:11,color:"var(--tx3)",fontWeight:700,textTransform:"uppercase",letterSpacing:".5px"}}>Specialist ↓ · Topic →</th>
+                      <th style={{position:"sticky",left:0,top:0,zIndex:3,background:"var(--bg2)",padding:"10px 12px",textAlign:"left",borderBottom:"1px solid var(--bd2)",borderRight:"1px solid var(--bd2)",minWidth:210,fontSize:10,color:"var(--tx3)",fontWeight:700,textTransform:"uppercase",letterSpacing:".6px",verticalAlign:"bottom"}}>Specialist</th>
                       {visibleTopics.map(t => (
-                        <th key={t} title={`${matrix.totalsByTopic[t]?.s || 0} surveys across team`}
-                            style={{position:"sticky",top:0,zIndex:2,background:"var(--bg2)",padding:"8px 6px",textAlign:"center",borderBottom:"1px solid var(--bd2)",borderRight:"1px solid var(--bd2)",verticalAlign:"bottom",height:140,minWidth:42,maxWidth:42}}>
-                          <div style={{writingMode:"vertical-rl",transform:"rotate(180deg)",whiteSpace:"nowrap",fontSize:11,color:"var(--tx2)",fontWeight:600,padding:"4px 0"}}>{t}</div>
+                        <th key={t} title={`${t}\n${matrix.totalsByTopic[t]?.s || 0} surveys across team`}
+                            style={{position:"sticky",top:0,zIndex:2,background:"var(--bg2)",padding:"6px 2px 8px",textAlign:"center",borderBottom:"1px solid var(--bd2)",verticalAlign:"bottom",height:96,minWidth:36,maxWidth:36,width:36}}>
+                          <div style={{writingMode:"vertical-rl",transform:"rotate(180deg)",whiteSpace:"nowrap",fontSize:10,color:"var(--tx2)",fontWeight:600,letterSpacing:".2px",maxHeight:82,overflow:"hidden",textOverflow:"ellipsis"}}>{shortTopic(t)}</div>
                         </th>
                       ))}
-                      <th style={{position:"sticky",top:0,zIndex:2,background:"var(--bg2)",padding:"8px 10px",textAlign:"center",borderBottom:"1px solid var(--bd2)",fontSize:11,color:"var(--tx3)",fontWeight:700,textTransform:"uppercase",letterSpacing:".5px",minWidth:70}}>Overall</th>
+                      <th style={{position:"sticky",top:0,right:0,zIndex:3,background:"var(--bg2)",padding:"10px 12px",textAlign:"center",borderBottom:"1px solid var(--bd2)",borderLeft:"1px solid var(--bd2)",fontSize:10,color:"var(--tx3)",fontWeight:700,textTransform:"uppercase",letterSpacing:".6px",minWidth:72,verticalAlign:"bottom"}}>Overall</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {csatSorted.map(r => {
+                    {visibleAgents.map((r, ri) => {
                       const email = r.qa_email;
                       const agentTot = matrix.totalsByAgent[email];
                       const overall = agentTot && agentTot.n > 0 ? agentTot.w / agentTot.n : null;
+                      const rowBg = ri % 2 === 0 ? "var(--bg)" : "var(--bg2)";
                       return <tr key={email}>
-                        <td style={{position:"sticky",left:0,zIndex:1,background:"var(--bg)",padding:"6px 12px",borderBottom:"1px solid var(--bd2)",borderRight:"1px solid var(--bd2)",whiteSpace:"nowrap"}}>
+                        <td style={{position:"sticky",left:0,zIndex:1,background:rowBg,padding:"6px 12px",borderBottom:"1px solid var(--bd2)",borderRight:"1px solid var(--bd2)",whiteSpace:"nowrap"}}>
                           <div style={{display:"flex",alignItems:"center",gap:8}}>
-                            <div style={{width:24,height:24,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700}}>
+                            <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700}}>
                               {nameFromEmail(email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
                             </div>
                             <span style={{fontSize:12,fontWeight:500,color:"var(--tx)"}}>{nameFromEmail(email)}</span>
+                            <span style={{fontSize:10,color:"var(--tx3)"}}>· {agentTot.s}</span>
                           </div>
                         </td>
                         {visibleTopics.map(t => {
@@ -376,33 +402,34 @@ export default function CSATPage() {
                           const score = cell?.score ?? null;
                           const surveys = cell?.surveys ?? 0;
                           const st = cellStyle(score, surveys);
-                          return <td key={t} title={score != null && surveys > 0 ? `${nameFromEmail(email)} · ${t}\n${score.toFixed(1)}% (${surveys} surveys)` : `${nameFromEmail(email)} · ${t}\nNo surveys`}
-                                     style={{padding:0,borderBottom:"1px solid var(--bd2)",borderRight:"1px solid var(--bd2)",textAlign:"center",minWidth:42,maxWidth:42,height:32,...st}}>
+                          return <td key={t} title={score != null && surveys > 0 ? `${nameFromEmail(email)} · ${t}\n${score.toFixed(1)}% (${surveys} survey${surveys!==1?"s":""})` : `${nameFromEmail(email)} · ${t}\nNo surveys`}
+                                     style={{padding:0,borderBottom:"1px solid var(--bd2)",textAlign:"center",minWidth:36,maxWidth:36,width:36,height:30,fontSize:11,...st,background:surveys>0?st.background:rowBg}}>
                             {score != null && surveys > 0 ? Math.round(score) : ""}
                           </td>;
                         })}
-                        <td style={{padding:"0 10px",borderBottom:"1px solid var(--bd2)",textAlign:"center",fontWeight:700,...cellStyle(overall, agentTot?.s || 0)}}>
-                          {overall != null && (agentTot?.s || 0) > 0 ? overall.toFixed(1) + "%" : "—"}
+                        <td style={{padding:"0 10px",borderBottom:"1px solid var(--bd2)",borderLeft:"1px solid var(--bd2)",textAlign:"center",fontWeight:700,fontSize:12,...cellStyle(overall, agentTot?.s || 0)}}
+                            title={`${agentTot.s} survey${agentTot.s!==1?"s":""} · weighted across topics`}>
+                          {overall != null ? overall.toFixed(1) + "%" : "—"}
                         </td>
                       </tr>;
                     })}
                     <tr>
-                      <td style={{position:"sticky",left:0,zIndex:1,background:"var(--bg2)",padding:"8px 12px",borderTop:"2px solid var(--bd2)",borderRight:"1px solid var(--bd2)",fontSize:11,color:"var(--tx3)",fontWeight:700,textTransform:"uppercase",letterSpacing:".5px"}}>Topic overall</td>
+                      <td style={{position:"sticky",left:0,zIndex:1,background:"var(--bg3,var(--bg2))",padding:"8px 12px",borderTop:"2px solid var(--bd2)",borderRight:"1px solid var(--bd2)",fontSize:10,color:"var(--tx3)",fontWeight:700,textTransform:"uppercase",letterSpacing:".6px"}}>Topic overall</td>
                       {visibleTopics.map(t => {
                         const tt = matrix.totalsByTopic[t];
                         const avg = tt && tt.n > 0 ? tt.w / tt.n : null;
-                        return <td key={t} style={{padding:0,borderTop:"2px solid var(--bd2)",borderRight:"1px solid var(--bd2)",textAlign:"center",fontSize:11,fontWeight:700,height:32,...cellStyle(avg, tt?.s || 0)}}
-                                   title={`${t}\n${avg!=null?avg.toFixed(1)+"%":"—"} (${tt?.s || 0} surveys)`}>
+                        return <td key={t} style={{padding:0,borderTop:"2px solid var(--bd2)",textAlign:"center",fontSize:11,fontWeight:700,minWidth:36,maxWidth:36,width:36,height:32,...cellStyle(avg, tt?.s || 0)}}
+                                   title={`${t}\n${avg!=null?avg.toFixed(1)+"%":"—"} · ${tt?.s || 0} surveys`}>
                           {avg != null ? Math.round(avg) : ""}
                         </td>;
                       })}
-                      <td style={{padding:"8px 10px",borderTop:"2px solid var(--bd2)",textAlign:"center",fontSize:11,color:"var(--tx3)"}}>—</td>
+                      <td style={{padding:"8px 10px",borderTop:"2px solid var(--bd2)",borderLeft:"1px solid var(--bd2)",textAlign:"center",fontSize:11,color:"var(--tx3)"}}>—</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 16px 0",fontSize:11,color:"var(--tx3)"}}>
-                <span>{csatSorted.length} specialists · {visibleTopics.length} topics{visibleTopics.length < matrix.topics.length ? ` (${matrix.topics.length - visibleTopics.length} hidden by min-surveys filter)` : ""}</span>
+                <span>{visibleAgents.length} of {csatSorted.length} specialists shown · {visibleTopics.length} of {matrix.topics.length} topics</span>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <span>Low</span>
                   {[0,20,40,60,80,100].map(v => <span key={v} style={{display:"inline-block",width:18,height:14,background:`hsla(${Math.round((v/100)*120)}, 35%, 28%, 0.55)`,borderRadius:3}}/>)}
