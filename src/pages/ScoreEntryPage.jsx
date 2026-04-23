@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
-import { nameFromEmail, logActivity } from "../lib/utils.js";
+import { nameFromEmail, logActivity, csatPctValue } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -139,7 +139,7 @@ function ScoreEntryPage(){
      "coaching_completion_pct","ontime_coaching_pct","jkq_score","jkq_result","jkq_episode",
      "working_days","ramadan_wds","occupancy_pct","coaching_ontime_score","ticket_per_day",
      "occupancy_score","calibration_score","coaching_observation_score","rtr_score","final_performance",
-     "avg_csat_score","total_surveys"];
+     "csat_pct","csat_total","csat_good","csat_bad"];
 
   const COL_LABELS = {sbs:"SBS",non_sbs:"Non-SBS",dsat:"DSAT",late_count:"Late count",never_count:"Never count",
     valid_count:"Valid count",invalid_count:"Invalid count",side_tasks_duration_mins:"Side tasks (mins)",
@@ -153,7 +153,7 @@ function ScoreEntryPage(){
     working_days:"Working days",ramadan_wds:"Ramadan WDs",occupancy_pct:"Occupancy %",
     coaching_ontime_score:"Coaching on-time score",ticket_per_day:"Tickets/day",occupancy_score:"Occupancy score",
     calibration_score:"Calibration score",coaching_observation_score:"CO score",rtr_score:"RTR score (calc)",
-    final_performance:"Final performance",avg_csat_score:"CSAT %",total_surveys:"Surveys"};
+    final_performance:"Final performance",csat_pct:"CSAT %",csat_total:"Surveys",csat_good:"CSAT good",csat_bad:"CSAT bad"};
 
   const downloadTemplate = () => {
     if (!uploadMonth || uploadCols.length === 0) return;
@@ -420,7 +420,7 @@ function ScoreEntryPage(){
                   r.coaching_completion_pct||0,r.ontime_coaching_pct||0,
                   r.jkq_score||"",`"${r.jkq_result||""}"`,r.ticket_per_day||0,r.occupancy_pct||0,
                   r.working_days||0,stMins,`"${stFormatted}"`,((r.final_performance||0)*100).toFixed(1),
-                  r.avg_csat_score??"",r.total_surveys??0
+                  csatPctValue(r.csat_pct)!=null?csatPctValue(r.csat_pct).toFixed(1):"",r.csat_total??0
                 ].join(","));
               });
               const blob=new Blob([csv.join("\n")],{type:"text/csv"});
@@ -442,7 +442,7 @@ function ScoreEntryPage(){
                   r.coaching_completion_pct||0,r.ontime_coaching_pct||0,
                   r.jkq_score||"",r.jkq_result||"",r.ticket_per_day||0,r.occupancy_pct||0,
                   r.working_days||0,stMins,stFormatted,((r.final_performance||0)*100).toFixed(1),
-                  r.avg_csat_score??"",r.total_surveys??0
+                  csatPctValue(r.csat_pct)!=null?csatPctValue(r.csat_pct).toFixed(1):"",r.csat_total??0
                 ].join("\t");
               });
               navigator.clipboard.writeText([header,...rows].join("\n")).then(()=>globalToast("success","Copied to clipboard — paste into Google Sheets"));
@@ -503,8 +503,8 @@ function ScoreEntryPage(){
                   </td>
                   <td style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
                   <td style={{textAlign:"right"}}>{r.working_days ?? "—"}</td>
-                  <td style={{textAlign:"right",fontWeight:r.avg_csat_score!=null?600:400,color:r.avg_csat_score!=null?(r.avg_csat_score>=90?"var(--green)":r.avg_csat_score>=75?"var(--amber)":"var(--red)"):"var(--tx3)"}}>{r.avg_csat_score!=null?Number(r.avg_csat_score).toFixed(1)+"%":"—"}</td>
-                  <td style={{textAlign:"right"}}>{r.total_surveys ?? "—"}</td>
+                  {(()=>{const v=csatPctValue(r.csat_pct);return <td style={{textAlign:"right",fontWeight:v!=null?600:400,color:v!=null?(v>=90?"var(--green)":v>=75?"var(--amber)":"var(--red)"):"var(--tx3)"}}>{v!=null?v.toFixed(1)+"%":"—"}</td>;})()}
+                  <td style={{textAlign:"right"}}>{r.csat_total ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.sbs ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.non_sbs ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.dsat ?? "—"}</td>
@@ -548,7 +548,7 @@ function ScoreEntryPage(){
           const leadMap={};
           sorted.forEach(r=>{
             const tl=(r.qa_tl||"unknown").toLowerCase();
-            if(!leadMap[tl])leadMap[tl]={tl:r.qa_tl||"Unknown",count:0,sbs:0,non_sbs:0,dsat:0,late:0,never:0,valid:0,invalid:0,sessions:0,ontime:0,eligible:0,not_coached:0,rtr:0,rtr_scores:[],obs:0,obs_scores:[],calib:0,calib_scores:[],completion:[],ontime_pct:[],tickets:[],occupancy:[],days:0,st_mins:0,performance:[],csat_weighted_sum:0,csat_weight:0,csat_simple_sum:0,csat_simple_count:0,total_surveys:0};
+            if(!leadMap[tl])leadMap[tl]={tl:r.qa_tl||"Unknown",count:0,sbs:0,non_sbs:0,dsat:0,late:0,never:0,valid:0,invalid:0,sessions:0,ontime:0,eligible:0,not_coached:0,rtr:0,rtr_scores:[],obs:0,obs_scores:[],calib:0,calib_scores:[],completion:[],ontime_pct:[],tickets:[],occupancy:[],days:0,st_mins:0,performance:[],csat_weighted_sum:0,csat_weight:0,csat_simple_sum:0,csat_simple_count:0,csat_total:0};
             const l=leadMap[tl];
             l.count++;l.sbs+=(r.sbs||0);l.non_sbs+=(r.non_sbs||0);l.dsat+=(r.dsat||0);l.late+=(r.late_count||0);l.never+=(r.never_count||0);l.valid+=(r.valid_count||0);l.invalid+=(r.invalid_count||0);
             l.sessions+=(r.coaching_sessions||0);l.ontime+=(r.total_ontime_coachings||0);l.eligible+=(r.coaching_eligibility_count||0);l.not_coached+=(r.not_coached||0);
@@ -561,12 +561,12 @@ function ScoreEntryPage(){
             if(r.occupancy_pct)l.occupancy.push(parseFloat(r.occupancy_pct)||0);
             l.days+=(r.working_days||0);l.st_mins+=(r.side_tasks_duration_mins||0);
             if(r.final_performance)l.performance.push(parseFloat(r.final_performance)||0);
-            if(r.avg_csat_score!=null){
-              const score=Number(r.avg_csat_score);
-              const surveys=Number(r.total_surveys||0);
-              l.csat_simple_sum+=score; l.csat_simple_count++;
-              if(surveys>0){ l.csat_weighted_sum+=score*surveys; l.csat_weight+=surveys; }
-              l.total_surveys+=surveys;
+            const _csat=csatPctValue(r.csat_pct);
+            if(_csat!=null){
+              const surveys=Number(r.csat_total||0);
+              l.csat_simple_sum+=_csat; l.csat_simple_count++;
+              if(surveys>0){ l.csat_weighted_sum+=_csat*surveys; l.csat_weight+=surveys; }
+              l.csat_total+=surveys;
             }
           });
           const avg=(arr)=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
@@ -608,7 +608,7 @@ function ScoreEntryPage(){
                   </div></td>
                   <td style={{textAlign:"right",fontWeight:600}}>{l.count}</td>
                   <td style={{textAlign:"right",fontWeight:600,color:csatColor(leadCsat(l))}}>{leadCsat(l)!=null?leadCsat(l).toFixed(1)+"%":"—"}</td>
-                  <td style={{textAlign:"right"}}>{l.total_surveys || "—"}</td>
+                  <td style={{textAlign:"right"}}>{l.csat_total || "—"}</td>
                   <td style={{textAlign:"right"}}>{l.sbs}</td>
                   <td style={{textAlign:"right"}}>{l.non_sbs}</td>
                   <td style={{textAlign:"right",color:"var(--tx2)"}}>{l.dsat}</td>

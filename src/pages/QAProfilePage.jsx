@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
-import { nameFromEmail } from "../lib/utils.js";
+import { nameFromEmail, csatPctValue } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -341,11 +341,11 @@ function QAProfilePage() {
                 <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>CSAT ({latestMtd?.month || "—"})</div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>CSAT %</span>
-                  <span style={{fontSize:13,fontWeight:700,color:latestMtd?.avg_csat_score!=null?(Number(latestMtd.avg_csat_score)>=90?"var(--green)":Number(latestMtd.avg_csat_score)>=75?"var(--amber)":"var(--red)"):"var(--tx3)"}}>{latestMtd?.avg_csat_score!=null?Number(latestMtd.avg_csat_score).toFixed(1)+"%":"—"}</span>
+                  {(()=>{const v=csatPctValue(latestMtd?.csat_pct);return <span style={{fontSize:13,fontWeight:700,color:v!=null?(v>=90?"var(--green)":v>=75?"var(--amber)":"var(--red)"):"var(--tx3)"}}>{v!=null?v.toFixed(1)+"%":"—"}</span>;})()}
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>Surveys</span>
-                  <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{latestMtd?.total_surveys ?? "—"}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{latestMtd?.csat_total ?? "—"}</span>
                 </div>
               </div>
               {isTicketDay && <>
@@ -421,8 +421,8 @@ function QAProfilePage() {
               ["CO Score", fmtPct(m.avg_observation_score_pct)],["Coaching on-time", fmtPct(m.ontime_coaching_pct)],
               ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"],
               ["Occupancy", fmtPct(m.occupancy_pct)],["JKQ", m.jkq_score || "—"],
-              ["CSAT %", m.avg_csat_score != null ? Number(m.avg_csat_score).toFixed(1) + "%" : "—"],
-              ["Surveys", m.total_surveys ?? "—"],
+              ["CSAT %", (() => { const v = csatPctValue(m.csat_pct); return v != null ? v.toFixed(1) + "%" : "—"; })()],
+              ["Surveys", m.csat_total ?? "—"],
             ];
             // Ticket handling rows — only include if there's any ticket activity this month
             if (totalLogin > 0 || totalTickets > 0 || m.avg_apt != null || m.avg_agpt != null) {

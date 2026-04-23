@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb } from "../lib/supabase.js";
+import { csatPctValue } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -111,7 +112,7 @@ export default function CSATPage() {
   if (selQA.length > 0) filtered = filtered.filter(r => selQA.includes(r.qa_email));
   if (gf?.people?.length > 0) filtered = filtered.filter(r => gf.people.includes(r.qa_email?.toLowerCase()));
 
-  const csatSorted = [...filtered].sort((a, b) => (b.avg_csat_score ?? -1) - (a.avg_csat_score ?? -1));
+  const csatSorted = [...filtered].sort((a, b) => (csatPctValue(b.csat_pct) ?? -1) - (csatPctValue(a.csat_pct) ?? -1));
   const csatColor = (v) => v == null ? "var(--tx3)" : v >= 90 ? "var(--green)" : v >= 75 ? "var(--amber)" : "var(--red)";
   const monthDate = selMonth ? `${selMonth}-01` : null;
   const topicKey = (email) => `${email}__${monthDate}`;
@@ -141,9 +142,9 @@ export default function CSATPage() {
       const l = map[tl];
       l.emails.push(r.qa_email);
       l.count++;
-      if (r.avg_csat_score != null) {
-        const score = Number(r.avg_csat_score);
-        const surveys = Number(r.total_surveys || 0);
+      const score = csatPctValue(r.csat_pct);
+      if (score != null) {
+        const surveys = Number(r.csat_total || 0);
         l.simpleSum += score; l.simpleCount++;
         if (surveys > 0) { l.weightedSum += score * surveys; l.weight += surveys; }
         l.surveys += surveys;
@@ -280,8 +281,8 @@ export default function CSATPage() {
                         </div>
                       </td>
                       <td style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
-                      <td style={{textAlign:"right",fontWeight:600,color:csatColor(r.avg_csat_score)}}>{r.avg_csat_score!=null?Number(r.avg_csat_score).toFixed(1)+"%":"—"}</td>
-                      <td style={{textAlign:"right"}}>{r.total_surveys ?? "—"}</td>
+                      {(()=>{const v=csatPctValue(r.csat_pct);return <td style={{textAlign:"right",fontWeight:600,color:csatColor(v)}}>{v!=null?v.toFixed(1)+"%":"—"}</td>;})()}
+                      <td style={{textAlign:"right"}}>{r.csat_total ?? "—"}</td>
                     </tr>
                     {isExpanded && <tr>
                       <td colSpan={5} style={{padding:"0 16px 16px 52px",background:"var(--bg)"}}>

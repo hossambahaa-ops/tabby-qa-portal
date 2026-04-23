@@ -18,6 +18,14 @@ export const initialsFromEmail = (email) => {
   return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
 };
 
+// mtd_scores.csat_pct is stored as a decimal text string ("0.875" = 87.5%).
+// Returns the percentage number, or null for empty/missing values.
+export const csatPctValue = (v) => {
+  if (v == null || v === "") return null;
+  const n = parseFloat(v);
+  return isNaN(n) ? null : n * 100;
+};
+
 /* ═══ GLOBAL FILTER HELPERS ═══ */
 export function applyGF(rows, gf, emailField = "qa_email", rosterMap) {
   if (!gf || !rows) return rows;

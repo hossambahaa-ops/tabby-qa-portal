@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import { hasRole, ROLE_LABELS, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
-import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
+import { nameFromEmail, safeError, logActivity, csatPctValue } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listPlans, listPlanWeeks } from "../api/plans.js";
@@ -520,13 +520,14 @@ function DashboardPage(){
           <div className="stat-label">DSAT</div>
           <div className="stat-value">{myData.dsat??0}</div>
         </div>
+        {(()=>{const v=csatPctValue(myData.csat_pct);return (
         <div className="stat-card" onClick={()=>nav("csat")} style={{cursor:"pointer"}} title="View CSAT breakdown">
           <div className="stat-label">CSAT %</div>
-          <div className="stat-value" style={{color:myData.avg_csat_score!=null?(Number(myData.avg_csat_score)>=90?"var(--green)":Number(myData.avg_csat_score)>=75?"var(--amber)":"var(--red)"):undefined}}>
-            {myData.avg_csat_score!=null?Number(myData.avg_csat_score).toFixed(1)+"%":"—"}
+          <div className="stat-value" style={{color:v!=null?(v>=90?"var(--green)":v>=75?"var(--amber)":"var(--red)"):undefined}}>
+            {v!=null?v.toFixed(1)+"%":"—"}
           </div>
-          <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>{myData.total_surveys!=null?`${myData.total_surveys} surveys`:"No surveys"} · view breakdown →</div>
-        </div>
+          <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>{myData.csat_total!=null?`${myData.csat_total} surveys`:"No surveys"} · view breakdown →</div>
+        </div>);})()}
       </div>
 
       {/* My KPI detail with slab calculation */}
