@@ -251,13 +251,19 @@ export default function CSATPage() {
   const matrix = topicMatrixByMonth[monthKey + "::" + scopedEmailsKey];
   const visibleTopics = matrix ? matrix.topics.filter(t => (matrix.totalsByTopic[t]?.s || 0) >= topicMinSurveys) : [];
 
-  // HSL gradient 0 (red) → 120 (green). Null = transparent gray.
+  // Muted HSL gradient 0 (red) → 120 (green) — a tinted background paired
+  // with a matching pastel foreground, so scanning the whole matrix
+  // doesn't fatigue the eye.
   const cellStyle = (score, surveys) => {
     if (score == null || !surveys || surveys <= 0) {
       return { background: "transparent", color: "var(--tx3)", fontWeight: 400 };
     }
     const hue = Math.max(0, Math.min(120, Math.round((score / 100) * 120)));
-    return { background: `hsl(${hue}, 55%, 38%)`, color: "#fff", fontWeight: 600 };
+    return {
+      background: `hsla(${hue}, 35%, 28%, 0.55)`,
+      color: `hsl(${hue}, 60%, 78%)`,
+      fontWeight: 600,
+    };
   };
 
   if (loading) return <div className="page"><SkeletonPage /></div>;
@@ -399,7 +405,7 @@ export default function CSATPage() {
                 <span>{csatSorted.length} specialists · {visibleTopics.length} topics{visibleTopics.length < matrix.topics.length ? ` (${matrix.topics.length - visibleTopics.length} hidden by min-surveys filter)` : ""}</span>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <span>Low</span>
-                  {[0,20,40,60,80,100].map(v => <span key={v} style={{display:"inline-block",width:18,height:14,background:`hsl(${Math.round((v/100)*120)}, 55%, 38%)`,borderRadius:3}}/>)}
+                  {[0,20,40,60,80,100].map(v => <span key={v} style={{display:"inline-block",width:18,height:14,background:`hsla(${Math.round((v/100)*120)}, 35%, 28%, 0.55)`,borderRadius:3}}/>)}
                   <span>High</span>
                 </div>
               </div>
