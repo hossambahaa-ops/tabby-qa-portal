@@ -40,6 +40,7 @@ export default function CSATPage() {
   const [topicMatrixByMonth, setTopicMatrixByMonth] = useState({}); // key: month -> { topics, cells, totalsByTopic, totalsByAgent }
   const [topicMatrixLoading, setTopicMatrixLoading] = useState(false);
   const [topicMinSurveys, setTopicMinSurveys] = useState(0);
+  const [topicSort, setTopicSort] = useState({ key: null, dir: "desc" }); // key: topic name | "__name__" | null (overall)
 
   useEffect(() => {
     (async () => {
@@ -253,18 +254,48 @@ export default function CSATPage() {
   // Only show specialists who have at least one survey in the visible topics —
   // otherwise the matrix is hundreds of blank rows.
   const visibleAgents = matrix
-    ? csatSorted.filter(r => {
-        const a = matrix.totalsByAgent[r.qa_email];
-        if (!a || a.s <= 0) return false;
-        return visibleTopics.some(t => matrix.cells[r.qa_email + "\u0000" + t]?.surveys > 0);
-      }).sort((a, b) => {
-        const ta = matrix.totalsByAgent[a.qa_email];
-        const tb = matrix.totalsByAgent[b.qa_email];
-        const ca = ta && ta.n > 0 ? ta.w / ta.n : -1;
-        const cb = tb && tb.n > 0 ? tb.w / tb.n : -1;
-        return cb - ca;
-      })
+    ? (() => {
+        const base = csatSorted.filter(r => {
+          const a = matrix.totalsByAgent[r.qa_email];
+          if (!a || a.s <= 0) return false;
+          return visibleTopics.some(t => matrix.cells[r.qa_email + "\u0000" + t]?.surveys > 0);
+        });
+        const dirMul = topicSort.dir === "asc" ? 1 : -1;
+        const overallOf = (r) => {
+          const t = matrix.totalsByAgent[r.qa_email];
+          return t && t.n > 0 ? t.w / t.n : null;
+        };
+        if (topicSort.key === "__name__") {
+          return base.sort((a, b) => dirMul * nameFromEmail(a.qa_email).localeCompare(nameFromEmail(b.qa_email)));
+        }
+        if (topicSort.key && topicSort.key !== "__overall__") {
+          return base.sort((a, b) => {
+            const ca = matrix.cells[a.qa_email + "\u0000" + topicSort.key];
+            const cb = matrix.cells[b.qa_email + "\u0000" + topicSort.key];
+            const sa = ca && ca.surveys > 0 ? ca.score : null;
+            const sb = cb && cb.surveys > 0 ? cb.score : null;
+            if (sa == null && sb == null) return (overallOf(b) ?? -1) - (overallOf(a) ?? -1);
+            if (sa == null) return 1;   // no-survey rows always last
+            if (sb == null) return -1;
+            return dirMul * (sa - sb);
+          });
+        }
+        // Default / overall sort
+        return base.sort((a, b) => dirMul * ((overallOf(a) ?? -1) - (overallOf(b) ?? -1)));
+      })()
     : [];
+
+  const sortArrow = (key) => {
+    if (topicSort.key !== key) return null;
+    return topicSort.dir === "asc" ? " ▲" : " ▼";
+  };
+  const toggleSort = (key) => {
+    setTopicSort(prev => {
+      if (prev.key !== key) return { key, dir: "desc" };
+      if (prev.dir === "desc") return { key, dir: "asc" };
+      return { key: null, dir: "desc" };
+    });
+  };
   // Short topic label: split on separator ("Category - Subcategory"), show
   // subcategory if present so the header stays legible, full name in tooltip.
   const shortTopic = (t) => {
@@ -371,14 +402,22 @@ export default function CSATPage() {
                 <table style={{borderCollapse:"separate",borderSpacing:0,fontSize:12,width:"100%"}}>
                   <thead>
                     <tr>
-                      <th style={{position:"sticky",left:0,top:0,zIndex:3,background:"var(--bg2)",padding:"10px 12px",textAlign:"left",borderBottom:"1px solid var(--bd2)",borderRight:"1px solid var(--bd2)",minWidth:210,fontSize:10,color:"var(--tx3)",fontWeight:700,textTransform:"uppercase",letterSpacing:".6px",verticalAlign:"bottom"}}>Specialist</th>
-                      {visibleTopics.map(t => (
-                        <th key={t} title={`${t}\n${matrix.totalsByTopic[t]?.s || 0} surveys across team`}
-                            style={{position:"sticky",top:0,zIndex:2,background:"var(--bg2)",padding:"6px 2px 8px",textAlign:"center",borderBottom:"1px solid var(--bd2)",verticalAlign:"bottom",height:96,minWidth:36,maxWidth:36,width:36}}>
-                          <div style={{writingMode:"vertical-rl",transform:"rotate(180deg)",whiteSpace:"nowrap",fontSize:10,color:"var(--tx2)",fontWeight:600,letterSpacing:".2px",maxHeight:82,overflow:"hidden",textOverflow:"ellipsis"}}>{shortTopic(t)}</div>
-                        </th>
-                      ))}
-                      <th style={{position:"sticky",top:0,right:0,zIndex:3,background:"var(--bg2)",padding:"10px 12px",textAlign:"center",borderBottom:"1px solid var(--bd2)",borderLeft:"1px solid var(--bd2)",fontSize:10,color:"var(--tx3)",fontWeight:700,textTransform:"uppercase",letterSpacing:".6px",minWidth:72,verticalAlign:"bottom"}}>Overall</th>
+                      <th onClick={()=>toggleSort("__name__")} title="Sort by specialist name"
+                          style={{position:"sticky",left:0,top:0,zIndex:3,background:"var(--bg2)",padding:"10px 12px",textAlign:"left",borderBottom:"1px solid var(--bd2)",borderRight:"1px solid var(--bd2)",minWidth:210,fontSize:10,color:topicSort.key==="__name__"?"var(--accent-text)":"var(--tx3)",fontWeight:700,textTransform:"uppercase",letterSpacing:".6px",verticalAlign:"bottom",cursor:"pointer",userSelect:"none"}}>
+                        Specialist{sortArrow("__name__")}
+                      </th>
+                      {visibleTopics.map(t => {
+                        const isActive = topicSort.key === t;
+                        return <th key={t} onClick={()=>toggleSort(t)}
+                            title={`${t}\n${matrix.totalsByTopic[t]?.s || 0} surveys across team\nClick to sort`}
+                            style={{position:"sticky",top:0,zIndex:2,background:isActive?"var(--accent-light)":"var(--bg2)",padding:"6px 2px 8px",textAlign:"center",borderBottom:"1px solid var(--bd2)",verticalAlign:"bottom",height:96,minWidth:36,maxWidth:36,width:36,cursor:"pointer",userSelect:"none"}}>
+                          <div style={{writingMode:"vertical-rl",transform:"rotate(180deg)",whiteSpace:"nowrap",fontSize:10,color:isActive?"var(--accent-text)":"var(--tx2)",fontWeight:isActive?700:600,letterSpacing:".2px",maxHeight:82,overflow:"hidden",textOverflow:"ellipsis"}}>{shortTopic(t)}{sortArrow(t)}</div>
+                        </th>;
+                      })}
+                      <th onClick={()=>toggleSort("__overall__")} title="Sort by overall CSAT"
+                          style={{position:"sticky",top:0,right:0,zIndex:3,background:"var(--bg2)",padding:"10px 12px",textAlign:"center",borderBottom:"1px solid var(--bd2)",borderLeft:"1px solid var(--bd2)",fontSize:10,color:(topicSort.key===null||topicSort.key==="__overall__")?"var(--accent-text)":"var(--tx3)",fontWeight:700,textTransform:"uppercase",letterSpacing:".6px",minWidth:72,verticalAlign:"bottom",cursor:"pointer",userSelect:"none"}}>
+                        Overall{sortArrow("__overall__")}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
