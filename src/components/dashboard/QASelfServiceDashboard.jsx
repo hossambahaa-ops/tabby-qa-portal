@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { sb, dataCache } from "../../lib/supabase.js";
 import { useApp } from "../../lib/AppContext.jsx";
 import { listTeamTargets } from "../../api/teamTargets.js";
-import { csatPctValue } from "../../lib/utils.js";
+import { csatPctValue, csatColor } from "../../lib/utils.js";
 import HelpTip from "../HelpTip.jsx";
 
 const fmtPct = (v) => { const n = parseFloat(v); return isNaN(n) ? "—" : n.toFixed(1) + "%"; };
@@ -290,15 +290,15 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
           </div>
           <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{latestMonth}</div>
         </div>
-        {(()=>{const v=csatPctValue(myData.csat_pct);return (
+        {(()=>{const v=csatPctValue(myData.csat_pct);const s=Number(myData.csat_total||0);const show=v!=null&&s>0;return (
         <div className="card" style={{ padding: "14px 16px", textAlign: "center", cursor: "pointer" }}
              onClick={()=>window.dispatchEvent(new CustomEvent("navigate",{detail:"csat"}))}
              title="View CSAT breakdown">
           <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>CSAT %</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: v != null ? (v >= 90 ? "var(--green)" : v >= 75 ? "var(--amber)" : "var(--red)") : "var(--tx3)", marginTop: 4 }}>
-            {v != null ? v.toFixed(1) + "%" : "—"}
+          <div style={{ fontSize: 22, fontWeight: 800, color: csatColor(v, s), marginTop: 4 }}>
+            {show ? v.toFixed(1) + "%" : "—"}
           </div>
-          <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{myData.csat_total != null ? `${myData.csat_total} surveys` : "No surveys"}</div>
+          <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{s > 0 ? `${myData.csat_total} surveys` : "No surveys"}</div>
         </div>);})()}
       </div>}
     </div>

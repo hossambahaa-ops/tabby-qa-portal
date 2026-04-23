@@ -26,6 +26,13 @@ export const csatPctValue = (v) => {
   return isNaN(n) ? null : n * 100;
 };
 
+// Zero surveys means "no data", not "bad score" — gray it out instead of red.
+// Pass (pctValue, surveysCount) — pctValue is already the 0-100 number.
+export const csatColor = (v, surveys) => {
+  if (v == null || !surveys || surveys <= 0) return "var(--tx3)";
+  return v >= 90 ? "var(--green)" : v >= 75 ? "var(--amber)" : "var(--red)";
+};
+
 /* ═══ GLOBAL FILTER HELPERS ═══ */
 export function applyGF(rows, gf, emailField = "qa_email", rosterMap) {
   if (!gf || !rows) return rows;

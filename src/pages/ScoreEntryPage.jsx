@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
-import { nameFromEmail, logActivity, csatPctValue } from "../lib/utils.js";
+import { nameFromEmail, logActivity, csatPctValue, csatColor } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -503,7 +503,7 @@ function ScoreEntryPage(){
                   </td>
                   <td style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
                   <td style={{textAlign:"right"}}>{r.working_days ?? "—"}</td>
-                  {(()=>{const v=csatPctValue(r.csat_pct);return <td style={{textAlign:"right",fontWeight:v!=null?600:400,color:v!=null?(v>=90?"var(--green)":v>=75?"var(--amber)":"var(--red)"):"var(--tx3)"}}>{v!=null?v.toFixed(1)+"%":"—"}</td>;})()}
+                  {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:show?600:400,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                   <td style={{textAlign:"right"}}>{r.csat_total ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.sbs ?? "—"}</td>
                   <td style={{textAlign:"right"}}>{r.non_sbs ?? "—"}</td>
@@ -571,7 +571,6 @@ function ScoreEntryPage(){
           });
           const avg=(arr)=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
           const leadCsat=(l)=>l.csat_weight>0?l.csat_weighted_sum/l.csat_weight:(l.csat_simple_count>0?l.csat_simple_sum/l.csat_simple_count:null);
-          const csatColor=(v)=>v==null?"var(--tx3)":v>=90?"var(--green)":v>=75?"var(--amber)":"var(--red)";
           const leads=Object.values(leadMap).sort((a,b)=>avg(b.performance)-avg(a.performance));
           return <div className="table-wrap table-wrap-sticky"><table>
             <thead><tr>
@@ -607,7 +606,7 @@ function ScoreEntryPage(){
                     <div><div style={{fontWeight:600,fontSize:13}}>{nameFromEmail(l.tl)}</div><div style={{fontSize:10,color:"var(--tx3)"}}>{l.count} QA{l.count!==1?"s":""}</div></div>
                   </div></td>
                   <td style={{textAlign:"right",fontWeight:600}}>{l.count}</td>
-                  <td style={{textAlign:"right",fontWeight:600,color:csatColor(leadCsat(l))}}>{leadCsat(l)!=null?leadCsat(l).toFixed(1)+"%":"—"}</td>
+                  {(()=>{const v=leadCsat(l);const s=Number(l.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                   <td style={{textAlign:"right"}}>{l.csat_total || "—"}</td>
                   <td style={{textAlign:"right"}}>{l.sbs}</td>
                   <td style={{textAlign:"right"}}>{l.non_sbs}</td>
