@@ -114,19 +114,21 @@ export default function CSATPage() {
 
   const csatSorted = [...filtered].sort((a, b) => (csatPctValue(b.csat_pct) ?? -1) - (csatPctValue(a.csat_pct) ?? -1));
   const csatColor = (v) => v == null ? "var(--tx3)" : v >= 90 ? "var(--green)" : v >= 75 ? "var(--amber)" : "var(--red)";
-  const monthDate = selMonth ? `${selMonth}-01` : null;
-  const topicKey = (email) => `${email}__${monthDate}`;
+  // csat_by_topic.month is stored as text ("Apr-2026"), matching the
+  // mtd_scores.month convention — NOT a date.
+  const monthKey = selMonth || null;
+  const topicKey = (email) => `${email}__${monthKey}`;
 
   const toggleRow = async (email) => {
     if (expandedEmail === email) { setExpandedEmail(null); return; }
     setExpandedEmail(email);
     const key = topicKey(email);
-    if (topics[key] || !monthDate) return;
+    if (topics[key] || !monthKey) return;
     setTopicsLoading(email);
     try {
       const rows = await sb.query("csat_by_topic", {
         select: "topic,csat_score,surveys_count",
-        filters: `qa_email=eq.${encodeURIComponent(email)}&month=eq.${monthDate}&order=csat_score.desc.nullslast`,
+        filters: `qa_email=eq.${encodeURIComponent(email)}&month=eq.${encodeURIComponent(monthKey)}&order=csat_score.desc.nullslast`,
         token
       });
       setTopics(prev => ({ ...prev, [key]: rows || [] }));
@@ -160,14 +162,14 @@ export default function CSATPage() {
     const tlKey = (lead.tl || "unknown").toLowerCase();
     if (expandedLead === tlKey) { setExpandedLead(null); return; }
     setExpandedLead(tlKey);
-    const key = `${tlKey}__${monthDate}`;
-    if (leadTopics[key] || !monthDate || lead.emails.length === 0) return;
+    const key = `${tlKey}__${monthKey}`;
+    if (leadTopics[key] || !monthKey || lead.emails.length === 0) return;
     setLeadTopicsLoading(tlKey);
     try {
       const emailList = lead.emails.map(e => `"${e}"`).join(",");
       const rows = await sb.query("csat_by_topic", {
         select: "topic,csat_score,surveys_count",
-        filters: `qa_email=in.(${emailList})&month=eq.${monthDate}`,
+        filters: `qa_email=in.(${emailList})&month=eq.${encodeURIComponent(monthKey)}`,
         token
       });
       const agg = {};
@@ -325,7 +327,7 @@ export default function CSATPage() {
                 {csatLeads.map(l => {
                   const tlKey = (l.tl || "unknown").toLowerCase();
                   const isExpanded = expandedLead === tlKey;
-                  const t = leadTopics[`${tlKey}__${monthDate}`];
+                  const t = leadTopics[`${tlKey}__${monthKey}`];
                   const isLoading = leadTopicsLoading === tlKey;
                   return <React.Fragment key={tlKey+"-csat-lead"}>
                     <tr onClick={()=>toggleLeadRow(l)} style={{cursor:"pointer",background:isExpanded?"var(--accent-light)":undefined}}>
