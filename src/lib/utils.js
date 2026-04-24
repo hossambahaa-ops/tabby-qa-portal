@@ -33,6 +33,17 @@ export const csatColor = (v, surveys) => {
   return v >= 90 ? "var(--green)" : v >= 75 ? "var(--amber)" : "var(--red)";
 };
 
+// The CSAT import writes topics as they appear in the source (e.g.
+// "Card Status -", "Card Status", "General & Info", "General & Info -"),
+// so the same concept lands as several rows. Collapse them by trimming
+// whitespace, dropping trailing separators, and lower-casing for the
+// grouping key. Rows that are just dashes / empty become "Uncategorized".
+export const normalizeTopic = (t) => {
+  if (!t) return "Uncategorized";
+  const cleaned = String(t).trim().replace(/[\s\-–—]+$/g, "").replace(/^[\s\-–—]+/g, "").trim();
+  return cleaned || "Uncategorized";
+};
+
 /* ═══ GLOBAL FILTER HELPERS ═══ */
 export function applyGF(rows, gf, emailField = "qa_email", rosterMap) {
   if (!gf || !rows) return rows;

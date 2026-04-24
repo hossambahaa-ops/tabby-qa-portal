@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb } from "../lib/supabase.js";
-import { csatPctValue, csatColor } from "../lib/utils.js";
+import { csatPctValue, csatColor, normalizeTopic } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -129,10 +129,29 @@ export default function CSATPage() {
     try {
       const rows = await sb.query("csat_by_topic", {
         select: "topic,csat_score,surveys_count",
-        filters: `qa_email=eq.${encodeURIComponent(email)}&month=eq.${encodeURIComponent(monthKey)}&order=csat_score.desc.nullslast`,
+        filters: `qa_email=eq.${encodeURIComponent(email)}&month=eq.${encodeURIComponent(monthKey)}`,
         token
       });
-      setTopics(prev => ({ ...prev, [key]: rows || [] }));
+      // Collapse duplicated topic variants ("Card Status" vs "Card Status -" etc.)
+      const agg = {};
+      (rows || []).forEach(t => {
+        const norm = normalizeTopic(t.topic);
+        if (!agg[norm]) agg[norm] = { topic: norm, weightedSum: 0, weight: 0, simpleSum: 0, simpleCount: 0, surveys: 0 };
+        const a = agg[norm];
+        if (t.csat_score != null) {
+          const score = Number(t.csat_score);
+          const surveys = Number(t.surveys_count || 0);
+          a.simpleSum += score; a.simpleCount++;
+          if (surveys > 0) { a.weightedSum += score * surveys; a.weight += surveys; }
+          a.surveys += surveys;
+        }
+      });
+      const aggRows = Object.values(agg).map(a => ({
+        topic: a.topic,
+        csat_score: a.weight > 0 ? a.weightedSum / a.weight : (a.simpleCount > 0 ? a.simpleSum / a.simpleCount : null),
+        surveys_count: a.surveys,
+      })).sort((x, y) => (y.csat_score ?? -1) - (x.csat_score ?? -1));
+      setTopics(prev => ({ ...prev, [key]: aggRows }));
     } catch (e) { setTopics(prev => ({ ...prev, [key]: [] })); }
     setTopicsLoading(null);
   };
@@ -175,8 +194,9 @@ export default function CSATPage() {
       });
       const agg = {};
       (rows || []).forEach(t => {
-        if (!agg[t.topic]) agg[t.topic] = { topic: t.topic, weightedSum: 0, weight: 0, simpleSum: 0, simpleCount: 0, surveys: 0 };
-        const a = agg[t.topic];
+        const norm = normalizeTopic(t.topic);
+        if (!agg[norm]) agg[norm] = { topic: norm, weightedSum: 0, weight: 0, simpleSum: 0, simpleCount: 0, surveys: 0 };
+        const a = agg[norm];
         if (t.csat_score != null) {
           const score = Number(t.csat_score);
           const surveys = Number(t.surveys_count || 0);
@@ -223,21 +243,30 @@ export default function CSATPage() {
           all.push(...(rows || []));
         }
         const topicsSet = new Set();
-        const cells = {};
-        const totalsByTopic = {}; // topic -> { good: weightedSum, weight, surveys }
-        const totalsByAgent = {}; // email -> { weightedSum, weight, surveys }
+        // Raw row → (agent, normalized-topic) aggregate so topic variants
+        // ("Card Status" vs "Card Status -") collapse into one cell.
+        const cellAgg = {}; // key -> { w, n, s }
+        const totalsByTopic = {};
+        const totalsByAgent = {};
         all.forEach(r => {
           if (!r.topic) return;
-          topicsSet.add(r.topic);
+          const topic = normalizeTopic(r.topic);
+          topicsSet.add(topic);
           const score = r.csat_score != null ? Number(r.csat_score) : null;
           const surveys = Number(r.surveys_count || 0);
-          cells[r.qa_email + "\u0000" + r.topic] = { score, surveys };
           if (score != null && surveys > 0) {
-            const tt = totalsByTopic[r.topic] || (totalsByTopic[r.topic] = { w: 0, n: 0, s: 0 });
+            const cellKey = r.qa_email + "\u0000" + topic;
+            const c = cellAgg[cellKey] || (cellAgg[cellKey] = { w: 0, n: 0, s: 0 });
+            c.w += score * surveys; c.n += surveys; c.s += surveys;
+            const tt = totalsByTopic[topic] || (totalsByTopic[topic] = { w: 0, n: 0, s: 0 });
             tt.w += score * surveys; tt.n += surveys; tt.s += surveys;
             const ta = totalsByAgent[r.qa_email] || (totalsByAgent[r.qa_email] = { w: 0, n: 0, s: 0 });
             ta.w += score * surveys; ta.n += surveys; ta.s += surveys;
           }
+        });
+        const cells = {};
+        Object.entries(cellAgg).forEach(([k, v]) => {
+          cells[k] = { score: v.n > 0 ? v.w / v.n : null, surveys: v.s };
         });
         const topicList = [...topicsSet].sort((a, b) => (totalsByTopic[b]?.s || 0) - (totalsByTopic[a]?.s || 0));
         setTopicMatrixByMonth(prev => ({ ...prev, [monthKey + "::" + scopedEmailsKey]: { topics: topicList, cells, totalsByTopic, totalsByAgent } }));

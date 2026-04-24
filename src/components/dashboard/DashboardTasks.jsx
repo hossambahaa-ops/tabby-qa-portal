@@ -247,13 +247,15 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
     const assignees = Array.isArray(taskForm.assigned_to) ? taskForm.assigned_to : (taskForm.assigned_to?[taskForm.assigned_to]:[]);
     if(assignees.length>0&&!editingTask&&!forceAssign){
       try{
-        const todayStr=new Date().toISOString().split("T")[0];
+        // Check attendance for the task's target day, not today. Priority:
+        // eta_date > due_date > today.
+        const checkDate = taskForm.eta_date || taskForm.due_date || new Date().toISOString().split("T")[0];
         const absentStatuses=new Set(["AL","Paid SL","ML","UL","NSNC","OFF","X"]);
         for(const em of assignees){
-          const attCheck=await sb.query("qa_attendance",{select:"status",filters:`email=eq.${em.toLowerCase()}&date=eq.${todayStr}`,token}).catch(()=>[]);
+          const attCheck=await sb.query("qa_attendance",{select:"status",filters:`email=eq.${em.toLowerCase()}&date=eq.${checkDate}`,token}).catch(()=>[]);
           const att=Array.isArray(attCheck)&&attCheck.length>0?attCheck[0]:null;
           if(att&&absentStatuses.has(att.status)){
-            setAttWarning({name:nameFromEmail(em),status:att.status});
+            setAttWarning({name:nameFromEmail(em),status:att.status,date:checkDate});
             return;
           }
         }
@@ -633,7 +635,6 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
                 <option value="specific_person">Specific person</option>
                 {hasRole(profile?.role,"qa_supervisor")&&<option value="my_leads">My QA leads</option>}
                 {hasRole(profile?.role,"qa_supervisor")&&<option value="all_qa">All QAs</option>}
-                {hasRole(profile?.role,"admin")&&<option value="all_qa">All QAs</option>}
               </select>
             </div>
             {tplForm.assign_to_type==="specific_person"&&<div className="form-group"><label className="form-label">Person</label>
@@ -736,7 +737,12 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2.5" strokeLinecap="round"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
         </div>
         <div style={{fontSize:16,fontWeight:700,marginBottom:8,color:"var(--tx)"}}>{attWarning.name}</div>
-        <div style={{fontSize:13,color:"var(--tx2)",marginBottom:20}}>is marked as <span style={{fontWeight:700,color:"var(--amber)"}}>{attWarning.status}</span> today. Do you still want to assign this task?</div>
+        <div style={{fontSize:13,color:"var(--tx2)",marginBottom:20}}>is marked as <span style={{fontWeight:700,color:"var(--amber)"}}>{attWarning.status}</span> {(() => {
+          const today = new Date().toISOString().split("T")[0];
+          if (!attWarning.date || attWarning.date === today) return "today";
+          const d = new Date(attWarning.date + "T00:00:00");
+          return `on ${d.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}`;
+        })()}. Do you still want to assign this task?</div>
         <div style={{display:"flex",gap:8,justifyContent:"center"}}>
           <button className="btn btn-primary btn-sm" style={{padding:"8px 20px"}} onClick={()=>{setAttWarning(null);saveTask(true);}}>Assign anyway</button>
           <button className="btn btn-outline btn-sm" style={{padding:"8px 20px"}} onClick={()=>setAttWarning(null)}>Cancel</button>
