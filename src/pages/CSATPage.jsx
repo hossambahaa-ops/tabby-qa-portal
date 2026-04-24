@@ -132,25 +132,21 @@ export default function CSATPage() {
         filters: `qa_email=eq.${encodeURIComponent(email)}&month=eq.${encodeURIComponent(monthKey)}`,
         token
       });
-      // Collapse duplicated topic variants ("Card Status" vs "Card Status -" etc.)
-      const agg = {};
+      // The import writes both a "bare" rollup row (e.g. "Billing & Repayment")
+      // AND a no-sub-category variant ("Billing & Repayment -") whose surveys
+      // are already counted inside the bare row. Summing them would double-count.
+      // Keep the variant with the most surveys per normalized topic (= the
+      // rollup when it exists, otherwise the only row we have).
+      const pick = {};
       (rows || []).forEach(t => {
         const norm = normalizeTopic(t.topic);
-        if (!agg[norm]) agg[norm] = { topic: norm, weightedSum: 0, weight: 0, simpleSum: 0, simpleCount: 0, surveys: 0 };
-        const a = agg[norm];
-        if (t.csat_score != null) {
-          const score = Number(t.csat_score);
-          const surveys = Number(t.surveys_count || 0);
-          a.simpleSum += score; a.simpleCount++;
-          if (surveys > 0) { a.weightedSum += score * surveys; a.weight += surveys; }
-          a.surveys += surveys;
+        const surveys = Number(t.surveys_count || 0);
+        const score = t.csat_score != null ? Number(t.csat_score) : null;
+        if (!pick[norm] || surveys > pick[norm].surveys_count) {
+          pick[norm] = { topic: norm, csat_score: score, surveys_count: surveys };
         }
       });
-      const aggRows = Object.values(agg).map(a => ({
-        topic: a.topic,
-        csat_score: a.weight > 0 ? a.weightedSum / a.weight : (a.simpleCount > 0 ? a.simpleSum / a.simpleCount : null),
-        surveys_count: a.surveys,
-      })).sort((x, y) => (y.csat_score ?? -1) - (x.csat_score ?? -1));
+      const aggRows = Object.values(pick).sort((x, y) => (y.csat_score ?? -1) - (x.csat_score ?? -1));
       setTopics(prev => ({ ...prev, [key]: aggRows }));
     } catch (e) { setTopics(prev => ({ ...prev, [key]: [] })); }
     setTopicsLoading(null);
@@ -188,27 +184,36 @@ export default function CSATPage() {
     try {
       const emailList = lead.emails.map(e => `"${e}"`).join(",");
       const rows = await sb.query("csat_by_topic", {
-        select: "topic,csat_score,surveys_count",
+        select: "qa_email,topic,csat_score,surveys_count",
         filters: `qa_email=in.(${emailList})&month=eq.${encodeURIComponent(monthKey)}`,
         token
       });
-      const agg = {};
+      // Step 1: dedupe variants per (qa, normalized topic) — keep the row
+      // with the most surveys (= the bare rollup when present).
+      const perQa = {};
       (rows || []).forEach(t => {
         const norm = normalizeTopic(t.topic);
-        if (!agg[norm]) agg[norm] = { topic: norm, weightedSum: 0, weight: 0, simpleSum: 0, simpleCount: 0, surveys: 0 };
-        const a = agg[norm];
-        if (t.csat_score != null) {
-          const score = Number(t.csat_score);
-          const surveys = Number(t.surveys_count || 0);
+        const surveys = Number(t.surveys_count || 0);
+        const score = t.csat_score != null ? Number(t.csat_score) : null;
+        const key2 = t.qa_email + "\u0000" + norm;
+        if (!perQa[key2] || surveys > perQa[key2].surveys) {
+          perQa[key2] = { topic: norm, score, surveys };
+        }
+      });
+      // Step 2: aggregate across QAs by normalized topic (survey-weighted).
+      const agg = {};
+      Object.values(perQa).forEach(({ topic, score, surveys }) => {
+        if (!agg[topic]) agg[topic] = { topic, w: 0, n: 0, s: 0, simpleSum: 0, simpleCount: 0 };
+        const a = agg[topic];
+        if (score != null) {
           a.simpleSum += score; a.simpleCount++;
-          if (surveys > 0) { a.weightedSum += score * surveys; a.weight += surveys; }
-          a.surveys += surveys;
+          if (surveys > 0) { a.w += score * surveys; a.n += surveys; a.s += surveys; }
         }
       });
       const aggRows = Object.values(agg).map(a => ({
         topic: a.topic,
-        csat_score: a.weight > 0 ? a.weightedSum / a.weight : (a.simpleCount > 0 ? a.simpleSum / a.simpleCount : null),
-        surveys_count: a.surveys,
+        csat_score: a.n > 0 ? a.w / a.n : (a.simpleCount > 0 ? a.simpleSum / a.simpleCount : null),
+        surveys_count: a.s,
       })).sort((x, y) => (y.csat_score ?? -1) - (x.csat_score ?? -1));
       setLeadTopics(prev => ({ ...prev, [key]: aggRows }));
     } catch (e) { setLeadTopics(prev => ({ ...prev, [key]: [] })); }
@@ -243,30 +248,35 @@ export default function CSATPage() {
           all.push(...(rows || []));
         }
         const topicsSet = new Set();
-        // Raw row → (agent, normalized-topic) aggregate so topic variants
-        // ("Card Status" vs "Card Status -") collapse into one cell.
-        const cellAgg = {}; // key -> { w, n, s }
-        const totalsByTopic = {};
-        const totalsByAgent = {};
+        // Step 1: dedupe variants per (agent, normalized topic) — keep the
+        // row with the most surveys (= the bare rollup when it exists,
+        // otherwise the only row). Summing variants double-counts the
+        // subset rows the import writes alongside rollups.
+        const pickByCell = {}; // key -> { score, surveys }
         all.forEach(r => {
           if (!r.topic) return;
           const topic = normalizeTopic(r.topic);
           topicsSet.add(topic);
           const score = r.csat_score != null ? Number(r.csat_score) : null;
           const surveys = Number(r.surveys_count || 0);
-          if (score != null && surveys > 0) {
-            const cellKey = r.qa_email + "\u0000" + topic;
-            const c = cellAgg[cellKey] || (cellAgg[cellKey] = { w: 0, n: 0, s: 0 });
-            c.w += score * surveys; c.n += surveys; c.s += surveys;
-            const tt = totalsByTopic[topic] || (totalsByTopic[topic] = { w: 0, n: 0, s: 0 });
-            tt.w += score * surveys; tt.n += surveys; tt.s += surveys;
-            const ta = totalsByAgent[r.qa_email] || (totalsByAgent[r.qa_email] = { w: 0, n: 0, s: 0 });
-            ta.w += score * surveys; ta.n += surveys; ta.s += surveys;
+          const cellKey = r.qa_email + "\u0000" + topic;
+          const prev = pickByCell[cellKey];
+          if (!prev || surveys > prev.surveys) {
+            pickByCell[cellKey] = { email: r.qa_email, topic, score, surveys };
           }
         });
+        // Step 2: build cells + totals from the deduped picks.
         const cells = {};
-        Object.entries(cellAgg).forEach(([k, v]) => {
-          cells[k] = { score: v.n > 0 ? v.w / v.n : null, surveys: v.s };
+        const totalsByTopic = {};
+        const totalsByAgent = {};
+        Object.entries(pickByCell).forEach(([k, v]) => {
+          cells[k] = { score: v.score, surveys: v.surveys };
+          if (v.score != null && v.surveys > 0) {
+            const tt = totalsByTopic[v.topic] || (totalsByTopic[v.topic] = { w: 0, n: 0, s: 0 });
+            tt.w += v.score * v.surveys; tt.n += v.surveys; tt.s += v.surveys;
+            const ta = totalsByAgent[v.email] || (totalsByAgent[v.email] = { w: 0, n: 0, s: 0 });
+            ta.w += v.score * v.surveys; ta.n += v.surveys; ta.s += v.surveys;
+          }
         });
         const topicList = [...topicsSet].sort((a, b) => (totalsByTopic[b]?.s || 0) - (totalsByTopic[a]?.s || 0));
         setTopicMatrixByMonth(prev => ({ ...prev, [monthKey + "::" + scopedEmailsKey]: { topics: topicList, cells, totalsByTopic, totalsByAgent } }));
