@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pulse — Logo Concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --tabby-purple: #6A2C79;
+    --tabby-purple-light: #8B4D99;
+    --tabby-purple-dark: #4A1B56;
+    --tabby-green: #3BFF9D;
+    --tabby-green-dim: #2BD882;
+    --bg-dark: #0D0B10;
+    --bg-card-dark: #1A1622;
+    --bg-light: #FAFAFA;
+    --bg-card-light: #FFFFFF;
+    --tx-dark: #F5F3F8;
+    --tx-light: #1A1A1A;
+    --bd-dark: rgba(255,255,255,.08);
+    --bd-light: rgba(0,0,0,.08);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    background: #0A0810;
+    color: var(--tx-dark);
+    min-height: 100vh;
+    padding: 48px 24px 80px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  header { margin-bottom: 48px; }
+  h1 {
+    font-size: 32px; font-weight: 800; letter-spacing: -1px;
+    background: linear-gradient(135deg, #3BFF9D, #8B4D99);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+  }
+  .lede { color: rgba(255,255,255,.55); font-size: 15px; max-width: 640px; line-height: 1.5; }
+  .pick { display: inline-block; margin-top: 14px; padding: 6px 14px; border-radius: 999px;
+    background: rgba(59,255,157,.1); color: var(--tabby-green); font-size: 12px; font-weight: 600;
+    border: 1px solid rgba(59,255,157,.25); }
+
+  .concept {
+    margin-bottom: 56px; padding: 36px;
+    background: rgba(26,22,34,.6); backdrop-filter: blur(20px);
+    border: 1px solid var(--bd-dark); border-radius: 20px;
+    position: relative; overflow: hidden;
+  }
+  .concept::before {
+    content: ''; position: absolute; top: -120px; right: -120px; width: 360px; height: 360px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(106,44,121,.15), transparent 60%); pointer-events: none;
+  }
+  .concept.recommended { border-color: rgba(59,255,157,.3); box-shadow: 0 0 0 1px rgba(59,255,157,.15) inset; }
+  .concept.recommended::after {
+    content: 'RECOMMENDED'; position: absolute; top: 24px; right: 24px;
+    background: var(--tabby-green); color: #0A0810; padding: 4px 10px; border-radius: 6px;
+    font-size: 10px; font-weight: 800; letter-spacing: .8px;
+  }
+  .concept-head { display: flex; align-items: baseline; gap: 16px; margin-bottom: 8px; flex-wrap: wrap; }
+  .concept-num { font-size: 12px; color: rgba(255,255,255,.4); font-weight: 700; letter-spacing: 2px; }
+  .concept-name { font-size: 22px; font-weight: 700; letter-spacing: -.4px; }
+  .concept-tag { font-size: 11px; padding: 3px 10px; border-radius: 6px; background: rgba(255,255,255,.06);
+    color: rgba(255,255,255,.6); font-weight: 600; letter-spacing: .3px; }
+  .concept-desc { color: rgba(255,255,255,.55); font-size: 13px; line-height: 1.6; max-width: 700px; margin-bottom: 28px; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; position: relative; z-index: 1; }
+  @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } }
+
+  .panel { padding: 28px 24px; border-radius: 14px; }
+  .panel.dark { background: var(--bg-dark); border: 1px solid var(--bd-dark); }
+  .panel.light { background: var(--bg-light); border: 1px solid var(--bd-light); color: var(--tx-light); }
+  .panel-label { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; opacity: .45; margin-bottom: 18px; text-transform: uppercase; }
+
+  .row { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; margin-bottom: 18px; }
+  .row:last-child { margin-bottom: 0; }
+  .item { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .item-cap { font-size: 10px; opacity: .5; font-variant-numeric: tabular-nums; }
+
+  .lockup { display: flex; align-items: center; gap: 12px; padding: 8px 0; }
+  .lockup-text { font-size: 22px; font-weight: 700; letter-spacing: -.5px; }
+  .lockup-text .gradient {
+    background: linear-gradient(135deg, var(--tabby-green), var(--tabby-purple-light));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  }
+
+  .sidebar-mock { padding: 16px; border-radius: 12px; background: var(--bg-dark); border: 1px solid var(--bd-dark);
+    display: flex; align-items: center; gap: 10px; }
+  .sidebar-mock .nav-stub { flex: 1; height: 6px; background: rgba(255,255,255,.06); border-radius: 3px; }
+
+  footer { margin-top: 60px; text-align: center; color: rgba(255,255,255,.4); font-size: 13px; }
+  footer kbd { display: inline-block; padding: 2px 8px; background: rgba(255,255,255,.08); border-radius: 6px;
+    font-family: monospace; font-size: 12px; color: var(--tabby-green); border: 1px solid rgba(255,255,255,.1); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Pulse — Logo Concepts</h1>
+    <p class="lede">Three directions, each shown at favicon, app-header, and lockup sizes, on dark and light backgrounds. The recommended concept gets the highest weight in my opinion — but the call is yours.</p>
+  </header>
+
+  <!-- ═══ CONCEPT 1 ═══ -->
+  <section class="concept recommended">
+    <div class="concept-head">
+      <span class="concept-num">01</span>
+      <h2 class="concept-name">Pulse Dot</h2>
+      <span class="concept-tag">wordmark + accent</span>
+    </div>
+    <p class="concept-desc">A clean wordmark with a single green pulse dot, like Stripe's accent or a status indicator. The dot does double-duty: it marks the brand and reads as "alive / monitoring", which fits the product. Most restrained. Best for app headers; works as wordmark-only on the login screen. Favicon falls back to a solid purple square with a green dot.</p>
+    <div class="grid">
+      <!-- Dark -->
+      <div class="panel dark">
+        <div class="panel-label">Dark surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><circle cx="16" cy="16" r="3.5" fill="#3BFF9D"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><circle cx="16" cy="16" r="5.5" fill="#3BFF9D"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><circle cx="16" cy="16" r="6" fill="none" stroke="#3BFF9D" stroke-width="1.4"><animate attributeName="r" values="6;13" dur="1.6s" repeatCount="indefinite"/><animate attributeName="opacity" values=".75;0" dur="1.6s" repeatCount="indefinite"/></circle><circle cx="16" cy="16" r="5.5" fill="#3BFF9D"><animate attributeName="r" values="5.5;6.5;5.5" dur="1.6s" repeatCount="indefinite" calcMode="spline" keyTimes="0;.4;1" keySplines="0.4 0 0.6 1; 0.4 0 0.6 1"/></circle></svg>
+            <span class="item-cap">64 (heartbeat)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="20" height="20" viewBox="0 0 32 32"><circle cx="16" cy="16" r="6" fill="#3BFF9D"><animate attributeName="r" values="6;7;6" dur="1.6s" repeatCount="indefinite"/></circle></svg>
+            <span class="lockup-text" style="color:#fff">Pulse</span>
+          </div>
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#251A2E"/><circle cx="16" cy="16" r="6" fill="#3BFF9D"/></svg>
+            <span class="lockup-text" style="color:#fff">tabby<span class="gradient">Pulse</span></span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="sidebar-mock">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#251A2E"/><circle cx="16" cy="16" r="6" fill="#3BFF9D"/></svg>
+            <span style="font-weight:700;font-size:15px;letter-spacing:-.3px">tabby<span class="gradient">Pulse</span></span>
+            <div class="nav-stub"></div>
+          </div>
+        </div>
+      </div>
+      <!-- Light -->
+      <div class="panel light">
+        <div class="panel-label">Light surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><circle cx="16" cy="16" r="3.5" fill="#3BFF9D"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><circle cx="16" cy="16" r="5.5" fill="#3BFF9D"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><circle cx="16" cy="16" r="5.5" fill="#3BFF9D"><animate attributeName="r" values="5.5;7;5.5" dur="2.4s" repeatCount="indefinite"/></circle></svg>
+            <span class="item-cap">64 (animated)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="20" height="20" viewBox="0 0 32 32"><circle cx="16" cy="16" r="6" fill="#2BD882"/></svg>
+            <span class="lockup-text" style="color:#1A1A1A">Pulse</span>
+          </div>
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><circle cx="16" cy="16" r="6" fill="#3BFF9D"/></svg>
+            <span class="lockup-text" style="color:#1A1A1A">tabby<span style="color:#6A2C79">Pulse</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CONCEPT 2 ═══ -->
+  <section class="concept">
+    <div class="concept-head">
+      <span class="concept-num">02</span>
+      <h2 class="concept-name">Aperture</h2>
+      <span class="concept-tag">geometric monogram</span>
+    </div>
+    <p class="concept-desc">A solid purple rounded square with a clipped white "P" inside, plus a single green dot at the corner where the P meets the bowl — the dot reads as a status light or the "pulse" peak. Closest to Lexi in spirit (the colon dot is replaced by the corner accent), distinct in shape. Strong at any size.</p>
+    <div class="grid">
+      <div class="panel dark">
+        <div class="panel-label">Dark surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#6A2C79"/><path d="M11 9 v14 M11 9 h7 a4 4 0 0 1 0 8 h-7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="11" r="2" fill="#3BFF9D"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#6A2C79"/><path d="M11 9 v14 M11 9 h7 a4 4 0 0 1 0 8 h-7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="11" r="2.2" fill="#3BFF9D"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#6A2C79"/><path d="M11 9 v14 M11 9 h7 a4 4 0 0 1 0 8 h-7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="11" r="2.2" fill="#3BFF9D"><animate attributeName="opacity" values="1;.3;1" dur="2s" repeatCount="indefinite"/></circle></svg>
+            <span class="item-cap">64 (animated)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#6A2C79"/><path d="M11 9 v14 M11 9 h7 a4 4 0 0 1 0 8 h-7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="11" r="2.2" fill="#3BFF9D"/></svg>
+            <span class="lockup-text" style="color:#fff">tabby<span class="gradient">Pulse</span></span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="sidebar-mock">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#6A2C79"/><path d="M11 9 v14 M11 9 h7 a4 4 0 0 1 0 8 h-7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="11" r="2.2" fill="#3BFF9D"/></svg>
+            <span style="font-weight:700;font-size:15px;letter-spacing:-.3px">tabby<span class="gradient">Pulse</span></span>
+            <div class="nav-stub"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel light">
+        <div class="panel-label">Light surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#6A2C79"/><path d="M11 9 v14 M11 9 h7 a4 4 0 0 1 0 8 h-7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="11" r="2" fill="#3BFF9D"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#6A2C79"/><path d="M11 9 v14 M11 9 h7 a4 4 0 0 1 0 8 h-7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="11" r="2.2" fill="#3BFF9D"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#6A2C79"/><path d="M11 9 v14 M11 9 h7 a4 4 0 0 1 0 8 h-7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="11" r="2.2" fill="#3BFF9D"><animate attributeName="opacity" values="1;.3;1" dur="2s" repeatCount="indefinite"/></circle></svg>
+            <span class="item-cap">64 (animated)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#6A2C79"/><path d="M11 9 v14 M11 9 h7 a4 4 0 0 1 0 8 h-7" stroke="#fff" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="22" cy="11" r="2.2" fill="#3BFF9D"/></svg>
+            <span class="lockup-text" style="color:#1A1A1A">tabby<span style="color:#6A2C79">Pulse</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CONCEPT 3 ═══ -->
+  <section class="concept">
+    <div class="concept-head">
+      <span class="concept-num">03</span>
+      <h2 class="concept-name">Orbit</h2>
+      <span class="concept-tag">abstract glyph</span>
+    </div>
+    <p class="concept-desc">A thin purple ring with a single bright green node sitting on it — a "pulse on the wire" or "satellite orbiting". No letters, fully abstract. Tiny rotation animation makes it feel alive without being literal. Strongest at large sizes (login splash) and as a watermark; needs a wordmark companion in app headers.</p>
+    <div class="grid">
+      <div class="panel dark">
+        <div class="panel-label">Dark surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="11" fill="none" stroke="#8B4D99" stroke-width="2"/><circle cx="16" cy="5" r="3" fill="#3BFF9D"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="11" fill="none" stroke="#8B4D99" stroke-width="2"/><circle cx="16" cy="5" r="3" fill="#3BFF9D"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><g><circle cx="16" cy="16" r="11" fill="none" stroke="#8B4D99" stroke-width="2"/><circle cx="16" cy="5" r="3" fill="#3BFF9D"><animate attributeName="r" values="3;4.2;3" dur="1.4s" repeatCount="indefinite"/></circle><animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="6s" repeatCount="indefinite"/></g></svg>
+            <span class="item-cap">64 (orbit + pulse)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="24" height="24" viewBox="0 0 32 32"><circle cx="16" cy="16" r="11" fill="none" stroke="#8B4D99" stroke-width="2"/><circle cx="16" cy="5" r="3" fill="#3BFF9D"/></svg>
+            <span class="lockup-text" style="color:#fff">tabby<span class="gradient">Pulse</span></span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="sidebar-mock">
+            <svg width="22" height="22" viewBox="0 0 32 32"><circle cx="16" cy="16" r="11" fill="none" stroke="#8B4D99" stroke-width="2"/><circle cx="16" cy="5" r="3" fill="#3BFF9D"/></svg>
+            <span style="font-weight:700;font-size:15px;letter-spacing:-.3px">tabby<span class="gradient">Pulse</span></span>
+            <div class="nav-stub"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel light">
+        <div class="panel-label">Light surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="11" fill="none" stroke="#6A2C79" stroke-width="2"/><circle cx="16" cy="5" r="3" fill="#2BD882"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="11" fill="none" stroke="#6A2C79" stroke-width="2"/><circle cx="16" cy="5" r="3" fill="#2BD882"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><g><circle cx="16" cy="16" r="11" fill="none" stroke="#6A2C79" stroke-width="2"/><circle cx="16" cy="5" r="3" fill="#2BD882"/><animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="6s" repeatCount="indefinite"/></g></svg>
+            <span class="item-cap">64 (animated)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="24" height="24" viewBox="0 0 32 32"><circle cx="16" cy="16" r="11" fill="none" stroke="#6A2C79" stroke-width="2"/><circle cx="16" cy="5" r="3" fill="#2BD882"/></svg>
+            <span class="lockup-text" style="color:#1A1A1A">tabby<span style="color:#6A2C79">Pulse</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CONCEPT 4 ═══ -->
+  <section class="concept">
+    <div class="concept-head">
+      <span class="concept-num">04</span>
+      <h2 class="concept-name">Heartbeat</h2>
+      <span class="concept-tag">refined EKG with traveling pulse</span>
+    </div>
+    <p class="concept-desc">A cleaner version of the existing pulse-line, but with the spike <em>traveling</em> across the line — the green segment moves left-to-right repeatedly, like a heartbeat monitor in motion. Most literal "pulse" of the set, and reads as motion even at small sizes.</p>
+    <div class="grid">
+      <div class="panel dark">
+        <div class="panel-label">Dark surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><path d="M5 17 L11 17 L13 11 L17 22 L20 14 L22 17 L27 17" stroke="#3BFF9D" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><path d="M5 17 L11 17 L13 11 L17 22 L20 14 L22 17 L27 17" stroke="#3BFF9D" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><path id="ekg-d" d="M5 17 L11 17 L13 11 L17 22 L20 14 L22 17 L27 17" stroke="#8B4D99" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".4"/><circle r="2" fill="#3BFF9D"><animateMotion dur="2.2s" repeatCount="indefinite"><mpath href="#ekg-d"/></animateMotion><animate attributeName="r" values="2;2.6;2" dur="2.2s" repeatCount="indefinite"/></circle></svg>
+            <span class="item-cap">64 (traveling)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><path d="M5 17 L11 17 L13 11 L17 22 L20 14 L22 17 L27 17" stroke="#3BFF9D" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="lockup-text" style="color:#fff">tabby<span class="gradient">Pulse</span></span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="sidebar-mock">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><path d="M5 17 L11 17 L13 11 L17 22 L20 14 L22 17 L27 17" stroke="#3BFF9D" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font-weight:700;font-size:15px;letter-spacing:-.3px">tabby<span class="gradient">Pulse</span></span>
+            <div class="nav-stub"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel light">
+        <div class="panel-label">Light surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><path d="M5 17 L11 17 L13 11 L17 22 L20 14 L22 17 L27 17" stroke="#3BFF9D" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><path d="M5 17 L11 17 L13 11 L17 22 L20 14 L22 17 L27 17" stroke="#3BFF9D" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><path id="ekg-l" d="M5 17 L11 17 L13 11 L17 22 L20 14 L22 17 L27 17" stroke="#8B4D99" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/><circle r="2" fill="#3BFF9D"><animateMotion dur="2.2s" repeatCount="indefinite"><mpath href="#ekg-l"/></animateMotion><animate attributeName="r" values="2;2.6;2" dur="2.2s" repeatCount="indefinite"/></circle></svg>
+            <span class="item-cap">64 (traveling)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><path d="M5 17 L11 17 L13 11 L17 22 L20 14 L22 17 L27 17" stroke="#3BFF9D" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="lockup-text" style="color:#1A1A1A">tabby<span style="color:#6A2C79">Pulse</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CONCEPT 5 ═══ -->
+  <section class="concept">
+    <div class="concept-head">
+      <span class="concept-num">05</span>
+      <h2 class="concept-name">Sonar</h2>
+      <span class="concept-tag">center node + expanding rings</span>
+    </div>
+    <p class="concept-desc">A solid green core with two rings rippling outward, alternating green and purple. Reads as "monitoring / signal / alive". Strongest motion of the set; the favicon stays static (just the core dot) so it doesn't distract in tabs. Best at any size, very recognisable as a pulse.</p>
+    <div class="grid">
+      <div class="panel dark">
+        <div class="panel-label">Dark surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><circle cx="16" cy="16" r="3.5" fill="#3BFF9D"/><circle cx="16" cy="16" r="8" fill="none" stroke="#8B4D99" stroke-width="1" opacity=".5"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><circle cx="16" cy="16" r="4" fill="#3BFF9D"/><circle cx="16" cy="16" r="9" fill="none" stroke="#8B4D99" stroke-width="1.2" opacity=".6"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><circle cx="16" cy="16" r="3" fill="none" stroke="#3BFF9D" stroke-width="1.4"><animate attributeName="r" values="3;13" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values=".8;0" dur="1.8s" repeatCount="indefinite"/></circle><circle cx="16" cy="16" r="3" fill="none" stroke="#8B4D99" stroke-width="1.4"><animate attributeName="r" values="3;13" dur="1.8s" begin="0.9s" repeatCount="indefinite"/><animate attributeName="opacity" values=".8;0" dur="1.8s" begin="0.9s" repeatCount="indefinite"/></circle><circle cx="16" cy="16" r="3.5" fill="#3BFF9D"><animate attributeName="r" values="3.5;4.5;3.5" dur="1.8s" repeatCount="indefinite"/></circle></svg>
+            <span class="item-cap">64 (sonar)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="24" height="24" viewBox="0 0 32 32"><circle cx="16" cy="16" r="3" fill="none" stroke="#3BFF9D" stroke-width="1.4"><animate attributeName="r" values="3;13" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values=".7;0" dur="1.8s" repeatCount="indefinite"/></circle><circle cx="16" cy="16" r="4" fill="#3BFF9D"/></svg>
+            <span class="lockup-text" style="color:#fff">tabby<span class="gradient">Pulse</span></span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="sidebar-mock">
+            <svg width="22" height="22" viewBox="0 0 32 32"><circle cx="16" cy="16" r="4" fill="#3BFF9D"/><circle cx="16" cy="16" r="9" fill="none" stroke="#8B4D99" stroke-width="1.4" opacity=".6"/></svg>
+            <span style="font-weight:700;font-size:15px;letter-spacing:-.3px">tabby<span class="gradient">Pulse</span></span>
+            <div class="nav-stub"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel light">
+        <div class="panel-label">Light surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><circle cx="16" cy="16" r="3.5" fill="#2BD882"/><circle cx="16" cy="16" r="8" fill="none" stroke="#6A2C79" stroke-width="1" opacity=".7"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="4" fill="#2BD882"/><circle cx="16" cy="16" r="9" fill="none" stroke="#6A2C79" stroke-width="1.2" opacity=".7"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><circle cx="16" cy="16" r="3" fill="none" stroke="#2BD882" stroke-width="1.4"><animate attributeName="r" values="3;13" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values=".9;0" dur="1.8s" repeatCount="indefinite"/></circle><circle cx="16" cy="16" r="3" fill="none" stroke="#6A2C79" stroke-width="1.4"><animate attributeName="r" values="3;13" dur="1.8s" begin="0.9s" repeatCount="indefinite"/><animate attributeName="opacity" values=".9;0" dur="1.8s" begin="0.9s" repeatCount="indefinite"/></circle><circle cx="16" cy="16" r="3.5" fill="#2BD882"><animate attributeName="r" values="3.5;4.5;3.5" dur="1.8s" repeatCount="indefinite"/></circle></svg>
+            <span class="item-cap">64 (sonar)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="24" height="24" viewBox="0 0 32 32"><circle cx="16" cy="16" r="3" fill="none" stroke="#2BD882" stroke-width="1.4"><animate attributeName="r" values="3;13" dur="1.8s" repeatCount="indefinite"/><animate attributeName="opacity" values=".9;0" dur="1.8s" repeatCount="indefinite"/></circle><circle cx="16" cy="16" r="4" fill="#2BD882"/></svg>
+            <span class="lockup-text" style="color:#1A1A1A">tabby<span style="color:#6A2C79">Pulse</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CONCEPT 6 ═══ -->
+  <section class="concept">
+    <div class="concept-head">
+      <span class="concept-num">06</span>
+      <h2 class="concept-name">Equalizer</h2>
+      <span class="concept-tag">three pulsing bars</span>
+    </div>
+    <p class="concept-desc">Three vertical bars that rise and fall in sequence — like an equaliser, or the bars on a heart-rate monitor. Reads as "performance / metrics / data" without being a chart cliché. Center bar is purple, outer bars green; they pulse staggered so the eye is always pulled across the mark.</p>
+    <div class="grid">
+      <div class="panel dark">
+        <div class="panel-label">Dark surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><rect x="9" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/><rect x="14.5" y="9" width="3" height="14" rx="1.5" fill="#8B4D99"/><rect x="20" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><rect x="9" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/><rect x="14.5" y="9" width="3" height="14" rx="1.5" fill="#8B4D99"/><rect x="20" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><rect x="9" width="3" rx="1.5" fill="#3BFF9D"><animate attributeName="height" values="4;14;4" dur="1.4s" repeatCount="indefinite"/><animate attributeName="y" values="14;9;14" dur="1.4s" repeatCount="indefinite"/></rect><rect x="14.5" width="3" rx="1.5" fill="#8B4D99"><animate attributeName="height" values="14;6;14" dur="1.4s" begin="0.25s" repeatCount="indefinite"/><animate attributeName="y" values="9;13;9" dur="1.4s" begin="0.25s" repeatCount="indefinite"/></rect><rect x="20" width="3" rx="1.5" fill="#3BFF9D"><animate attributeName="height" values="4;14;4" dur="1.4s" begin="0.5s" repeatCount="indefinite"/><animate attributeName="y" values="14;9;14" dur="1.4s" begin="0.5s" repeatCount="indefinite"/></rect></svg>
+            <span class="item-cap">64 (pulsing)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><rect x="9" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/><rect x="14.5" y="9" width="3" height="14" rx="1.5" fill="#8B4D99"/><rect x="20" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/></svg>
+            <span class="lockup-text" style="color:#fff">tabby<span class="gradient">Pulse</span></span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="sidebar-mock">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><rect x="9" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/><rect x="14.5" y="9" width="3" height="14" rx="1.5" fill="#8B4D99"/><rect x="20" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/></svg>
+            <span style="font-weight:700;font-size:15px;letter-spacing:-.3px">tabby<span class="gradient">Pulse</span></span>
+            <div class="nav-stub"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel light">
+        <div class="panel-label">Light surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><rect x="9" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/><rect x="14.5" y="9" width="3" height="14" rx="1.5" fill="#8B4D99"/><rect x="20" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><rect x="9" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/><rect x="14.5" y="9" width="3" height="14" rx="1.5" fill="#8B4D99"/><rect x="20" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><rect x="9" width="3" rx="1.5" fill="#3BFF9D"><animate attributeName="height" values="4;14;4" dur="1.4s" repeatCount="indefinite"/><animate attributeName="y" values="14;9;14" dur="1.4s" repeatCount="indefinite"/></rect><rect x="14.5" width="3" rx="1.5" fill="#8B4D99"><animate attributeName="height" values="14;6;14" dur="1.4s" begin="0.25s" repeatCount="indefinite"/><animate attributeName="y" values="9;13;9" dur="1.4s" begin="0.25s" repeatCount="indefinite"/></rect><rect x="20" width="3" rx="1.5" fill="#3BFF9D"><animate attributeName="height" values="4;14;4" dur="1.4s" begin="0.5s" repeatCount="indefinite"/><animate attributeName="y" values="14;9;14" dur="1.4s" begin="0.5s" repeatCount="indefinite"/></rect></svg>
+            <span class="item-cap">64 (pulsing)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><rect x="9" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/><rect x="14.5" y="9" width="3" height="14" rx="1.5" fill="#8B4D99"/><rect x="20" y="14" width="3" height="4" rx="1.5" fill="#3BFF9D"/></svg>
+            <span class="lockup-text" style="color:#1A1A1A">tabby<span style="color:#6A2C79">Pulse</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CONCEPT 7 ═══ -->
+  <section class="concept">
+    <div class="concept-head">
+      <span class="concept-num">07</span>
+      <h2 class="concept-name">Dashboard</h2>
+      <span class="concept-tag">chart card containing the pulse</span>
+    </div>
+    <p class="concept-desc">A small dashboard tile — faint Y-axis baseline, subtle dotted gridlines, and the EKG pulse drawn as the chart series. A green dot travels along the curve like a real-time monitor. The container <em>is</em> the metaphor (Pulse = a dashboard for QA performance), so the mark literally describes the product. Grid lines drop out at favicon size so it stays legible.</p>
+    <div class="grid">
+      <div class="panel dark">
+        <div class="panel-label">Dark surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><path d="M6 19 L11 19 L13 13 L17 24 L20 14 L23 19 L28 19" stroke="#3BFF9D" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><line x1="6" y1="10.5" x2="28" y2="10.5" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".35"/><line x1="6" y1="19" x2="28" y2="19" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".35"/><line x1="6" y1="6" x2="6" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".4"/><line x1="6" y1="27" x2="28" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".4"/><path d="M6 19 L11 19 L13 13 L17 24 L20 14 L23 19 L28 19" stroke="#3BFF9D" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><line x1="6" y1="10.5" x2="28" y2="10.5" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".35"/><line x1="6" y1="19" x2="28" y2="19" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".35"/><line x1="6" y1="6" x2="6" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".5"/><line x1="6" y1="27" x2="28" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".5"/><path id="dash-d" d="M6 19 L11 19 L13 13 L17 24 L20 14 L23 19 L28 19" stroke="#8B4D99" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/><circle r="1.8" fill="#3BFF9D"><animateMotion dur="2.4s" repeatCount="indefinite"><mpath href="#dash-d"/></animateMotion><animate attributeName="r" values="1.8;2.4;1.8" dur="2.4s" repeatCount="indefinite"/></circle></svg>
+            <span class="item-cap">64 (live chart)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><line x1="6" y1="10.5" x2="28" y2="10.5" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".35"/><line x1="6" y1="19" x2="28" y2="19" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".35"/><line x1="6" y1="6" x2="6" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".5"/><line x1="6" y1="27" x2="28" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".5"/><path d="M6 19 L11 19 L13 13 L17 24 L20 14 L23 19 L28 19" stroke="#3BFF9D" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="lockup-text" style="color:#fff">tabby<span class="gradient">Pulse</span></span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="sidebar-mock">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><line x1="6" y1="10.5" x2="28" y2="10.5" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".35"/><line x1="6" y1="19" x2="28" y2="19" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".35"/><line x1="6" y1="6" x2="6" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".5"/><line x1="6" y1="27" x2="28" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".5"/><path d="M6 19 L11 19 L13 13 L17 24 L20 14 L23 19 L28 19" stroke="#3BFF9D" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span style="font-weight:700;font-size:15px;letter-spacing:-.3px">tabby<span class="gradient">Pulse</span></span>
+            <div class="nav-stub"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel light">
+        <div class="panel-label">Light surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><path d="M6 19 L11 19 L13 13 L17 24 L20 14 L23 19 L28 19" stroke="#3BFF9D" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><line x1="6" y1="10.5" x2="28" y2="10.5" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".4"/><line x1="6" y1="19" x2="28" y2="19" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".4"/><line x1="6" y1="6" x2="6" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".55"/><line x1="6" y1="27" x2="28" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".55"/><path d="M6 19 L11 19 L13 13 L17 24 L20 14 L23 19 L28 19" stroke="#3BFF9D" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><line x1="6" y1="10.5" x2="28" y2="10.5" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".4"/><line x1="6" y1="19" x2="28" y2="19" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".4"/><line x1="6" y1="6" x2="6" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".55"/><line x1="6" y1="27" x2="28" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".55"/><path id="dash-l" d="M6 19 L11 19 L13 13 L17 24 L20 14 L23 19 L28 19" stroke="#8B4D99" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".6"/><circle r="1.8" fill="#3BFF9D"><animateMotion dur="2.4s" repeatCount="indefinite"><mpath href="#dash-l"/></animateMotion><animate attributeName="r" values="1.8;2.4;1.8" dur="2.4s" repeatCount="indefinite"/></circle></svg>
+            <span class="item-cap">64 (live chart)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><line x1="6" y1="10.5" x2="28" y2="10.5" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".4"/><line x1="6" y1="19" x2="28" y2="19" stroke="#8B4D99" stroke-width="0.5" stroke-dasharray="1 2" opacity=".4"/><line x1="6" y1="6" x2="6" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".55"/><line x1="6" y1="27" x2="28" y2="27" stroke="#8B4D99" stroke-width="0.6" opacity=".55"/><path d="M6 19 L11 19 L13 13 L17 24 L20 14 L23 19 L28 19" stroke="#3BFF9D" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="lockup-text" style="color:#1A1A1A">tabby<span style="color:#6A2C79">Pulse</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CONCEPT 8 ═══ -->
+  <section class="concept">
+    <div class="concept-head">
+      <span class="concept-num">08</span>
+      <h2 class="concept-name">Pulse Type</h2>
+      <span class="concept-tag">P + ulse drawn as a heartbeat</span>
+    </div>
+    <p class="concept-desc">A typographic wordmark where the <strong>P</strong> is the fixed anchor and the rest of the word — <em>ulse</em> — is drawn as a heartbeat line. A bright green dot travels along the pulse so the word literally beats. Strong horizontal mark, ideal for sidebar headers and the login screen. The favicon falls back to a solid square with just the <strong>P</strong> and a green pulse dot, so the brand stays recognisable in browser tabs.</p>
+    <div class="grid">
+      <div class="panel dark">
+        <div class="panel-label">Dark surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><text x="9" y="23" font-family="Inter,sans-serif" font-weight="800" font-size="20" fill="#fff" letter-spacing="-1">P</text><circle cx="22" cy="11" r="2.2" fill="#3BFF9D"/></svg>
+            <span class="item-cap">16px favicon</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#1A1622"/><text x="9" y="23" font-family="Inter,sans-serif" font-weight="800" font-size="20" fill="#fff" letter-spacing="-1">P</text><circle cx="22" cy="11" r="2.2" fill="#3BFF9D"/></svg>
+            <span class="item-cap">32px favicon</span>
+          </div>
+        </div>
+        <div class="row">
+          <svg viewBox="0 0 96 32" width="240" height="80" style="overflow:visible">
+            <text x="0" y="25" font-family="Inter,sans-serif" font-weight="800" font-size="28" fill="#fff" letter-spacing="-1.5">P</text>
+            <path id="ulse-d" d="M22 20 L30 20 L34 11 L40 27 L46 15 L50 20 L60 20 L64 13 L70 24 L74 20 L88 20" stroke="#8B4D99" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>
+            <circle r="2.6" fill="#3BFF9D">
+              <animateMotion dur="2.8s" repeatCount="indefinite"><mpath href="#ulse-d"/></animateMotion>
+              <animate attributeName="r" values="2.6;3.4;2.6" dur="2.8s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>
+        <div class="row">
+          <div class="lockup" style="gap:8px">
+            <span class="lockup-text" style="color:rgba(255,255,255,.7);font-weight:500">tabby</span>
+            <svg viewBox="0 0 96 32" width="120" height="40">
+              <text x="0" y="25" font-family="Inter,sans-serif" font-weight="800" font-size="28" fill="#fff" letter-spacing="-1.5">P</text>
+              <path d="M22 20 L30 20 L34 11 L40 27 L46 15 L50 20 L60 20 L64 13 L70 24 L74 20 L88 20" stroke="#3BFF9D" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+        <div class="row">
+          <div class="sidebar-mock">
+            <div style="display:flex;align-items:center;gap:6px">
+              <span style="font-weight:500;color:rgba(255,255,255,.65);font-size:14px">tabby</span>
+              <svg viewBox="0 0 96 32" width="78" height="26">
+                <text x="0" y="25" font-family="Inter,sans-serif" font-weight="800" font-size="28" fill="#fff" letter-spacing="-1.5">P</text>
+                <path d="M22 20 L30 20 L34 11 L40 27 L46 15 L50 20 L60 20 L64 13 L70 24 L74 20 L88 20" stroke="#3BFF9D" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+            <div class="nav-stub"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel light">
+        <div class="panel-label">Light surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><text x="9" y="23" font-family="Inter,sans-serif" font-weight="800" font-size="20" fill="#fff" letter-spacing="-1">P</text><circle cx="22" cy="11" r="2.2" fill="#3BFF9D"/></svg>
+            <span class="item-cap">16px favicon</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="7" fill="#0D0B10"/><text x="9" y="23" font-family="Inter,sans-serif" font-weight="800" font-size="20" fill="#fff" letter-spacing="-1">P</text><circle cx="22" cy="11" r="2.2" fill="#3BFF9D"/></svg>
+            <span class="item-cap">32px favicon</span>
+          </div>
+        </div>
+        <div class="row">
+          <svg viewBox="0 0 96 32" width="240" height="80" style="overflow:visible">
+            <text x="0" y="25" font-family="Inter,sans-serif" font-weight="800" font-size="28" fill="#1A1A1A" letter-spacing="-1.5">P</text>
+            <path id="ulse-l" d="M22 20 L30 20 L34 11 L40 27 L46 15 L50 20 L60 20 L64 13 L70 24 L74 20 L88 20" stroke="#6A2C79" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round" opacity=".55"/>
+            <circle r="2.6" fill="#2BD882">
+              <animateMotion dur="2.8s" repeatCount="indefinite"><mpath href="#ulse-l"/></animateMotion>
+              <animate attributeName="r" values="2.6;3.4;2.6" dur="2.8s" repeatCount="indefinite"/>
+            </circle>
+          </svg>
+        </div>
+        <div class="row">
+          <div class="lockup" style="gap:8px">
+            <span class="lockup-text" style="color:rgba(0,0,0,.5);font-weight:500">tabby</span>
+            <svg viewBox="0 0 96 32" width="120" height="40">
+              <text x="0" y="25" font-family="Inter,sans-serif" font-weight="800" font-size="28" fill="#1A1A1A" letter-spacing="-1.5">P</text>
+              <path d="M22 20 L30 20 L34 11 L40 27 L46 15 L50 20 L60 20 L64 13 L70 24 L74 20 L88 20" stroke="#6A2C79" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ CONCEPT 9 ═══ -->
+  <section class="concept">
+    <div class="concept-head">
+      <span class="concept-num">09</span>
+      <h2 class="concept-name">Histogram</h2>
+      <span class="concept-tag">distribution bars + rolling pulse</span>
+    </div>
+    <p class="concept-desc">Seven bars forming a bell-curve distribution — reads as <em>frequency / sample / measurement</em>, the analyst's icon. A wave of green flashes through the bars left-to-right like a scanline, so you see the pulse "sweep" the dataset. More analytical than the equalizer (concept 6), more chart-like than the dashboard tile (concept 7). Favicon is the static silhouette with the peak bar highlighted; full animation kicks in at app sizes.</p>
+    <div class="grid">
+      <div class="panel dark">
+        <div class="panel-label">Dark surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect x="5.5" y="22" width="5" height="5" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="11" y="17" width="5" height="10" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.22s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="16.5" y="12" width="5" height="15" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.44s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="22" y="8" width="5" height="19" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.66s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect x="5.5" y="22" width="5" height="5" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="11" y="17" width="5" height="10" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.22s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="16.5" y="12" width="5" height="15" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.44s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="22" y="8" width="5" height="19" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.66s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect x="5.5" y="22" width="5" height="5" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="11" y="17" width="5" height="10" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.22s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="16.5" y="12" width="5" height="15" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.44s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="22" y="8" width="5" height="19" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.66s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect></svg>
+            <span class="item-cap">64 (rolling wave)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect x="5.5" y="22" width="5" height="5" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="11" y="17" width="5" height="10" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.22s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="16.5" y="12" width="5" height="15" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.44s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="22" y="8" width="5" height="19" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.66s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect></svg>
+            <span class="lockup-text" style="color:#fff">tabby<span class="gradient">Pulse</span></span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="sidebar-mock">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect x="5.5" y="22" width="5" height="5" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="11" y="17" width="5" height="10" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.22s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="16.5" y="12" width="5" height="15" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.44s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="22" y="8" width="5" height="19" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.66s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect></svg>
+            <span style="font-weight:700;font-size:15px;letter-spacing:-.3px">tabby<span class="gradient">Pulse</span></span>
+            <div class="nav-stub"></div>
+          </div>
+        </div>
+      </div>
+      <div class="panel light">
+        <div class="panel-label">Light surface</div>
+        <div class="row">
+          <div class="item">
+            <svg width="16" height="16" viewBox="0 0 32 32"><rect x="5.5" y="22" width="5" height="5" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="11" y="17" width="5" height="10" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.22s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="16.5" y="12" width="5" height="15" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.44s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="22" y="8" width="5" height="19" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.66s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect></svg>
+            <span class="item-cap">16px</span>
+          </div>
+          <div class="item">
+            <svg width="32" height="32" viewBox="0 0 32 32"><rect x="5.5" y="22" width="5" height="5" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="11" y="17" width="5" height="10" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.22s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="16.5" y="12" width="5" height="15" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.44s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="22" y="8" width="5" height="19" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.66s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect></svg>
+            <span class="item-cap">32px</span>
+          </div>
+          <div class="item">
+            <svg width="64" height="64" viewBox="0 0 32 32"><rect x="5.5" y="22" width="5" height="5" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="11" y="17" width="5" height="10" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.22s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="16.5" y="12" width="5" height="15" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.44s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="22" y="8" width="5" height="19" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.66s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect></svg>
+            <span class="item-cap">64 (rolling wave)</span>
+          </div>
+        </div>
+        <div class="row">
+          <div class="lockup">
+            <svg width="22" height="22" viewBox="0 0 32 32"><rect x="5.5" y="22" width="5" height="5" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="11" y="17" width="5" height="10" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.22s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="16.5" y="12" width="5" height="15" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.44s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect><rect x="22" y="8" width="5" height="19" fill="#8B4D99"><animate attributeName="fill" values="#8B4D99;#3BFF9D;#8B4D99;#8B4D99" dur="1.8s" begin="0.66s" repeatCount="indefinite" keyTimes="0;0.08;0.16;1"/></rect></svg>
+            <span class="lockup-text" style="color:#1A1A1A">tabby<span style="color:#6A2C79">Pulse</span></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Reply with <kbd>1</kbd>–<kbd>9</kbd> to pick — or "tweak N with X" if you want a variation. The picked concept will replace the current pulse-line lockup across the sidebar header, login screen, browser favicon, and loading splash. My recommendation: <strong style="color:#3BFF9D">#1 Pulse Dot</strong> for restraint, <strong style="color:#3BFF9D">#5 Sonar</strong> if you want the pulse motion to be the centrepiece.
+  </footer>
+
+</div>
+</body>
+</html>
