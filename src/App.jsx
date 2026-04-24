@@ -16,7 +16,7 @@ import { AppContext } from "./lib/AppContext.jsx";
 import { ToastProvider, useGlobalToast } from "./lib/ToastContext.jsx";
 import { subscribeRealtime } from "./lib/realtime.js";
 import useKeyboard from "./lib/useKeyboard.jsx";
-import HistogramMark from "./components/HistogramMark.jsx";
+import PulseMark from "./components/PulseMark.jsx";
 const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
 const ScoreEntryPage = lazy(() => import("./pages/ScoreEntryPage.jsx"));
 const CSATPage = lazy(() => import("./pages/CSATPage.jsx"));
@@ -99,7 +99,7 @@ function AppInner(){
     let link=document.querySelector("link[rel='icon']");
     if(!link){link=document.createElement("link");link.rel="icon";document.head.appendChild(link);}
     link.type="image/svg+xml";
-    link.href="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="5.5" y="22" width="5" height="5" fill="#8B4D99"/><rect x="11" y="17" width="5" height="10" fill="#8B4D99"/><rect x="16.5" y="12" width="5" height="15" fill="#8B4D99"/><rect x="22" y="8" width="5" height="19" fill="#3BFF9D"/></svg>');
+    link.href="data:image/svg+xml,"+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none"><path d="M2 16 L9 16 L12 6 L16 26 L20 10 L23 16 L30 16" stroke="#3BFF9D" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>');
   },[]);
   // Persist sidebar collapse
   useEffect(()=>{localStorage.setItem("sb_collapsed",sidebarCollapsed);},[sidebarCollapsed]);
@@ -236,7 +236,7 @@ function AppInner(){
   },[profile?.email,userRole]);
 
   if(loading)return<div className="loading-fullscreen">
-    <HistogramMark size={88} animated/>
+    <PulseMark size={88} animated/>
     <div style={{marginTop:24,fontSize:32,fontWeight:700,color:"#fff",letterSpacing:"-1px"}}>tabby<span style={{background:"linear-gradient(135deg, #3BFF9D, #6A2C79)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Pulse</span></div>
     <p style={{marginTop:6,color:"rgba(255,255,255,.35)",fontSize:12,letterSpacing:"2px",textTransform:"uppercase"}}>QA Performance & Analytics</p>
     
@@ -248,7 +248,7 @@ function AppInner(){
     <div className="login-bg-glow login-bg-glow-2" aria-hidden="true"/>
     <div className="login-card">
       <div className="login-brand">
-        <HistogramMark size={32} animated className="login-brand-mark"/>
+        <PulseMark size={32} animated className="login-brand-mark"/>
         <div className="login-brand-name">tabby<span>Pulse</span></div>
       </div>
       <h1 className="login-title">Welcome back</h1>
@@ -271,7 +271,7 @@ function AppInner(){
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
       <div className="sidebar-header" style={{display:"flex",alignItems:"center",justifyContent:sidebarCollapsed?"center":"space-between"}}>
-        <div className="sidebar-brand">{sidebarCollapsed?<HistogramMark size={26} animated/>:<><HistogramMark size={22} animated style={{marginRight:8,verticalAlign:-4}}/>tabby<span>Pulse</span></>}</div>
+        <div className="sidebar-brand">{sidebarCollapsed?<PulseMark size={26} animated/>:<><PulseMark size={22} animated style={{marginRight:8,verticalAlign:-4}}/>tabby<span>Pulse</span></>}</div>
         <button className="sidebar-toggle" onClick={()=>setSidebarCollapsed(!sidebarCollapsed)} title={sidebarCollapsed?"Expand":"Collapse"} aria-label={sidebarCollapsed?"Expand sidebar":"Collapse sidebar"}>
           <Icon d={sidebarCollapsed?"M9 5l7 7-7 7":"M15 19l-7-7 7-7"} size={16}/>
         </button>
