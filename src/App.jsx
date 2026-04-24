@@ -244,17 +244,28 @@ function AppInner(){
     
     <p style={{marginTop:16,color:"rgba(255,255,255,.3)",fontSize:12}}>Loading your workspace...</p>
   </div>;
-  if(!session)return(<div className="login-page"><div className="login-card">
-    <div style={{marginBottom:16,display:"flex",flexDirection:"column",alignItems:"center",gap:8}}>
-      <svg width="120" height="40" viewBox="0 0 120 40" fill="none"><path d="M0 20 L24 20 L33 5 L45 35 L57 13 L66 20 L120 20" stroke="url(#lgGrad)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/><defs><linearGradient id="lgGrad" x1="0" y1="0" x2="120" y2="0"><stop offset="0%" stopColor="#3BFF9D"/><stop offset="100%" stopColor="#6A2C79"/></linearGradient></defs></svg>
-      <div style={{fontSize:28,fontWeight:700,color:"#fff",letterSpacing:"-1px"}}>tabby<span style={{background:"linear-gradient(135deg, #3BFF9D, #6A2C79)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent",backgroundClip:"text"}}>Pulse</span></div>
+  if(!session)return(<div className="login-page">
+    <div className="login-bg-grid" aria-hidden="true"/>
+    <div className="login-bg-glow login-bg-glow-1" aria-hidden="true"/>
+    <div className="login-bg-glow login-bg-glow-2" aria-hidden="true"/>
+    <div className="login-card">
+      <div className="login-brand">
+        <svg className="login-brand-mark" width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <path d="M2 16 L9 16 L12 6 L16 26 L20 10 L23 16 L30 16" stroke="url(#lgGrad)" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+          <defs><linearGradient id="lgGrad" x1="0" y1="0" x2="32" y2="0"><stop offset="0%" stopColor="#3BFF9D"/><stop offset="100%" stopColor="#8B4D99"/></linearGradient></defs>
+        </svg>
+        <div className="login-brand-name">tabby<span>Pulse</span></div>
+      </div>
+      <h1 className="login-title">Welcome back</h1>
+      <p className="login-subtitle">Sign in to the QA performance workspace.</p>
+      <button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}>
+        <GoogleLogo/>
+        <span>Continue with Google</span>
+      </button>
+      <p className="login-hint">Use your <code>@tabby.ai</code> or <code>@tabby.sa</code> account</p>
     </div>
-    <div className="login-subtitle">QA Performance & Analytics<br/>Sign in with your Tabby Google account.</div>
-    <button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}><GoogleLogo/>Sign in with Google</button>
-    <div className="login-divider">Supported domains</div>
-    <div className="login-domains"><span className="login-domain">@tabby.ai</span><span className="login-domain">@tabby.sa</span></div>
-    <div className="login-footer">Internal tool &middot; Tabby Pulse</div>
-  </div></div>);
+    <div className="login-footer-fixed">Tabby Pulse · Internal tool</div>
+  </div>);
   const visibleNav=NAV_ITEMS.filter(n=>{
     if (n.key === "escalations") return true;
     return !n.minRole || hasRole(userRole, n.minRole);
