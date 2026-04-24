@@ -530,7 +530,7 @@ function SchedulePage() {
           {/* Quick actions */}
           <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
             <button className="btn btn-sm" style={{fontSize:11,background:bulkStatus==="P"&&bulkDayFilter==="weekdays"?"var(--green)":"var(--green-bg)",color:bulkStatus==="P"&&bulkDayFilter==="weekdays"?"#fff":"var(--green)",border:"1px solid var(--green)",fontWeight:600,transition:"all .15s"}} onClick={()=>{setBulkStatus("P");setBulkDayFilter("weekdays");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>Set P for Sun–Thu</button>
-            <button className="btn btn-sm" style={{fontSize:11,background:bulkStatus==="OFF"&&bulkDayFilter==="weekends"?"var(--tx3)":"rgba(156,163,175,0.1)",color:bulkStatus==="OFF"&&bulkDayFilter==="weekends"?"#fff":"var(--tx3)",border:"1px solid var(--bd)",fontWeight:600,transition:"all .15s"}} onClick={()=>{setBulkStatus("OFF");setBulkDayFilter("weekends");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>Set OFF for Fri–Sat</button>
+            <button className="btn btn-sm" style={{fontSize:11,background:bulkStatus==="OFF"&&bulkDayFilter==="weekends"?"var(--tx2)":"rgba(156,163,175,0.1)",color:bulkStatus==="OFF"&&bulkDayFilter==="weekends"?"var(--bg3)":"var(--tx2)",border:"1px solid var(--bd)",fontWeight:600,transition:"all .15s"}} onClick={()=>{setBulkStatus("OFF");setBulkDayFilter("weekends");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>Set OFF for Fri–Sat</button>
           </div>
 
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>

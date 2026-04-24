@@ -304,17 +304,17 @@ export default function CSATPage() {
     return t.length > 24 ? t.slice(0, 22) + "…" : t;
   };
 
-  // Muted HSL gradient 0 (red) → 120 (green) — a tinted background paired
-  // with a matching pastel foreground, so scanning the whole matrix
-  // doesn't fatigue the eye.
+  // Muted HSL gradient 0 (red) → 120 (green). Low-alpha tinted background
+  // + a medium-saturation mid-lightness foreground so the cells read on
+  // both the dark and the light app themes without custom variants.
   const cellStyle = (score, surveys) => {
     if (score == null || !surveys || surveys <= 0) {
       return { background: "transparent", color: "var(--tx3)", fontWeight: 400 };
     }
     const hue = Math.max(0, Math.min(120, Math.round((score / 100) * 120)));
     return {
-      background: `hsla(${hue}, 35%, 28%, 0.55)`,
-      color: `hsl(${hue}, 60%, 78%)`,
+      background: `hsla(${hue}, 55%, 50%, 0.18)`,
+      color: `hsl(${hue}, 65%, 42%)`,
       fontWeight: 600,
     };
   };
@@ -471,7 +471,7 @@ export default function CSATPage() {
                 <span>{visibleAgents.length} of {csatSorted.length} specialists shown · {visibleTopics.length} of {matrix.topics.length} topics</span>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   <span>Low</span>
-                  {[0,20,40,60,80,100].map(v => <span key={v} style={{display:"inline-block",width:18,height:14,background:`hsla(${Math.round((v/100)*120)}, 35%, 28%, 0.55)`,borderRadius:3}}/>)}
+                  {[0,20,40,60,80,100].map(v => <span key={v} style={{display:"inline-block",width:18,height:14,background:`hsla(${Math.round((v/100)*120)}, 55%, 50%, 0.35)`,borderRadius:3}}/>)}
                   <span>High</span>
                 </div>
               </div>
