@@ -114,7 +114,11 @@ export default function CSATPage() {
   if (selQA.length > 0) filtered = filtered.filter(r => selQA.includes(r.qa_email));
   if (gf?.people?.length > 0) filtered = filtered.filter(r => gf.people.includes(r.qa_email?.toLowerCase()));
 
-  const csatSorted = [...filtered].sort((a, b) => (csatPctValue(b.csat_pct) ?? -1) - (csatPctValue(a.csat_pct) ?? -1));
+  // A QA with zero surveys has no CSAT signal to report — hide them
+  // from every view so the page only shows people with actual data.
+  const csatSorted = [...filtered]
+    .filter(r => Number(r.csat_total || 0) > 0)
+    .sort((a, b) => (csatPctValue(b.csat_pct) ?? -1) - (csatPctValue(a.csat_pct) ?? -1));
   // csat_by_topic.month is stored as text ("Apr-2026"), matching the
   // mtd_scores.month convention — NOT a date.
   const monthKey = selMonth || null;
