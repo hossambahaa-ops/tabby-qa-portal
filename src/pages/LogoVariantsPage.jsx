@@ -114,8 +114,9 @@ function R3_PulseWordmark({ size = 140 }) {
   const FONT = "'Inter','SF Pro Display','SF Pro Text',-apple-system,BlinkMacSystemFont,system-ui,sans-serif";
   const VIOLET_BRIGHT = "#C084FC";
   const VIOLET_DIM    = "#6A2C79";
-  // EKG sits where the "l" would be — centered around x≈325.
-  const EKG = "M298 72 L304 72 L310 62 L316 72 L323 38 L332 110 L340 62 L346 72 L352 72";
+  // EKG sits where the "l" would be — centered around x≈325, baseline
+  // y=78 so it's visually centered on the x-height of "u"/"s".
+  const EKG = "M298 78 L304 78 L310 68 L316 78 L323 44 L332 116 L340 68 L346 78 L352 78";
   return (
     <svg width={w} height={h} viewBox="0 0 560 140" style={{ display: "block" }}>
       <defs>

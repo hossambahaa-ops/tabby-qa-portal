@@ -8,8 +8,9 @@ import React from "react";
 // Sizing: pass `height` (px). Width is computed from the 4:1 aspect.
 const FONT =
   "'Inter','SF Pro Display','SF Pro Text',-apple-system,BlinkMacSystemFont,system-ui,sans-serif";
+// Baseline y=78 sits ~visually centered on the x-height of "u"/"s".
 const EKG =
-  "M298 72 L304 72 L310 62 L316 72 L323 38 L332 110 L340 62 L346 72 L352 72";
+  "M298 78 L304 78 L310 68 L316 78 L323 44 L332 116 L340 68 L346 78 L352 78";
 
 export default function TabbyPulseWordmark({
   height = 40,

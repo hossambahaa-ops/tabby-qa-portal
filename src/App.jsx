@@ -272,7 +272,7 @@ function AppInner(){
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
       <div className="sidebar-header" style={{display:"flex",alignItems:"center",justifyContent:sidebarCollapsed?"center":"space-between"}}>
-        <div className="sidebar-brand">{sidebarCollapsed?<PulseMark size={26} animated/>:<TabbyPulseWordmark height={26} uid="tpw-sidebar" style={{color:"#fff",display:"block"}}/>}</div>
+        <div className="sidebar-brand">{sidebarCollapsed?<PulseMark size={26} animated/>:<TabbyPulseWordmark height={36} uid="tpw-sidebar" style={{color:"#fff",display:"block"}}/>}</div>
         <button className="sidebar-toggle" onClick={()=>setSidebarCollapsed(!sidebarCollapsed)} title={sidebarCollapsed?"Expand":"Collapse"} aria-label={sidebarCollapsed?"Expand sidebar":"Collapse sidebar"}>
           <Icon d={sidebarCollapsed?"M9 5l7 7-7 7":"M15 19l-7-7 7-7"} size={16}/>
         </button>
