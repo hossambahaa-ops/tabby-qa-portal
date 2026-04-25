@@ -1031,3 +1031,52 @@ input[type="text"]:focus {
   border-color: var(--tabby-purple-light);
   box-shadow: 0 0 0 3px rgba(139,77,153,.18);
 }
+
+/* ═══ Light-mode sidebar ═══
+   Sidebar inherits a light surface in light mode (default). All
+   sidebar children use rgba(255,255,255,…) for hover/active/borders,
+   which is invisible on a white background — overrides below. */
+html:not(.dark) .sidebar {
+  background: #FFFFFF;
+  color: var(--tx);
+  border-right: 1px solid var(--bd);
+}
+html:not(.dark) .sidebar-header {
+  border-bottom: 1px solid var(--bd2);
+}
+html:not(.dark) .sidebar-section {
+  color: var(--tx3);
+}
+html:not(.dark) .nav-item {
+  color: var(--tx2);
+}
+html:not(.dark) .nav-item:hover {
+  background: var(--bg2);
+  color: var(--tx);
+}
+html:not(.dark) .nav-item.active {
+  background: var(--primary-light);
+  color: var(--tabby-purple);
+  box-shadow: inset 0 0 0 1px rgba(106,44,121,.18);
+}
+html:not(.dark) .sidebar-toggle {
+  color: var(--tx2);
+}
+html:not(.dark) .sidebar-toggle:hover {
+  background: var(--bg2);
+  color: var(--tx);
+}
+/* Anything inside the sidebar that uses white-with-alpha for borders
+   — translate to subtle dark borders. */
+html:not(.dark) .sidebar [style*="rgba(255,255,255"] {
+  /* opt-out via more specific rules; this is here as documentation */
+}
+html:not(.dark) .sidebar-user,
+html:not(.dark) .sidebar-logout {
+  color: var(--tx2);
+  border-top-color: var(--bd2);
+}
+html:not(.dark) .sidebar-logout:hover {
+  background: var(--bg2);
+  color: var(--tx);
+}
