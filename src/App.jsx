@@ -17,6 +17,7 @@ import { ToastProvider, useGlobalToast } from "./lib/ToastContext.jsx";
 import { subscribeRealtime } from "./lib/realtime.js";
 import useKeyboard from "./lib/useKeyboard.jsx";
 import PulseMark from "./components/PulseMark.jsx";
+import TabbyPulseWordmark from "./components/TabbyPulseWordmark.jsx";
 const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
 const ScoreEntryPage = lazy(() => import("./pages/ScoreEntryPage.jsx"));
 const CSATPage = lazy(() => import("./pages/CSATPage.jsx"));
@@ -33,6 +34,7 @@ const QualityControlPage = lazy(() => import("./pages/QualityControlPage.jsx"));
 const QAProfilePage = lazy(() => import("./pages/QAProfilePage.jsx"));
 const SchedulePage = lazy(() => import("./pages/SchedulePage.jsx"));
 const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
+const LogoVariantsPage = lazy(() => import("./pages/LogoVariantsPage.jsx"));
 
 document.title = "Tabby Pulse — QA Performance & Analytics";
 
@@ -235,9 +237,9 @@ function AppInner(){
     return unsub;
   },[profile?.email,userRole]);
 
+  if(page==="logos")return<Suspense fallback={<div className="loading-fullscreen"><PulseMark size={64} animated/></div>}><LogoVariantsPage/></Suspense>;
   if(loading)return<div className="loading-fullscreen">
-    <PulseMark size={88} animated/>
-    <div style={{marginTop:24,fontSize:32,fontWeight:700,color:"#fff",letterSpacing:"-1px"}}>tabby<span style={{background:"linear-gradient(135deg, #3BFF9D, #6A2C79)",WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>Pulse</span></div>
+    <TabbyPulseWordmark height={56} uid="tpw-loading" style={{color:"#fff",marginTop:8}}/>
     <p style={{marginTop:6,color:"rgba(255,255,255,.35)",fontSize:12,letterSpacing:"2px",textTransform:"uppercase"}}>QA Performance & Analytics</p>
     
     <p style={{marginTop:16,color:"rgba(255,255,255,.3)",fontSize:12}}>Loading your workspace...</p>
@@ -248,8 +250,7 @@ function AppInner(){
     <div className="login-bg-glow login-bg-glow-2" aria-hidden="true"/>
     <div className="login-card">
       <div className="login-brand">
-        <PulseMark size={32} animated className="login-brand-mark"/>
-        <div className="login-brand-name">tabby<span>Pulse</span></div>
+        <TabbyPulseWordmark height={40} uid="tpw-login" style={{color:"#fff"}}/>
       </div>
       <h1 className="login-title">Welcome back</h1>
       <p className="login-subtitle">Sign in to the QA performance workspace.</p>
@@ -271,7 +272,7 @@ function AppInner(){
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
       <div className="sidebar-header" style={{display:"flex",alignItems:"center",justifyContent:sidebarCollapsed?"center":"space-between"}}>
-        <div className="sidebar-brand">{sidebarCollapsed?<PulseMark size={26} animated/>:<><PulseMark size={22} animated style={{marginRight:8,verticalAlign:-4}}/>tabby<span>Pulse</span></>}</div>
+        <div className="sidebar-brand">{sidebarCollapsed?<PulseMark size={26} animated/>:<TabbyPulseWordmark height={26} uid="tpw-sidebar" style={{color:"#fff",display:"block"}}/>}</div>
         <button className="sidebar-toggle" onClick={()=>setSidebarCollapsed(!sidebarCollapsed)} title={sidebarCollapsed?"Expand":"Collapse"} aria-label={sidebarCollapsed?"Expand sidebar":"Collapse sidebar"}>
           <Icon d={sidebarCollapsed?"M9 5l7 7-7 7":"M15 19l-7-7 7-7"} size={16}/>
         </button>
@@ -358,6 +359,7 @@ function AppInner(){
       <Route path="/audit" element={<Navigate to="/admin" replace/>}/>
       <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
       <Route path="/hr" element={<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>}/>
+      <Route path="/logos" element={<LogoVariantsPage/>}/>
       <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
     </Routes></Suspense></div>
 
