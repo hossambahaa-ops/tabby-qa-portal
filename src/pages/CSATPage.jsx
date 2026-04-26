@@ -527,8 +527,8 @@ export default function CSATPage() {
                   <th style={{width:32}}></th>
                   <th style={{minWidth:180}}>Specialist</th>
                   <th>TL</th>
-                  <th style={{textAlign:"right"}}>CSAT %</th>
                   <th style={{textAlign:"right"}}>Surveys</th>
+                  <th style={{textAlign:"right"}}>CSAT %</th>
                 </tr>
               </thead>
               <tbody>
@@ -550,8 +550,8 @@ export default function CSATPage() {
                         </div>
                       </td>
                       <td style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
-                      {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                       <td style={{textAlign:"right"}}>{r.csat_total ?? "—"}</td>
+                      {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                     </tr>
                     {isExpanded && <tr>
                       <td colSpan={5} style={{padding:"0 16px 16px 52px",background:"var(--bg)"}}>
@@ -560,14 +560,14 @@ export default function CSATPage() {
                          : <table style={{width:"100%",marginTop:8}}>
                             <thead><tr style={{borderBottom:"1px solid var(--bd2)"}}>
                               <th style={{textAlign:"left",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Topic</th>
-                              <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>CSAT %</th>
                               <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Surveys</th>
+                              <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>CSAT %</th>
                             </tr></thead>
                             <tbody>
                               {t.map((row,i)=>(<tr key={i}>
                                 <td style={{padding:"6px 8px",fontSize:13}}>{row.topic}</td>
-                                {(()=>{const v=row.csat_score!=null?Number(row.csat_score):null;const s=Number(row.surveys_count||0);const show=v!=null&&s>0;return <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                                 <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",color:"var(--tx2)"}}>{row.surveys_count ?? 0}</td>
+                                {(()=>{const v=row.csat_score!=null?Number(row.csat_score):null;const s=Number(row.surveys_count||0);const show=v!=null&&s>0;return <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                               </tr>))}
                             </tbody>
                           </table>}
@@ -586,8 +586,8 @@ export default function CSATPage() {
                   <th style={{width:32}}></th>
                   <th style={{minWidth:180}}>Lead</th>
                   <th style={{textAlign:"right"}}>QAs</th>
-                  <th style={{textAlign:"right"}}>CSAT %</th>
                   <th style={{textAlign:"right"}}>Surveys</th>
+                  <th style={{textAlign:"right"}}>CSAT %</th>
                 </tr>
               </thead>
               <tbody>
@@ -613,8 +613,8 @@ export default function CSATPage() {
                         </div>
                       </td>
                       <td style={{textAlign:"right",fontWeight:600}}>{l.count}</td>
-                      {(()=>{const s=Number(l.surveys||0);const show=l.csat!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,color:csatColor(l.csat,s)}}>{show?l.csat.toFixed(1)+"%":"—"}</td>;})()}
                       <td style={{textAlign:"right"}}>{l.surveys || "—"}</td>
+                      {(()=>{const s=Number(l.surveys||0);const show=l.csat!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,color:csatColor(l.csat,s)}}>{show?l.csat.toFixed(1)+"%":"—"}</td>;})()}
                     </tr>
                     {isExpanded && <tr>
                       <td colSpan={5} style={{padding:"0 16px 16px 52px",background:"var(--bg)"}}>
@@ -623,14 +623,14 @@ export default function CSATPage() {
                          : <table style={{width:"100%",marginTop:8}}>
                             <thead><tr style={{borderBottom:"1px solid var(--bd2)"}}>
                               <th style={{textAlign:"left",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Topic</th>
-                              <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>CSAT %</th>
                               <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Surveys</th>
+                              <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>CSAT %</th>
                             </tr></thead>
                             <tbody>
                               {t.map((row,i)=>(<tr key={i}>
                                 <td style={{padding:"6px 8px",fontSize:13}}>{row.topic}</td>
-                                {(()=>{const v=row.csat_score!=null?Number(row.csat_score):null;const s=Number(row.surveys_count||0);const show=v!=null&&s>0;return <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                                 <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",color:"var(--tx2)"}}>{row.surveys_count ?? 0}</td>
+                                {(()=>{const v=row.csat_score!=null?Number(row.csat_score):null;const s=Number(row.surveys_count||0);const show=v!=null&&s>0;return <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                               </tr>))}
                             </tbody>
                           </table>}
