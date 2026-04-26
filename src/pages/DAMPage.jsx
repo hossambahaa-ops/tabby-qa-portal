@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import { hasRole, ROLE_LABELS } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
-import { safeError, logActivity } from "../lib/utils.js";
+import { safeError, logActivity, nameFromEmail } from "../lib/utils.js";
 import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
@@ -167,7 +167,7 @@ function DAMPage(){
             const step=f.escalation_step_id?steps.find(s=>s.id===f.escalation_step_id):getStepsForRule(f.rule_id,flagDomain).find(s=>s.occurrence===f.occurrence_number);
             return(<tr key={f.id} style={{background:selectedFlags.has(f.id)?"var(--accent-light)":"transparent"}}>
               <td><input type="checkbox" style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}} checked={selectedFlags.has(f.id)} onChange={()=>toggleFlagSel(f.id)}/></td>
-              <td style={{fontWeight:500}}>{f.profiles?.display_name||f.profiles?.email||f.qa_email||"—"}</td>
+              <td style={{fontWeight:500}}>{f.profiles?.display_name||(f.profiles?.email&&nameFromEmail(f.profiles.email))||(f.qa_email&&nameFromEmail(f.qa_email))||"—"}</td>
               <td style={{fontSize:13}}>{f.dam_rules?.name||"—"}</td>
               <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,background:f.dam_rules?.behavior_type==="manipulation"?"var(--red-bg)":f.dam_rules?.behavior_type==="performance_management"?"var(--amber-bg)":"var(--accent-light)",color:f.dam_rules?.behavior_type==="manipulation"?"var(--red)":f.dam_rules?.behavior_type==="performance_management"?"var(--amber)":"var(--accent-text)",fontWeight:500}}>{f.dam_rules?.behavior_type?.replace(/_/g," ")||"—"}</span></td>
               <td style={{fontWeight:600}}>#{f.occurrence_number}</td>
@@ -219,7 +219,7 @@ function DAMPage(){
       </div>}
       <div className="table-wrap"><table><thead><tr><th>Person</th><th>Behavior</th><th>Occ.</th><th>Status</th><th>Date</th><th>Notes</th>{hasRole(profile?.role,"super_admin")&&<th></th>}</tr></thead><tbody>
         {flags.map(f=>(<tr key={f.id}>
-          <td style={{fontWeight:500}}>{f.profiles?.display_name||"—"}</td>
+          <td style={{fontWeight:500}}>{f.profiles?.display_name||(f.profiles?.email&&nameFromEmail(f.profiles.email))||(f.qa_email&&nameFromEmail(f.qa_email))||"—"}</td>
           <td style={{fontSize:13}}>{f.dam_rules?.name||"—"}</td>
           <td>#{f.occurrence_number}</td>
           <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:f.status==="resolved"?"var(--green-bg)":f.status==="dismissed"?"var(--bg2)":"var(--amber-bg)",color:statusColors[f.status]||"var(--tx3)"}}>{f.status}</span></td>
