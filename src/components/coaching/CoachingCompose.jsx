@@ -132,14 +132,22 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
   const [draftAvailable, setDraftAvailable] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState(null);
 
-  // A draft is only worth saving when the user has actually written
-  // something. The auto-applied template that fires when the meeting
-  // type changes shouldn't surface a "draft from earlier" banner — so
-  // the body fields only count as content when they DIFFER from the
-  // pristine template for that meeting type.
+  // Two distinct checks:
+  //   • draftHasContent → "save anything to localStorage". Includes
+  //     to/cc/date/meetingType so the recipient picker survives a
+  //     refresh without forcing the user to retype it.
+  //   • hasSessionContent → "show the Unsent draft from earlier
+  //     banner". Only true when the user actually wrote session
+  //     content. Recipient/CC/date/meeting-type are silently restored
+  //     in the load effect without raising the banner.
   const draftHasContent = (d) => {
     if (!d) return false;
-    if (d.toEmail || d.outcome || d.nextSteps || d.perfRating) return true;
+    return !!(d.toEmail || d.ccEmail || d.outcome || d.nextSteps || d.perfRating ||
+              d.topics || d.strengths || d.weaknesses || d.goals || d.actions);
+  };
+  const hasSessionContent = (d) => {
+    if (!d) return false;
+    if (d.outcome || d.nextSteps || d.perfRating) return true;
     const t = TEMPLATES[d.meetingType];
     if (!t) {
       return !!(d.topics || d.strengths || d.weaknesses || d.goals || d.actions);
@@ -177,8 +185,18 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
         return;
       }
       if (!draftHasContent(d)) { localStorage.removeItem(draftKey); return; }
-      setDraftAvailable(true);
-      setDraftSavedAt(d.savedAt || null);
+      // Silently restore the recipient/CC/date/meeting-type — these
+      // survive refresh without surfacing the draft banner.
+      if (d.toEmail !== undefined) setToEmail(d.toEmail);
+      if (d.ccEmail !== undefined) setCcEmail(d.ccEmail);
+      if (d.sessionDate !== undefined) setSessionDate(d.sessionDate);
+      if (d.meetingType !== undefined) setMeetingType(d.meetingType);
+      // The "Unsent draft from earlier" banner only opens when actual
+      // session content was typed.
+      if (hasSessionContent(d)) {
+        setDraftAvailable(true);
+        setDraftSavedAt(d.savedAt || null);
+      }
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myEmail]);
