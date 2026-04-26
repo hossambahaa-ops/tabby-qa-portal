@@ -34,7 +34,6 @@ const QualityControlPage = lazy(() => import("./pages/QualityControlPage.jsx"));
 const QAProfilePage = lazy(() => import("./pages/QAProfilePage.jsx"));
 const SchedulePage = lazy(() => import("./pages/SchedulePage.jsx"));
 const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
-const LogoVariantsPage = lazy(() => import("./pages/LogoVariantsPage.jsx"));
 
 document.title = "Tabby Pulse — QA Performance & Analytics";
 
@@ -237,7 +236,6 @@ function AppInner(){
     return unsub;
   },[profile?.email,userRole]);
 
-  if(page==="logos")return<Suspense fallback={<div className="loading-fullscreen"><PulseMark size={64} animated/></div>}><LogoVariantsPage/></Suspense>;
   if(loading)return<div className="loading-fullscreen">
     <TabbyPulseWordmark height={56} uid="tpw-loading" style={{color:"#fff",marginTop:8}}/>
     <p style={{marginTop:6,color:"rgba(255,255,255,.35)",fontSize:12,letterSpacing:"2px",textTransform:"uppercase"}}>QA Performance & Analytics</p>
@@ -359,7 +357,6 @@ function AppInner(){
       <Route path="/audit" element={<Navigate to="/admin" replace/>}/>
       <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
       <Route path="/hr" element={<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>}/>
-      <Route path="/logos" element={<LogoVariantsPage/>}/>
       <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
     </Routes></Suspense></div>
 

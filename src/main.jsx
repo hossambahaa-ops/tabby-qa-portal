@@ -25,8 +25,27 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// Clear old caches on startup, then register updated SW
+// Clear old caches on startup, then register updated SW. When a new
+// SW takes control after an update, soft-reload once so the page picks
+// up the freshly-deployed bundle without requiring a hard refresh.
 if ('serviceWorker' in navigator) {
-  caches.keys().then(keys => keys.forEach(k => { if (k !== 'tabby-pulse-v2') caches.delete(k); }));
-  navigator.serviceWorker.register('/sw.js');
+  caches.keys().then(keys =>
+    keys.forEach(k => { if (k !== 'tabby-pulse-v3') caches.delete(k); })
+  );
+
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloading) return;
+    reloading = true;
+    window.location.reload();
+  });
+
+  navigator.serviceWorker.register('/sw.js').then((reg) => {
+    // Long-lived tabs poll for SW updates every minute
+    setInterval(() => { reg.update().catch(() => {}); }, 60_000);
+    // Also check on tab focus
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') reg.update().catch(() => {});
+    });
+  }).catch(() => {});
 }
