@@ -88,45 +88,71 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
   const [showPreview, setShowPreview] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // ── Draft persistence ──
-  // Form content auto-saves to localStorage (debounced). On mount, if a draft
-  // exists from a previous session, we surface a banner with Restore / Discard
-  // rather than auto-overwriting the current form.
-  const draftKey = `coaching:draft:${(profile?.email || "anon").toLowerCase()}`;
+  // ── Draft persistence (per-user) ──
+  // Form content auto-saves to localStorage (debounced). The localStorage
+  // key is scoped to the signed-in email and the saved payload also
+  // records `createdBy` so a draft from another account on the same
+  // browser is never restored — even if a stale shared key existed.
+  const myEmail = (profile?.email || "").toLowerCase();
+  const draftKey = myEmail ? `coaching:draft:${myEmail}` : null;
   const [draftAvailable, setDraftAvailable] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState(null);
 
   const draftHasContent = (d) => !!(d && (d.toEmail || d.topics || d.strengths || d.weaknesses || d.goals || d.actions || d.outcome || d.nextSteps));
 
+  // One-time cleanup: any pre-creator-stamp drafts written under the
+  // shared "coaching:draft" key (or the anon fallback) belong to nobody
+  // we can verify, so drop them.
   useEffect(() => {
-    if (!profile?.email) return;
+    try {
+      localStorage.removeItem("coaching:draft");
+      localStorage.removeItem("coaching:draft:anon");
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    if (!draftKey || !myEmail) return;
     try {
       const raw = localStorage.getItem(draftKey);
       if (!raw) return;
       const d = JSON.parse(raw);
+      // Hard guard: if the stored draft was created by a different user
+      // (legacy/shared key, account swap on the same device), ignore and
+      // drop it.
+      if (d && d.createdBy && d.createdBy.toLowerCase() !== myEmail) {
+        localStorage.removeItem(draftKey);
+        return;
+      }
       if (!draftHasContent(d)) { localStorage.removeItem(draftKey); return; }
       setDraftAvailable(true);
       setDraftSavedAt(d.savedAt || null);
     } catch {}
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.email]);
+  }, [myEmail]);
 
   useEffect(() => {
-    if (!profile?.email) return;
+    if (!draftKey || !myEmail) return;
     const t = setTimeout(() => {
-      const d = { toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps, savedAt: Date.now() };
+      const d = { toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps, savedAt: Date.now(), createdBy: myEmail };
       try {
         if (draftHasContent(d)) localStorage.setItem(draftKey, JSON.stringify(d));
         else localStorage.removeItem(draftKey);
       } catch {}
     }, 500);
     return () => clearTimeout(t);
-  }, [profile?.email, draftKey, toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps]);
+  }, [myEmail, draftKey, toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps]);
 
   const restoreDraft = () => {
+    if (!draftKey) return;
     try {
       const d = JSON.parse(localStorage.getItem(draftKey) || "null");
       if (!d) { setDraftAvailable(false); return; }
+      // Same hard guard at restore time.
+      if (d.createdBy && d.createdBy.toLowerCase() !== myEmail) {
+        localStorage.removeItem(draftKey);
+        setDraftAvailable(false);
+        return;
+      }
       if (d.toEmail !== undefined) setToEmail(d.toEmail);
       if (d.ccEmail !== undefined) setCcEmail(d.ccEmail);
       if (d.sessionDate !== undefined) setSessionDate(d.sessionDate);
