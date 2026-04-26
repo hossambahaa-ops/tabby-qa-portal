@@ -43,7 +43,12 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body, html, #root { height: 100%; font-family: var(--font); background: var(--bg); color: var(--tx); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
 
-::selection { background: rgba(106,44,121,.15); color: var(--tx); }
+/* Selection: strong purple + white text. Forces readable contrast on
+   every surface — the previous faint-purple + var(--tx) made selected
+   text invisible whenever it sat on a dark element (welcome banner,
+   dashboard cards, modals) in light mode. */
+::selection { background: var(--tabby-purple); color: #fff; }
+::-moz-selection { background: var(--tabby-purple); color: #fff; }
 
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }

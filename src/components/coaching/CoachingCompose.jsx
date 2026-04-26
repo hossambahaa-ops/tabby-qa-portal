@@ -15,17 +15,31 @@ const TARGET_TYPES = ["Action Plan Review","PIP Review"];
 // are deliberately NOT in the CC list — only the supervisor and Amanda.
 const AMANDA_EMAIL = "amanda.souza@tabby.ai";
 
-// Walk roster: QA → manager_email (the lead, who is also the sender)
-// → manager_email (the supervisor). Returns "supervisor, amanda".
-const buildAutoCc = (toEmail, roster, senderEmail) => {
-  if (!toEmail) return "";
-  const sender = (senderEmail || "").toLowerCase();
+// Resolve the supervisor for a QA. Primary source: the `teams` table,
+// which has supervisor_id explicitly. Fallback: walk roster (QA →
+// manager_email → manager_email) when the team lookup misses.
+//
+// `teamSvMap` is keyed `<queue>|<domain>` → supervisor email.
+const findSv = (toEmail, roster, teamSvMap) => {
+  if (!toEmail) return null;
   const lower = toEmail.toLowerCase();
   const qa = roster.find(r => (r.email || "").toLowerCase() === lower);
+  if (qa?.queue) {
+    const domain = lower.split("@")[1] || "";
+    const sv = teamSvMap[`${qa.queue}|${domain}`];
+    if (sv) return sv;
+  }
   const lead = qa?.manager_email?.toLowerCase();
-  const sv = lead
-    ? roster.find(r => (r.email || "").toLowerCase() === lead)?.manager_email?.toLowerCase()
-    : null;
+  if (lead) {
+    return roster.find(r => (r.email || "").toLowerCase() === lead)?.manager_email?.toLowerCase() || null;
+  }
+  return null;
+};
+
+const buildAutoCc = (toEmail, roster, senderEmail, teamSvMap) => {
+  if (!toEmail) return "";
+  const sender = (senderEmail || "").toLowerCase();
+  const sv = findSv(toEmail, roster, teamSvMap || {});
   const out = new Set();
   if (sv && sv !== sender) out.add(sv);
   if (AMANDA_EMAIL !== sender) out.add(AMANDA_EMAIL);
@@ -68,6 +82,26 @@ const TEMPLATES = {
 
 export default function CoachingCompose({ roster, sessions, plans, planWeeks, gmailAuthorized, setGmailAuthorized, gmailChecking, connectGmail, callGmailFn, loadSessions }) {
   const { token, profile, globalToast } = useApp();
+
+  // Team → supervisor lookup. Walking only the qa_roster sometimes misses
+  // the SV (lead's manager_email may not point to the SV's tabby email),
+  // so we load the teams table which has supervisor_id explicitly.
+  // Keyed `<queue>|<domain>` → supervisor email.
+  const [teamSvMap, setTeamSvMap] = useState({});
+  useEffect(() => {
+    if (!token) return;
+    sb.query("teams", {
+      token,
+      select: "name,domain,sup:profiles!fk_teams_supervisor(email)",
+    }).then(rows => {
+      const m = {};
+      (rows || []).forEach(t => {
+        const sv = t.sup?.email?.toLowerCase();
+        if (t.name && t.domain && sv) m[`${t.name}|${t.domain}`] = sv;
+      });
+      setTeamSvMap(m);
+    }).catch(() => {});
+  }, [token]);
 
   // Form state
   const [toEmail, setToEmail] = useState("");
@@ -593,7 +627,7 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
                 const matches = roster.filter(r => (r.email||"").toLowerCase().includes(q) || (r.display_name||"").toLowerCase().includes(q)).slice(0, 8);
                 if (!matches.length) return null;
                 return <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:"0 0 var(--radius) var(--radius)",boxShadow:"var(--shadow-lg)",maxHeight:200,overflowY:"auto"}}>
-                  {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email);setCcEmail(buildAutoCc(r.email, roster, profile?.email));}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email);setCcEmail(buildAutoCc(r.email, roster, profile?.email, teamSvMap));}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <span style={{fontWeight:500}}>{r.email}</span>
                     <span style={{color:"var(--tx3)",fontSize:11}}>{r.display_name || nameFromEmail(r.email)}</span>
                   </div>)}
@@ -602,7 +636,7 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
             </div>
             <div className="form-group"><label className="form-label">CC (Supervisor + Amanda)</label>
               {toEmail && roster.find(r=>r.email===toEmail) ? (
-                <input className="form-input" value={ccEmail || buildAutoCc(toEmail, roster, profile?.email)} onChange={e=>setCcEmail(e.target.value)} onFocus={()=>{if(!ccEmail){const ac=buildAutoCc(toEmail, roster, profile?.email);if(ac)setCcEmail(ac);}}}/>
+                <input className="form-input" value={ccEmail || buildAutoCc(toEmail, roster, profile?.email, teamSvMap)} onChange={e=>setCcEmail(e.target.value)} onFocus={()=>{if(!ccEmail){const ac=buildAutoCc(toEmail, roster, profile?.email, teamSvMap);if(ac)setCcEmail(ac);}}}/>
               ) : <input className="form-input" value={ccEmail} onChange={e=>setCcEmail(e.target.value)} placeholder={`supervisor@tabby.ai, ${AMANDA_EMAIL}`}/>}
             </div>
             <div className="form-group"><label className="form-label">Session date</label><input type="date" className="form-input" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></div>
