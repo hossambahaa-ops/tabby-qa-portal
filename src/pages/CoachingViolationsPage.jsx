@@ -10,7 +10,21 @@ import { useApp } from "../lib/AppContext.jsx";
 import useKeyboard from "../lib/useKeyboard.jsx";
 
 function CoachingViolationsPage() {
-  const{token,profile,gf,globalToast}=useApp();
+  const{token,profile,gf,rosterMap,globalToast}=useApp();
+  // Resolve a possibly-aliased email (e.g. mohamed.mamdouh@tabby.ai
+  // when the person's roster row is @tabby.sa) to the canonical roster
+  // email, so the dam_flag we create is stamped with the QA's real
+  // domain. Falls back to the input when there's no roster row.
+  const canonicalRosterEmail = (email) => {
+    if (!email) return email;
+    const lower = email.toLowerCase();
+    const rm = rosterMap || {};
+    if (rm[lower]) return lower;
+    const local = lower.split("@")[0];
+    if (rm[local + "@tabby.ai"]) return local + "@tabby.ai";
+    if (rm[local + "@tabby.sa"]) return local + "@tabby.sa";
+    return lower;
+  };
   const [violations, setViolations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState("pending");
@@ -115,11 +129,14 @@ function CoachingViolationsPage() {
             occurrence = (existing?.length || 0) + 1;
           } catch {}
 
-          // Create DAM flag — with profile_id if available, otherwise just qa_email
+          // Create DAM flag — with profile_id if available, otherwise just qa_email.
+          // Stamp qa_email as the canonical roster email so the DAM page
+          // resolves the right domain (EGY/KSA) for escalation lookup
+          // even when the originating violation referenced the alias.
           const selectedRule = damRules.find(r => r.id === selDamRule);
           const flagBody = {
             rule_id: selDamRule,
-            qa_email: qaEmail,
+            qa_email: canonicalRosterEmail(qaProfile?.email || qaEmail),
             severity: selectedRule?.severity || (occurrence >= 3 ? "critical" : occurrence >= 2 ? "warning" : "notice"),
             recommended_action: selectedRule?.recommended_action || "coaching",
             status: "pending",

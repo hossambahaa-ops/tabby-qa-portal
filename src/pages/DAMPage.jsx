@@ -12,7 +12,7 @@ import { useApp } from "../lib/AppContext.jsx";
 import useKeyboard from "../lib/useKeyboard.jsx";
 
 function DAMPage(){
-  const{token,profile,gf,globalToast}=useApp();
+  const{token,profile,gf,rosterMap,globalToast}=useApp();
   const[tab,setTab]=useUrlState("dam_tab","flags");
   useKeyboard({"1":()=>setTab("flags"),"2":()=>setTab("rules"),"3":()=>setTab("history")});const[rules,setRules]=useState([]);const[flags,setFlags]=useState([]);const[steps,setSteps]=useState([]);
   const[loading,setLoading]=useState(true);const[showCreate,setShowCreate]=useState(false);
@@ -46,8 +46,26 @@ function DAMPage(){
 
   // EGY uses @tabby.ai, KSA uses @tabby.sa. Steps are duplicated per
   // domain in dam_escalation_steps; resolve the QA's domain from the
-  // email suffix and filter accordingly.
-  const domainOf=(email)=>(email||"").toLowerCase().endsWith("@tabby.sa")?"tabby.sa":"tabby.ai";
+  // email and filter accordingly.
+  //
+  // qa_roster is the source of truth for which domain a person belongs
+  // to. A flag's qa_email may carry the cross-domain alias (e.g. an
+  // auto-created flag from a coaching_violation that happened to
+  // reference @tabby.ai for a person whose canonical roster email is
+  // @tabby.sa) — so look the local-part up in the roster first and
+  // only fall back to the email's own suffix when the roster has no
+  // matching row.
+  const canonicalEmail=(email)=>{
+    if(!email)return"";
+    const lower=email.toLowerCase();
+    const rm=rosterMap||{};
+    if(rm[lower])return lower;
+    const local=lower.split("@")[0];
+    if(rm[local+"@tabby.ai"])return local+"@tabby.ai";
+    if(rm[local+"@tabby.sa"])return local+"@tabby.sa";
+    return lower;
+  };
+  const domainOf=(email)=>canonicalEmail(email).endsWith("@tabby.sa")?"tabby.sa":"tabby.ai";
   const getStepsForRule=(ruleId,domain="tabby.ai")=>steps.filter(s=>s.rule_id===ruleId&&s.domain===domain).sort((a,b)=>a.occurrence-b.occurrence);
   const getOccurrenceCount=(profileId,ruleId)=>flags.filter(f=>f.profile_id===profileId&&f.rule_id===ruleId&&f.status!=="dismissed").length;
   const profileEmail=(profileId)=>profiles.find(p=>p.id===profileId)?.email||"";
