@@ -28,7 +28,8 @@ function AdminUsersPage({teams}){
   const[collapsedRoles,setCollapsedRoles]=useState(new Set());
   const[search,setSearch]=useState("");
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
-  const isSuperAdmin=profile?.role==="super_admin";
+  // Super-admin tier — includes hod (Imad) at the same numeric level
+  const isSuperAdmin=hasRole(profile?.role,"super_admin");
 
   const deleteUser=async(u)=>{
     confirmAsk("Delete user?",`Permanently delete ${u.display_name||u.email}? This removes their profile, auth account, tokens, team memberships, sessions, and DAM flags. This cannot be undone.`,async()=>{

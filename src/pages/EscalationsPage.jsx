@@ -35,8 +35,11 @@ function smartRoute(aboutEmail, roster, supervisors, allProfiles) {
   // Look up person in profiles to get their role
   const profileMatch = allProfiles.find(p => p.email?.toLowerCase() === ap);
 
-  // About a Supervisor or anyone above → route to Amanda
-  if (profileMatch && (profileMatch.role === "qa_supervisor" || profileMatch.role === "admin" || profileMatch.role === "super_admin")) return AMANDA;
+  // About a Supervisor or anyone above (manager / admin / hod /
+  // super_admin) → route to Amanda. The earlier "if about Amanda → Imad"
+  // special case fires first so the manager-routes-to-self loop never
+  // happens.
+  if (profileMatch && hasRole(profileMatch.role, "qa_supervisor")) return AMANDA;
 
   // About a Team Lead → route to their supervisor (matched by operational_domain)
   if (profileMatch && profileMatch.role === "qa_lead") {
@@ -293,7 +296,7 @@ function EscalationsPage() {
                   value: r.email, label: `${r.email} — QA`
                 })),
                 ...allProfiles.filter(p =>
-                  (p.role === "qa_lead" || p.role === "qa_supervisor" || p.role === "admin" || p.role === "super_admin")
+                  hasRole(p.role, "qa_lead")
                   && p.email?.toLowerCase() !== myEmail
                   && !p.email?.toLowerCase().includes("imad.moussa")
                   && !roster.find(rr => rr.email?.toLowerCase() === p.email?.toLowerCase())

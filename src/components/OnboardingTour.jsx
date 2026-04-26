@@ -71,7 +71,7 @@ const ROLE_LABELS = {
 
 // Map user role → tour flow key
 function flowForRole(role) {
-  if (role === "super_admin" || role === "admin") return "admin";
+  if (role === "super_admin" || role === "hod" || role === "admin" || role === "manager") return "admin";
   if (role === "qa_supervisor") return "qa_supervisor";
   if (role === "qa_lead") return "qa_lead";
   return "qa"; // qa, senior_qa, auditor, or unknown

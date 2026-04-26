@@ -71,7 +71,8 @@ export const scopeEmailsFor = (profile, roster) => {
   const role = profile?.role;
   const all = () => new Set((roster || []).map(r => r?.email?.toLowerCase()).filter(Boolean));
   if (!myEmail) return new Set();
-  if (role === "super_admin" || role === "admin") return all();
+  // admin / manager / hod / super_admin — all admin-tier, see everyone
+  if (role === "super_admin" || role === "hod" || role === "admin" || role === "manager") return all();
   if (role === "auditor") return all(); // read-only viewer — sees all for observation
   if (role === "qa_supervisor") {
     const dom = profile?.operational_domain || profile?.domain;
