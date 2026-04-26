@@ -122,48 +122,24 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
   const [showPreview, setShowPreview] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // ── Draft persistence (per-user) ──
-  // Form content auto-saves to localStorage (debounced). The localStorage
-  // key is scoped to the signed-in email and the saved payload also
-  // records `createdBy` so a draft from another account on the same
-  // browser is never restored — even if a stale shared key existed.
+  // ── Form persistence (per-user) ──
+  // Every field auto-saves to localStorage (debounced). On mount we
+  // silently restore everything — no "draft from earlier" banner, no
+  // Restore/Discard buttons. After a successful send we wipe storage
+  // and reset the form to defaults so the next session starts clean.
+  // The localStorage key is scoped to the signed-in email and the
+  // payload records `createdBy` so a draft from another account on the
+  // same browser is never restored.
   const myEmail = (profile?.email || "").toLowerCase();
   const draftKey = myEmail ? `coaching:draft:${myEmail}` : null;
-  const [draftAvailable, setDraftAvailable] = useState(false);
-  const [draftSavedAt, setDraftSavedAt] = useState(null);
 
-  // Two distinct checks:
-  //   • draftHasContent → "save anything to localStorage". Includes
-  //     to/cc/date/meetingType so the recipient picker survives a
-  //     refresh without forcing the user to retype it.
-  //   • hasSessionContent → "show the Unsent draft from earlier
-  //     banner". Only true when the user actually wrote session
-  //     content. Recipient/CC/date/meeting-type are silently restored
-  //     in the load effect without raising the banner.
   const draftHasContent = (d) => {
     if (!d) return false;
     return !!(d.toEmail || d.ccEmail || d.outcome || d.nextSteps || d.perfRating ||
               d.topics || d.strengths || d.weaknesses || d.goals || d.actions);
   };
-  const hasSessionContent = (d) => {
-    if (!d) return false;
-    if (d.outcome || d.nextSteps || d.perfRating) return true;
-    const t = TEMPLATES[d.meetingType];
-    if (!t) {
-      return !!(d.topics || d.strengths || d.weaknesses || d.goals || d.actions);
-    }
-    return (
-      (d.topics && d.topics !== (t.topics || "")) ||
-      (d.strengths && d.strengths !== (t.strengths || "")) ||
-      (d.weaknesses && d.weaknesses !== (t.weaknesses || "")) ||
-      (d.goals && d.goals !== (t.goals || "")) ||
-      (d.actions && d.actions !== (t.actions || ""))
-    );
-  };
 
-  // One-time cleanup: any pre-creator-stamp drafts written under the
-  // shared "coaching:draft" key (or the anon fallback) belong to nobody
-  // we can verify, so drop them.
+  // One-time cleanup of legacy shared keys.
   useEffect(() => {
     try {
       localStorage.removeItem("coaching:draft");
@@ -171,59 +147,18 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
     } catch {}
   }, []);
 
+  // Silent restore on mount.
   useEffect(() => {
     if (!draftKey || !myEmail) return;
     try {
       const raw = localStorage.getItem(draftKey);
       if (!raw) return;
       const d = JSON.parse(raw);
-      // Hard guard: if the stored draft was created by a different user
-      // (legacy/shared key, account swap on the same device), ignore and
-      // drop it.
       if (d && d.createdBy && d.createdBy.toLowerCase() !== myEmail) {
         localStorage.removeItem(draftKey);
         return;
       }
       if (!draftHasContent(d)) { localStorage.removeItem(draftKey); return; }
-      // Silently restore the recipient/CC/date/meeting-type — these
-      // survive refresh without surfacing the draft banner.
-      if (d.toEmail !== undefined) setToEmail(d.toEmail);
-      if (d.ccEmail !== undefined) setCcEmail(d.ccEmail);
-      if (d.sessionDate !== undefined) setSessionDate(d.sessionDate);
-      if (d.meetingType !== undefined) setMeetingType(d.meetingType);
-      // The "Unsent draft from earlier" banner only opens when actual
-      // session content was typed.
-      if (hasSessionContent(d)) {
-        setDraftAvailable(true);
-        setDraftSavedAt(d.savedAt || null);
-      }
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [myEmail]);
-
-  useEffect(() => {
-    if (!draftKey || !myEmail) return;
-    const t = setTimeout(() => {
-      const d = { toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps, savedAt: Date.now(), createdBy: myEmail };
-      try {
-        if (draftHasContent(d)) localStorage.setItem(draftKey, JSON.stringify(d));
-        else localStorage.removeItem(draftKey);
-      } catch {}
-    }, 500);
-    return () => clearTimeout(t);
-  }, [myEmail, draftKey, toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps]);
-
-  const restoreDraft = () => {
-    if (!draftKey) return;
-    try {
-      const d = JSON.parse(localStorage.getItem(draftKey) || "null");
-      if (!d) { setDraftAvailable(false); return; }
-      // Same hard guard at restore time.
-      if (d.createdBy && d.createdBy.toLowerCase() !== myEmail) {
-        localStorage.removeItem(draftKey);
-        setDraftAvailable(false);
-        return;
-      }
       if (d.toEmail !== undefined) setToEmail(d.toEmail);
       if (d.ccEmail !== undefined) setCcEmail(d.ccEmail);
       if (d.sessionDate !== undefined) setSessionDate(d.sessionDate);
@@ -239,25 +174,40 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
       if (Array.isArray(d.targetRows) && d.targetRows.length > 0) setTargetRows(d.targetRows);
       if (d.outcome !== undefined) setOutcome(d.outcome);
       if (d.nextSteps !== undefined) setNextSteps(d.nextSteps);
-      setDraftAvailable(false);
-      globalToast("success", "Draft restored");
     } catch {}
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myEmail]);
 
-  const discardDraft = () => {
-    try { localStorage.removeItem(draftKey); } catch {}
-    setDraftAvailable(false);
-  };
+  // Debounced auto-save.
+  useEffect(() => {
+    if (!draftKey || !myEmail) return;
+    const t = setTimeout(() => {
+      const d = { toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps, savedAt: Date.now(), createdBy: myEmail };
+      try {
+        if (draftHasContent(d)) localStorage.setItem(draftKey, JSON.stringify(d));
+        else localStorage.removeItem(draftKey);
+      } catch {}
+    }, 500);
+    return () => clearTimeout(t);
+  }, [myEmail, draftKey, toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps]);
 
-  const clearDraft = () => { try { localStorage.removeItem(draftKey); } catch {} };
-
-  const fmtDraftAgo = (ts) => {
-    if (!ts) return "";
-    const s = Math.floor((Date.now() - ts) / 1000);
-    if (s < 60) return "just now";
-    if (s < 3600) return `${Math.floor(s/60)}m ago`;
-    if (s < 86400) return `${Math.floor(s/3600)}h ago`;
-    return `${Math.floor(s/86400)}d ago`;
+  // Reset form to defaults — used after send + by the manual Clear button.
+  const resetFormToDefaults = () => {
+    setToEmail("");
+    setCcEmail("");
+    setSessionDate(new Date().toISOString().split("T")[0]);
+    setMeetingType("1:1 Meeting");
+    const t = TEMPLATES["1:1 Meeting"];
+    setTopics(t?.topics || "");
+    setStrengths(t?.strengths || "");
+    setWeaknesses(t?.weaknesses || "");
+    setGoals(t?.goals || "");
+    setActions(t?.actions || "");
+    setPerfRating("");
+    setOutcome("");
+    setNextSteps("");
+    setTargetRows([{metric:"",start:"",w1:"",w2:"",w3:"",w4:"",a1:"",a2:"",a3:"",a4:""}]);
+    try { if (draftKey) localStorage.removeItem(draftKey); } catch {}
   };
 
   const isTargetType = TARGET_TYPES.includes(meetingType);
@@ -605,7 +555,9 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
         globalToast("success", "Email sent and session logged successfully!");
       }
       logActivity(token, profile?.email, "coaching_session_created", "coaching_sessions", null, `Member: ${toEmail}, Type: ${meetingType}`);
-      clearDraft();
+      // Wipe storage and reset the form to a clean default-template
+      // state for the next session.
+      resetFormToDefaults();
       setShowPreview(false);
     } catch (e) {
       globalToast("error", safeError(e));
@@ -613,13 +565,9 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
     setLoading(false);
   };
 
-  // Clear form
+  // Manual "Clear all" button.
   const clearForm = () => {
-    setToEmail("");setCcEmail("");setSessionDate(new Date().toISOString().split("T")[0]);
-    setMeetingType("1:1 Meeting");setTopics("");setStrengths("");setWeaknesses("");
-    setGoals("");setActions("");setPerfRating("");setOutcome("");setNextSteps("");
-    setTargetRows([{metric:"",start:"",w1:"",w2:"",w3:"",w4:"",a1:"",a2:"",a3:"",a4:""}]);
-    clearDraft();
+    resetFormToDefaults();
     setShowPreview(false);
   };
 
@@ -628,21 +576,6 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
 
       {/* LEFT — Form */}
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
-
-        {/* Draft restore banner */}
-        {draftAvailable && (
-          <div className="card" style={{ padding: 12, display: "flex", alignItems: "center", gap: 12, background: "var(--amber-bg)", borderColor: "var(--amber)" }}>
-            <span style={{ fontSize: 20, lineHeight: 1 }}>💾</span>
-            <div style={{ flex: 1, fontSize: 13 }}>
-              <div style={{ fontWeight: 700, color: "var(--amber)" }}>Unsent draft from earlier</div>
-              <div style={{ color: "var(--tx2)", fontSize: 12, marginTop: 2 }}>
-                {draftSavedAt ? `Saved ${fmtDraftAgo(draftSavedAt)}` : "Saved from a previous session"} — restore to continue, or discard it.
-              </div>
-            </div>
-            <button className="btn btn-primary btn-sm" onClick={restoreDraft}>Restore</button>
-            <button className="btn btn-outline btn-sm" onClick={discardDraft}>Discard</button>
-          </div>
-        )}
 
         {/* Signature block */}
         <div className="card">
