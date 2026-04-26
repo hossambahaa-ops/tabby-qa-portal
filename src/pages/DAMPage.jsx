@@ -25,7 +25,7 @@ function DAMPage(){
     const[r,f,s,p]=await Promise.all([
       dataCache.fetch("dam_rules",()=>sb.query("dam_rules",{select:"id,name,description,behavior_type,dam_reference,severity,auditing_flow,executor_role,auditor_role,goal,compliant_action",filters:"is_active=eq.true&order=behavior_type.asc,name.asc",token})),
       sb.query("dam_flags",{select:"id,profile_id,qa_email,rule_id,severity,recommended_action,triggered_at,status,notes,occurrence_number,reviewed_by,reviewed_at,profiles!dam_flags_profile_id_fkey(display_name,email),dam_rules(name,behavior_type,dam_reference)",filters:"order=triggered_at.desc&limit=100",token}).catch(()=>[]),
-      dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action,deduction_days,is_hr_investigation",filters:"order=rule_id.asc,occurrence.asc",token})),
+      dataCache.fetch("dam_escalation_steps_v2",()=>sb.query("dam_escalation_steps",{select:"id,rule_id,occurrence,action,includes_pip,pip_action,deduction_days,is_hr_investigation,domain",filters:"order=domain.asc,rule_id.asc,occurrence.asc",token})),
       listProfiles({ token, select: "id,display_name,email,role" }),
     ]);
     setRules(r);
@@ -44,14 +44,20 @@ function DAMPage(){
   useEffect(()=>{load();},[load]);
   useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
-  const getStepsForRule=(ruleId)=>steps.filter(s=>s.rule_id===ruleId).sort((a,b)=>a.occurrence-b.occurrence);
+  // EGY uses @tabby.ai, KSA uses @tabby.sa. Steps are duplicated per
+  // domain in dam_escalation_steps; resolve the QA's domain from the
+  // email suffix and filter accordingly.
+  const domainOf=(email)=>(email||"").toLowerCase().endsWith("@tabby.sa")?"tabby.sa":"tabby.ai";
+  const getStepsForRule=(ruleId,domain="tabby.ai")=>steps.filter(s=>s.rule_id===ruleId&&s.domain===domain).sort((a,b)=>a.occurrence-b.occurrence);
   const getOccurrenceCount=(profileId,ruleId)=>flags.filter(f=>f.profile_id===profileId&&f.rule_id===ruleId&&f.status!=="dismissed").length;
+  const profileEmail=(profileId)=>profiles.find(p=>p.id===profileId)?.email||"";
 
   const createFlag=async()=>{
     if(!selRule||!selProfile){globalToast("error","Select a behavior and a person");return;}
     const occ=getOccurrenceCount(selProfile,selRule)+1;
     const rule=rules.find(r=>r.id===selRule);
-    const step=getStepsForRule(selRule).find(s=>s.occurrence===occ);
+    const qaDomain=domainOf(profileEmail(selProfile));
+    const step=getStepsForRule(selRule,qaDomain).find(s=>s.occurrence===occ);
     try{
       await sb.query("dam_flags",{token,method:"POST",body:{
         profile_id:selProfile,rule_id:selRule,severity:rule?.severity||"warning",
@@ -132,7 +138,8 @@ function DAMPage(){
       </div>
       {selRule&&selProfile&&<div style={{marginTop:12,padding:"10px 14px",background:"var(--bg)",borderRadius:8,fontSize:13}}>
         <strong>Next occurrence:</strong> #{getOccurrenceCount(selProfile,selRule)+1}
-        {(()=>{const step=getStepsForRule(selRule).find(s=>s.occurrence===getOccurrenceCount(selProfile,selRule)+1);return step?<span> → <span style={{color:step.is_hr_investigation?"var(--red)":"var(--amber)",fontWeight:600}}>{step.action}</span></span>:<span style={{color:"var(--tx3)"}}> — No escalation step defined for this occurrence</span>;})()}
+        <span style={{marginLeft:10,fontSize:11,padding:"2px 8px",borderRadius:10,background:"var(--bg2)",color:"var(--tx2)",fontWeight:600}}>{domainOf(profileEmail(selProfile))==="tabby.sa"?"KSA":"EGY"}</span>
+        {(()=>{const occ=getOccurrenceCount(selProfile,selRule)+1;const step=getStepsForRule(selRule,domainOf(profileEmail(selProfile))).find(s=>s.occurrence===occ);return step?<span> → <span style={{color:step.is_hr_investigation?"var(--red)":"var(--amber)",fontWeight:600}}>{step.action}</span></span>:<span style={{color:"var(--tx3)"}}> — No escalation step defined for this occurrence</span>;})()}
       </div>}
       <div style={{display:"flex",gap:8,marginTop:16}}>
         <button className="btn btn-primary" onClick={createFlag}><Icon d={icons.dam} size={16}/>Create flag</button>
@@ -156,7 +163,8 @@ function DAMPage(){
           <th>Person</th><th>Behavior</th><th>Category</th><th>Occurrence</th><th>Escalation</th><th>Status</th><th>Date</th><th></th>
         </tr></thead><tbody>
           {flags.filter(f=>f.status!=="resolved"&&f.status!=="dismissed").map(f=>{
-            const step=f.escalation_step_id?steps.find(s=>s.id===f.escalation_step_id):getStepsForRule(f.rule_id).find(s=>s.occurrence===f.occurrence_number);
+            const flagDomain=domainOf(f.profiles?.email||f.qa_email);
+            const step=f.escalation_step_id?steps.find(s=>s.id===f.escalation_step_id):getStepsForRule(f.rule_id,flagDomain).find(s=>s.occurrence===f.occurrence_number);
             return(<tr key={f.id} style={{background:selectedFlags.has(f.id)?"var(--accent-light)":"transparent"}}>
               <td><input type="checkbox" style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}} checked={selectedFlags.has(f.id)} onChange={()=>toggleFlagSel(f.id)}/></td>
               <td style={{fontWeight:500}}>{f.profiles?.display_name||f.profiles?.email||f.qa_email||"—"}</td>
@@ -186,11 +194,17 @@ function DAMPage(){
           {r.executor_role&&<span>Executor: {ROLE_LABELS[r.executor_role]}</span>}
           {r.auditor_role&&<span>Auditor: {ROLE_LABELS[r.auditor_role]}</span>}
         </div>
-        <div style={{display:"flex",gap:6,marginTop:8,flexWrap:"wrap"}}>
-          {getStepsForRule(r.id).map(s=><span key={s.id} style={{fontSize:11,padding:"3px 10px",borderRadius:12,background:s.is_hr_investigation?"var(--red-bg)":"var(--bg2)",color:s.is_hr_investigation?"var(--red)":"var(--tx2)",fontWeight:500}}>
-            {s.occurrence}{s.occurrence===1?"st":s.occurrence===2?"nd":s.occurrence===3?"rd":"th"}: {s.action}
-          </span>)}
-        </div>
+        {[
+          {label:"EGY",sub:"tabby.ai",domain:"tabby.ai"},
+          {label:"KSA",sub:"tabby.sa",domain:"tabby.sa"},
+        ].map(d=>{const list=getStepsForRule(r.id,d.domain);if(list.length===0)return null;return(
+          <div key={d.domain} style={{display:"flex",alignItems:"center",gap:8,marginTop:8,flexWrap:"wrap"}}>
+            <span style={{fontSize:10,fontWeight:700,letterSpacing:".5px",padding:"3px 8px",borderRadius:8,background:"var(--bg2)",color:"var(--tx2)",minWidth:64,textAlign:"center"}} title={d.sub}>{d.label}</span>
+            {list.map(s=><span key={s.id} style={{fontSize:11,padding:"3px 10px",borderRadius:12,background:s.is_hr_investigation||/termination/i.test(s.action)?"var(--red-bg)":"var(--bg2)",color:s.is_hr_investigation||/termination/i.test(s.action)?"var(--red)":"var(--tx2)",fontWeight:500}}>
+              {s.occurrence}{s.occurrence===1?"st":s.occurrence===2?"nd":s.occurrence===3?"rd":"th"}: {s.action}
+            </span>)}
+          </div>
+        );})}
       </div>)}
     </div>)}</div>}
 
