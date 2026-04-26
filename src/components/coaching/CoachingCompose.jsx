@@ -132,7 +132,26 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
   const [draftAvailable, setDraftAvailable] = useState(false);
   const [draftSavedAt, setDraftSavedAt] = useState(null);
 
-  const draftHasContent = (d) => !!(d && (d.toEmail || d.topics || d.strengths || d.weaknesses || d.goals || d.actions || d.outcome || d.nextSteps));
+  // A draft is only worth saving when the user has actually written
+  // something. The auto-applied template that fires when the meeting
+  // type changes shouldn't surface a "draft from earlier" banner — so
+  // the body fields only count as content when they DIFFER from the
+  // pristine template for that meeting type.
+  const draftHasContent = (d) => {
+    if (!d) return false;
+    if (d.toEmail || d.outcome || d.nextSteps || d.perfRating) return true;
+    const t = TEMPLATES[d.meetingType];
+    if (!t) {
+      return !!(d.topics || d.strengths || d.weaknesses || d.goals || d.actions);
+    }
+    return (
+      (d.topics && d.topics !== (t.topics || "")) ||
+      (d.strengths && d.strengths !== (t.strengths || "")) ||
+      (d.weaknesses && d.weaknesses !== (t.weaknesses || "")) ||
+      (d.goals && d.goals !== (t.goals || "")) ||
+      (d.actions && d.actions !== (t.actions || ""))
+    );
+  };
 
   // One-time cleanup: any pre-creator-stamp drafts written under the
   // shared "coaching:draft" key (or the anon fallback) belong to nobody
