@@ -9,8 +9,10 @@ import React from "react";
 const FONT =
   "'Inter','SF Pro Display','SF Pro Text',-apple-system,BlinkMacSystemFont,system-ui,sans-serif";
 // Baseline y=78 sits ~visually centered on the x-height of "u"/"s".
+// Valley capped at y=104 so the bright pulse + glow never leaks
+// visibly below the text baseline.
 const EKG =
-  "M298 78 L304 78 L310 68 L316 78 L323 44 L332 116 L340 68 L346 78 L352 78";
+  "M298 78 L304 78 L310 70 L316 78 L323 46 L332 104 L340 70 L346 78 L352 78";
 
 export default function TabbyPulseWordmark({
   height = 40,
@@ -40,8 +42,8 @@ export default function TabbyPulseWordmark({
           <stop offset="100%" stopColor="#6A2C79" />
         </linearGradient>
         {animated && (
-          <filter id={glowId} x="-50%" y="-50%" width="200%" height="200%">
-            <feGaussianBlur stdDeviation="3" result="b" />
+          <filter id={glowId} x="-15%" y="-15%" width="130%" height="130%">
+            <feGaussianBlur stdDeviation="1.6" result="b" />
             <feMerge>
               <feMergeNode in="b" />
               <feMergeNode in="SourceGraphic" />
