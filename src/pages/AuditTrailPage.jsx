@@ -27,10 +27,9 @@ function AuditTrailPage() {
           sb.query("audit_trail", {select:"*",filters:"order=created_at.desc&limit=500",token}).catch(()=>[]),
           listProfiles({ token, select: "email,role", filters: "", cache: false }),
         ]);
-        // Build super-admin-tier email set to exclude their actions.
-        // Includes 'hod' which sits at the same numeric level.
+        // Build super_admin email set to exclude their actions.
         const superAdminEmails = new Set(
-          (Array.isArray(profs)?profs:[]).filter(p=>p.role==="super_admin"||p.role==="hod").map(p=>p.email?.toLowerCase()).filter(Boolean)
+          (Array.isArray(profs)?profs:[]).filter(p=>p.role==="super_admin").map(p=>p.email?.toLowerCase()).filter(Boolean)
         );
         // Merge and filter out super_admin actions
         const merged = [

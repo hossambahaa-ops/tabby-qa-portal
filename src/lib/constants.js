@@ -4,10 +4,11 @@
 // with qa_supervisor so Quality Control and domain-scoped views open up
 // without granting write/destructive abilities (enforced per-action UI).
 // manager and hod are admin-tier org-chart labels (Amanda = manager,
-// Imad = hod). They share numeric levels with admin/super_admin so
-// every existing has_role_or_above check just works for them.
-export const ROLE_LEVEL={qa:1,senior_qa:2,auditor:4,qa_lead:3,qa_supervisor:4,manager:5,admin:5,hod:6,super_admin:6};
-export const ROLE_LABELS={qa:"QA",senior_qa:"Senior QA",qa_lead:"QA Lead",auditor:"Auditor",qa_supervisor:"QA Supervisor",manager:"Manager",admin:"Admin",hod:"HOD",super_admin:"Super Admin"};
+// Imad = hod). All three share level 5 — every existing
+// has_role_or_above('admin') check passes for any of them. Only
+// super_admin (level 6) sits above.
+export const ROLE_LEVEL={qa:1,senior_qa:2,auditor:4,qa_lead:3,qa_supervisor:4,manager:5,hod:5,admin:5,super_admin:6};
+export const ROLE_LABELS={qa:"QA",senior_qa:"Senior QA",qa_lead:"QA Lead",auditor:"Auditor",qa_supervisor:"QA Supervisor",manager:"Manager",hod:"HOD",admin:"Admin",super_admin:"Super Admin"};
 export const hasRole=(r,min)=>(ROLE_LEVEL[r]||0)>=(ROLE_LEVEL[min]||99);
 
 // Chronological month sort (newest first): "Mar-2026" > "Feb-2026" > "Jan-2026"
