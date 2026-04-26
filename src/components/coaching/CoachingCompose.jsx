@@ -11,6 +11,27 @@ const MEETING_TYPES = ["1:1 Meeting","MPR","Coaching Session","Weekly Check-in",
 const MEETING_TYPE_ENUM = {"1:1 Meeting":"weekly_1on1","MPR":"performance_review","Coaching Session":"ad_hoc","Weekly Check-in":"weekly_1on1","Action Plan Review":"ap_checkin","PIP Review":"pip_checkin"};
 const TARGET_TYPES = ["Action Plan Review","PIP Review"];
 
+// Always-cc'd recipient (QA Manager). The lead is the sender so they
+// are deliberately NOT in the CC list — only the supervisor and Amanda.
+const AMANDA_EMAIL = "amanda.souza@tabby.ai";
+
+// Walk roster: QA → manager_email (the lead, who is also the sender)
+// → manager_email (the supervisor). Returns "supervisor, amanda".
+const buildAutoCc = (toEmail, roster, senderEmail) => {
+  if (!toEmail) return "";
+  const sender = (senderEmail || "").toLowerCase();
+  const lower = toEmail.toLowerCase();
+  const qa = roster.find(r => (r.email || "").toLowerCase() === lower);
+  const lead = qa?.manager_email?.toLowerCase();
+  const sv = lead
+    ? roster.find(r => (r.email || "").toLowerCase() === lead)?.manager_email?.toLowerCase()
+    : null;
+  const out = new Set();
+  if (sv && sv !== sender) out.add(sv);
+  if (AMANDA_EMAIL !== sender) out.add(AMANDA_EMAIL);
+  return [...out].join(", ");
+};
+
 const PERF_OPTIONS = [
   {val:"Needs Attention",emoji:"⚠️",bg:"var(--red-bg)",color:"var(--red)"},
   {val:"Below Expectations",emoji:"📉",bg:"var(--amber-bg)",color:"var(--amber)"},
@@ -546,17 +567,17 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
                 const matches = roster.filter(r => (r.email||"").toLowerCase().includes(q) || (r.display_name||"").toLowerCase().includes(q)).slice(0, 8);
                 if (!matches.length) return null;
                 return <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:"0 0 var(--radius) var(--radius)",boxShadow:"var(--shadow-lg)",maxHeight:200,overflowY:"auto"}}>
-                  {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email);const mgr=r.manager_email;if(mgr)setCcEmail(mgr);}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email);setCcEmail(buildAutoCc(r.email, roster, profile?.email));}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <span style={{fontWeight:500}}>{r.email}</span>
                     <span style={{color:"var(--tx3)",fontSize:11}}>{r.display_name || nameFromEmail(r.email)}</span>
                   </div>)}
                 </div>;
               })()}
             </div>
-            <div className="form-group"><label className="form-label">Manager email (CC)</label>
-              {toEmail && roster.find(r=>r.email===toEmail)?.manager_email ? (
-                <input className="form-input" value={ccEmail || roster.find(r=>r.email===toEmail)?.manager_email || ""} onChange={e=>setCcEmail(e.target.value)} onFocus={()=>{if(!ccEmail){const m=roster.find(r=>r.email===toEmail)?.manager_email;if(m)setCcEmail(m);}}}/>
-              ) : <input className="form-input" value={ccEmail} onChange={e=>setCcEmail(e.target.value)} placeholder="manager@tabby.ai"/>}
+            <div className="form-group"><label className="form-label">CC (Supervisor + Amanda)</label>
+              {toEmail && roster.find(r=>r.email===toEmail) ? (
+                <input className="form-input" value={ccEmail || buildAutoCc(toEmail, roster, profile?.email)} onChange={e=>setCcEmail(e.target.value)} onFocus={()=>{if(!ccEmail){const ac=buildAutoCc(toEmail, roster, profile?.email);if(ac)setCcEmail(ac);}}}/>
+              ) : <input className="form-input" value={ccEmail} onChange={e=>setCcEmail(e.target.value)} placeholder={`supervisor@tabby.ai, ${AMANDA_EMAIL}`}/>}
             </div>
             <div className="form-group"><label className="form-label">Session date</label><input type="date" className="form-input" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></div>
             <div className="form-group"><label className="form-label">Meeting type</label>
