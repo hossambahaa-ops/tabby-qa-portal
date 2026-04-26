@@ -91,17 +91,16 @@ export default function CSATPage() {
         const uniqueMonths = sortMonthsDesc([...new Set(filtered.map(r => r.month))]);
         setMonths(uniqueMonths);
         if (uniqueMonths.length > 0) setSelMonth(uniqueMonths[0]);
-        if (hasRole(profile?.role, "qa_supervisor") && !hasRole(profile?.role, "admin") && !selDomain) {
-          const svDomain = profile?.operational_domain || profile?.domain || "";
-          if (svDomain) setSelDomain(svDomain);
-        }
-        if (gf?.domain) setSelDomain(gf.domain);
+        // CSAT is intentionally unscoped by domain: every user — including
+        // supervisors who are domain-locked at the global level — should
+        // see the full dataset across By QA / By Lead / By Topic, and
+        // narrow with the page's own filter dropdowns if they want.
         if (gf?.month && uniqueMonths.includes(gf.month)) setSelMonth(gf.month);
         if (gf?.teams?.length > 0) setSelTeam(gf.teams[0]);
       } catch (e) { console.error("CSAT:", e); }
       setLoading(false);
     })();
-  }, [token, gf?.domain, gf?.month, gf?.teams]);
+  }, [token, gf?.month, gf?.teams]);
 
   const monthData = data.filter(r => r.month === selMonth);
   const rosterMap = {}; roster.forEach(r => { rosterMap[r.email?.toLowerCase()] = r; });
