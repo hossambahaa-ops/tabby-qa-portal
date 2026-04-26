@@ -133,6 +133,13 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
   const myEmail = (profile?.email || "").toLowerCase();
   const draftKey = myEmail ? `coaching:draft:${myEmail}` : null;
 
+  // `hydrated` gates the auto-template and auto-save effects until the
+  // load-restore effect has run. Without it, the template effect fires
+  // on first render (before profile loads), the auto-save then writes
+  // the template back to localStorage 500 ms later, and that wipes out
+  // the user's previously-typed body content before restore can run.
+  const [hydrated, setHydrated] = useState(false);
+
   const draftHasContent = (d) => {
     if (!d) return false;
     return !!(d.toEmail || d.ccEmail || d.outcome || d.nextSteps || d.perfRating ||
@@ -147,18 +154,24 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
     } catch {}
   }, []);
 
-  // Silent restore on mount.
+  // Silent restore on mount, then flip `hydrated` so the rest of the
+  // form effects can run.
   useEffect(() => {
     if (!draftKey || !myEmail) return;
     try {
       const raw = localStorage.getItem(draftKey);
-      if (!raw) return;
+      if (!raw) { setHydrated(true); return; }
       const d = JSON.parse(raw);
       if (d && d.createdBy && d.createdBy.toLowerCase() !== myEmail) {
         localStorage.removeItem(draftKey);
+        setHydrated(true);
         return;
       }
-      if (!draftHasContent(d)) { localStorage.removeItem(draftKey); return; }
+      if (!draftHasContent(d)) {
+        localStorage.removeItem(draftKey);
+        setHydrated(true);
+        return;
+      }
       if (d.toEmail !== undefined) setToEmail(d.toEmail);
       if (d.ccEmail !== undefined) setCcEmail(d.ccEmail);
       if (d.sessionDate !== undefined) setSessionDate(d.sessionDate);
@@ -175,12 +188,14 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
       if (d.outcome !== undefined) setOutcome(d.outcome);
       if (d.nextSteps !== undefined) setNextSteps(d.nextSteps);
     } catch {}
+    setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myEmail]);
 
-  // Debounced auto-save.
+  // Debounced auto-save — only after hydration so we never overwrite
+  // the user's stored draft with the empty/template initial state.
   useEffect(() => {
-    if (!draftKey || !myEmail) return;
+    if (!draftKey || !myEmail || !hydrated) return;
     const t = setTimeout(() => {
       const d = { toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps, savedAt: Date.now(), createdBy: myEmail };
       try {
@@ -189,7 +204,7 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
       } catch {}
     }, 500);
     return () => clearTimeout(t);
-  }, [myEmail, draftKey, toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps]);
+  }, [hydrated, myEmail, draftKey, toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps]);
 
   // Reset form to defaults — used after send + by the manual Clear button.
   const resetFormToDefaults = () => {
@@ -321,8 +336,12 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
     if (!forceType) globalToast("success", "Template applied");
   };
 
-  // Auto-apply template when meeting type changes and fields are empty
+  // Auto-apply template when meeting type changes and fields are empty.
+  // Gated on `hydrated` so we never run before the restore effect — if
+  // we did, the body would briefly hold template defaults, the auto-
+  // save would persist them, and the user's typed body would be wiped.
   useEffect(() => {
+    if (!hydrated) return;
     if (!topics && !strengths && !weaknesses && !goals && !actions) {
       const t = TEMPLATES[meetingType];
       if (t) {
@@ -333,7 +352,8 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
         setActions(t.actions || "");
       }
     }
-  }, [meetingType]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meetingType, hydrated]);
 
   // Target row helpers
   const addTargetRow = () => setTargetRows([...targetRows, {metric:"",start:"",w1:"",w2:"",w3:"",w4:"",a1:"",a2:"",a3:"",a4:""}]);
