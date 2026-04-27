@@ -520,11 +520,11 @@ export default function CSATPage() {
             </div>
           )
         ) : csatView === "qa" ? (
-          <div className="table-wrap table-wrap-sticky">
+          <div className="table-wrap table-wrap-sticky csat-compact">
             <table>
               <thead>
                 <tr>
-                  <th style={{width:32}}></th>
+                  <th style={{width:24}}></th>
                   <th style={{minWidth:180}}>Specialist</th>
                   <th>TL</th>
                   <th style={{textAlign:"right"}}>Surveys</th>
@@ -538,36 +538,36 @@ export default function CSATPage() {
                   const isLoading = topicsLoading === r.qa_email;
                   return <React.Fragment key={r.id+"-csat"}>
                     <tr onClick={()=>toggleRow(r.qa_email)} style={{cursor:"pointer",background:isExpanded?"var(--accent-light)":undefined}}>
-                      <td style={{textAlign:"center"}}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s",color:"var(--tx3)"}}><path d="M6 9l6 6 6-6"/></svg>
+                      <td style={{textAlign:"center",padding:"4px 0"}}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s",color:"var(--tx3)",opacity:.6}}><path d="M6 9l6 6 6-6"/></svg>
                       </td>
-                      <td>
+                      <td style={{padding:"4px 8px"}}>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>
+                          <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,letterSpacing:".3px"}}>
                             {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
                           </div>
-                          <div style={{fontWeight:500,fontSize:13,whiteSpace:"nowrap"}}>{nameFromEmail(r.qa_email)}</div>
+                          <div style={{fontWeight:500,fontSize:12.5,whiteSpace:"nowrap"}}>{nameFromEmail(r.qa_email)}</div>
                         </div>
                       </td>
-                      <td style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
-                      <td style={{textAlign:"right"}}>{r.csat_total ?? "—"}</td>
-                      {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
+                      <td style={{fontSize:11.5,color:"var(--tx2)",whiteSpace:"nowrap",padding:"4px 8px"}}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
+                      <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)",padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{r.csat_total ?? "—"}</td>
+                      {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,fontSize:12.5,color:csatColor(v,s),padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                     </tr>
                     {isExpanded && <tr>
-                      <td colSpan={5} style={{padding:"0 16px 16px 52px",background:"var(--bg)"}}>
-                        {isLoading ? <div style={{padding:"12px 0",fontSize:12,color:"var(--tx3)"}}>Loading topics…</div>
-                         : !t || t.length === 0 ? <div style={{padding:"12px 0",fontSize:12,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
-                         : <table style={{width:"100%",marginTop:8}}>
+                      <td colSpan={5} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
+                        {isLoading ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>Loading topics…</div>
+                         : !t || t.length === 0 ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
+                         : <table style={{width:"100%",marginTop:4,borderCollapse:"collapse"}}>
                             <thead><tr style={{borderBottom:"1px solid var(--bd2)"}}>
-                              <th style={{textAlign:"left",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Topic</th>
-                              <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Surveys</th>
-                              <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>CSAT %</th>
+                              <th style={{textAlign:"left",fontSize:10,color:"var(--tx3)",fontWeight:600,padding:"4px 6px",textTransform:"uppercase",letterSpacing:".4px"}}>Topic</th>
+                              <th style={{textAlign:"right",fontSize:10,color:"var(--tx3)",fontWeight:600,padding:"4px 6px",textTransform:"uppercase",letterSpacing:".4px"}}>Surveys</th>
+                              <th style={{textAlign:"right",fontSize:10,color:"var(--tx3)",fontWeight:600,padding:"4px 6px",textTransform:"uppercase",letterSpacing:".4px"}}>CSAT %</th>
                             </tr></thead>
                             <tbody>
-                              {t.map((row,i)=>(<tr key={i}>
-                                <td style={{padding:"6px 8px",fontSize:13}}>{row.topic}</td>
-                                <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",color:"var(--tx2)"}}>{row.surveys_count ?? 0}</td>
-                                {(()=>{const v=row.csat_score!=null?Number(row.csat_score):null;const s=Number(row.surveys_count||0);const show=v!=null&&s>0;return <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
+                              {t.map((row,i)=>(<tr key={i} style={{borderBottom:i<t.length-1?"1px solid var(--bd2)":"none"}}>
+                                <td style={{padding:"4px 6px",fontSize:12}}>{row.topic}</td>
+                                <td style={{padding:"4px 6px",fontSize:12,textAlign:"right",color:"var(--tx2)",fontVariantNumeric:"tabular-nums"}}>{row.surveys_count ?? 0}</td>
+                                {(()=>{const v=row.csat_score!=null?Number(row.csat_score):null;const s=Number(row.surveys_count||0);const show=v!=null&&s>0;return <td style={{padding:"4px 6px",fontSize:12,textAlign:"right",fontWeight:600,color:csatColor(v,s),fontVariantNumeric:"tabular-nums"}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                               </tr>))}
                             </tbody>
                           </table>}
@@ -579,11 +579,11 @@ export default function CSATPage() {
             </table>
           </div>
         ) : (
-          <div className="table-wrap table-wrap-sticky">
+          <div className="table-wrap table-wrap-sticky csat-compact">
             <table>
               <thead>
                 <tr>
-                  <th style={{width:32}}></th>
+                  <th style={{width:24}}></th>
                   <th style={{minWidth:180}}>Lead</th>
                   <th style={{textAlign:"right"}}>QAs</th>
                   <th style={{textAlign:"right"}}>Surveys</th>
@@ -598,39 +598,39 @@ export default function CSATPage() {
                   const isLoading = leadTopicsLoading === tlKey;
                   return <React.Fragment key={tlKey+"-csat-lead"}>
                     <tr onClick={()=>toggleLeadRow(l)} style={{cursor:"pointer",background:isExpanded?"var(--accent-light)":undefined}}>
-                      <td style={{textAlign:"center"}}>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s",color:"var(--tx3)"}}><path d="M6 9l6 6 6-6"/></svg>
+                      <td style={{textAlign:"center",padding:"4px 0"}}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s",color:"var(--tx3)",opacity:.6}}><path d="M6 9l6 6 6-6"/></svg>
                       </td>
-                      <td>
+                      <td style={{padding:"4px 8px"}}>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
-                          <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>
+                          <div style={{width:24,height:24,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,letterSpacing:".3px"}}>
                             {nameFromEmail(l.tl).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
                           </div>
-                          <div>
-                            <div style={{fontWeight:600,fontSize:13}}>{nameFromEmail(l.tl)}</div>
-                            <div style={{fontSize:10,color:"var(--tx3)"}}>{l.count} QA{l.count!==1?"s":""}</div>
+                          <div style={{lineHeight:1.15}}>
+                            <div style={{fontWeight:600,fontSize:12.5}}>{nameFromEmail(l.tl)}</div>
+                            <div style={{fontSize:10,color:"var(--tx3)",marginTop:1}}>{l.count} QA{l.count!==1?"s":""}</div>
                           </div>
                         </div>
                       </td>
-                      <td style={{textAlign:"right",fontWeight:600}}>{l.count}</td>
-                      <td style={{textAlign:"right"}}>{l.surveys || "—"}</td>
-                      {(()=>{const s=Number(l.surveys||0);const show=l.csat!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,color:csatColor(l.csat,s)}}>{show?l.csat.toFixed(1)+"%":"—"}</td>;})()}
+                      <td style={{textAlign:"right",fontWeight:600,fontSize:12,padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{l.count}</td>
+                      <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)",padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{l.surveys || "—"}</td>
+                      {(()=>{const s=Number(l.surveys||0);const show=l.csat!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,fontSize:12.5,color:csatColor(l.csat,s),padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{show?l.csat.toFixed(1)+"%":"—"}</td>;})()}
                     </tr>
                     {isExpanded && <tr>
-                      <td colSpan={5} style={{padding:"0 16px 16px 52px",background:"var(--bg)"}}>
-                        {isLoading ? <div style={{padding:"12px 0",fontSize:12,color:"var(--tx3)"}}>Loading topics…</div>
-                         : !t || t.length === 0 ? <div style={{padding:"12px 0",fontSize:12,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
-                         : <table style={{width:"100%",marginTop:8}}>
+                      <td colSpan={5} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
+                        {isLoading ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>Loading topics…</div>
+                         : !t || t.length === 0 ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
+                         : <table style={{width:"100%",marginTop:4,borderCollapse:"collapse"}}>
                             <thead><tr style={{borderBottom:"1px solid var(--bd2)"}}>
-                              <th style={{textAlign:"left",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Topic</th>
-                              <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>Surveys</th>
-                              <th style={{textAlign:"right",fontSize:11,color:"var(--tx3)",fontWeight:600,padding:"6px 8px"}}>CSAT %</th>
+                              <th style={{textAlign:"left",fontSize:10,color:"var(--tx3)",fontWeight:600,padding:"4px 6px",textTransform:"uppercase",letterSpacing:".4px"}}>Topic</th>
+                              <th style={{textAlign:"right",fontSize:10,color:"var(--tx3)",fontWeight:600,padding:"4px 6px",textTransform:"uppercase",letterSpacing:".4px"}}>Surveys</th>
+                              <th style={{textAlign:"right",fontSize:10,color:"var(--tx3)",fontWeight:600,padding:"4px 6px",textTransform:"uppercase",letterSpacing:".4px"}}>CSAT %</th>
                             </tr></thead>
                             <tbody>
-                              {t.map((row,i)=>(<tr key={i}>
-                                <td style={{padding:"6px 8px",fontSize:13}}>{row.topic}</td>
-                                <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",color:"var(--tx2)"}}>{row.surveys_count ?? 0}</td>
-                                {(()=>{const v=row.csat_score!=null?Number(row.csat_score):null;const s=Number(row.surveys_count||0);const show=v!=null&&s>0;return <td style={{padding:"6px 8px",fontSize:13,textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
+                              {t.map((row,i)=>(<tr key={i} style={{borderBottom:i<t.length-1?"1px solid var(--bd2)":"none"}}>
+                                <td style={{padding:"4px 6px",fontSize:12}}>{row.topic}</td>
+                                <td style={{padding:"4px 6px",fontSize:12,textAlign:"right",color:"var(--tx2)",fontVariantNumeric:"tabular-nums"}}>{row.surveys_count ?? 0}</td>
+                                {(()=>{const v=row.csat_score!=null?Number(row.csat_score):null;const s=Number(row.surveys_count||0);const show=v!=null&&s>0;return <td style={{padding:"4px 6px",fontSize:12,textAlign:"right",fontWeight:600,color:csatColor(v,s),fontVariantNumeric:"tabular-nums"}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                               </tr>))}
                             </tbody>
                           </table>}

@@ -154,6 +154,12 @@ tr:last-child td { border-bottom: none; }
 tr { transition: background .15s var(--ease); }
 tr:hover td { background: var(--bg2); }
 
+/* Compact CSAT tables — slimmer rows for the By QA / By Lead views */
+.csat-compact table { font-size: 12.5px; }
+.csat-compact thead th { padding: 8px 10px; font-size: 9.5px; letter-spacing: .6px; }
+.csat-compact tbody td { padding: 4px 10px; }
+.csat-compact tbody tr td:first-child { padding-left: 8px; padding-right: 0; }
+
 /* ── Badges ── */
 .role-badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: .3px; }
 .role-qa { background: var(--bg2); color: var(--tx2); }
