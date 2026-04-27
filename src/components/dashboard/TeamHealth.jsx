@@ -7,6 +7,8 @@ import { listPlans } from "../../api/plans.js";
 import { listViolations } from "../../api/violations.js";
 
 const KPI_DEFS = [
+  { key: "sbs", label: "SBS", field: "sbs", type: "sum", noTarget: true },
+  { key: "non_sbs", label: "Non-SBS", field: "non_sbs", type: "sum", noTarget: true },
   { key: "occupancy", label: "Occupancy", field: "occupancy_pct", type: "avg", pct: true },
   { key: "coaching_completion", label: "Coaching Completion", field: "coaching_completion_pct", type: "avg", pct: true },
   { key: "ontime_coaching", label: "On-time Coaching", field: "ontime_coaching_pct", type: "avg", pct: true },
@@ -91,12 +93,15 @@ function TeamHealth({ teamData, allTeamEmails, qaQueue, qaDomain }) {
     const vals = teamData.map(r => parseVal(r[kpi.field])).filter(v => v !== null);
     if (vals.length === 0) return null;
 
-    let teamAvg;
-    if (kpi.type === "sum") {
-      teamAvg = vals.reduce((a, b) => a + b, 0) / vals.length;
-    } else {
-      teamAvg = vals.reduce((a, b) => a + b, 0) / vals.length;
+    if (kpi.noTarget) {
+      const total = vals.reduce((a, b) => a + b, 0);
+      const teamVal = kpi.type === "sum" ? total : total / vals.length;
+      const teamAvg = kpi.pct ? normPct(teamVal) : teamVal;
+      const perQa = kpi.type === "sum" && vals.length > 0 ? total / vals.length : null;
+      return { ...kpi, teamAvg, targetVal: null, color: "var(--tx)", belowCount: 0, perQa };
     }
+
+    let teamAvg = vals.reduce((a, b) => a + b, 0) / vals.length;
     if (kpi.pct) teamAvg = normPct(teamAvg);
 
     const tgt = findTarget(kpi.key);
@@ -134,9 +139,20 @@ function TeamHealth({ teamData, allTeamEmails, qaQueue, qaDomain }) {
             <div style={{ width: 8, height: 8, borderRadius: "50%", background: r.color, flexShrink: 0 }} />
             <span style={{ flex: 1, color: "var(--tx)", fontWeight: 500 }}>{r.label}</span>
             <span style={{ fontWeight: 700, color: r.color, minWidth: 55, textAlign: "right" }}>{fmtVal(r.teamAvg, r.pct)}</span>
-            <span style={{ color: "var(--tx3)", minWidth: 55, textAlign: "right" }}>/ {fmtVal(r.targetVal, r.pct)}</span>
-            {r.belowCount > 0 && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, background: "var(--red-bg)", color: "var(--red)", fontWeight: 600, flexShrink: 0 }}>{r.belowCount} below</span>}
-            {r.belowCount === 0 && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, background: "var(--green-bg)", color: "var(--green)", fontWeight: 600, flexShrink: 0 }}>all met</span>}
+            {r.noTarget ? (
+              <>
+                <span style={{ color: "var(--tx3)", minWidth: 55, textAlign: "right", fontSize: 11 }}>
+                  {r.perQa != null ? `${r.perQa.toFixed(1)}/QA` : ""}
+                </span>
+                <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, background: "var(--bg2)", color: "var(--tx3)", fontWeight: 600, flexShrink: 0 }}>team total</span>
+              </>
+            ) : (
+              <>
+                <span style={{ color: "var(--tx3)", minWidth: 55, textAlign: "right" }}>/ {fmtVal(r.targetVal, r.pct)}</span>
+                {r.belowCount > 0 && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, background: "var(--red-bg)", color: "var(--red)", fontWeight: 600, flexShrink: 0 }}>{r.belowCount} below</span>}
+                {r.belowCount === 0 && <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 8, background: "var(--green-bg)", color: "var(--green)", fontWeight: 600, flexShrink: 0 }}>all met</span>}
+              </>
+            )}
           </div>
         ))}
       </div>
