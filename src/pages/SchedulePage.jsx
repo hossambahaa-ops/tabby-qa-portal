@@ -14,6 +14,7 @@ import { useUrlState } from "../lib/useUrlState.jsx";
 const ATTENDANCE_TYPES = [
   {code:"P",label:"Present",color:"#22C55E",bg:"#22C55E20"},
   {code:"H",label:"Work from Home",color:"#3B82F6",bg:"#3B82F620"},
+  {code:"OT",label:"Overtime",color:"#0D9488",bg:"#0D948820"},
   {code:"L",label:"Late Arrival",color:"#F97316",bg:"#F9731620"},
   {code:"PH",label:"Public Holiday",color:"#8B5CF6",bg:"#8B5CF620"},
   {code:"EL",label:"Early Leave",color:"#EAB308",bg:"#EAB30820"},
@@ -27,6 +28,9 @@ const ATTENDANCE_TYPES = [
 ];
 const ATT_MAP = {};
 ATTENDANCE_TYPES.forEach(t => { ATT_MAP[t.code] = t; });
+// Codes that need lead approval when set by a QA themselves. Leads
+// setting these for their team approve them implicitly.
+const APPROVAL_CODES = new Set(["OT", "PH"]);
 
 function SchedulePage() {
   const{token,profile,gf,globalToast}=useApp();
@@ -71,7 +75,7 @@ function SchedulePage() {
       const chunk3End = dim;
       const fmtD = (d) => `${selMonth}-${String(d).padStart(2,"0")}`;
       const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
-      const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status`;
+      const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at`;
       const [r, a1, a2, a3] = await Promise.all([
         listRoster({ token, select: "email,display_name,manager_email,queue,country" }),
         fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(chunk1End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
@@ -192,13 +196,20 @@ function SchedulePage() {
     try {
       const existing = getAtt(email, dayNum);
       const oldStatus = existing?.status || null;
+      // QAs (or senior_qa) self-setting OT or PH need lead approval. Anyone
+      // else (lead, supervisor, admin) writes already-approved.
+      const isSelfRequest = isQA && email?.toLowerCase() === myEmail && APPROVAL_CODES.has(status);
+      const approval_status = isSelfRequest ? "pending" : null;
+      const requested_by = isSelfRequest ? myEmail : null;
+      const approved_by = isSelfRequest ? null : myEmail;
+      const approved_at = isSelfRequest ? null : new Date().toISOString();
       if (existing) {
-        if (status === existing.status) { setEditCell(null); return; }
-        await sb.query("qa_attendance", {token, method:"PATCH", body:{status, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
+        if (status === existing.status && (existing.approval_status || null) === approval_status) { setEditCell(null); return; }
+        await sb.query("qa_attendance", {token, method:"PATCH", body:{status, approval_status, requested_by, approved_by, approved_at, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
       } else {
         const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
           method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
-          body:JSON.stringify({email:email.toLowerCase(), date:dateStr, status, created_by:myEmail})
+          body:JSON.stringify({email:email.toLowerCase(), date:dateStr, status, approval_status, requested_by, approved_by, approved_at, created_by:myEmail})
         });
         if (!resp.ok) throw new Error(await resp.text());
       }
@@ -207,9 +218,32 @@ function SchedulePage() {
       setRedoStack([]);
       setAttendance(prev => {
         const filtered = prev.filter(a => !(a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr));
-        return [...filtered, {email:email.toLowerCase(), date:dateStr, status, id:existing?.id||"new-"+Date.now(), created_by:myEmail}];
+        return [...filtered, {email:email.toLowerCase(), date:dateStr, status, approval_status, requested_by, approved_by, approved_at, id:existing?.id||"new-"+Date.now(), created_by:myEmail}];
       });
       setEditCell(null);
+      if (isSelfRequest) globalToast("success", `${status} requested — pending lead approval`);
+    } catch(e) { globalToast("error", safeError(e)); }
+  };
+
+  // Lead approves a pending OT/PH request. Keeps the same status, just
+  // flips approval_status to 'approved'.
+  const approveAtt = async (email, dayNum) => {
+    const existing = getAtt(email, dayNum);
+    if (!existing) return;
+    const dateStr = `${selMonth}-${String(dayNum).padStart(2,"0")}`;
+    try {
+      const body = { approval_status: "approved", approved_by: myEmail, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+      if (existing.id && !String(existing.id).startsWith("new")) {
+        await sb.query("qa_attendance", { token, method:"PATCH", body, filters:`id=eq.${existing.id}` });
+      } else {
+        await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(email)}&date=eq.${dateStr}`, {
+          method:"PATCH", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`},
+          body: JSON.stringify(body),
+        });
+      }
+      setAttendance(prev => prev.map(a => (a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr) ? { ...a, ...body } : a));
+      setEditCell(null);
+      globalToast("success", `Approved ${existing.status} for ${nameFromEmail(email)}`);
     } catch(e) { globalToast("error", safeError(e)); }
   };
 
@@ -451,18 +485,28 @@ function SchedulePage() {
                     const att = getAtt(em, d.num);
                     const st = att?.status || (d.isWeekend ? null : null);
                     const attType = st ? ATT_MAP[st] : null;
+                    const isPending = att?.approval_status === "pending";
                     const cellKey = `${em}-${d.num}`;
                     const isEditing = editCell === cellKey;
                     const canEdit = isLead || em === myEmail;
+                    const cellTitle = isPending
+                      ? `${attType?.label || st} — pending lead approval${att?.requested_by?` (requested by ${nameFromEmail(att.requested_by)})`:""}`
+                      : (attType?.label || "");
                     return (
                       <td key={d.num} style={{textAlign:"center",padding:1,background:d.isWeekend?"rgba(156,163,175,0.05)":"transparent",position:"relative",cursor:canEdit?"pointer":"default"}}
-                        onClick={()=>{if(canEdit){setEditCell(isEditing?null:cellKey);}}}>
+                        onClick={()=>{if(canEdit){setEditCell(isEditing?null:cellKey);}}}
+                        title={cellTitle}>
                         {st ? (
-                          <span style={{fontSize:9,padding:"2px 3px",borderRadius:3,background:attType?.bg||"var(--bg3)",color:attType?.color||"var(--tx3)",fontWeight:700,display:"inline-block",minWidth:20,pointerEvents:"none"}}>{st}</span>
+                          <span style={{position:"relative",display:"inline-block",minWidth:20,pointerEvents:"none"}}>
+                            <span style={{fontSize:9,padding:"2px 3px",borderRadius:3,background:attType?.bg||"var(--bg3)",color:attType?.color||"var(--tx3)",fontWeight:700,display:"inline-block",minWidth:20,opacity:isPending?0.55:1,outline:isPending?`1px dashed ${attType?.color||"var(--tx3)"}`:"none"}}>{st}</span>
+                            {isPending && <span style={{position:"absolute",top:-4,right:-4,fontSize:8,lineHeight:1,background:"var(--bg3)",border:"1px solid var(--amber)",color:"var(--amber)",borderRadius:6,padding:"1px 2px",fontWeight:700}}>⏳</span>}
+                          </span>
                         ) : (
                           <span style={{fontSize:10,color:"var(--bd2)",pointerEvents:"none"}}>·</span>
                         )}
                         {isEditing && <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:8,padding:4,boxShadow:"var(--shadow-lg)",display:"flex",flexWrap:"wrap",gap:2,width:160}}>
+                          {isPending && isLead && em !== myEmail && <button onClick={(e)=>{e.stopPropagation();approveAtt(em,d.num);}} style={{fontSize:9,padding:"4px 6px",borderRadius:4,border:"1px solid var(--green)",cursor:"pointer",background:"var(--green-bg)",color:"var(--green)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginBottom:2}} title={`Approve ${st}`}>✓ Approve {st}</button>}
+                          {isPending && isLead && em !== myEmail && <div style={{fontSize:8,color:"var(--tx3)",width:"100%",padding:"2px 0",textAlign:"center",fontStyle:"italic"}}>Or pick a different code to replace</div>}
                           {ATTENDANCE_TYPES.map(t => (
                             <button key={t.code} onClick={(e)=>{e.stopPropagation();setAtt(em,d.num,t.code);}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"none",cursor:"pointer",background:t.bg,color:t.color,fontWeight:700,fontFamily:"var(--font)"}} title={t.label}>{t.code}</button>
                           ))}

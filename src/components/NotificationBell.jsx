@@ -8,6 +8,7 @@ import { listCoachingSessions } from "../api/coachingSessions.js";
 import { listPlans } from "../api/plans.js";
 import { listViolations } from "../api/violations.js";
 import { listEscalations } from "../api/escalations.js";
+import { listRoster } from "../api/roster.js";
 
 const safe=(v)=>{if(v==null)return"";if(typeof v==="object")return JSON.stringify(v);return String(v);};
 
@@ -58,6 +59,12 @@ function NotificationBell({ onNavigate }) {
           queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
           queries.push(listPlans({ token, select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: `tl_email=eq.${myEmail}&status=eq.active&order=created_at.desc&limit=10` }));
         }
+        // QA Lead also gets attendance approval requests (OT/PH) from their team
+        let attReqIdx = -1;
+        if (isLead) {
+          attReqIdx = queries.length;
+          queries.push(sb.query("qa_attendance", { select: "id,email,date,status,requested_by,created_at,updated_at", filters: "approval_status=eq.pending&order=updated_at.desc&limit=20", token }).catch(() => []));
+        }
         // Supervisors see their domain's violations + DAM flags
         if (isSv) {
           queries.push(listViolations({ token, select: "id,violation_type,qa_emails,lead_email,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10" }));
@@ -82,8 +89,23 @@ function NotificationBell({ onNavigate }) {
         const violations = (isLead || isSv) ? (results[5] || []) : [];
         const damFlags = (isLead || isSv) ? (results[6] || []) : [];
         const activePlans = (isLead || isSv) ? (results[7] || []) : [];
+        const pendingAtt = attReqIdx >= 0 ? (results[attReqIdx] || []) : [];
         const newFeedback = newFeedbackIdx >= 0 ? (results[newFeedbackIdx] || []) : [];
         const newErrors  = newErrorsIdx  >= 0 ? (results[newErrorsIdx]  || []) : [];
+
+        // Filter attendance requests to the lead's direct reports.
+        let teamEmails = null;
+        if (isLead && pendingAtt.length > 0) {
+          try {
+            const team = await listRoster({ token, select: "email,manager_email", filters: `manager_email=eq.${myEmail}` });
+            teamEmails = new Set((Array.isArray(team) ? team : []).map(r => r.email?.toLowerCase()).filter(Boolean));
+          } catch { teamEmails = new Set(); }
+        }
+        const myTeamPendingAtt = pendingAtt.filter(a => {
+          const em = a.email?.toLowerCase();
+          if (!em || em === myEmail) return false;
+          return !teamEmails || teamEmails.has(em);
+        });
 
         const all = [
           ...assignedTasks.map(t => ({ id: "t-"+t.id, type: "task", title: `Task: ${t.title}`, sub: `From: ${t.created_by?.split("@")[0]}${t.eta_date?" · ETA: "+new Date(t.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}`, time: t.created_at, page: "dashboard" })),
@@ -92,6 +114,14 @@ function NotificationBell({ onNavigate }) {
           ...(!isLead && !isSv ? (myCoaching || []) : []).map(c => ({ id: "c-"+c.id, type: "coaching", title: `Coaching logged: ${c.meeting_type || "Session"}`, sub: c.sender_email ? `From ${c.sender_email.split("@")[0]}` : "—", time: c.created_at, page: "profile" })),
           ...violations.map(v => ({ id: "v-"+v.id, type: "violation", title: `Violation: ${v.violation_type}`, sub: v.qa_emails?.split("\n")[0], time: v.created_at, page: "quality", qcTab: "violations" })),
           ...damFlags.map(f => ({ id: "d-"+f.id, type: "dam", title: `DAM: ${f.dam_rules?.name || "Flag"}`, sub: f.qa_email || "—", time: f.created_at, page: "quality", qcTab: "dam" })),
+          ...myTeamPendingAtt.map(a => ({
+            id: "att-" + a.id,
+            type: "attendance",
+            title: `Attendance request: ${a.status}`,
+            sub: `${(a.email || "").split("@")[0]} — ${new Date(a.date + "T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
+            time: a.updated_at || a.created_at,
+            page: "schedule",
+          })),
           ...activePlans.filter(p => {
             if (!p.end_date) return false;
             const daysLeft = (new Date(p.end_date) - new Date()) / (1000*60*60*24);
@@ -163,7 +193,7 @@ function NotificationBell({ onNavigate }) {
 
   const visible = items.filter(i => !dismissed.includes(i.id));
   const count = visible.length;
-  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" }, coaching: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, error: { bg: "var(--red-bg)", color: "var(--red)" } };
+  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" }, coaching: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, error: { bg: "var(--red-bg)", color: "var(--red)" }, attendance: { bg: "rgba(13,148,136,0.12)", color: "#0D9488" } };
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
