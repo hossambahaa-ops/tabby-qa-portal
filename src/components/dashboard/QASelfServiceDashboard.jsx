@@ -69,7 +69,6 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
   const nonSbsTarget = parseFloat(findTgt("daily_non_sbs")?.target_value) || 10;
   const occTarget = parseFloat(findTgt("occupancy_pct")?.target_value) || 95;
   const coachingTarget = parseFloat(findTgt("daily_coaching")?.target_value) || 1;
-  const stTarget = parseFloat(findTgt("daily_side_task_mins")?.target_value) || 60;
   const whTarget = parseFloat(findTgt("daily_working_hours")?.target_value) || 8;
   const sbsDur = parseFloat(findTgt("sbs_duration_minutes")?.target_value) || 20;
   const nonSbsDur = parseFloat(findTgt("non_sbs_duration_minutes")?.target_value) || 15;
@@ -128,8 +127,8 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
   const remSbs = Math.max(0, sbsTarget - sbs);
   const remNsbs = Math.max(0, nonSbsTarget - nonSbs);
   const remCoaching = Math.max(0, coachingTarget - coaching);
-  const remSt = Math.max(0, stTarget - stMins);
-  const allMet = remSbs === 0 && remNsbs === 0 && remCoaching === 0 && remSt === 0;
+  // Side-task time isn't a hard target — don't gate "all met" on it.
+  const allMet = remSbs === 0 && remNsbs === 0 && remCoaching === 0;
 
   return (
     <div>
@@ -214,19 +213,20 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
             { label: "SBS", done: sbs, target: sbsTarget, unit: "" },
             { label: "Non-SBS", done: nonSbs, target: nonSbsTarget, unit: "" },
             { label: "Coaching", done: coaching, target: coachingTarget, unit: "" },
-            { label: "Side Tasks", done: stMins, target: stTarget, unit: "m", fmtDone: stMins >= 60 ? Math.floor(stMins / 60) + "h " + Math.round(stMins % 60) + "m" : Math.round(stMins) + "m" },
+            { label: "Side Tasks", done: stMins, unit: "m", noTarget: true, fmtDone: stMins >= 60 ? Math.floor(stMins / 60) + "h " + Math.round(stMins % 60) + "m" : Math.round(stMins) + "m" },
           ].map(m => {
-            const pctDone = m.target > 0 ? m.done / m.target : 0;
-            const color = pctDone >= 1 ? "var(--green)" : pctDone >= 0.6 ? "var(--amber)" : "var(--red)";
+            const pctDone = !m.noTarget && m.target > 0 ? m.done / m.target : 0;
+            const color = m.noTarget ? "var(--tx)" : (pctDone >= 1 ? "var(--green)" : pctDone >= 0.6 ? "var(--amber)" : "var(--red)");
             return (
               <div key={m.label} style={{ padding: "10px 12px", background: "var(--bg)", borderRadius: 8 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: m.noTarget ? 0 : 4 }}>
                   <span style={{ fontSize: 13, fontWeight: 500, color: "var(--tx2)" }}>{m.label}</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color }}>
-                    {m.fmtDone || m.done}<span style={{ fontSize: 11, fontWeight: 400, color: "var(--tx3)" }}> / {m.target}{m.unit}</span>
+                    {m.fmtDone || m.done}
+                    {!m.noTarget && <span style={{ fontSize: 11, fontWeight: 400, color: "var(--tx3)" }}> / {m.target}{m.unit}</span>}
                   </span>
                 </div>
-                {bar(m.done, m.target, color)}
+                {!m.noTarget && bar(m.done, m.target, color)}
               </div>
             );
           })}
@@ -274,7 +274,6 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
               {remSbs > 0 && <div style={{ padding: "8px 14px", borderRadius: 8, background: "var(--red-bg)", color: "var(--red)", fontSize: 13, fontWeight: 600 }}>{remSbs} more SBS</div>}
               {remNsbs > 0 && <div style={{ padding: "8px 14px", borderRadius: 8, background: "var(--red-bg)", color: "var(--red)", fontSize: 13, fontWeight: 600 }}>{remNsbs} more Non-SBS</div>}
               {remCoaching > 0 && <div style={{ padding: "8px 14px", borderRadius: 8, background: "var(--amber-bg)", color: "var(--amber)", fontSize: 13, fontWeight: 600 }}>{remCoaching} more Coaching</div>}
-              {remSt > 0 && <div style={{ padding: "8px 14px", borderRadius: 8, background: "var(--amber-bg)", color: "var(--amber)", fontSize: 13, fontWeight: 600 }}>{Math.round(remSt)}m Side Tasks</div>}
             </div>
           </>
         )}
