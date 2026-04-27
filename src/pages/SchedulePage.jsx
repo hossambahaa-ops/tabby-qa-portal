@@ -53,11 +53,16 @@ function SchedulePage() {
   const [editCell, setEditCell] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
+  const [monthLock, setMonthLock] = useState(null); // {year_month, locked_by, locked_at} or null
   const {ask: confirmAsk, el: confirmEl} = useConfirm();
 
   const myEmail = profile?.email?.toLowerCase() || "";
   const isQA = profile?.role === "qa" || profile?.role === "senior_qa";
   const isLead = hasRole(profile?.role, "qa_lead");
+  const isSuperAdmin = hasRole(profile?.role, "super_admin");
+  // The selected month is locked for everyone except super_admin once a
+  // lead closes it. Used to gate every write path.
+  const monthIsLocked = !!monthLock && !isSuperAdmin;
 
   const nameFromEmail = (email) => {
     if (!email) return "—";
@@ -85,6 +90,11 @@ function SchedulePage() {
       setRoster(Array.isArray(r) ? r : []);
       const allAtt = [...(Array.isArray(a1)?a1:[]), ...(Array.isArray(a2)?a2:[]), ...(Array.isArray(a3)?a3:[])];
       setAttendance(allAtt);
+      // Lock state for the selected month.
+      try {
+        const lock = await sb.query("attendance_month_locks", { token, select: "year_month,locked_by,locked_at", filters: `year_month=eq.${selMonth}&limit=1` }).catch(() => []);
+        setMonthLock(Array.isArray(lock) && lock.length > 0 ? lock[0] : null);
+      } catch { setMonthLock(null); }
     } catch(e) { console.error("Schedule load:", e); }
     setLoading(false);
   }, [token, selMonth]);
@@ -244,8 +254,30 @@ function SchedulePage() {
     return attendance.find(a => a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr);
   };
 
+  // Lock / unlock the selected month. Lead+ only; super_admin can unlock
+  // anything they didn't originally lock.
+  const toggleLock = async () => {
+    try {
+      if (monthLock) {
+        await sb.query("attendance_month_locks", { token, method: "DELETE", filters: `year_month=eq.${selMonth}` });
+        setMonthLock(null);
+        globalToast("success", `Unlocked ${selMonth}`);
+      } else {
+        const body = { year_month: selMonth, locked_by: myEmail, locked_at: new Date().toISOString() };
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/attendance_month_locks?on_conflict=year_month`, {
+          method: "POST", headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${token}`, "Prefer": "resolution=merge-duplicates,return=representation" },
+          body: JSON.stringify(body),
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+        setMonthLock(body);
+        globalToast("success", `Locked ${selMonth}`);
+      }
+    } catch (e) { globalToast("error", safeError(e)); }
+  };
+
   // Set attendance for a single cell
   const setAtt = async (email, dayNum, status) => {
+    if (monthIsLocked) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
     const dateStr = `${selMonth}-${String(dayNum).padStart(2,"0")}`;
     try {
       const existing = getAtt(email, dayNum);
@@ -282,6 +314,7 @@ function SchedulePage() {
   // Lead approves a pending OT/PH request. Keeps the same status, just
   // flips approval_status to 'approved'.
   const approveAtt = async (email, dayNum) => {
+    if (monthIsLocked) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
     const existing = getAtt(email, dayNum);
     if (!existing) return;
     const dateStr = `${selMonth}-${String(dayNum).padStart(2,"0")}`;
@@ -303,6 +336,7 @@ function SchedulePage() {
 
   // Bulk set
   const applyBulk = async () => {
+    if (monthIsLocked) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
     if (!bulkFrom || !bulkTo) { globalToast("error", "Select date range"); return; }
     let targets = [];
     if (bulkScope === "my_team") targets = visibleQAs.map(r => r.email?.toLowerCase());
@@ -400,6 +434,7 @@ function SchedulePage() {
 
   // CSV upload execute
   const executeCsvUpload = async () => {
+    if (monthIsLocked) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
     setCsvUploading(true);
     try {
       const rows = [];
@@ -454,7 +489,10 @@ function SchedulePage() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M21 10H11a5 5 0 00-5 5v2"/><path d="M21 10l-4-4M21 10l-4 4"/></svg>
             </button>
           </div>
-          {isLead&&<button className="btn btn-primary btn-sm" onClick={()=>{setBulkModal(true);setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);setBulkStatus("P");setBulkDayFilter("all");}}>
+          {isLead&&<button className="btn btn-outline btn-sm" style={{fontSize:11,color:monthLock?"var(--amber)":"var(--tx2)",borderColor:monthLock?"var(--amber)":"var(--bd)"}} onClick={toggleLock} title={monthLock?`Locked by ${nameFromEmail(monthLock.locked_by)} on ${new Date(monthLock.locked_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`:"Lock this month so it can't be edited"}>
+            {monthLock ? "🔓 Unlock" : "🔒 Lock month"}
+          </button>}
+          {isLead&&<button className="btn btn-primary btn-sm" disabled={monthIsLocked} style={{opacity:monthIsLocked?0.5:1}} onClick={()=>{if(monthIsLocked){globalToast("error","Month is locked.");return;}setBulkModal(true);setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);setBulkStatus("P");setBulkDayFilter("all");}}>
             <Icon d={icons.plus} size={14}/>Bulk set
           </button>}
           {isLead&&<button className="btn btn-outline btn-sm" onClick={downloadCsvTemplate} style={{fontSize:11}}>
@@ -481,6 +519,15 @@ function SchedulePage() {
           </button>}
         </div>
       </div>
+
+      {/* Lock banner */}
+      {monthLock && <div className="card" style={{padding:"10px 14px",marginBottom:12,borderLeft:"3px solid var(--amber)",background:"var(--amber-bg)",display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+        <span style={{fontSize:13}}>🔒</span>
+        <span style={{fontSize:12,color:"var(--tx)",fontWeight:500}}>
+          Locked by <strong>{nameFromEmail(monthLock.locked_by)}</strong> on {new Date(monthLock.locked_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}.
+          {isSuperAdmin ? " Super-admin override active — you can still edit." : " Ask a lead to unlock to edit."}
+        </span>
+      </div>}
 
       {/* Legend */}
       <div className="card" style={{padding:"10px 16px",marginBottom:16}}>
@@ -542,7 +589,7 @@ function SchedulePage() {
                     const isPending = att?.approval_status === "pending";
                     const cellKey = `${em}-${d.num}`;
                     const isEditing = editCell === cellKey;
-                    const canEdit = isLead || em === myEmail;
+                    const canEdit = (isLead || em === myEmail) && !monthIsLocked;
                     const cellTitle = isPending
                       ? `${attType?.label || st} — pending lead approval${att?.requested_by?` (requested by ${nameFromEmail(att.requested_by)})`:""}`
                       : (attType?.label || "");
