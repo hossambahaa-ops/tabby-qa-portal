@@ -244,7 +244,13 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   // Task CRUD
   const saveTask=async(forceAssign)=>{
     if(!taskForm.title.trim()){globalToast("error","Task title is required");return;}
-    const assignees = Array.isArray(taskForm.assigned_to) ? taskForm.assigned_to : (taskForm.assigned_to?[taskForm.assigned_to]:[]);
+    let assignees = Array.isArray(taskForm.assigned_to) ? taskForm.assigned_to : (taskForm.assigned_to?[taskForm.assigned_to]:[]);
+    // No assignees + role can't see the Assign-to field → self-task. This
+    // is what enables QAs (and any non-lead role) to add tasks for
+    // themselves rather than ending up with an unowned, hidden row.
+    if(assignees.length===0 && !editingTask && !hasRole(profile?.role,"qa_lead") && profile?.email){
+      assignees = [profile.email.toLowerCase()];
+    }
     if(assignees.length>0&&!editingTask&&!forceAssign){
       try{
         // Check attendance for the task's target day, not today. Priority:
@@ -472,7 +478,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:13,fontWeight:600,textDecoration:isDone?"line-through":"none",color:isDone?"var(--tx3)":"var(--tx)",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{task.title}</div>
             <div style={{display:"flex",gap:6,alignItems:"center",marginTop:3,flexWrap:"wrap"}}>
-              {task.assigned_to&&task.created_by?.toLowerCase()===myEmail&&<span style={{fontSize:10,color:"var(--accent-text)",fontWeight:500,display:"flex",alignItems:"center",gap:3}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>{nameFromEmail(task.assigned_to)}</span>}
+              {task.assigned_to&&task.created_by?.toLowerCase()===myEmail&&task.assigned_to?.toLowerCase()!==myEmail&&<span style={{fontSize:10,color:"var(--accent-text)",fontWeight:500,display:"flex",alignItems:"center",gap:3}}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>{nameFromEmail(task.assigned_to)}</span>}
               {isOverdue&&task.eta_date&&<span style={{fontSize:10,color:"var(--red)",fontWeight:600}}>{Math.ceil((new Date(todayStr)-new Date(task.eta_date))/(1000*60*60*24))}d overdue</span>}
               {!isOverdue&&task.eta_date&&<span style={{fontSize:10,color:"var(--tx3)"}}>{new Date(task.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>}
               <span style={{fontSize:9,padding:"1px 6px",borderRadius:6,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase",letterSpacing:".3px"}}>{pc.label}</span>
