@@ -156,6 +156,54 @@ function SchedulePage() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
+  // Single-key shortcuts inside the cell picker + arrow nav between cells.
+  // Only active while a cell is open for editing.
+  const editCellRef = useRef(editCell);
+  const visibleQAsRef = useRef([]);
+  const daysInMonthRef = useRef(0);
+  const setAttRef = useRef(null);
+  useEffect(() => { editCellRef.current = editCell; });
+  useEffect(() => {
+    const handler = (e) => {
+      const cur = editCellRef.current;
+      if (!cur) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/i.test(e.target.tagName)) return;
+      // Parse current cellKey: "<email>-<dayNum>".
+      const lastDash = cur.lastIndexOf("-");
+      const em = cur.slice(0, lastDash);
+      const dayNum = parseInt(cur.slice(lastDash + 1), 10);
+      if (!em || !dayNum) return;
+
+      // Single-key code shortcuts → set status and close.
+      const SHORTCUTS = { p: "P", h: "H", o: "OT", l: "L", a: "AL", s: "Paid SL", n: "NSNC", e: "EL", u: "UL", m: "ML" };
+      const key = e.key.toLowerCase();
+      if (SHORTCUTS[key]) { e.preventDefault(); setAttRef.current?.(em, dayNum, SHORTCUTS[key]); return; }
+      if (e.key === "Escape") { e.preventDefault(); setEditCell(null); return; }
+
+      // Arrow navigation → move to adjacent cell, leaving the picker open
+      // there for chord-style entry.
+      const qas = visibleQAsRef.current;
+      const dim = daysInMonthRef.current;
+      if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+        e.preventDefault();
+        const next = dayNum + (e.key === "ArrowRight" ? 1 : -1);
+        if (next >= 1 && next <= dim) setEditCell(`${em}-${next}`);
+      } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+        e.preventDefault();
+        const idx = qas.findIndex(r => r.email?.toLowerCase() === em);
+        if (idx === -1) return;
+        const nextIdx = idx + (e.key === "ArrowDown" ? 1 : -1);
+        if (nextIdx >= 0 && nextIdx < qas.length) {
+          const nextEm = qas[nextIdx].email?.toLowerCase();
+          if (nextEm) setEditCell(`${nextEm}-${dayNum}`);
+        }
+      }
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
   // Get QA lead emails for filtering
   const [profiles, setProfiles] = useState([]);
   useEffect(() => {
@@ -179,6 +227,12 @@ function SchedulePage() {
   // Days in selected month
   const [year, month] = selMonth.split("-").map(Number);
   const daysInMonth = new Date(year, month, 0).getDate();
+  // Keep refs current for the keyboard handler.
+  useEffect(() => {
+    visibleQAsRef.current = [...visibleQAs].sort((a,b)=>(a.email||"").localeCompare(b.email||""));
+    daysInMonthRef.current = daysInMonth;
+    setAttRef.current = setAtt;
+  });
   const days = Array.from({length: daysInMonth}, (_, i) => {
     const d = new Date(year, month - 1, i + 1);
     return { num: i + 1, date: d, dayName: d.toLocaleDateString("en-US", {weekday: "short"}), isWeekend: d.getDay() === 5 || d.getDay() === 6 };
@@ -507,9 +561,11 @@ function SchedulePage() {
                         {isEditing && <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:8,padding:4,boxShadow:"var(--shadow-lg)",display:"flex",flexWrap:"wrap",gap:2,width:160}}>
                           {isPending && isLead && em !== myEmail && <button onClick={(e)=>{e.stopPropagation();approveAtt(em,d.num);}} style={{fontSize:9,padding:"4px 6px",borderRadius:4,border:"1px solid var(--green)",cursor:"pointer",background:"var(--green-bg)",color:"var(--green)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginBottom:2}} title={`Approve ${st}`}>✓ Approve {st}</button>}
                           {isPending && isLead && em !== myEmail && <div style={{fontSize:8,color:"var(--tx3)",width:"100%",padding:"2px 0",textAlign:"center",fontStyle:"italic"}}>Or pick a different code to replace</div>}
-                          {ATTENDANCE_TYPES.map(t => (
-                            <button key={t.code} onClick={(e)=>{e.stopPropagation();setAtt(em,d.num,t.code);}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"none",cursor:"pointer",background:t.bg,color:t.color,fontWeight:700,fontFamily:"var(--font)"}} title={t.label}>{t.code}</button>
-                          ))}
+                          {ATTENDANCE_TYPES.map(t => {
+                            const SK = { P:"p", H:"h", OT:"o", L:"l", AL:"a", "Paid SL":"s", NSNC:"n", EL:"e", UL:"u", ML:"m" }[t.code];
+                            return <button key={t.code} onClick={(e)=>{e.stopPropagation();setAtt(em,d.num,t.code);}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"none",cursor:"pointer",background:t.bg,color:t.color,fontWeight:700,fontFamily:"var(--font)"}} title={`${t.label}${SK?` (${SK})`:""}`}>{t.code}</button>;
+                          })}
+                          <div style={{fontSize:7,color:"var(--tx3)",width:"100%",textAlign:"center",marginTop:2,letterSpacing:.3}}>Type a key · ← → ↑ ↓ to nav · Esc to close</div>
                           {st&&<button onClick={async(e)=>{
                             e.stopPropagation();
                             const existing=getAtt(em,d.num);
