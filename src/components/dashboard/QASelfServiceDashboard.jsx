@@ -5,7 +5,20 @@ import { listTeamTargets } from "../../api/teamTargets.js";
 import { csatPctValue, csatColor } from "../../lib/utils.js";
 import HelpTip from "../HelpTip.jsx";
 
-const fmtPct = (v) => { const n = parseFloat(v); return isNaN(n) ? "—" : n.toFixed(1) + "%"; };
+// Normalize any percent-shaped value to its 0–100 numeric form.
+// A 0–2 raw value is treated as a fraction (× 100), anything larger is
+// assumed to already be in percent form.
+const pctValue = (v) => {
+  if (v === null || v === undefined || v === "") return null;
+  const s = String(v).trim();
+  const n = parseFloat(s.replace("%", "").replace(",", "."));
+  if (isNaN(n)) return null;
+  return n >= 0 && n <= 2 ? n * 100 : n;
+};
+const fmtPct = (v) => {
+  const n = pctValue(v);
+  return n === null ? "—" : n.toFixed(1) + "%";
+};
 
 export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, roster, ranked, myRank, maxScore, getScore, latestMonth }) {
   const { token } = useApp();
@@ -285,7 +298,7 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
         </div>
         <div className="card" style={{ padding: "14px 16px", textAlign: "center" }}>
           <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>Coaching On-time</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: parseFloat(myData.ontime_coaching_pct) >= 85 ? "var(--green)" : "var(--amber)", marginTop: 4 }}>
+          <div style={{ fontSize: 22, fontWeight: 800, color: (pctValue(myData.ontime_coaching_pct) ?? 0) >= 85 ? "var(--green)" : "var(--amber)", marginTop: 4 }}>
             {fmtPct(myData.ontime_coaching_pct)}
           </div>
           <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{latestMonth}</div>

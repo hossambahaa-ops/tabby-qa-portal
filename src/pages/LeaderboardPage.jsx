@@ -13,6 +13,13 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 
+// 0–2 raw values are stored as fractions (e.g. 1.0 = 100%); >2 is already
+// in percent form. Normalize then format to 1 decimal place + "%".
+const fmtPctRow = (v) => {
+  const n = parseFloat(String(v ?? 0).replace("%","")) || 0;
+  return (n > 0 && n <= 2 ? n * 100 : n).toFixed(1) + "%";
+};
+
 function LeaderboardPage() {
   const{token,profile,gf,globalToast}=useApp();
   const [data, setData] = useState([]);
@@ -394,11 +401,11 @@ function LeaderboardPage() {
                 <tbody>
                   {[
                     {label:"Total Score",getValue:r=>getTotalScore(r).toFixed(1)+" / "+maxScore},
-                    {label:"Occupancy",getValue:r=>(parseFloat(String(r.occupancy_pct||0).replace("%",""))||0).toFixed(1)+"%"},
-                    {label:"Coaching on-time",getValue:r=>(parseFloat(String(r.ontime_coaching_pct||0).replace("%",""))||0).toFixed(1)+"%"},
-                    {label:"Calibration",getValue:r=>(parseFloat(String(r.avg_calibration_match_rate||0).replace("%",""))||0).toFixed(1)+"%"},
-                    {label:"Observation",getValue:r=>(parseFloat(String(r.avg_observation_score_pct||0).replace("%",""))||0).toFixed(1)+"%"},
-                    {label:"RTR Score",getValue:r=>(parseFloat(String(r.avg_rtr_score||0).replace("%",""))||0).toFixed(1)+"%"},
+                    {label:"Occupancy",getValue:r=>fmtPctRow(r.occupancy_pct)},
+                    {label:"Coaching on-time",getValue:r=>fmtPctRow(r.ontime_coaching_pct)},
+                    {label:"Calibration",getValue:r=>fmtPctRow(r.avg_calibration_match_rate)},
+                    {label:"Observation",getValue:r=>fmtPctRow(r.avg_observation_score_pct)},
+                    {label:"RTR Score",getValue:r=>fmtPctRow(r.avg_rtr_score)},
                     {label:"Tickets/day",getValue:r=>(parseFloat(r.ticket_per_day||0)||0).toFixed(1)},
                     {label:"DSAT",getValue:r=>r.dsat||0},
                     {label:"SBS",getValue:r=>r.sbs||0},

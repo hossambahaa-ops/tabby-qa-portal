@@ -604,13 +604,14 @@ function DashboardPage(){
       <div className="card" style={{marginBottom:20}}>
         <div className="card-header"><span className="card-title">Peer comparison — {latestMonth}</span><span style={{fontSize:12,color:"var(--tx3)"}}>How you compare (anonymous)</span></div>
         {(()=>{
+          const pctNum = (v)=>{const n=parseFloat(String(v||0).replace("%",""))||0;return n>0&&n<=2?n*100:n;};
           const metrics = [
             {key:"score",label:"Overall score",getValue:r=>getScore(r)},
-            {key:"occupancy",label:"Occupancy",getValue:r=>parseFloat(String(r.occupancy_pct||0).replace("%",""))||0},
-            {key:"coaching",label:"Coaching on-time",getValue:r=>parseFloat(String(r.ontime_coaching_pct||0).replace("%",""))||0},
-            {key:"calibration",label:"Calibration",getValue:r=>parseFloat(String(r.avg_calibration_match_rate||0).replace("%",""))||0},
-            {key:"observation",label:"Coaching observation",getValue:r=>parseFloat(String(r.avg_observation_score_pct||0).replace("%",""))||0},
-            {key:"rtr",label:"RTR score",getValue:r=>parseFloat(String(r.avg_rtr_score||0).replace("%",""))||0},
+            {key:"occupancy",label:"Occupancy",getValue:r=>pctNum(r.occupancy_pct)},
+            {key:"coaching",label:"Coaching on-time",getValue:r=>pctNum(r.ontime_coaching_pct)},
+            {key:"calibration",label:"Calibration",getValue:r=>pctNum(r.avg_calibration_match_rate)},
+            {key:"observation",label:"Coaching observation",getValue:r=>pctNum(r.avg_observation_score_pct)},
+            {key:"rtr",label:"RTR score",getValue:r=>pctNum(r.avg_rtr_score)},
             {key:"tpd",label:"Tickets/day",getValue:r=>parseFloat(r.ticket_per_day||0)||0},
           ];
           return <div style={{display:"flex",flexDirection:"column",gap:10}}>
