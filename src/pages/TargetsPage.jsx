@@ -17,14 +17,9 @@ const DAILY_TARGET_METRICS = [
   {key:"non_sbs_time_mins",label:"Time per Non-SBS",icon:"⏳",unit:"mins",type:"number"},
 ];
 const TARGET_METRICS = [
-  {key:"sbs",label:"SBS evaluations / month",type:"number"},
-  {key:"non_sbs",label:"Non-SBS evaluations / month",type:"number"},
   {key:"occupancy_pct",label:"Occupancy %",type:"percent"},
   {key:"coaching_completion_pct",label:"Coaching completion %",type:"percent"},
   {key:"ontime_coaching_pct",label:"On-time coaching %",type:"percent"},
-  {key:"rtr_count",label:"RTR evaluations / month",type:"number"},
-  {key:"calibration_count",label:"Calibrations / month",type:"number"},
-  {key:"observed_coaching_count",label:"Coaching observations / month",type:"number"},
   {key:"ticket_per_day",label:"Tickets / day",type:"number"},
   {key:"final_performance",label:"Final performance score",type:"decimal"},
   {key:"daily_working_hours",label:"Working hours / day",type:"hours"},

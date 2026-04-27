@@ -7,24 +7,18 @@ import { listPlans } from "../../api/plans.js";
 import { listViolations } from "../../api/violations.js";
 
 const KPI_DEFS = [
-  { key: "sbs", label: "SBS", field: "sbs", type: "sum" },
-  { key: "non_sbs", label: "Non-SBS", field: "non_sbs", type: "sum" },
   { key: "occupancy", label: "Occupancy", field: "occupancy_pct", type: "avg", pct: true },
   { key: "coaching_completion", label: "Coaching Completion", field: "coaching_completion_pct", type: "avg", pct: true },
   { key: "ontime_coaching", label: "On-time Coaching", field: "ontime_coaching_pct", type: "avg", pct: true },
   { key: "dsat", label: "DSAT", field: "dsat", type: "sum", invert: true },
-  { key: "rtr", label: "RTR Score", field: "avg_rtr_score", type: "avg", pct: true },
-  { key: "calibration", label: "Calibration", field: "avg_calibration_match_rate", type: "avg", pct: true },
-  { key: "observations", label: "Observations", field: "avg_observation_score_pct", type: "avg", pct: true },
   { key: "tickets", label: "Tickets/day", field: "ticket_per_day", type: "avg" },
   { key: "performance", label: "Final Performance", field: "final_performance", type: "avg", pct: true },
 ];
 
 const TARGET_MAP = {
-  sbs: "sbs", non_sbs: "non_sbs", occupancy: "occupancy_pct",
+  occupancy: "occupancy_pct",
   coaching_completion: "coaching_completion_pct", ontime_coaching: "ontime_coaching_pct",
-  dsat: "dsat_max", rtr: "rtr_count", calibration: "calibration_count",
-  observations: "observed_coaching_count", tickets: "ticket_per_day", performance: "final_performance",
+  dsat: "dsat_max", tickets: "ticket_per_day", performance: "final_performance",
 };
 
 function parseVal(v) {
