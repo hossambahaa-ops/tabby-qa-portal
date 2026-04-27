@@ -103,9 +103,11 @@ function SchedulePage() {
           (async () => {
             try {
               if (last.oldStatus) {
-                await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(last.email)}&date=eq.${last.date}`, {
-                  method: "PATCH", headers: {"Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${tokenRef.current}`},
-                  body: JSON.stringify({status: last.oldStatus, updated_at: new Date().toISOString()})
+                // Upsert so undo works whether the row still exists (status
+                // changed in-place) or was deleted (Clear → row removed).
+                await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
+                  method: "POST", headers: {"Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${tokenRef.current}`, "Prefer": "resolution=merge-duplicates,return=minimal"},
+                  body: JSON.stringify({email: last.email, date: last.date, status: last.oldStatus, created_by: myEmailRef.current})
                 });
               } else {
                 await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(last.email)}&date=eq.${last.date}`, {
@@ -127,10 +129,17 @@ function SchedulePage() {
           const rest = prev.slice(0, -1);
           (async () => {
             try {
-              await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
-                method: "POST", headers: {"Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${tokenRef.current}`, "Prefer": "resolution=merge-duplicates,return=minimal"},
-                body: JSON.stringify({email: last.email, date: last.date, status: last.newStatus, created_by: myEmailRef.current})
-              });
+              if (last.newStatus) {
+                await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
+                  method: "POST", headers: {"Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${tokenRef.current}`, "Prefer": "resolution=merge-duplicates,return=minimal"},
+                  body: JSON.stringify({email: last.email, date: last.date, status: last.newStatus, created_by: myEmailRef.current})
+                });
+              } else {
+                // Redo of a Clear → remove the row again.
+                await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(last.email)}&date=eq.${last.date}`, {
+                  method: "DELETE", headers: {"apikey": SUPABASE_ANON, "Authorization": `Bearer ${tokenRef.current}`}
+                });
+              }
               setUndoStack(p => [...p, last]);
               loadDataRef.current();
             } catch (err) { console.error("Redo failed", err); }
@@ -457,7 +466,31 @@ function SchedulePage() {
                           {ATTENDANCE_TYPES.map(t => (
                             <button key={t.code} onClick={(e)=>{e.stopPropagation();setAtt(em,d.num,t.code);}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"none",cursor:"pointer",background:t.bg,color:t.color,fontWeight:700,fontFamily:"var(--font)"}} title={t.label}>{t.code}</button>
                           ))}
-                          {st&&<button onClick={async(e)=>{e.stopPropagation();const existing=getAtt(em,d.num);if(existing?.id&&!existing.id.startsWith("new")){try{await sb.query("qa_attendance",{token,method:"DELETE",filters:`id=eq.${existing.id}`});setAttendance(prev=>prev.filter(a=>a.id!==existing.id));setEditCell(null);globalToast("success","Removed");}catch(err){globalToast("error",safeError(err));}}else{setEditCell(null);}}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"1px solid var(--red)",cursor:"pointer",background:"var(--red-bg)",color:"var(--red)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginTop:2}} title="Remove entry">✕ Clear</button>}
+                          {st&&<button onClick={async(e)=>{
+                            e.stopPropagation();
+                            const existing=getAtt(em,d.num);
+                            if(!existing){setEditCell(null);return;}
+                            const dateStr=`${selMonth}-${String(d.num).padStart(2,"0")}`;
+                            const oldStatus=existing.status||null;
+                            try{
+                              if(existing.id&&!String(existing.id).startsWith("new")){
+                                // Real DB row — delete by id.
+                                await sb.query("qa_attendance",{token,method:"DELETE",filters:`id=eq.${existing.id}`});
+                              }else{
+                                // Optimistic row whose id is still the temp "new-..." placeholder.
+                                // The actual DB row (created by the prior upsert) is keyed on email+date.
+                                const resp=await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(em)}&date=eq.${dateStr}`,{
+                                  method:"DELETE",headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`}
+                                });
+                                if(!resp.ok)throw new Error(await resp.text());
+                              }
+                              setAttendance(prev=>prev.filter(a=>!(a.email?.toLowerCase()===em&&a.date===dateStr)));
+                              setUndoStack(prev=>[...prev.slice(-50),{email:em,date:dateStr,oldStatus,newStatus:null}]);
+                              setRedoStack([]);
+                              setEditCell(null);
+                              globalToast("success","Removed");
+                            }catch(err){globalToast("error",safeError(err));}
+                          }} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"1px solid var(--red)",cursor:"pointer",background:"var(--red-bg)",color:"var(--red)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginTop:2}} title="Remove entry">✕ Clear</button>}
                         </div>}
                       </td>
                     );
