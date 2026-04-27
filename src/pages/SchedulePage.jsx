@@ -31,6 +31,10 @@ ATTENDANCE_TYPES.forEach(t => { ATT_MAP[t.code] = t; });
 // Codes that need lead approval when set by a QA themselves. Leads
 // setting these for their team approve them implicitly.
 const APPROVAL_CODES = new Set(["OT", "PH"]);
+// Codes shown in the cell picker. OT is intentionally excluded — it's a
+// separate request flow behind the "Request OT" header button so it
+// can't be set casually by clicking around.
+const PICKER_TYPES = ATTENDANCE_TYPES.filter(t => t.code !== "OT");
 
 function SchedulePage() {
   const{token,profile,gf,globalToast}=useApp();
@@ -46,6 +50,11 @@ function SchedulePage() {
   const [csvUploading, setCsvUploading] = useState(false);
   const [bulkFrom, setBulkFrom] = useState("");
   const [bulkTo, setBulkTo] = useState("");
+  const [otModal, setOtModal] = useState(false);
+  const [otFrom, setOtFrom] = useState("");
+  const [otTo, setOtTo] = useState("");
+  const [otTarget, setOtTarget] = useState(""); // for leads: which QA(s)
+  const [otNote, setOtNote] = useState("");
   const [bulkScope, setBulkScope] = useState("my_team");
   const [bulkPerson, setBulkPerson] = useState("");
   const [bulkDayFilter, setBulkDayFilter] = useState("all");
@@ -186,7 +195,7 @@ function SchedulePage() {
       if (!em || !dayNum) return;
 
       // Single-key code shortcuts → set status and close.
-      const SHORTCUTS = { p: "P", h: "H", o: "OT", l: "L", a: "AL", s: "Paid SL", n: "NSNC", e: "EL", u: "UL", m: "ML" };
+      const SHORTCUTS = { p: "P", h: "H", l: "L", a: "AL", s: "Paid SL", n: "NSNC", e: "EL", u: "UL", m: "ML" };
       const key = e.key.toLowerCase();
       if (SHORTCUTS[key]) { e.preventDefault(); setAttRef.current?.(em, dayNum, SHORTCUTS[key]); return; }
       if (e.key === "Escape") { e.preventDefault(); setEditCell(null); return; }
@@ -252,6 +261,40 @@ function SchedulePage() {
   const getAtt = (email, dayNum) => {
     const dateStr = `${selMonth}-${String(dayNum).padStart(2,"0")}`;
     return attendance.find(a => a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr);
+  };
+
+  // Submit an OT request for one or more days. QA submits for self
+  // (lands as 'pending'); lead can submit for any QA on their team and
+  // it lands already 'approved'.
+  const applyOtRequest = async () => {
+    if (monthIsLocked) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
+    if (!otFrom || !otTo) { globalToast("error", "Pick a date range"); return; }
+    const targetEmail = isQA ? myEmail : (otTarget || "").toLowerCase();
+    if (!targetEmail) { globalToast("error", "Pick the QA the OT is for"); return; }
+    const start = new Date(otFrom + "T00:00:00");
+    const end = new Date(otTo + "T00:00:00");
+    if (end < start) { globalToast("error", "End date is before start date"); return; }
+    const isSelf = targetEmail === myEmail && isQA;
+    const approval_status = isSelf ? "pending" : "approved";
+    const requested_by = isSelf ? myEmail : null;
+    const approved_by = isSelf ? null : myEmail;
+    const approved_at = isSelf ? null : new Date().toISOString();
+    const rows = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      rows.push({ email: targetEmail, date: dateStr, status: "OT", approval_status, requested_by, approved_by, approved_at, notes: otNote || null, created_by: myEmail });
+    }
+    if (rows.length === 0) { globalToast("error", "No days in range"); return; }
+    try {
+      const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
+        method: "POST", headers: { "Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${token}`, "Prefer": "resolution=merge-duplicates,return=minimal" },
+        body: JSON.stringify(rows),
+      });
+      if (!resp.ok) throw new Error(await resp.text());
+      globalToast("success", isSelf ? `OT requested for ${rows.length} day${rows.length>1?"s":""} — pending lead approval` : `OT logged for ${rows.length} day${rows.length>1?"s":""}`);
+      setOtModal(false); setOtFrom(""); setOtTo(""); setOtNote(""); setOtTarget("");
+      loadData();
+    } catch (e) { globalToast("error", safeError(e)); }
   };
 
   // Lock / unlock the selected month. Lead+ only; super_admin can unlock
@@ -495,6 +538,10 @@ function SchedulePage() {
           {isLead&&<button className="btn btn-primary btn-sm" disabled={monthIsLocked} style={{opacity:monthIsLocked?0.5:1}} onClick={()=>{if(monthIsLocked){globalToast("error","Month is locked.");return;}setBulkModal(true);setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);setBulkStatus("P");setBulkDayFilter("all");}}>
             <Icon d={icons.plus} size={14}/>Bulk set
           </button>}
+          <button className="btn btn-outline btn-sm" disabled={monthIsLocked} style={{opacity:monthIsLocked?0.5:1,fontSize:11,color:"#0D9488",borderColor:"#0D9488"}} onClick={()=>{if(monthIsLocked){globalToast("error","Month is locked.");return;}const todayStr=new Date().toISOString().split("T")[0];setOtModal(true);setOtFrom(todayStr);setOtTo(todayStr);setOtTarget(isQA?myEmail:"");setOtNote("");}}
+            title={isQA?"Request OT for yourself — sent to your lead for approval":"Add OT for a QA on your team"}>
+            ⏱ {isQA ? "Request OT" : "Add OT"}
+          </button>
           {isLead&&<button className="btn btn-outline btn-sm" onClick={downloadCsvTemplate} style={{fontSize:11}}>
             <Icon d={icons.upload} size={13}/>Download CSV
           </button>}
@@ -608,8 +655,8 @@ function SchedulePage() {
                         {isEditing && <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:8,padding:4,boxShadow:"var(--shadow-lg)",display:"flex",flexWrap:"wrap",gap:2,width:160}}>
                           {isPending && isLead && em !== myEmail && <button onClick={(e)=>{e.stopPropagation();approveAtt(em,d.num);}} style={{fontSize:9,padding:"4px 6px",borderRadius:4,border:"1px solid var(--green)",cursor:"pointer",background:"var(--green-bg)",color:"var(--green)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginBottom:2}} title={`Approve ${st}`}>✓ Approve {st}</button>}
                           {isPending && isLead && em !== myEmail && <div style={{fontSize:8,color:"var(--tx3)",width:"100%",padding:"2px 0",textAlign:"center",fontStyle:"italic"}}>Or pick a different code to replace</div>}
-                          {ATTENDANCE_TYPES.map(t => {
-                            const SK = { P:"p", H:"h", OT:"o", L:"l", AL:"a", "Paid SL":"s", NSNC:"n", EL:"e", UL:"u", ML:"m" }[t.code];
+                          {PICKER_TYPES.map(t => {
+                            const SK = { P:"p", H:"h", L:"l", AL:"a", "Paid SL":"s", NSNC:"n", EL:"e", UL:"u", ML:"m" }[t.code];
                             return <button key={t.code} onClick={(e)=>{e.stopPropagation();setAtt(em,d.num,t.code);}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"none",cursor:"pointer",background:t.bg,color:t.color,fontWeight:700,fontFamily:"var(--font)"}} title={`${t.label}${SK?` (${SK})`:""}`}>{t.code}</button>;
                           })}
                           <div style={{fontSize:7,color:"var(--tx3)",width:"100%",textAlign:"center",marginTop:2,letterSpacing:.3}}>Type a key · ← → ↑ ↓ to nav · Esc to close</div>
@@ -696,6 +743,45 @@ function SchedulePage() {
               <button className="btn btn-outline btn-sm" onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}}>Cancel</button>
             </div>
           </>}
+        </div>
+      </div>}
+
+      {/* Request / Add OT popup */}
+      {otModal&&<div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(0,0,0,0.5)",display:"flex",justifyContent:"center",alignItems:"flex-start",paddingTop:80}} onClick={()=>setOtModal(false)}>
+        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"var(--shadow-lg)",width:"100%",maxWidth:460,padding:20}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div style={{fontSize:16,fontWeight:700,color:"var(--tx)",display:"flex",alignItems:"center",gap:8}}>
+              <span style={{fontSize:12,padding:"3px 8px",borderRadius:6,background:"#0D948820",color:"#0D9488",fontWeight:700}}>OT</span>
+              {isQA ? "Request overtime" : "Add overtime"}
+            </div>
+            <button onClick={()=>setOtModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"var(--tx3)"}}>×</button>
+          </div>
+          <div style={{fontSize:12,color:"var(--tx2)",marginBottom:12,lineHeight:1.5}}>
+            {isQA
+              ? "Pick the day(s) you worked overtime. Your QA Lead will get a notification and can approve or replace it."
+              : "Pick the day(s) and the QA. This is added directly as approved overtime — no further approval needed."}
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
+            <div className="form-group"><label className="form-label">From</label>
+              <input type="date" className="form-input" value={otFrom} onChange={e=>setOtFrom(e.target.value)}/>
+            </div>
+            <div className="form-group"><label className="form-label">To</label>
+              <input type="date" className="form-input" value={otTo} onChange={e=>setOtTo(e.target.value)}/>
+            </div>
+          </div>
+          {!isQA && <div className="form-group" style={{marginBottom:12}}>
+            <label className="form-label">QA</label>
+            <SearchableSelect options={visibleQAs.map(r=>({value:r.email,label:r.email+" — "+nameFromEmail(r.email)}))}
+              value={otTarget} onChange={setOtTarget} placeholder="Pick the QA..."/>
+          </div>}
+          <div className="form-group" style={{marginBottom:14}}>
+            <label className="form-label">Note (optional)</label>
+            <input type="text" className="form-input" value={otNote} onChange={e=>setOtNote(e.target.value)} placeholder="e.g. weekend coverage for launch"/>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button className="btn btn-primary btn-sm" onClick={applyOtRequest}>{isQA ? "Send request" : "Add OT"}</button>
+            <button className="btn btn-outline btn-sm" onClick={()=>setOtModal(false)}>Cancel</button>
+          </div>
         </div>
       </div>}
 
