@@ -19,6 +19,38 @@ import App from './App.jsx';
   }
 })();
 
+// Stale-chunk safety net: if a dynamic import fails (because the open
+// tab is holding an old index.html that points at a chunk hash that no
+// longer exists on the CDN), hard-reload once to pick up the fresh
+// index. Guarded against reload loops via sessionStorage.
+const isStaleChunkMessage = (m) => {
+  const s = String(m || "").toLowerCase();
+  return (
+    s.includes("failed to fetch dynamically imported module") ||
+    s.includes("importing a module script failed") ||
+    s.includes("error loading dynamically imported module") ||
+    s.includes("chunkloaderror") ||
+    (s.includes("loading chunk") && s.includes("failed"))
+  );
+};
+const tryReloadForStaleChunk = () => {
+  try {
+    const last = parseInt(sessionStorage.getItem("__chunk_reload_at") || "0", 10);
+    if (Date.now() - last > 30_000) {
+      sessionStorage.setItem("__chunk_reload_at", String(Date.now()));
+      window.location.reload();
+      return true;
+    }
+  } catch {}
+  return false;
+};
+window.addEventListener("unhandledrejection", (e) => {
+  if (isStaleChunkMessage(e.reason?.message || e.reason)) tryReloadForStaleChunk();
+});
+window.addEventListener("error", (e) => {
+  if (isStaleChunkMessage(e.message || e.error?.message)) tryReloadForStaleChunk();
+});
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <App />

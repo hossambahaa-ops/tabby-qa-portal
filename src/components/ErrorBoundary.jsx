@@ -1,6 +1,20 @@
 import React from "react";
 import { logClientError } from "../lib/errorLog.js";
 
+// Detects the "stale chunk after deploy" failure mode: the open tab is
+// holding an old index.html that points at a hashed JS chunk that no
+// longer exists on the CDN. Hard-reloading fetches the fresh index.html.
+const isStaleChunkError = (err) => {
+  const msg = (err?.message || String(err || "")).toLowerCase();
+  return (
+    msg.includes("failed to fetch dynamically imported module") ||
+    msg.includes("importing a module script failed") ||
+    msg.includes("error loading dynamically imported module") ||
+    msg.includes("chunkloaderror") ||
+    msg.includes("loading chunk") && msg.includes("failed")
+  );
+};
+
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -10,6 +24,19 @@ class ErrorBoundary extends React.Component {
     return { hasError: true, error };
   }
   componentDidCatch(error, info) {
+    // Stale-chunk crash → silently hard-reload once. The new index.html
+    // will reference the right chunk hashes. We guard against reload
+    // loops by stamping sessionStorage; if we just reloaded and the
+    // crash repeats, we fall through to the regular error UI so the
+    // user isn't stuck refreshing forever.
+    if (isStaleChunkError(error)) {
+      const lastReload = parseInt(sessionStorage.getItem("__chunk_reload_at") || "0", 10);
+      if (Date.now() - lastReload > 30_000) {
+        sessionStorage.setItem("__chunk_reload_at", String(Date.now()));
+        window.location.reload();
+        return;
+      }
+    }
     console.error("App crash:", error, info);
     this.setState({ stack: info?.componentStack || "" });
     logClientError({
@@ -21,6 +48,12 @@ class ErrorBoundary extends React.Component {
   }
   render() {
     if (this.state.hasError) {
+      // While the silent reload is firing, render nothing so the user
+      // doesn't briefly see the crash UI flash.
+      if (isStaleChunkError(this.state.error)) {
+        const lastReload = parseInt(sessionStorage.getItem("__chunk_reload_at") || "0", 10);
+        if (Date.now() - lastReload < 30_000) return null;
+      }
       return React.createElement("div", {
         style: { height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0D1117", color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", padding: 24, textAlign: "center" }
       },
