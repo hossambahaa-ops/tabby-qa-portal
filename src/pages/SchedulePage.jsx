@@ -55,6 +55,7 @@ function SchedulePage() {
   const [otTo, setOtTo] = useState("");
   const [otTarget, setOtTarget] = useState(""); // for leads: which QA(s)
   const [otNote, setOtNote] = useState("");
+  const [otHoursPerDay, setOtHoursPerDay] = useState(2);
   const [bulkScope, setBulkScope] = useState("my_team");
   const [bulkPerson, setBulkPerson] = useState("");
   const [bulkDayFilter, setBulkDayFilter] = useState("all");
@@ -89,7 +90,7 @@ function SchedulePage() {
       const chunk3End = dim;
       const fmtD = (d) => `${selMonth}-${String(d).padStart(2,"0")}`;
       const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
-      const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at`;
+      const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at,ot_hours`;
       const [r, a1, a2, a3] = await Promise.all([
         listRoster({ token, select: "email,display_name,manager_email,queue,country" }),
         fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(chunk1End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
@@ -279,10 +280,12 @@ function SchedulePage() {
     const requested_by = isSelf ? myEmail : null;
     const approved_by = isSelf ? null : myEmail;
     const approved_at = isSelf ? null : new Date().toISOString();
+    const hours = Math.max(0, parseFloat(otHoursPerDay) || 0);
+    if (hours <= 0) { globalToast("error", "Hours per day must be greater than 0"); return; }
     const rows = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-      rows.push({ email: targetEmail, date: dateStr, status: "OT", approval_status, requested_by, approved_by, approved_at, notes: otNote || null, created_by: myEmail });
+      rows.push({ email: targetEmail, date: dateStr, status: "OT", approval_status, requested_by, approved_by, approved_at, ot_hours: hours, notes: otNote || null, created_by: myEmail });
     }
     if (rows.length === 0) { globalToast("error", "No days in range"); return; }
     try {
@@ -291,8 +294,9 @@ function SchedulePage() {
         body: JSON.stringify(rows),
       });
       if (!resp.ok) throw new Error(await resp.text());
-      globalToast("success", isSelf ? `OT requested for ${rows.length} day${rows.length>1?"s":""} — pending lead approval` : `OT logged for ${rows.length} day${rows.length>1?"s":""}`);
-      setOtModal(false); setOtFrom(""); setOtTo(""); setOtNote(""); setOtTarget("");
+      const totalHours = hours * rows.length;
+      globalToast("success", isSelf ? `OT requested: ${totalHours}h across ${rows.length} day${rows.length>1?"s":""} — pending lead approval` : `OT logged: ${totalHours}h across ${rows.length} day${rows.length>1?"s":""}`);
+      setOtModal(false); setOtFrom(""); setOtTo(""); setOtNote(""); setOtTarget(""); setOtHoursPerDay(2);
       loadData();
     } catch (e) { globalToast("error", safeError(e)); }
   };
@@ -505,11 +509,21 @@ function SchedulePage() {
     setCsvUploading(false);
   };
 
+  // Approved (or non-approval-required) rows only — pending requests
+  // should not inflate the per-QA counters.
+  const isCounted = (a) => !a.approval_status || a.approval_status === "approved";
   const countByStatus = (email) => {
-    const qa = attendance.filter(a => a.email?.toLowerCase() === email?.toLowerCase());
+    const qa = attendance.filter(a => a.email?.toLowerCase() === email?.toLowerCase() && isCounted(a));
     const counts = {};
     qa.forEach(a => { counts[a.status] = (counts[a.status] || 0) + 1; });
     return counts;
+  };
+  // Approved OT total hours and PH total days for a QA in the current month.
+  const trackerFor = (email) => {
+    const rows = attendance.filter(a => a.email?.toLowerCase() === email?.toLowerCase() && isCounted(a));
+    const otHours = rows.filter(a => a.status === "OT").reduce((s, a) => s + (parseFloat(a.ot_hours) || 0), 0);
+    const phDays = rows.filter(a => a.status === "PH").length;
+    return { otHours, phDays };
   };
 
   if (loading) return <div className="page"><SkeletonPage/></div>;
@@ -586,6 +600,39 @@ function SchedulePage() {
         </div>
       </div>
 
+      {/* Monthly tracker — approved OT hours + PH days per QA in scope */}
+      {(()=>{
+        const sortedQAs = [...visibleQAs].sort((a,b)=>(a.email||"").localeCompare(b.email||""));
+        const totals = sortedQAs.map(qa => ({ email: qa.email?.toLowerCase(), name: nameFromEmail(qa.email), ...trackerFor(qa.email?.toLowerCase()) }));
+        const teamOt = totals.reduce((s, r) => s + r.otHours, 0);
+        const teamPh = totals.reduce((s, r) => s + r.phDays, 0);
+        const anyData = totals.some(r => r.otHours > 0 || r.phDays > 0);
+        return <div className="card" style={{marginBottom:12,padding:"12px 16px"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:anyData?10:0,flexWrap:"wrap",gap:8}}>
+            <div style={{display:"flex",alignItems:"center",gap:10}}>
+              <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>Monthly tracker</span>
+              <span style={{fontSize:11,color:"var(--tx3)"}}>Approved OT hours + PH days · {selMonth}</span>
+            </div>
+            <div style={{display:"flex",gap:14,alignItems:"center",fontSize:11}}>
+              <span style={{color:"var(--tx3)"}}>Team total:</span>
+              <span style={{color:"#0D9488",fontWeight:700}}>⏱ {teamOt.toFixed(2)}h OT</span>
+              <span style={{color:"#8B5CF6",fontWeight:700}}>📅 {teamPh} PH day{teamPh===1?"":"s"}</span>
+            </div>
+          </div>
+          {anyData && <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",gap:6}}>
+            {totals.filter(r => r.otHours > 0 || r.phDays > 0).map(r => (
+              <div key={r.email} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"6px 10px",background:"var(--bg)",borderRadius:6,fontSize:12}}>
+                <span style={{fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginRight:6}}>{r.name}</span>
+                <span style={{display:"flex",gap:8,fontSize:11}}>
+                  {r.otHours > 0 && <span style={{color:"#0D9488",fontWeight:700}}>{r.otHours.toFixed(2)}h</span>}
+                  {r.phDays > 0 && <span style={{color:"#8B5CF6",fontWeight:700}}>{r.phDays} PH</span>}
+                </span>
+              </div>
+            ))}
+          </div>}
+        </div>;
+      })()}
+
       {/* Calendar grid */}
       {isLead&&selectedQAs.size>0&&<div className="card" style={{padding:"10px 16px",marginBottom:12,background:"var(--accent-light)",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
         <span style={{fontSize:13,fontWeight:600,color:"var(--accent-text)"}}>{selectedQAs.size} QAs selected</span>
@@ -609,6 +656,7 @@ function SchedulePage() {
               <th style={{textAlign:"center",minWidth:30,fontSize:10}}>P</th>
               <th style={{textAlign:"center",minWidth:30,fontSize:10}}>AL</th>
               <th style={{textAlign:"center",minWidth:30,fontSize:10}}>SL</th>
+              <th style={{textAlign:"center",minWidth:30,fontSize:10}}>PH</th>
               <th style={{textAlign:"center",minWidth:30,fontSize:10}}>OFF</th>
             </tr>
           </thead>
@@ -692,6 +740,7 @@ function SchedulePage() {
                   <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"var(--green)"}}>{counts["P"]||0}</td>
                   <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"var(--red)"}}>{counts["AL"]||0}</td>
                   <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"#B91C1C"}}>{counts["Paid SL"]||0}</td>
+                  <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"#8B5CF6"}}>{counts["PH"]||0}</td>
                   <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"var(--tx3)"}}>{counts["OFF"]||0}</td>
                 </tr>
               );
@@ -767,6 +816,21 @@ function SchedulePage() {
             </div>
             <div className="form-group"><label className="form-label">To</label>
               <input type="date" className="form-input" value={otTo} onChange={e=>setOtTo(e.target.value)}/>
+            </div>
+            <div className="form-group"><label className="form-label">Hours per day</label>
+              <input type="number" min="0.25" step="0.25" className="form-input" value={otHoursPerDay} onChange={e=>setOtHoursPerDay(e.target.value)}/>
+            </div>
+            <div className="form-group" style={{display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
+              <div style={{fontSize:11,color:"var(--tx3)",padding:"6px 0"}}>
+                Total: <strong style={{color:"var(--tx)"}}>{(()=>{
+                  if(!otFrom||!otTo)return"—";
+                  const s=new Date(otFrom+"T00:00:00"),e=new Date(otTo+"T00:00:00");
+                  if(e<s)return"—";
+                  const days=Math.round((e-s)/(86400000))+1;
+                  const h=parseFloat(otHoursPerDay)||0;
+                  return `${(days*h).toFixed(2)}h across ${days} day${days>1?"s":""}`;
+                })()}</strong>
+              </div>
             </div>
           </div>
           {!isQA && <div className="form-group" style={{marginBottom:12}}>
