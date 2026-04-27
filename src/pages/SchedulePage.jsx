@@ -22,7 +22,7 @@ const ATTENDANCE_TYPES = [
   {code:"Paid SL",label:"Sick Leave",color:"#B91C1C",bg:"#B91C1C20"},
   {code:"ML",label:"Maternity Leave",color:"#EC4899",bg:"#EC489920"},
   {code:"UL",label:"Unpaid Leave",color:"#6B7280",bg:"#6B728020"},
-  {code:"NSNC",label:"No Show No Call",color:"#111827",bg:"#11182720"},
+  {code:"NSNC",label:"No Show No Call",color:"#E11D48",bg:"#E11D4825"},
   {code:"OFF",label:"Weekend / Holiday",color:"#9CA3AF",bg:"#9CA3AF15"},
   {code:"X",label:"Not Employed",color:"#6B7280",bg:"#6B728010"},
 ];
