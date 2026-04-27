@@ -159,7 +159,15 @@ function QAProfilePage() {
   const qaSessions = sessions.filter(s => matchQA(s.member_email)).slice(0, 10);
   const qaPlans = plans.filter(p => matchQA(p.qa_email));
   const qaTasks = tasks.filter(t => matchQA(t.assigned_to) || (matchQA(t.created_by) && !t.assigned_to));
-  const qaFlags = flags.filter(f => matchQA(f.qa_email));
+  // When the viewer is looking at their own profile, hide DAM flags that
+  // are still being investigated. They should only surface to the QA after
+  // their lead has reviewed and resolved/dismissed them.
+  const viewingSelf = matchQA(profile?.email);
+  const qaFlags = flags.filter(f => {
+    if (!matchQA(f.qa_email)) return false;
+    if (viewingSelf && (f.status === "pending" || f.status === "acknowledged")) return false;
+    return true;
+  });
 
   const fmtPct = (val) => {
     if (val === null || val === undefined || val === "") return "—";
