@@ -522,20 +522,13 @@ export default function CSATPage() {
         ) : csatView === "qa" ? (
           <div className="table-wrap table-wrap-sticky csat-compact">
             <table>
-              <colgroup>
-                <col style={{width:22}}/>
-                <col/>
-                <col style={{width:140}}/>
-                <col style={{width:78}}/>
-                <col style={{width:88}}/>
-              </colgroup>
               <thead>
                 <tr>
-                  <th></th>
+                  <th style={{width:22}}></th>
                   <th>Specialist</th>
                   <th>TL</th>
-                  <th style={{textAlign:"right"}}>Surveys</th>
-                  <th style={{textAlign:"right"}}>CSAT %</th>
+                  <th style={{textAlign:"right",width:80}}>Surveys</th>
+                  <th style={{textAlign:"right",width:90}}>CSAT %</th>
                 </tr>
               </thead>
               <tbody>
@@ -549,14 +542,14 @@ export default function CSATPage() {
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s",color:"var(--tx3)",opacity:.6}}><path d="M6 9l6 6 6-6"/></svg>
                       </td>
                       <td style={{padding:"4px 8px"}} title={r.qa_email}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,letterSpacing:".3px"}}>
                             {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
                           </div>
-                          <div style={{fontWeight:500,fontSize:12.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nameFromEmail(r.qa_email)}</div>
+                          <div style={{fontWeight:500,fontSize:12.5,whiteSpace:"nowrap"}}>{nameFromEmail(r.qa_email)}</div>
                         </div>
                       </td>
-                      <td style={{fontSize:11.5,color:"var(--tx2)",padding:"4px 8px",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:140}} title={r.qa_tl||""}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
+                      <td style={{fontSize:11.5,color:"var(--tx2)",padding:"4px 8px",whiteSpace:"nowrap"}} title={r.qa_tl||""}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
                       <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)",padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{r.csat_total ?? "—"}</td>
                       {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,fontSize:12.5,color:csatColor(v,s),padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                     </tr>
@@ -588,20 +581,13 @@ export default function CSATPage() {
         ) : (
           <div className="table-wrap table-wrap-sticky csat-compact">
             <table>
-              <colgroup>
-                <col style={{width:22}}/>
-                <col/>
-                <col style={{width:64}}/>
-                <col style={{width:78}}/>
-                <col style={{width:88}}/>
-              </colgroup>
               <thead>
                 <tr>
-                  <th></th>
+                  <th style={{width:22}}></th>
                   <th>Lead</th>
-                  <th style={{textAlign:"right"}}>QAs</th>
-                  <th style={{textAlign:"right"}}>Surveys</th>
-                  <th style={{textAlign:"right"}}>CSAT %</th>
+                  <th style={{textAlign:"right",width:70}}>QAs</th>
+                  <th style={{textAlign:"right",width:80}}>Surveys</th>
+                  <th style={{textAlign:"right",width:90}}>CSAT %</th>
                 </tr>
               </thead>
               <tbody>
@@ -616,12 +602,12 @@ export default function CSATPage() {
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s",color:"var(--tx3)",opacity:.6}}><path d="M6 9l6 6 6-6"/></svg>
                       </td>
                       <td style={{padding:"4px 8px"}} title={l.tl||""}>
-                        <div style={{display:"flex",alignItems:"center",gap:8,minWidth:0}}>
+                        <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <div style={{width:24,height:24,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,letterSpacing:".3px"}}>
                             {nameFromEmail(l.tl).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
                           </div>
-                          <div style={{lineHeight:1.15,minWidth:0,overflow:"hidden"}}>
-                            <div style={{fontWeight:600,fontSize:12.5,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{nameFromEmail(l.tl)}</div>
+                          <div style={{lineHeight:1.15}}>
+                            <div style={{fontWeight:600,fontSize:12.5,whiteSpace:"nowrap"}}>{nameFromEmail(l.tl)}</div>
                             <div style={{fontSize:10,color:"var(--tx3)",marginTop:1}}>{l.count} QA{l.count!==1?"s":""}</div>
                           </div>
                         </div>
