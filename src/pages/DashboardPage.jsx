@@ -25,7 +25,7 @@ function DashboardPage(){
   const {
     mtd, roster, appProfiles, damCount, profileCount,
     todayAttendance, apPlans, apWeeks, apDetections, apDismissals,
-    dailyScores, loading, refresh: loadDashboard,
+    dailyScores, loading,
     setApDetections, setApDismissals,
   } = useDashboardData(token, profile);
   const[showAnnForm,setShowAnnForm]=useState(false);
