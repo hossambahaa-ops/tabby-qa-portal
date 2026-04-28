@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
-import { sb, dataCache } from "../lib/supabase.js";
+import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { listProfiles } from "../api/profiles.js";
 import { listViolations } from "../api/violations.js";
@@ -35,6 +35,7 @@ function CoachingViolationsPage() {
   const [profiles, setProfiles] = useState([]);
   const [damRules, setDamRules] = useState([]);
   const [selDamRule, setSelDamRule] = useState("");
+  const [sendingDigest, setSendingDigest] = useState(false);
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
   const nameFromEmail = (email) => {
@@ -184,6 +185,35 @@ function CoachingViolationsPage() {
       <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:16}}>
         {pendingV.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--red-bg)",color:"var(--red)",fontSize:12,fontWeight:700}}>{pendingV.length} pending</span>}
         <span style={{padding:"4px 12px",borderRadius:20,background:"var(--green-bg)",color:"var(--green)",fontSize:12,fontWeight:600}}>{reviewedV.length} reviewed</span>
+        {(hasRole(profile?.role,"admin")||hasRole(profile?.role,"qa_supervisor")||profile?.role==="manager")&&(
+          <button
+            className="btn btn-outline btn-sm"
+            style={{fontSize:11}}
+            disabled={pendingV.length===0||sendingDigest}
+            onClick={async()=>{
+              if(sendingDigest)return;
+              setSendingDigest(true);
+              try{
+                const r=await fetch(`${SUPABASE_URL}/functions/v1/violations-digest`,{
+                  method:"POST",
+                  headers:{"Content-Type":"application/json",apikey:SUPABASE_ANON,Authorization:`Bearer ${token}`},
+                  body:JSON.stringify({}),
+                });
+                const data=await r.json().catch(()=>({}));
+                if(r.ok&&data.success){
+                  globalToast("success",`Digest sent — ${data.leads} lead${data.leads===1?"":"s"}, ${data.violations} violation${data.violations===1?"":"s"}`);
+                }else if(data.skipped){
+                  globalToast("success","No pending violations — nothing to send");
+                }else{
+                  globalToast("error",data.error||"Send failed");
+                }
+              }catch(e){globalToast("error",safeError(e));}
+              setSendingDigest(false);
+            }}
+            title="Send the daily violations digest now (also runs automatically at 11 AM Riyadh)">
+            {sendingDigest?"Sending…":"📧 Send digest now"}
+          </button>
+        )}
       </div>
 
       <div className="tab-bar" style={{marginBottom:16}}>
