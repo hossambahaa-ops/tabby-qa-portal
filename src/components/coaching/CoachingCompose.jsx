@@ -6,79 +6,16 @@ import { listPlans } from "../../api/plans.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
-
-const MEETING_TYPES = ["1:1 Meeting","MPR","Coaching Session","Weekly Check-in","Action Plan Review","PIP Review"];
-const MEETING_TYPE_ENUM = {"1:1 Meeting":"weekly_1on1","MPR":"performance_review","Coaching Session":"ad_hoc","Weekly Check-in":"weekly_1on1","Action Plan Review":"ap_checkin","PIP Review":"pip_checkin"};
-const TARGET_TYPES = ["Action Plan Review","PIP Review"];
-
-// Always-cc'd recipient (QA Manager). The lead is the sender so they
-// are deliberately NOT in the CC list — only the supervisor and Amanda.
-const AMANDA_EMAIL = "amanda.souza@tabby.ai";
-
-// Resolve the supervisor for a QA. Primary source: the `teams` table,
-// which has supervisor_id explicitly. Fallback: walk roster (QA →
-// manager_email → manager_email) when the team lookup misses.
-//
-// `teamSvMap` is keyed `<queue>|<domain>` → supervisor email.
-const findSv = (toEmail, roster, teamSvMap) => {
-  if (!toEmail) return null;
-  const lower = toEmail.toLowerCase();
-  const qa = roster.find(r => (r.email || "").toLowerCase() === lower);
-  if (qa?.queue) {
-    const domain = lower.split("@")[1] || "";
-    const sv = teamSvMap[`${qa.queue}|${domain}`];
-    if (sv) return sv;
-  }
-  const lead = qa?.manager_email?.toLowerCase();
-  if (lead) {
-    return roster.find(r => (r.email || "").toLowerCase() === lead)?.manager_email?.toLowerCase() || null;
-  }
-  return null;
-};
-
-const buildAutoCc = (toEmail, roster, senderEmail, teamSvMap) => {
-  if (!toEmail) return "";
-  const sender = (senderEmail || "").toLowerCase();
-  const sv = findSv(toEmail, roster, teamSvMap || {});
-  const out = new Set();
-  if (sv && sv !== sender) out.add(sv);
-  if (AMANDA_EMAIL !== sender) out.add(AMANDA_EMAIL);
-  return [...out].join(", ");
-};
-
-const PERF_OPTIONS = [
-  {val:"Needs Attention",emoji:"⚠️",bg:"var(--red-bg)",color:"var(--red)"},
-  {val:"Below Expectations",emoji:"📉",bg:"var(--amber-bg)",color:"var(--amber)"},
-  {val:"Meets Expectations",emoji:"✅",bg:"var(--green-bg)",color:"var(--green)"},
-  {val:"Exceeds Expectations",emoji:"⭐",bg:"var(--accent-light)",color:"var(--accent-text)"},
-  {val:"Outstanding",emoji:"🏆",bg:"var(--accent-light)",color:"var(--accent-text)"},
-];
-
-const PERF_MESSAGES = {
-  "Outstanding":"Your dedication and quality of work have set a commendable standard for the team. This level of performance is highly valued and acknowledged.",
-  "Exceeds Expectations":"You have consistently gone beyond the required scope of your responsibilities, demonstrating strong professional commitment.",
-  "Meets Expectations":"You are fulfilling your responsibilities in a satisfactory manner and are encouraged to continue building on this foundation.",
-  "Below Expectations":"There are areas that require immediate attention and improvement. I am confident in your ability to address these with focus and commitment.",
-  "Needs Attention":"I would like us to work closely together to identify the root causes and establish a clear action plan."
-};
-
-const INTRO_MAP = {
-  "1:1 Meeting":"This is a formal summary of our weekly 1:1 meeting.",
-  "MPR":"This is a formal summary of your MPR session.",
-  "Coaching Session":"This is a formal summary of your Coaching Session.",
-  "Weekly Check-in":"This is a formal summary of our Weekly Check-in.",
-  "Action Plan Review":"This is a formal summary of your Action Plan Review. Please review your weekly targets and progress carefully.",
-  "PIP Review":"This is a formal summary of your Performance Improvement Plan (PIP) Review. Please review your weekly targets and progress carefully."
-};
-
-const TEMPLATES = {
-  "1:1 Meeting":{topics:"Weekly performance update\nTeam challenges and support needed\nCareer development discussion",strengths:"Consistent quality of work\nStrong communication with team members",weaknesses:"Time management on complex cases\nEscalation handling",goals:"Improve first response resolution rate\nComplete pending training module",actions:"Share weekly self-assessment by Thursday\nSchedule shadowing session with senior agent"},
-  "Coaching Session":{topics:"Calibration score review\nSpecific case analysis\nScoring accuracy discussion",strengths:"Improvement noted in handling complex cases\nGood alignment with quality standards",weaknesses:"Soft skills in resolution communication\nAttribute scoring consistency",goals:"Reach calibration alignment score above 85%\nReduce scoring deviation",actions:"Review 5 calibration cases before next session\nComplete RTR self-practice twice this week"},
-  "Weekly Check-in":{topics:"Weekly scorecard review\nCurrent challenges and blockers\nPriorities for the coming week",strengths:"Maintained consistent quality scores\nProactive communication",weaknesses:"Areas needing attention this week",goals:"Hit weekly targets across all KPIs",actions:"Focus on identified weak areas\nFlag any support needs by Wednesday"},
-  "Action Plan Review":{topics:"Weekly target progress review\nCalibration score performance\nRTR session completion\nQuality consistency",strengths:"Commitment to improvement plan\nAttendance and engagement in sessions",weaknesses:"Areas where targets were not fully met\nSpecific attribute scoring gaps",goals:"Achieve agreed weekly targets\nImprove calibration alignment score",actions:"Complete weekly RTR sessions as agreed\nAttend all calibration sessions\nSubmit weekly self-review"},
-  "PIP Review":{topics:"PIP target progress review\nDetailed performance metrics discussion\nSupport and resources assessment",strengths:"Positive steps taken during PIP period\nEngagement with coaching sessions",weaknesses:"Areas where PIP targets were not met\nRoot causes identified",goals:"Meet all PIP performance targets\nDemonstrate sustained improvement",actions:"Complete all agreed PIP actions\nMeet with HR for formal review\nSubmit weekly progress log"},
-  "MPR":{topics:"Overall performance review for the period\nKey achievements and highlights\nAreas requiring development",strengths:"Demonstrated ownership of quality metrics\nPositive attitude and team collaboration",weaknesses:"Consistency across all ticket categories\nDocumentation quality",goals:"Achieve target KPI scores for next quarter\nComplete mandatory compliance training",actions:"Submit self-appraisal form by end of week\nAgree on development plan for next period"},
-};
+import {
+  MEETING_TYPES,
+  MEETING_TYPE_ENUM,
+  TARGET_TYPES,
+  PERF_OPTIONS,
+  PERF_MESSAGES,
+  TEMPLATES,
+  buildAutoCc,
+} from "../../lib/coachingTemplates.js";
+import { buildCoachingEmailBody, fmtCoachingDate } from "../../lib/coachingEmail.js";
 
 export default function CoachingCompose({ roster, sessions, plans, planWeeks, gmailAuthorized, setGmailAuthorized, gmailChecking, connectGmail, callGmailFn, loadSessions }) {
   const { token, profile, globalToast } = useApp();
@@ -235,17 +172,8 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
     }).filter(Boolean).join(" ");
   };
 
-  const firstNameFromEmail = (email) => {
-    if (!email) return "Team Member";
-    const f = email.split("@")[0].split(/[.\-_]/)[0];
-    return f.charAt(0).toUpperCase() + f.slice(1).toLowerCase();
-  };
-
-  const fmtDate = (s) => {
-    if (!s) return "";
-    try { return new Date(s+"T00:00:00").toLocaleDateString("en-GB",{weekday:"long",year:"numeric",month:"long",day:"numeric"}); }
-    catch { return s; }
-  };
+  // Date formatter is shared with the email builder.
+  const fmtDate = fmtCoachingDate;
 
   // Listen for prefill from AP/PIP page
   const pendingPrefillRef = useRef(null);
@@ -364,106 +292,16 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
     setTargetRows(rows);
   };
 
-  const calcEom = (vals) => {
-    const nums = vals.map(v => parseFloat(v)).filter(v => !isNaN(v) && v > 0);
-    return nums.length ? Math.round(nums.reduce((a,b) => a+b, 0) / nums.length) : null;
-  };
+  // calcEom + calcDiff live in lib/coachingEmail.js with the email builder.
 
-  const calcDiff = (target, actual) => {
-    const t = parseFloat(target), a = parseFloat(actual);
-    if (isNaN(t) || isNaN(a) || !actual) return null;
-    return Math.round((a - t) * 10) / 10;
-  };
+  const serializeTargets = () => targetRows.filter(r => r.metric.trim()).map(r => [r.metric, r.start, r.w1, r.w2, r.w3, r.w4, r.a1, r.a2, r.a3, r.a4].join("|")).join(";;");
 
-  const serializeTargets = () => targetRows.filter(r => r.metric.trim()).map(r => [r.metric,r.start,r.w1,r.w2,r.w3,r.w4,r.a1,r.a2,r.a3,r.a4].join("|")).join(";;");
-
-  // Build email HTML
-  const buildEmailBody = () => {
-    const fn = firstNameFromEmail(toEmail);
-    const isConclusion = isTargetType && outcome;
-    const planName = meetingType === "PIP Review" ? "Performance Improvement Plan" : "Action Plan";
-    let html = "";
-
-    html += `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.8;color:#1a1a1a;max-width:680px;">`;
-    html += `<p style="margin:0 0 16px;"><span style="background:#E8F5E8;color:#1A3D2B;padding:5px 16px;border-radius:20px;font-weight:700;font-size:12px;letter-spacing:.03em;">${meetingType}</span></p>`;
-    html += `<p style="margin:0 0 16px;">Dear ${fn},</p>`;
-
-    if (isConclusion && outcome === "pass") {
-      html += `<p style="margin:0 0 20px;">I am pleased to formally confirm that you have successfully completed your ${planName}. Your commitment, consistency, and improvement throughout this period have been genuinely noted and are greatly appreciated. This concludes the formal ${planName} process, and your performance will continue to be monitored through our regular 1:1 sessions.</p>`;
-    } else if (isConclusion && outcome === "fail") {
-      html += `<p style="margin:0 0 12px;">Following a full review of your ${planName}, I regret to formally notify you that the required performance targets were not met within the agreed timeframe. This outcome has been documented and will be shared with the relevant stakeholders, including Human Resources.</p>`;
-      if (nextSteps) html += `<p style="margin:0 0 6px;font-weight:700;">Agreed Next Steps:</p><p style="margin:0 0 20px;">${nextSteps.replace(/\n/g,"<br>")}</p>`;
-    } else {
-      html += `<p style="margin:0 0 20px;">${INTRO_MAP[meetingType] || "This is a formal summary of our session."}</p>`;
-    }
-
-    const mkList = (text) => {
-      if (!text?.trim()) return "";
-      return `<ul style="margin:8px 0;padding-left:22px;">${text.split("\n").filter(l=>l.trim()).map(l => `<li style="margin-bottom:6px;">${l.replace(/^[-•]\s*/,"").trim()}</li>`).join("")}</ul>`;
-    };
-    const mkSection = (title, body) => `<div style="margin-top:24px;"><p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#1A3D2B;border-bottom:1px solid #E8F5E8;padding-bottom:4px;">${title}</p>${body}</div>`;
-
-    if (topics?.trim()) html += mkSection("Topics Discussed", mkList(topics));
-
-    if (perfRating) {
-      const pillStyles = {"Outstanding":"background:#C5F5C5;color:#1A3D2B;","Exceeds Expectations":"background:#A0E8A0;color:#1A3D2B;","Meets Expectations":"background:#E8F5E8;color:#2A5A2A;","Below Expectations":"background:#FEF9F0;color:#854F0B;","Needs Attention":"background:#FCEBEB;color:#A32D2D;"};
-      html += mkSection("Overall Performance Rating", `<p style="margin:8px 0 6px;"><span style="${pillStyles[perfRating]||""}padding:4px 16px;border-radius:20px;font-weight:700;font-size:13px;">${perfRating}</span></p><p style="margin:0 0 4px;">${PERF_MESSAGES[perfRating]||""}</p>`);
-    }
-
-    if (strengths?.trim()) html += mkSection("Strengths & Recognized Contributions", mkList(strengths));
-    if (weaknesses?.trim()) html += mkSection("Areas for Development", mkList(weaknesses));
-    if (goals?.trim()) html += mkSection("Goals & Progress Update", mkList(goals));
-    if (actions?.trim()) html += mkSection("Action Items & Agreed Next Steps", mkList(actions));
-
-    // Target table
-    if (isTargetType && targetRows.some(r => r.metric.trim())) {
-      const s = "padding:9px 11px;font-size:13px;text-align:center;border:1px solid #C8E8C8;";
-      html += `<div style="margin-top:24px;"><p style="margin:0 0 10px;font-size:14px;font-weight:700;color:#1A3D2B;">Weekly QA Review — Score Tracking</p>`;
-      html += `<table style="width:100%;border-collapse:collapse;font-family:Arial,sans-serif;">`;
-      html += `<tr>${["Metric","Row","Start","W1","W2","W3","W4","EOM"].map((c,i) => `<th style="${s}font-weight:700;color:#C5F5C5;background:#1A3D2B;${i<=1?"text-align:left;":""}">${c}</th>`).join("")}</tr>`;
-
-      targetRows.filter(r => r.metric.trim()).forEach((r, ri) => {
-        const bg = ri % 2 === 0 ? "#fff" : "#F0FCF0";
-        const tEom = calcEom([r.w1,r.w2,r.w3,r.w4]);
-        const aEom = calcEom([r.a1,r.a2,r.a3,r.a4]);
-        html += `<tr style="background:${bg}"><td style="${s}text-align:left;font-weight:700;" rowspan="3">${r.metric}</td>`;
-        html += `<td style="${s}text-align:left;font-weight:600;background:#E8F5E8;color:#1A3D2B;font-size:10px;">Target</td>`;
-        html += `<td style="${s}">${r.start ? r.start+"%" : "--"}</td>`;
-        ["w1","w2","w3","w4"].forEach(k => { html += `<td style="${s}">${r[k] ? r[k]+"%" : "--"}</td>`; });
-        html += `<td style="${s}background:#C5F5C5;color:#1A3D2B;font-weight:700;">${tEom !== null ? tEom+"%" : "--"}</td></tr>`;
-        html += `<tr style="background:${bg}"><td style="${s}text-align:left;font-weight:600;background:#FEF9F0;color:#854F0B;font-size:10px;">Actual</td>`;
-        html += `<td style="${s}color:#aaa;">--</td>`;
-        ["a1","a2","a3","a4"].forEach(k => { html += `<td style="${s}">${r[k] ? r[k]+"%" : "--"}</td>`; });
-        const eAbg = aEom !== null && tEom !== null ? (aEom >= tEom ? "#E0F8E0" : "#FCEBEB") : "#FEF9F0";
-        const eAc = aEom !== null && tEom !== null ? (aEom >= tEom ? "#1A6B2A" : "#A32D2D") : "#854F0B";
-        html += `<td style="${s}background:${eAbg};color:${eAc};font-weight:700;">${aEom !== null ? aEom+"%" : "--"}</td></tr>`;
-        html += `<tr style="background:${bg}"><td style="${s}text-align:left;font-weight:600;background:#F5F5F5;color:#555;font-size:10px;">Difference</td>`;
-        html += `<td style="${s}color:#aaa;">--</td>`;
-        ["w1","w2","w3","w4"].forEach((wk,i) => {
-          const d = calcDiff(r[wk], r["a"+(i+1)]);
-          if (d !== null) {
-            const dc = d > 0 ? "#1A6B2A" : d < 0 ? "#A32D2D" : "#555";
-            const dbg = d > 0 ? "#E0F8E0" : d < 0 ? "#FCEBEB" : "#F5F5F5";
-            html += `<td style="${s}background:${dbg};color:${dc};font-weight:700;">${d > 0 ? "+" : ""}${d}%</td>`;
-          } else html += `<td style="${s}color:#ccc;">--</td>`;
-        });
-        if (aEom !== null && tEom !== null) {
-          const ed = Math.round((aEom - tEom) * 10) / 10;
-          const ec = ed > 0 ? "#1A6B2A" : ed < 0 ? "#A32D2D" : "#555";
-          const eb = ed > 0 ? "#E0F8E0" : ed < 0 ? "#FCEBEB" : "#F5F5F5";
-          html += `<td style="${s}background:${eb};color:${ec};font-weight:700;">${ed > 0 ? "+" : ""}${ed}%</td></tr>`;
-        } else html += `<td style="${s}color:#ccc;">--</td></tr>`;
-      });
-      html += `</table></div>`;
-    }
-
-    html += `<div style="margin-top:28px;padding-top:16px;border-top:1px solid #E8F5E8;">`;
-    html += `<p style="margin:0 0 10px;">Should you have any questions, please do not hesitate to reach out.</p>`;
-    html += `<p style="margin:0 0 16px;">I appreciate your continued commitment and professionalism.</p>`;
-    html += `<p style="margin:0;">Best regards,<br><strong>${sigName || "QA Leader"}</strong><br>${sigTitle || "QA Lead"} | Tabby</p>`;
-    html += `</div></div>`;
-    return html;
-  };
+  // Build email HTML — delegates to the pure formatter in lib/coachingEmail.js.
+  const buildEmailBody = () => buildCoachingEmailBody({
+    toEmail, meetingType, isTargetType, outcome, nextSteps,
+    topics, strengths, weaknesses, goals, actions,
+    perfRating, targetRows, sigName, sigTitle,
+  });
 
   const emailSubject = `Session Summary: ${meetingType} - ${fmtDate(sessionDate)}`;
 
