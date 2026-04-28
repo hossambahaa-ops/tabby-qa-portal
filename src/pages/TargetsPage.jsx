@@ -79,15 +79,18 @@ function TargetsPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
-  // Get team names — leads see their teams + Default, admins see all
+  // Get team names — leads see their teams + Default, admins see all.
+  // Compound legacy names ("CCU, Escalation, Dispute") that pre-date the
+  // single-queue model are filtered defensively so they can never resurface
+  // here even if a stray row makes it back into the teams table.
+  const isCanonicalTeam = (n) => n && !n.includes(",");
   const teamNames = (() => {
     const names = new Set(["Default"]);
-    teams.forEach(t => names.add(t.name));
+    teams.forEach(t => { if (isCanonicalTeam(t.name)) names.add(t.name); });
     if (!isAdmin) {
-      // Leads only see teams they lead
       const myTeams = teams.filter(t => t.profiles?.email?.toLowerCase() === myEmail);
       const filtered = new Set(["Default"]);
-      myTeams.forEach(t => filtered.add(t.name));
+      myTeams.forEach(t => { if (isCanonicalTeam(t.name)) filtered.add(t.name); });
       return [...filtered].sort();
     }
     return [...names].sort();

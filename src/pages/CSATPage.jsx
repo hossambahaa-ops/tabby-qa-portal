@@ -105,7 +105,9 @@ export default function CSATPage() {
 
   const monthData = data.filter(r => r.month === selMonth);
   const rosterMap = {}; roster.forEach(r => { rosterMap[r.email?.toLowerCase()] = r; });
-  const scoreTeams = [...new Set(roster.filter(r => r.queue && (!selDomain || r.email?.endsWith("@" + selDomain))).map(r => r.queue))].sort();
+  // Skip compound LOBs ("CCU, Escalation, Dispute") that occasionally
+  // sneak in from the roster CSV — they're never a real team.
+  const scoreTeams = [...new Set(roster.filter(r => r.queue && !r.queue.includes(",") && (!selDomain || r.email?.endsWith("@" + selDomain))).map(r => r.queue))].sort();
   const tlEmails = [...new Set(monthData.map(r => r.qa_tl).filter(Boolean))].sort();
   let filtered = monthData;
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@" + selDomain));

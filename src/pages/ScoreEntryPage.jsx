@@ -286,7 +286,9 @@ function ScoreEntryPage(){
   const monthData = data.filter(r => r.month === selMonth && !srQaEmails.has(r.qa_email?.toLowerCase()));
   const qaEmails = [...new Set(monthData.map(r => r.qa_email))].sort();
   const tlEmails = [...new Set(monthData.map(r => r.qa_tl).filter(Boolean))].sort();
-  const scoreTeams = [...new Set(roster.filter(r => r.queue && !isSrQa(r) && (!selDomain || r.email?.endsWith("@"+selDomain))).map(r => r.queue))].sort();
+  // Skip compound LOBs ("CCU, Escalation, Dispute") that occasionally
+  // sneak in from the roster CSV — they're never a real team.
+  const scoreTeams = [...new Set(roster.filter(r => r.queue && !r.queue.includes(",") && !isSrQa(r) && (!selDomain || r.email?.endsWith("@"+selDomain))).map(r => r.queue))].sort();
   let filtered = monthData;
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
   if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
