@@ -76,10 +76,15 @@ export default function CsatTopicMatrix({
         const cb = matrix.cells[b.qa_email + "\u0000" + topicSort.key];
         const sa = ca && ca.surveys > 0 ? ca.score : null;
         const sb = cb && cb.surveys > 0 ? cb.score : null;
+        const na = ca?.surveys || 0;
+        const nb = cb?.surveys || 0;
         if (sa == null && sb == null) return (overallOf(b) ?? -1) - (overallOf(a) ?? -1);
         if (sa == null) return 1;
         if (sb == null) return -1;
-        return dirMul * (sa - sb);
+        // Primary: score (asc/desc per dirMul). Tiebreaker: survey count
+        // descending — a 100% over 4 surveys ranks above 100% over 3.
+        if (sa !== sb) return dirMul * (sa - sb);
+        return nb - na;
       });
     }
     return base.sort((a, b) => dirMul * ((overallOf(a) ?? -1) - (overallOf(b) ?? -1)));
