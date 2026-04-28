@@ -18,26 +18,10 @@ function TeamManagementPage(){
     sb.query("profiles",{select:"id,display_name,email,role,domain",token}),
     listRoster({ token, cache: false }),
   ]);setTeams(t);setUsers(u);setRoster(r);
-
-  // Auto-create teams: one DB entry per queue+domain combination
-  const existingKeys=new Set(t.map(x=>(x.name.toLowerCase()+"|"+x.domain.toLowerCase())));
-  const rosterQueues=[...new Set(r.map(x=>x.queue).filter(Boolean))];
-  let created=0;
-  for(const q of rosterQueues){
-    const hasAi=r.some(x=>x.queue===q&&x.email?.endsWith("@tabby.ai"));
-    const hasSa=r.some(x=>x.queue===q&&x.email?.endsWith("@tabby.sa"));
-    if(hasAi&&!existingKeys.has(q.toLowerCase()+"|tabby.ai")){
-      try{await sb.query("teams",{token,method:"POST",body:{name:q,domain:"tabby.ai"}});created++;existingKeys.add(q.toLowerCase()+"|tabby.ai");}catch(e){console.log("Auto-create:",q,"ai",e);}
-    }
-    if(hasSa&&!existingKeys.has(q.toLowerCase()+"|tabby.sa")){
-      try{await sb.query("teams",{token,method:"POST",body:{name:q,domain:"tabby.sa"}});created++;existingKeys.add(q.toLowerCase()+"|tabby.sa");}catch(e){console.log("Auto-create:",q,"sa",e);}
-    }
-  }
-  if(created>0){
-    const t2=await sb.query("teams",{select:"id,name,domain,lead_id,supervisor_id,profiles!fk_teams_lead(display_name,email),sup:profiles!fk_teams_supervisor(display_name,email)",token});
-    setTeams(t2);
-    globalToast("success",`Auto-created ${created} team(s) from roster`);
-  }
+  // Teams are now sourced from the QA Roster Distro sheet (one team per
+  // QTL row with the QTL's LOB string as the team name). The previous
+  // auto-create-from-queues fallback was removed so it doesn't fight the
+  // sync — use the "🔄 Sync from Distro" button instead to refresh.
   }catch(e){console.error(e);}setLoading(false);},[token]);
   useEffect(()=>{load();},[load]);
   useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
