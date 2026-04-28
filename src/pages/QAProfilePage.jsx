@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
-import { sb, dataCache } from "../lib/supabase.js";
-import { nameFromEmail, csatPctValue, csatColor } from "../lib/utils.js";
+import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
+import { nameFromEmail, csatPctValue, csatColor, safeError } from "../lib/utils.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
@@ -16,7 +16,7 @@ const safe = (v) => {
 };
 
 function QAProfilePage() {
-  const { token, profile, gf } = useApp();
+  const { token, profile, gf, globalToast } = useApp();
   const isQA = profile?.role === "qa" || profile?.role === "senior_qa";
   const isLead = hasRole(profile?.role, "qa_lead");
   const myEmail = profile?.email?.toLowerCase() || "";
@@ -25,7 +25,7 @@ function QAProfilePage() {
   // selection / search / expanded-row state plus the per-QA derivations.
   const {
     roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
-    loading, allQAs, qaLeadSet,
+    loading, allQAs, qaLeadSet, refreshDailyScores,
   } = useQaProfileData(token, profile);
 
   const [selectedQA, setSelectedQA] = useUrlState("qa", "");
@@ -35,6 +35,34 @@ function QAProfilePage() {
   const [expandedPlan, setExpandedPlan] = useState(null);
   const [expandedTask, setExpandedTask] = useState(null);
   const [selMonth, setSelMonth] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Pulls the live Today_Productivity CSV via the daily-scores-sync edge
+  // function, then re-reads today's daily_scores so the KPI cards reflect
+  // the new numbers without needing a full page reload. Cron runs the
+  // same sync every 5 min — this button is for "I want it now."
+  const refreshLive = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/daily-scores-sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.success) {
+        await refreshDailyScores();
+        const dups = data.duplicates_collapsed > 0 ? `, ${data.duplicates_collapsed} dup collapsed` : "";
+        globalToast?.("success", `Live sync — ${data.rows_upserted} QAs updated${dups}`);
+      } else {
+        globalToast?.("error", data.error || "Sync failed");
+      }
+    } catch (e) {
+      globalToast?.("error", safeError ? safeError(e) : (e?.message || "Sync failed"));
+    }
+    setRefreshing(false);
+  };
 
   // QAs land on their own profile by default — once data loads.
   useEffect(() => {
@@ -107,9 +135,16 @@ function QAProfilePage() {
   // ═══ LIST VIEW (no QA selected, or QA role sees own profile directly) ═══
   if (!selectedQA && !isQA) return (
     <div className="page">
-      <div className="page-header">
-        <div className="page-title">QA Profiles</div>
-        <div className="page-subtitle">{visibleQAs.length} team members</div>
+      <div className="page-header" style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+        <div>
+          <div className="page-title">QA Profiles</div>
+          <div className="page-subtitle">{visibleQAs.length} team members</div>
+        </div>
+        <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the latest Today_Productivity CSV from Google Sheets" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+          {refreshing
+            ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />Refreshing…</>
+            : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh live</>}
+        </button>
       </div>
       <div className="card" style={{padding:16}}>
         <div style={{position:"relative",marginBottom:16}}>
@@ -143,11 +178,18 @@ function QAProfilePage() {
   // ═══ PROFILE VIEW (QA selected) ═══
   return (
     <div className="page">
-      {/* Back button for non-QA roles */}
-      {!isQA && <button className="btn btn-outline" onClick={()=>{setSelectedQA("");setSearchQuery("");}} style={{marginBottom:12,display:"flex",alignItems:"center",gap:6}}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
-        Back to list
-      </button>}
+      {/* Back button for non-QA roles + Refresh live button */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+        {!isQA && <button className="btn btn-outline" onClick={()=>{setSelectedQA("");setSearchQuery("");}} style={{display:"flex",alignItems:"center",gap:6}}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+          Back to list
+        </button>}
+        <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the latest Today_Productivity CSV from Google Sheets" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+          {refreshing
+            ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />Refreshing…</>
+            : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh live</>}
+        </button>
+      </div>
 
       {/* Header card */}
       <div className="card" style={{marginBottom:16,padding:20}}>

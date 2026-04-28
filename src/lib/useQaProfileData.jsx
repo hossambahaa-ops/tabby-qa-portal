@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { hasRole } from "./constants.js";
 import { sb } from "./supabase.js";
 import { listRoster } from "../api/roster.js";
@@ -110,8 +110,18 @@ export function useQaProfileData(token, profile) {
     return [...map.values()];
   })();
 
+  // Re-pull just today's daily_scores after a Refresh button press —
+  // avoids re-running the full 10-table load when only those numbers
+  // change.
+  const refreshDailyScores = useCallback(async () => {
+    if (!token) return;
+    const today = new Date().toISOString().split("T")[0];
+    const ds = await sb.query("daily_scores", { select: "*", filters: `date=eq.${today}`, token }).catch(() => []);
+    setDailyScores(Array.isArray(ds) ? ds : []);
+  }, [token]);
+
   return {
     roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
-    loading, allQAs, qaLeadSet,
+    loading, allQAs, qaLeadSet, refreshDailyScores,
   };
 }
