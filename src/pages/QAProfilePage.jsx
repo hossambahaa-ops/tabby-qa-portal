@@ -53,7 +53,7 @@ function QAProfilePage() {
       const data = await r.json().catch(() => ({}));
       if (r.ok && data.success) {
         await refreshDailyScores();
-        const dups = data.duplicates_collapsed > 0 ? `, ${data.duplicates_collapsed} dup collapsed` : "";
+        const dups = data.duplicates_summed > 0 ? `, ${data.duplicates_summed} dup summed` : "";
         globalToast?.("success", `Live sync — ${data.rows_upserted} QAs updated${dups}`);
       } else {
         globalToast?.("error", data.error || "Sync failed");
