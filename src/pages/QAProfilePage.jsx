@@ -104,9 +104,15 @@ function QAProfilePage() {
         nonQaEmails.add(p.email.toLowerCase().split("@")[0]);
       }
     });
+    // Sr QAs (qa_roster.role = 'Sr QA') stay on the roster but are filtered
+    // out of the QA Profile list per product spec — they're not evaluated here.
+    const isSrQa = (r) => /^(sr\.?|senior)\s*qa$/i.test((r.role || "").trim());
+    const srQaEmails = new Set();
+    roster.forEach(r => { if (isSrQa(r) && r.email) srQaEmails.add(r.email.toLowerCase()); });
     roster.forEach(r => {
       const em = r.email?.toLowerCase();
       if (!em || nonQaEmails.has(em) || nonQaEmails.has(em.split("@")[0])) return;
+      if (srQaEmails.has(em)) return;
       const mgr = r.manager_email?.toLowerCase();
       if (!mgr) return;
       if (qaLeadSet.has(mgr) || qaLeadSet.has(mgr.split("@")[0])) {
@@ -116,6 +122,7 @@ function QAProfilePage() {
     mtd.forEach(m => {
       const em = m.qa_email?.toLowerCase();
       if (!em || map.has(em) || nonQaEmails.has(em) || nonQaEmails.has(em.split("@")[0])) return;
+      if (srQaEmails.has(em)) return;
       const tl = m.qa_tl?.toLowerCase();
       if (tl && (qaLeadSet.has(tl) || qaLeadSet.has(tl.split("@")[0]))) {
         map.set(em, { email: em, manager_email: m.qa_tl, queue: null, country: null });

@@ -291,12 +291,17 @@ function ScoreEntryPage(){
     return String(val);
   };
 
-  const monthData = data.filter(r => r.month === selMonth);
-  const qaEmails = [...new Set(monthData.map(r => r.qa_email))].sort();
-  const tlEmails = [...new Set(monthData.map(r => r.qa_tl).filter(Boolean))].sort();
   const rosterMap = {};
   roster.forEach(r => { rosterMap[r.email?.toLowerCase()] = r; });
-  const scoreTeams = [...new Set(roster.filter(r => r.queue && (!selDomain || r.email?.endsWith("@"+selDomain))).map(r => r.queue))].sort();
+  // Sr QAs (qa_roster.role = 'Sr QA') are intentionally excluded from MTD
+  // scoring per product spec — they stay on the roster for visibility but
+  // don't appear here.
+  const isSrQa = (r) => /^(sr\.?|senior)\s*qa$/i.test((r?.role || "").trim());
+  const srQaEmails = new Set(roster.filter(isSrQa).map(r => r.email?.toLowerCase()).filter(Boolean));
+  const monthData = data.filter(r => r.month === selMonth && !srQaEmails.has(r.qa_email?.toLowerCase()));
+  const qaEmails = [...new Set(monthData.map(r => r.qa_email))].sort();
+  const tlEmails = [...new Set(monthData.map(r => r.qa_tl).filter(Boolean))].sort();
+  const scoreTeams = [...new Set(roster.filter(r => r.queue && !isSrQa(r) && (!selDomain || r.email?.endsWith("@"+selDomain))).map(r => r.queue))].sort();
   let filtered = monthData;
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
   if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);

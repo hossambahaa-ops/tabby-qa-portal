@@ -5,7 +5,7 @@ import { sb, dataCache } from "../lib/supabase.js";
 // or fetch a wider column set under a distinct key (e.g. "qa_roster_full").
 export const listRoster = ({
   token,
-  select = "email,display_name,queue,manager_email",
+  select = "email,display_name,queue,manager_email,role",
   cacheKey = "qa_roster",
   cache = true,
 }) => {
