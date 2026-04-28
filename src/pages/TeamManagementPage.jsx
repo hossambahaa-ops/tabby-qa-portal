@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
-import { sb, dataCache } from "../lib/supabase.js";
+import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { useConfirm } from "../lib/hooks.jsx";
@@ -53,9 +53,65 @@ function TeamManagementPage(){
 
   const [expandedTeam, setExpandedTeam] = useState(null);
   const [filterDomain, setFilterDomain] = useState("");
+  const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState(null);
+
+  // Pull the most recent roster_sync_log row so the user can see when the
+  // Distro was last consumed and what changed.
+  useEffect(() => {
+    sb.query("roster_sync_log", { token, select: "ran_at,triggered_by,status,csv_rows,roster_added,roster_updated,roster_stale,teams_added,teams_updated,unmatched,error", filters: "order=ran_at.desc&limit=1" })
+      .then(rows => { if (Array.isArray(rows) && rows.length > 0) setLastSync(rows[0]); })
+      .catch(() => {});
+  }, [token]);
+
+  const runSync = async () => {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      const r = await fetch(`${SUPABASE_URL}/functions/v1/roster-sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
+        body: JSON.stringify({}),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (r.ok && data.success) {
+        const parts = [];
+        if (data.roster_added) parts.push(`+${data.roster_added} added`);
+        if (data.roster_updated) parts.push(`${data.roster_updated} updated`);
+        if (data.teams_added) parts.push(`${data.teams_added} teams added`);
+        if (data.teams_updated) parts.push(`${data.teams_updated} teams updated`);
+        const msg = parts.length > 0 ? `Synced — ${parts.join(", ")}` : "Synced — no changes";
+        globalToast("success", msg);
+        setLastSync({ ran_at: new Date().toISOString(), triggered_by: profile?.email, status: "ok", ...data });
+        load();
+      } else {
+        globalToast("error", data.error || "Sync failed");
+      }
+    } catch (e) { globalToast("error", safeError(e)); }
+    setSyncing(false);
+  };
 
   return(<div className="page">
-    <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}><div><div className="page-title">Team management</div><div className="page-subtitle">{teams.length} teams · {roster.length} roster members</div></div><button className="btn btn-primary" onClick={()=>{setShowForm(!showForm);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});}}><Icon d={icons.plus} size={16}/>New team</button></div>
+    <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
+      <div><div className="page-title">Team management</div><div className="page-subtitle">{teams.length} teams · {roster.length} roster members{lastSync?.ran_at ? ` · last synced ${new Date(lastSync.ran_at).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}`:""}</div></div>
+      <div style={{display:"flex",gap:8}}>
+        <button className="btn btn-outline" disabled={syncing} onClick={runSync} title="Pull the latest QA Roster Distro from the Google Sheet and apply any changes to roster + teams">
+          {syncing ? "Syncing…" : "🔄 Sync from Distro"}
+        </button>
+        <button className="btn btn-primary" onClick={()=>{setShowForm(!showForm);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});}}><Icon d={icons.plus} size={16}/>New team</button>
+      </div>
+    </div>
+
+    {lastSync && (lastSync.unmatched || lastSync.error) && (
+      <div className="card" style={{padding:"10px 14px",marginBottom:12,borderLeft:`3px solid ${lastSync.error?"var(--red)":"var(--amber)"}`,background:lastSync.error?"var(--red-bg)":"var(--amber-bg)"}}>
+        <div style={{fontSize:12,fontWeight:600,color:lastSync.error?"var(--red)":"var(--amber)",marginBottom:4}}>
+          {lastSync.error ? "Last sync error" : `Last sync had ${(lastSync.unmatched||[]).length} unmatched row${(lastSync.unmatched||[]).length===1?"":"s"}`}
+        </div>
+        <div style={{fontSize:11,color:"var(--tx2)",lineHeight:1.5,whiteSpace:"pre-wrap"}}>
+          {lastSync.error || (lastSync.unmatched||[]).join("\n")}
+        </div>
+      </div>
+    )}
 
     {/* Domain filter */}
     <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center"}}>
