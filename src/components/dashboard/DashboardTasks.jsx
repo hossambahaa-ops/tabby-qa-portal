@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import ReactDOM from "react-dom";
 import { hasRole, ROLE_LABELS } from "../../lib/constants.js";
 import { sb, dataCache } from "../../lib/supabase.js";
 import { safeError, logActivity } from "../../lib/utils.js";
@@ -9,6 +8,10 @@ import { Icon, icons } from "../Icons.jsx";
 import SearchableSelect from "../SearchableSelect.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import { teamEmailsFor } from "../../lib/scope.js";
+import { priorityConfig } from "../../lib/taskUI.js";
+import TaskAttendanceWarning from "./TaskAttendanceWarning.jsx";
+import TaskDetailModal from "./TaskDetailModal.jsx";
+import TaskPostponeModal from "./TaskPostponeModal.jsx";
 
 function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   const { profile, token, globalToast } = useApp();
@@ -217,7 +220,8 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
     try{await sb.query("task_templates",{token,method:"PATCH",body:{is_active:!tpl.is_active,updated_at:new Date().toISOString()},filters:`id=eq.${tpl.id}`});loadTasks();}catch(e){globalToast("error",safeError(e));}
   };
 
-  const priorityConfig={urgent:{label:"Urgent",color:"var(--red)",bg:"var(--red-bg)"},high:{label:"High",color:"var(--amber)",bg:"var(--amber-bg)"},medium:{label:"Medium",color:"var(--tabby-purple)",bg:"var(--primary-light)"},low:{label:"Low",color:"var(--tx3)",bg:"var(--bg2)"}};
+  // priorityConfig now lives in lib/taskUI.js (imported above) so it's
+  // shareable with future task surfaces.
 
   // Scope split — Mine vs Team
   const canSeeTeam = hasRole(profile?.role,"qa_lead");
@@ -737,85 +741,34 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
     </div>
 
     {/* Attendance warning modal */}
-    {attWarning&&ReactDOM.createPortal(<div style={{position:"fixed",inset:0,zIndex:99999,background:"rgba(0,0,0,0.55)",display:"flex",justifyContent:"center",alignItems:"center"}} onClick={()=>setAttWarning(null)}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"0 25px 50px rgba(0,0,0,0.5)",width:"100%",maxWidth:400,padding:24,textAlign:"center",margin:16}}>
-        <div style={{width:48,height:48,borderRadius:"50%",background:"var(--amber-bg)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" strokeWidth="2.5" strokeLinecap="round"><path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/></svg>
-        </div>
-        <div style={{fontSize:16,fontWeight:700,marginBottom:8,color:"var(--tx)"}}>{attWarning.name}</div>
-        <div style={{fontSize:13,color:"var(--tx2)",marginBottom:20}}>is marked as <span style={{fontWeight:700,color:"var(--amber)"}}>{attWarning.status}</span> {(() => {
-          const today = new Date().toISOString().split("T")[0];
-          if (!attWarning.date || attWarning.date === today) return "today";
-          const d = new Date(attWarning.date + "T00:00:00");
-          return `on ${d.toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short"})}`;
-        })()}. Do you still want to assign this task?</div>
-        <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-          <button className="btn btn-primary btn-sm" style={{padding:"8px 20px"}} onClick={()=>{setAttWarning(null);saveTask(true);}}>Assign anyway</button>
-          <button className="btn btn-outline btn-sm" style={{padding:"8px 20px"}} onClick={()=>setAttWarning(null)}>Cancel</button>
-        </div>
-      </div>
-    </div>,document.body)}
+    <TaskAttendanceWarning
+      attWarning={attWarning}
+      onCancel={() => setAttWarning(null)}
+      onAssignAnyway={() => { setAttWarning(null); saveTask(true); }}
+    />
 
-    {/* Task Detail Modal */}
-    {selectedTask&&(()=>{
-      const t=userTasks.find(x=>x.id===selectedTask.id)||selectedTask;
-      const pc=priorityConfig[t.priority]||priorityConfig.medium;
-      const isDone=t.status==="done";
-      const isOverdue=(()=>{if(!t.eta_date||isDone)return false;const td=new Date();td.setHours(0,0,0,0);return new Date(t.eta_date+"T00:00:00")<td;})();
-      return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,overflowY:"auto"}} onClick={e=>{if(e.target===e.currentTarget)setSelectedTask(null);}}>
-        <div className="card" style={{width:"100%",maxWidth:440,margin:20,maxHeight:"85vh",overflowY:"auto"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:16}}>
-            <div style={{display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:10,padding:"2px 10px",borderRadius:8,background:pc.bg,color:pc.color,fontWeight:700,textTransform:"uppercase"}}>{pc.label}</span>
-              {isDone&&<span style={{fontSize:10,padding:"2px 10px",borderRadius:8,background:"var(--green-bg)",color:"var(--green)",fontWeight:700}}>Completed</span>}
-              {isOverdue&&<span style={{fontSize:10,padding:"2px 10px",borderRadius:8,background:"var(--red-bg)",color:"var(--red)",fontWeight:700}}>Overdue</span>}
-            </div>
-            <button onClick={()=>setSelectedTask(null)} style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:18,padding:0,lineHeight:1}}>×</button>
-          </div>
-          <div style={{fontSize:18,fontWeight:700,color:"var(--tx)",marginBottom:8,textDecoration:isDone?"line-through":"none"}}>{t.title}</div>
-          {t.description&&<div style={{fontSize:13,color:"var(--tx2)",marginBottom:16,lineHeight:1.6,padding:"10px 14px",background:"var(--bg)",borderRadius:8}}>{t.description}</div>}
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16,fontSize:13}}>
-            {t.eta_date&&<div><span style={{color:"var(--tx3)",fontSize:11}}>ETA</span><div style={{fontWeight:500,color:isOverdue?"var(--red)":"var(--tx)"}}>{new Date(t.eta_date+"T00:00:00").toLocaleDateString("en-GB",{weekday:"short",day:"numeric",month:"short",year:"numeric"})}</div></div>}
-            {t.assigned_to&&<div><span style={{color:"var(--tx3)",fontSize:11}}>Assigned to</span><div style={{fontWeight:500}}>{nameFromEmail(t.assigned_to)}</div></div>}
-            {t.created_by&&<div><span style={{color:"var(--tx3)",fontSize:11}}>Created by</span><div style={{fontWeight:500}}>{nameFromEmail(t.created_by)}</div></div>}
-            {t.created_at&&<div><span style={{color:"var(--tx3)",fontSize:11}}>Created</span><div style={{fontWeight:500}}>{new Date(t.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div></div>}
-          </div>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-            <button className={`btn ${isDone?"btn-outline":"btn-primary"} btn-sm`} style={isDone?{}:{background:"var(--green)"}} onClick={()=>{toggleTaskDone(t);setSelectedTask(null);}}>
-              {isDone?"Reopen task":"Mark as done"}
-            </button>
-            <button className="btn btn-outline btn-sm" onClick={()=>{setEditingTask(t);setTaskForm({title:t.title,description:t.description||"",priority:t.priority,due_date:"",eta_date:t.eta_date||"",assigned_to:t.assigned_to?[t.assigned_to]:[]});setShowTaskForm(true);setSelectedTask(null);}}>
-              <Icon d={icons.edit} size={14}/>Edit
-            </button>
-            <button className="btn btn-outline btn-sm" onClick={()=>{setPostponeModal(t);setSelectedTask(null);}}>
-              <Icon d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" size={14}/>Postpone
-            </button>
-            <button className="btn btn-outline btn-sm" style={{color:"var(--red)",marginLeft:"auto"}} onClick={()=>{deleteTask(t);setSelectedTask(null);}}>
-              <Icon d={icons.trash} size={14}/>Delete
-            </button>
-          </div>
-        </div>
-      </div>;
-    })()}
+    <TaskDetailModal
+      selectedTask={selectedTask}
+      userTasks={userTasks}
+      onClose={() => setSelectedTask(null)}
+      onToggleDone={(t) => { toggleTaskDone(t); setSelectedTask(null); }}
+      onEdit={(t) => {
+        setEditingTask(t);
+        setTaskForm({ title: t.title, description: t.description || "", priority: t.priority, due_date: "", eta_date: t.eta_date || "", assigned_to: t.assigned_to ? [t.assigned_to] : [] });
+        setShowTaskForm(true);
+        setSelectedTask(null);
+      }}
+      onPostpone={(t) => { setPostponeModal(t); setSelectedTask(null); }}
+      onDelete={(t) => { deleteTask(t); setSelectedTask(null); }}
+    />
 
-    {/* Postpone Modal */}
-    {postponeModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",backdropFilter:"blur(4px)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,overflowY:"auto"}} onClick={e=>{if(e.target===e.currentTarget){setPostponeModal(null);setPostponeDate("");setPostponeReason("");}}}>
-      <div className="card" style={{width:"100%",maxWidth:400,margin:20,maxHeight:"85vh",overflowY:"auto"}}>
-        <div className="card-header"><span className="card-title">Postpone: {postponeModal.title}</span></div>
-        <div className="form-group" style={{marginBottom:12}}>
-          <label className="form-label">New due date *</label>
-          <input type="date" className="form-input" value={postponeDate} onChange={e=>setPostponeDate(e.target.value)} min={new Date().toISOString().split("T")[0]}/>
-        </div>
-        <div className="form-group" style={{marginBottom:12}}>
-          <label className="form-label">Reason (optional)</label>
-          <textarea className="form-input" rows={2} value={postponeReason} onChange={e=>setPostponeReason(e.target.value)} placeholder="Why is this being postponed?" style={{resize:"vertical"}}/>
-        </div>
-        <div style={{display:"flex",gap:8}}>
-          <button className="btn btn-primary" onClick={postponeTask} disabled={!postponeDate}>Postpone</button>
-          <button className="btn btn-outline" onClick={()=>{setPostponeModal(null);setPostponeDate("");setPostponeReason("");}}>Cancel</button>
-        </div>
-      </div>
-    </div>}
+    <TaskPostponeModal
+      postponeModal={postponeModal}
+      postponeDate={postponeDate} setPostponeDate={setPostponeDate}
+      postponeReason={postponeReason} setPostponeReason={setPostponeReason}
+      onClose={() => { setPostponeModal(null); setPostponeDate(""); setPostponeReason(""); }}
+      onConfirm={postponeTask}
+    />
 
     {confirmEl}
   </>;
