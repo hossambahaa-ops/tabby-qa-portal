@@ -7,34 +7,12 @@ import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
-import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-
-const ATTENDANCE_TYPES = [
-  {code:"P",label:"Present",color:"#22C55E",bg:"#22C55E20"},
-  {code:"H",label:"Work from Home",color:"#3B82F6",bg:"#3B82F620"},
-  {code:"OT",label:"Overtime",color:"#0D9488",bg:"#0D948820"},
-  {code:"L",label:"Late Arrival",color:"#F97316",bg:"#F9731620"},
-  {code:"PH",label:"Public Holiday",color:"#8B5CF6",bg:"#8B5CF620"},
-  {code:"EL",label:"Early Leave",color:"#EAB308",bg:"#EAB30820"},
-  {code:"AL",label:"Annual Leave",color:"#EF4444",bg:"#EF444420"},
-  {code:"Paid SL",label:"Sick Leave",color:"#B91C1C",bg:"#B91C1C20"},
-  {code:"ML",label:"Maternity Leave",color:"#EC4899",bg:"#EC489920"},
-  {code:"UL",label:"Unpaid Leave",color:"#6B7280",bg:"#6B728020"},
-  {code:"NSNC",label:"No Show No Call",color:"#E11D48",bg:"#E11D4825"},
-  {code:"OFF",label:"Weekend / Holiday",color:"#9CA3AF",bg:"#9CA3AF15"},
-  {code:"X",label:"Not Employed",color:"#6B7280",bg:"#6B728010"},
-];
-const ATT_MAP = {};
-ATTENDANCE_TYPES.forEach(t => { ATT_MAP[t.code] = t; });
-// Codes that need lead approval when set by a QA themselves. Leads
-// setting these for their team approve them implicitly.
-const APPROVAL_CODES = new Set(["OT", "PH"]);
-// Codes shown in the cell picker. OT is intentionally excluded — it's a
-// separate request flow behind the "Request OT" header button so it
-// can't be set casually by clicking around.
-const PICKER_TYPES = ATTENDANCE_TYPES.filter(t => t.code !== "OT");
+import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES } from "../lib/attendance.js";
+import AttendanceBulkModal from "../components/attendance/AttendanceBulkModal.jsx";
+import AttendanceCsvUpload from "../components/attendance/AttendanceCsvUpload.jsx";
+import AttendanceOtModal from "../components/attendance/AttendanceOtModal.jsx";
 
 function SchedulePage() {
   const{token,profile,gf,globalToast}=useApp();
@@ -749,157 +727,48 @@ function SchedulePage() {
         </table>
       </div>
 
-      {/* CSV Upload popup — positioned at top */}
-      {csvUpload&&<div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(0,0,0,0.5)",display:"flex",justifyContent:"center",alignItems:"flex-start",paddingTop:60}} onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}}>
-        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"var(--shadow-lg)",width:"100%",maxWidth:600,padding:20,maxHeight:"80vh",overflow:"auto"}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <div style={{fontSize:16,fontWeight:700,color:"var(--tx)"}}>Upload attendance CSV</div>
-            <button onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"var(--tx3)"}}>×</button>
-          </div>
-          {csvPreview.length===0?<>
-            <div style={{fontSize:12,color:"var(--tx2)",marginBottom:12,lineHeight:1.6}}>
-              Download the CSV template, fill in the attendance codes, then upload here. Existing data will be overwritten.
-            </div>
-            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
-              {ATTENDANCE_TYPES.map(t=><span key={t.code} style={{fontSize:9,padding:"2px 5px",borderRadius:3,background:t.bg,color:t.color,fontWeight:700}}>{t.code}</span>)}
-            </div>
-            <div style={{display:"flex",gap:8,marginBottom:16}}>
-              <button className="btn btn-outline btn-sm" onClick={downloadCsvTemplate}>Download template for {selMonth}</button>
-            </div>
-            <div className="form-group">
-              <label className="form-label">Upload filled CSV</label>
-              <input type="file" accept=".csv" className="form-input" onChange={e=>{const f=e.target.files[0];if(f){setCsvFile(f);parseCsvUpload(f);}}}/>
-            </div>
-          </>:<>
-            <div style={{fontSize:14,fontWeight:700,marginBottom:4}}>Preview — {csvPreview.length} QAs, {csvPreview.reduce((a,p)=>a+p.entries.length,0)} records</div>
-            <div style={{fontSize:12,color:"var(--tx3)",marginBottom:4}}>Month: {selMonth}</div>
-            <div style={{fontSize:11,color:"var(--amber)",marginBottom:12}}>Existing records will be overwritten.</div>
-            <div style={{maxHeight:280,overflow:"auto",border:"1px solid var(--bd2)",borderRadius:8,marginBottom:16}}>
-              <table><thead><tr><th>QA</th><th>Records</th><th>Sample</th></tr></thead>
-              <tbody>{csvPreview.map(p=>(
-                <tr key={p.email}>
-                  <td style={{fontSize:12,fontWeight:500}}>{p.email}</td>
-                  <td style={{fontSize:12}}>{p.entries.length} days</td>
-                  <td style={{fontSize:11}}>{p.entries.slice(0,5).map(e=>{const at=ATT_MAP[e.status];return <span key={e.day} style={{padding:"1px 4px",borderRadius:3,background:at?.bg,color:at?.color,fontWeight:700,fontSize:9,marginRight:2}}>{e.day}:{e.status}</span>})}{p.entries.length>5&&<span style={{color:"var(--tx3)"}}>+{p.entries.length-5}</span>}</td>
-                </tr>
-              ))}</tbody></table>
-            </div>
-            <div style={{display:"flex",gap:8}}>
-              <button className="btn btn-primary btn-sm" disabled={csvUploading} onClick={executeCsvUpload}>
-                {csvUploading?"Uploading...":"Confirm & upload"}
-              </button>
-              <button className="btn btn-outline btn-sm" onClick={()=>{setCsvPreview([]);setCsvFile(null);}}>Back</button>
-              <button className="btn btn-outline btn-sm" onClick={()=>{setCsvUpload(false);setCsvFile(null);setCsvPreview([]);}}>Cancel</button>
-            </div>
-          </>}
-        </div>
-      </div>}
+      <AttendanceCsvUpload
+        open={csvUpload}
+        onClose={() => setCsvUpload(false)}
+        csvFile={csvFile} setCsvFile={setCsvFile}
+        csvPreview={csvPreview} setCsvPreview={setCsvPreview}
+        csvUploading={csvUploading}
+        selMonth={selMonth}
+        parseCsvUpload={parseCsvUpload}
+        executeCsvUpload={executeCsvUpload}
+        downloadCsvTemplate={downloadCsvTemplate}
+      />
 
-      {/* Request / Add OT popup */}
-      {otModal&&<div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(0,0,0,0.5)",display:"flex",justifyContent:"center",alignItems:"flex-start",paddingTop:80}} onClick={()=>setOtModal(false)}>
-        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"var(--shadow-lg)",width:"100%",maxWidth:460,padding:20}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
-            <div style={{fontSize:16,fontWeight:700,color:"var(--tx)",display:"flex",alignItems:"center",gap:8}}>
-              <span style={{fontSize:12,padding:"3px 8px",borderRadius:6,background:"#0D948820",color:"#0D9488",fontWeight:700}}>OT</span>
-              {isQA ? "Request overtime" : "Add overtime"}
-            </div>
-            <button onClick={()=>setOtModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"var(--tx3)"}}>×</button>
-          </div>
-          <div style={{fontSize:12,color:"var(--tx2)",marginBottom:12,lineHeight:1.5}}>
-            {isQA
-              ? "Pick the day(s) you worked overtime. Your QA Lead will get a notification and can approve or replace it."
-              : "Pick the day(s) and the QA. This is added directly as approved overtime — no further approval needed."}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-            <div className="form-group"><label className="form-label">From</label>
-              <input type="date" className="form-input" value={otFrom} onChange={e=>setOtFrom(e.target.value)}/>
-            </div>
-            <div className="form-group"><label className="form-label">To</label>
-              <input type="date" className="form-input" value={otTo} onChange={e=>setOtTo(e.target.value)}/>
-            </div>
-            <div className="form-group"><label className="form-label">Hours per day</label>
-              <input type="number" min="0.25" step="0.25" className="form-input" value={otHoursPerDay} onChange={e=>setOtHoursPerDay(e.target.value)}/>
-            </div>
-            <div className="form-group" style={{display:"flex",flexDirection:"column",justifyContent:"flex-end"}}>
-              <div style={{fontSize:11,color:"var(--tx3)",padding:"6px 0"}}>
-                Total: <strong style={{color:"var(--tx)"}}>{(()=>{
-                  if(!otFrom||!otTo)return"—";
-                  const s=new Date(otFrom+"T00:00:00"),e=new Date(otTo+"T00:00:00");
-                  if(e<s)return"—";
-                  const days=Math.round((e-s)/(86400000))+1;
-                  const h=parseFloat(otHoursPerDay)||0;
-                  return `${(days*h).toFixed(2)}h across ${days} day${days>1?"s":""}`;
-                })()}</strong>
-              </div>
-            </div>
-          </div>
-          {!isQA && <div className="form-group" style={{marginBottom:12}}>
-            <label className="form-label">QA</label>
-            <SearchableSelect options={visibleQAs.map(r=>({value:r.email,label:r.email+" — "+nameFromEmail(r.email)}))}
-              value={otTarget} onChange={setOtTarget} placeholder="Pick the QA..."/>
-          </div>}
-          <div className="form-group" style={{marginBottom:14}}>
-            <label className="form-label">Note (optional)</label>
-            <input type="text" className="form-input" value={otNote} onChange={e=>setOtNote(e.target.value)} placeholder="e.g. weekend coverage for launch"/>
-          </div>
-          <div style={{display:"flex",gap:8}}>
-            <button className="btn btn-primary btn-sm" onClick={applyOtRequest}>{isQA ? "Send request" : "Add OT"}</button>
-            <button className="btn btn-outline btn-sm" onClick={()=>setOtModal(false)}>Cancel</button>
-          </div>
-        </div>
-      </div>}
+      <AttendanceOtModal
+        open={otModal}
+        onClose={() => setOtModal(false)}
+        isQA={isQA}
+        visibleQAs={visibleQAs}
+        otFrom={otFrom} setOtFrom={setOtFrom}
+        otTo={otTo} setOtTo={setOtTo}
+        otHoursPerDay={otHoursPerDay} setOtHoursPerDay={setOtHoursPerDay}
+        otTarget={otTarget} setOtTarget={setOtTarget}
+        otNote={otNote} setOtNote={setOtNote}
+        applyOtRequest={applyOtRequest}
+      />
 
-      {/* Bulk set popup — positioned at top */}
-      {bulkModal&&<div style={{position:"fixed",inset:0,zIndex:999,background:"rgba(0,0,0,0.5)",display:"flex",justifyContent:"center",alignItems:"flex-start",paddingTop:60}} onClick={()=>setBulkModal(false)}>
-        <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"var(--shadow-lg)",width:"100%",maxWidth:520,padding:20}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <div style={{fontSize:16,fontWeight:700,color:"var(--tx)"}}>Bulk set attendance</div>
-            <button onClick={()=>setBulkModal(false)} style={{background:"none",border:"none",cursor:"pointer",fontSize:20,color:"var(--tx3)"}}>×</button>
-          </div>
-
-          {/* Quick actions */}
-          <div style={{display:"flex",gap:8,marginBottom:16,flexWrap:"wrap"}}>
-            <button className="btn btn-sm" style={{fontSize:11,background:bulkStatus==="P"&&bulkDayFilter==="weekdays"?"var(--green)":"var(--green-bg)",color:bulkStatus==="P"&&bulkDayFilter==="weekdays"?"#fff":"var(--green)",border:"1px solid var(--green)",fontWeight:600,transition:"all .15s"}} onClick={()=>{setBulkStatus("P");setBulkDayFilter("weekdays");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>Set P for Sun–Thu</button>
-            <button className="btn btn-sm" style={{fontSize:11,background:bulkStatus==="OFF"&&bulkDayFilter==="weekends"?"var(--tx2)":"rgba(156,163,175,0.1)",color:bulkStatus==="OFF"&&bulkDayFilter==="weekends"?"var(--bg3)":"var(--tx2)",border:"1px solid var(--bd)",fontWeight:600,transition:"all .15s"}} onClick={()=>{setBulkStatus("OFF");setBulkDayFilter("weekends");setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);}}>Set OFF for Fri–Sat</button>
-          </div>
-
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
-            <div className="form-group"><label className="form-label">From</label>
-              <input type="date" className="form-input" value={bulkFrom} onChange={e=>setBulkFrom(e.target.value)}/>
-            </div>
-            <div className="form-group"><label className="form-label">To</label>
-              <input type="date" className="form-input" value={bulkTo} onChange={e=>setBulkTo(e.target.value)}/>
-            </div>
-            <div className="form-group"><label className="form-label">Status</label>
-              <select className="select form-input" value={bulkStatus} onChange={e=>setBulkStatus(e.target.value)}>
-                {ATTENDANCE_TYPES.map(t => <option key={t.code} value={t.code}>{t.code} — {t.label}</option>)}
-              </select>
-            </div>
-            <div className="form-group"><label className="form-label">Apply on days</label>
-              <select className="select form-input" value={bulkDayFilter} onChange={e=>setBulkDayFilter(e.target.value)}>
-                <option value="all">All days in range</option>
-                <option value="weekdays">Sun–Thu only</option>
-                <option value="weekends">Fri–Sat only</option>
-              </select>
-            </div>
-            <div className="form-group"><label className="form-label">Apply to</label>
-              <select className="select form-input" value={bulkScope} onChange={e=>setBulkScope(e.target.value)}>
-                <option value="my_team">{isLead&&!hasRole(profile?.role,"qa_supervisor")?"My team (direct reports)":hasRole(profile?.role,"qa_supervisor")?"All QAs in my domain":"All QAs"}</option>
-                <option value="specific">Specific person</option>
-                {selectedQAs.size>0&&<option value="selected">Selected QAs ({selectedQAs.size})</option>}
-              </select>
-            </div>
-            {bulkScope==="specific"&&<div className="form-group"><label className="form-label">Person</label>
-              <SearchableSelect options={visibleQAs.map(r=>({value:r.email,label:r.email+" — "+nameFromEmail(r.email)}))}
-                value={bulkPerson} onChange={setBulkPerson} placeholder="Select person..."/>
-            </div>}
-          </div>
-          <div style={{display:"flex",gap:8}}>
-            <button className="btn btn-primary btn-sm" onClick={applyBulk}>Apply</button>
-            <button className="btn btn-outline btn-sm" onClick={()=>setBulkModal(false)}>Cancel</button>
-          </div>
-        </div>
-      </div>}
+      <AttendanceBulkModal
+        open={bulkModal}
+        onClose={() => setBulkModal(false)}
+        bulkStatus={bulkStatus} setBulkStatus={setBulkStatus}
+        bulkDayFilter={bulkDayFilter} setBulkDayFilter={setBulkDayFilter}
+        bulkFrom={bulkFrom} setBulkFrom={setBulkFrom}
+        bulkTo={bulkTo} setBulkTo={setBulkTo}
+        bulkScope={bulkScope} setBulkScope={setBulkScope}
+        bulkPerson={bulkPerson} setBulkPerson={setBulkPerson}
+        selMonth={selMonth}
+        daysInMonth={daysInMonth}
+        isLead={isLead}
+        profile={profile}
+        selectedQAs={selectedQAs}
+        visibleQAs={visibleQAs}
+        applyBulk={applyBulk}
+      />
     </div>
   );
 }
