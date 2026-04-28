@@ -2,17 +2,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, csatPctValue, csatColor } from "../lib/utils.js";
-import { listRoster } from "../api/roster.js";
-import { listProfiles } from "../api/profiles.js";
-import { listMtd } from "../api/mtd.js";
-import { listTasks } from "../api/tasks.js";
-import { listCoachingSessions } from "../api/coachingSessions.js";
-import { listTeamTargets } from "../api/teamTargets.js";
-import { listPlans } from "../api/plans.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
+import { useQaProfileData } from "../lib/useQaProfileData.jsx";
 
 // Safe render: prevent objects/arrays from crashing React
 const safe = (v) => {
@@ -22,17 +16,18 @@ const safe = (v) => {
 };
 
 function QAProfilePage() {
-  const{token,profile,gf}=useApp();
-  const [roster, setRoster] = useState([]);
-  const [mtd, setMtd] = useState([]);
-  const [sessions, setSessions] = useState([]);
-  const [plans, setPlans] = useState([]);
-  const [tasks, setTasks] = useState([]);
-  const [flags, setFlags] = useState([]);
-  const [qaAttendance, setQaAttendance] = useState([]);
-  const [dailyScores, setDailyScores] = useState([]);
-  const [teamTargets, setTeamTargets] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const { token, profile, gf } = useApp();
+  const isQA = profile?.role === "qa" || profile?.role === "senior_qa";
+  const isLead = hasRole(profile?.role, "qa_lead");
+  const myEmail = profile?.email?.toLowerCase() || "";
+
+  // Bulk data load is owned by useQaProfileData; the page keeps the
+  // selection / search / expanded-row state plus the per-QA derivations.
+  const {
+    roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
+    loading, allQAs, qaLeadSet,
+  } = useQaProfileData(token, profile);
+
   const [selectedQA, setSelectedQA] = useUrlState("qa", "");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSession, setExpandedSession] = useState(null);
@@ -41,95 +36,16 @@ function QAProfilePage() {
   const [expandedTask, setExpandedTask] = useState(null);
   const [selMonth, setSelMonth] = useState(null);
 
-  const isQA = profile?.role === "qa" || profile?.role === "senior_qa";
-  const isLead = hasRole(profile?.role, "qa_lead");
-  const myEmail = profile?.email?.toLowerCase() || "";
+  // QAs land on their own profile by default — once data loads.
+  useEffect(() => {
+    if (!loading && isQA && myEmail && !selectedQA) setSelectedQA(myEmail);
+  }, [loading, isQA, myEmail, selectedQA, setSelectedQA]);
 
   const nameFromEmail = (email) => {
     if (!email) return "—";
     const local = email.split("@")[0];
     return local.split(".").map(p => { const c = p.replace(/[\d]+$/, ""); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ""; }).filter(Boolean).join(" ");
   };
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const curMonth = new Date().toISOString().slice(0,7);
-        const [r, m, s, ap, t, f, profs, att, ds, tgt] = await Promise.all([
-          listRoster({ token, select: "email,display_name,manager_email,queue,country,hiring_date", cacheKey: "qa_roster_full" }),
-          listMtd({ token }),
-          listCoachingSessions({ token, select: "id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass", filters: "order=session_date.desc" }),
-          listPlans({ token, select: "id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)", filters: "", cacheKey: "action_plans_full", cache: true }),
-          listTasks({ token }),
-          sb.query("dam_flags", {select:"id,qa_email,severity,status,triggered_at,occurrence_number,reviewed_by,reviewed_at,notes,dam_rules(name,behavior_type,recommended_action)",filters:"order=triggered_at.desc",token}).catch(()=>[]),
-          listProfiles({ token, select: "email,role", filters: "", cacheKey: "profiles_email_role" }),
-          sb.query("qa_attendance", {select:"email,date,status",filters:`date=gte.${curMonth}-01&order=date.asc`,token}).catch(()=>[]),
-          sb.query("daily_scores", {select:"*",filters:`date=eq.${new Date().toISOString().split("T")[0]}`,token}).catch(()=>[]),
-          listTeamTargets({ token }),
-        ]);
-        setRoster(Array.isArray(r) ? r : []);
-        setMtd(Array.isArray(m) ? m : []);
-        setSessions(Array.isArray(s) ? s : []);
-        setPlans(Array.isArray(ap) ? ap : []);
-        setTasks(Array.isArray(t) ? t : []);
-        setFlags(Array.isArray(f) ? f : []);
-        setQaAttendance(Array.isArray(att) ? att : []);
-        setDailyScores(Array.isArray(ds) ? ds : []);
-        setTeamTargets(Array.isArray(tgt) ? tgt : []);
-        // Store qa_lead emails and all profiles for filtering
-        const allProfs = Array.isArray(profs)?profs:[];
-        const leads = allProfs.filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase());
-        window.__qaLeadEmails = new Set(leads);
-        window.__allProfiles = allProfs;
-        if (isQA) setSelectedQA(myEmail);
-      } catch(e) { console.error("QA Profile load:", e); }
-      setLoading(false);
-    })();
-  }, [token]);
-
-  // Build QA lead set for filtering
-  const qaLeadSet = window.__qaLeadEmails || new Set();
-
-  // Build full list: roster + anyone in MTD not in roster — only QAs under the 9 leads
-  const allQAs = (() => {
-    const map = new Map();
-    // Exclude anyone with a profile role above QA/senior_qa
-    const nonQaEmails = new Set();
-    (window.__qaLeadEmails || new Set()).forEach(em => { nonQaEmails.add(em); });
-    // Also exclude admins, super_admins, supervisors by checking profiles
-    const excludeRoles = new Set(["qa_lead","qa_supervisor","admin","super_admin"]);
-    (window.__allProfiles || []).filter(p => excludeRoles.has(p.role)).forEach(p => {
-      if (p.email) {
-        nonQaEmails.add(p.email.toLowerCase());
-        nonQaEmails.add(p.email.toLowerCase().split("@")[0]);
-      }
-    });
-    // Sr QAs (qa_roster.role = 'Sr QA') stay on the roster but are filtered
-    // out of the QA Profile list per product spec — they're not evaluated here.
-    const isSrQa = (r) => /^(sr\.?|senior)\s*qa$/i.test((r.role || "").trim());
-    const srQaEmails = new Set();
-    roster.forEach(r => { if (isSrQa(r) && r.email) srQaEmails.add(r.email.toLowerCase()); });
-    roster.forEach(r => {
-      const em = r.email?.toLowerCase();
-      if (!em || nonQaEmails.has(em) || nonQaEmails.has(em.split("@")[0])) return;
-      if (srQaEmails.has(em)) return;
-      const mgr = r.manager_email?.toLowerCase();
-      if (!mgr) return;
-      if (qaLeadSet.has(mgr) || qaLeadSet.has(mgr.split("@")[0])) {
-        map.set(em, r);
-      }
-    });
-    mtd.forEach(m => {
-      const em = m.qa_email?.toLowerCase();
-      if (!em || map.has(em) || nonQaEmails.has(em) || nonQaEmails.has(em.split("@")[0])) return;
-      if (srQaEmails.has(em)) return;
-      const tl = m.qa_tl?.toLowerCase();
-      if (tl && (qaLeadSet.has(tl) || qaLeadSet.has(tl.split("@")[0]))) {
-        map.set(em, { email: em, manager_email: m.qa_tl, queue: null, country: null });
-      }
-    });
-    return [...map.values()];
-  })();
 
   // Scope: QAs see only themselves, leads see their team, supervisors+ see all
   const visibleQAs = (() => {
