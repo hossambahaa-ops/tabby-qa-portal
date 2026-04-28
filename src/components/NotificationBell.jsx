@@ -59,17 +59,22 @@ function NotificationBell({ onNavigate }) {
           queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
           queries.push(listPlans({ token, select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: `tl_email=eq.${myEmail}&status=eq.active&order=created_at.desc&limit=10` }));
         }
-        // QA Lead also gets attendance approval requests (OT/PH) from their team
-        let attReqIdx = -1;
-        if (isLead) {
-          attReqIdx = queries.length;
-          queries.push(sb.query("qa_attendance", { select: "id,email,date,status,requested_by,created_at,updated_at", filters: "approval_status=eq.pending&order=updated_at.desc&limit=20", token }).catch(() => []));
-        }
-        // Supervisors see their domain's violations + DAM flags
+        // Supervisors see their domain's violations + DAM flags. Order
+        // matters: violations / dam_flags / plans must always sit at
+        // results[5] / [6] / [7] regardless of which role-branch ran.
         if (isSv) {
           queries.push(listViolations({ token, select: "id,violation_type,qa_emails,lead_email,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10" }));
           queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
           queries.push(listPlans({ token, select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: "status=eq.active&order=created_at.desc&limit=10" }));
+        }
+        // QA Lead also gets attendance approval requests (OT/PH) from their
+        // team. Pushed AFTER the supervisor block so its index is always
+        // recorded via attReqIdx and never shifts the violations / dam /
+        // plans triple at indices 5–7.
+        let attReqIdx = -1;
+        if (isLead) {
+          attReqIdx = queries.length;
+          queries.push(sb.query("qa_attendance", { select: "id,email,date,status,requested_by,created_at,updated_at", filters: "approval_status=eq.pending&order=updated_at.desc&limit=20", token }).catch(() => []));
         }
         // Admins (and super admins) see new user feedback submissions
         let newFeedbackIdx = -1;
