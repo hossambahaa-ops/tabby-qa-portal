@@ -28,8 +28,12 @@ function TeamManagementPage(){
 
   const nameFromEmail=(email)=>{if(!email)return"—";return email.split("@")[0].split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
   const leads=users.filter(u=>hasRole(u.role,"qa_lead")),supervisors=users.filter(u=>hasRole(u.role,"qa_supervisor"));
-  const getMemberCount=(teamName)=>roster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain))).length;
-  const getTeamMembers=(teamName)=>roster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain)));
+  // Sr QAs are kept in the roster for visibility but excluded from team
+  // member counts here, matching the behavior on MTD + QA Profile.
+  const isSrQa = (r) => /^(sr\.?|senior)\s*qa$/i.test((r?.role || "").trim());
+  const teamRoster = roster.filter(r => !isSrQa(r));
+  const getMemberCount=(teamName)=>teamRoster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain))).length;
+  const getTeamMembers=(teamName)=>teamRoster.filter(r=>r.queue===teamName&&(!filterDomain||r.email?.endsWith("@"+filterDomain)));
 
   const save=async()=>{try{const b={name:form.name,domain:form.domain,lead_id:form.lead_id||null,supervisor_id:form.supervisor_id||null};if(editId){await sb.query("teams",{token,method:"PATCH",body:b,filters:`id=eq.${editId}`});logActivity(token,profile?.email,"team_updated","teams",editId,`Name: ${form.name}`);globalToast("success","Team updated");}else{await sb.query("teams",{token,method:"POST",body:b});logActivity(token,profile?.email,"team_created","teams",null,`Name: ${form.name}, Domain: ${form.domain}`);globalToast("success","Team created");}setShowForm(false);setEditId(null);setForm({name:"",domain:"tabby.ai",lead_id:"",supervisor_id:""});load();}catch(e){globalToast("error",safeError(e));}};
   const startEdit=(t)=>{setForm({name:t.name,domain:t.domain,lead_id:t.lead_id||"",supervisor_id:t.supervisor_id||""});setEditId(t.id);setShowForm(true);};
@@ -77,7 +81,7 @@ function TeamManagementPage(){
 
   return(<div className="page">
     <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
-      <div><div className="page-title">Team management</div><div className="page-subtitle">{teams.length} teams · {roster.length} roster members{lastSync?.ran_at ? ` · last synced ${new Date(lastSync.ran_at).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}`:""}</div></div>
+      <div><div className="page-title">Team management</div><div className="page-subtitle">{teams.length} teams · {teamRoster.length} roster members{lastSync?.ran_at ? ` · last synced ${new Date(lastSync.ran_at).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}`:""}</div></div>
       <div style={{display:"flex",gap:8}}>
         <button className="btn btn-outline" disabled={syncing} onClick={runSync} title="Pull the latest QA Roster Distro from the Google Sheet and apply any changes to roster + teams">
           {syncing ? "Syncing…" : "🔄 Sync from Distro"}
