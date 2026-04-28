@@ -9,6 +9,9 @@ import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import { SYSTEM_COLS, DEFAULT_MTD_COLS, COL_LABELS } from "../lib/mtdColumns.js";
+import MtdUploadModal from "../components/mtd/MtdUploadModal.jsx";
+import MtdBulkTaskModal from "../components/mtd/MtdBulkTaskModal.jsx";
 
 function ScoreEntryPage(){
   const{token,profile,gf,globalToast}=useApp();
@@ -130,30 +133,12 @@ function ScoreEntryPage(){
   };
 
   // === UPLOAD DATA LOGIC ===
-  const SYSTEM_COLS = ["id","synced_at","manual_fields","qa_email","month","qa_tl"];
-  const allMtdCols = data.length > 0 ? Object.keys(data[0]).filter(k => !SYSTEM_COLS.includes(k)).sort() : 
-    ["sbs","non_sbs","dsat","late_count","never_count","valid_count","invalid_count","side_tasks_duration_mins",
-     "coaching_sessions","total_coachings_by_coaching_created_date","total_coachings_by_eval_created_date",
-     "total_ontime_coachings","coaching_eligibility_count","not_coached","rtr_count","avg_rtr_score",
-     "observed_coaching_count","avg_observation_score_pct","calibration_count","avg_calibration_match_rate",
-     "coaching_completion_pct","ontime_coaching_pct","jkq_score","jkq_result","jkq_episode",
-     "working_days","ramadan_wds","occupancy_pct","coaching_ontime_score","ticket_per_day",
-     "occupancy_score","calibration_score","coaching_observation_score","rtr_score","final_performance",
-     "csat_pct","csat_total","csat_good","csat_bad"];
-
-  const COL_LABELS = {sbs:"SBS",non_sbs:"Non-SBS",dsat:"DSAT",late_count:"Late count",never_count:"Never count",
-    valid_count:"Valid count",invalid_count:"Invalid count",side_tasks_duration_mins:"Side tasks (mins)",
-    coaching_sessions:"Coaching sessions",total_coachings_by_coaching_created_date:"Total coachings (by coaching date)",
-    total_coachings_by_eval_created_date:"Total coachings (by eval date)",total_ontime_coachings:"On-time coachings",
-    coaching_eligibility_count:"Coaching eligibility",not_coached:"Not coached",rtr_count:"RTR count",
-    avg_rtr_score:"RTR score",observed_coaching_count:"Observed coaching count",
-    avg_observation_score_pct:"Coaching observation %",calibration_count:"Calibration count",
-    avg_calibration_match_rate:"Calibration match rate",coaching_completion_pct:"Coaching completion %",
-    ontime_coaching_pct:"On-time coaching %",jkq_score:"JKQ score",jkq_result:"JKQ result",jkq_episode:"JKQ episode",
-    working_days:"Working days",ramadan_wds:"Ramadan WDs",occupancy_pct:"Occupancy %",
-    coaching_ontime_score:"Coaching on-time score",ticket_per_day:"Tickets/day",occupancy_score:"Occupancy score",
-    calibration_score:"Calibration score",coaching_observation_score:"CO score",rtr_score:"RTR score (calc)",
-    final_performance:"Final performance",csat_pct:"CSAT %",csat_total:"Surveys",csat_good:"CSAT good",csat_bad:"CSAT bad"};
+  // Column metadata lives in lib/mtdColumns.js. SYSTEM_COLS / COL_LABELS
+  // imported above; the active editable list is derived from row keys
+  // once data has loaded.
+  const allMtdCols = data.length > 0
+    ? Object.keys(data[0]).filter(k => !SYSTEM_COLS.includes(k)).sort()
+    : DEFAULT_MTD_COLS;
 
   const downloadTemplate = () => {
     if (!uploadMonth || uploadCols.length === 0) return;
@@ -642,140 +627,24 @@ function ScoreEntryPage(){
     )}
 
     {/* Upload Data Modal */}
-    {showUpload&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",zIndex:1000,display:"flex",alignItems:"flex-start",justifyContent:"center",padding:"60px 20px 20px"}} onClick={e=>{if(e.target===e.currentTarget)setShowUpload(false);}}>
-      <div className="card" style={{width:"100%",maxWidth:720,maxHeight:"85vh",overflow:"auto",background:"var(--card-bg,var(--bg2))",boxShadow:"0 20px 60px rgba(0,0,0,.4)"}}>
-        <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}><Icon d={icons.upload} size={18}/>Upload data to MTD</span>
-          <button className="btn btn-outline btn-sm" onClick={()=>setShowUpload(false)} style={{padding:"4px 8px"}}><Icon d="M6 18L18 6M6 6l12 12" size={16}/></button>
-        </div>
-
-        {uploadStep==="config"&&<div style={{padding:16}}>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-            <div className="form-group">
-              <label className="form-label">Month</label>
-              <SearchableSelect options={months} value={uploadMonth} onChange={setUploadMonth} placeholder="Select month"/>
-            </div>
-            <div className="form-group">
-              <label className="form-label" style={{display:"flex",alignItems:"center",gap:6}}>Overwrite existing values
-                <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,background:uploadOverwrite?"var(--red-bg)":"var(--bg3)",color:uploadOverwrite?"var(--red)":"var(--tx3)",fontWeight:600}}>{uploadOverwrite?"ON":"OFF"}</span>
-              </label>
-              <label style={{display:"flex",alignItems:"center",gap:8,cursor:"pointer",fontSize:13,color:"var(--tx2)"}}>
-                <input type="checkbox" checked={uploadOverwrite} onChange={e=>setUploadOverwrite(e.target.checked)} style={{width:16,height:16}}/>
-                {uploadOverwrite?"Will replace existing synced data":"Only fills empty/null cells (safe mode)"}
-              </label>
-            </div>
-          </div>
-
-          <div className="form-group" style={{marginBottom:16}}>
-            <label className="form-label">Columns to update (pick one or more)</label>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:6,maxHeight:240,overflow:"auto",padding:8,border:"1px solid var(--bd2)",borderRadius:8,background:"var(--bg)"}}>
-              {allMtdCols.map(col=>(
-                <label key={col} style={{display:"flex",alignItems:"center",gap:6,cursor:"pointer",fontSize:12,color:uploadCols.includes(col)?"var(--tx)":"var(--tx3)",padding:"4px 6px",borderRadius:6,background:uploadCols.includes(col)?"var(--accent-light)":"transparent"}}>
-                  <input type="checkbox" checked={uploadCols.includes(col)} onChange={e=>{
-                    if(e.target.checked)setUploadCols([...uploadCols,col]);
-                    else setUploadCols(uploadCols.filter(c=>c!==col));
-                  }} style={{width:14,height:14}}/>
-                  {COL_LABELS[col]||col}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div style={{display:"flex",gap:8,marginBottom:20}}>
-            <button className="btn btn-primary" disabled={!uploadMonth||uploadCols.length===0} onClick={downloadTemplate}>
-              <Icon d="M12 10v6m0 0l-3-3m3 3l3-3M3 17v3a2 2 0 002 2h14a2 2 0 002-2v-3" size={16}/>Download CSV template
-            </button>
-            <label className="btn btn-outline" style={{cursor:!uploadMonth||uploadCols.length===0?"not-allowed":"pointer",opacity:!uploadMonth||uploadCols.length===0?.5:1}}>
-              <Icon d={icons.upload} size={16}/>Upload filled CSV
-              <input type="file" accept=".csv" style={{display:"none"}} disabled={!uploadMonth||uploadCols.length===0}
-                onChange={e=>{if(e.target.files[0])handleFileUpload(e.target.files[0]);e.target.value="";}}/>
-            </label>
-          </div>
-
-          {/* Upload history */}
-          {uploadLogs.length>0&&<div>
-            <div style={{fontSize:12,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Recent uploads</div>
-            <div style={{fontSize:12,border:"1px solid var(--bd2)",borderRadius:8,overflow:"hidden"}}>
-              {uploadLogs.map((log,i)=>(
-                <div key={log.id} style={{padding:"8px 12px",display:"flex",justifyContent:"space-between",alignItems:"center",borderBottom:i<uploadLogs.length-1?"1px solid var(--bd)":"none",background:i%2===0?"var(--bg)":"transparent"}}>
-                  <div>
-                    <span style={{fontWeight:500,color:"var(--tx)"}}>{nameFromEmail(log.uploaded_by)}</span>
-                    <span style={{color:"var(--tx3)",margin:"0 6px"}}>uploaded</span>
-                    <span style={{fontWeight:500,color:"var(--accent-text)"}}>{(log.columns_updated||[]).join(", ")}</span>
-                    <span style={{color:"var(--tx3)",margin:"0 6px"}}>for</span>
-                    <span style={{fontWeight:500}}>{log.month}</span>
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:11,color:"var(--tx3)"}}>{log.rows_affected} updated{log.rows_created>0?`, ${log.rows_created} created`:""}</span>
-                    {log.overwrite_enabled&&<span style={{fontSize:9,padding:"1px 5px",borderRadius:4,background:"var(--red-bg)",color:"var(--red)",fontWeight:600}}>OVERWRITE</span>}
-                    <span style={{fontSize:11,color:"var(--tx3)"}}>{new Date(log.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>}
-        </div>}
-
-        {uploadStep==="preview"&&<div style={{padding:16}}>
-          <div style={{marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <div>
-              <div style={{fontSize:14,fontWeight:600,color:"var(--tx)"}}>Preview — {uploadPreview.length} row{uploadPreview.length!==1?"s":""} will be {uploadOverwrite?"updated":"filled in"}</div>
-              <div style={{fontSize:12,color:"var(--tx3)"}}>Month: {uploadMonth} | Columns: {uploadCols.map(c=>COL_LABELS[c]||c).join(", ")}{uploadOverwrite?" | Overwrite: ON":""}</div>
-            </div>
-            <button className="btn btn-outline btn-sm" onClick={()=>setUploadStep("config")}>Back</button>
-          </div>
-          {uploadPreview.length===0?<div className="placeholder" style={{padding:30}}><p style={{color:"var(--tx3)"}}>No changes to apply. {uploadOverwrite?"All values are identical.":"All cells already have values. Enable 'Overwrite existing values' to replace them."}</p></div>:
-          <div style={{maxHeight:400,overflow:"auto",border:"1px solid var(--bd2)",borderRadius:8,marginBottom:16}}>
-            <table><thead><tr><th>QA</th><th>Status</th>{uploadCols.map(c=><th key={c}>{COL_LABELS[c]||c}</th>)}<th style={{width:40}}></th></tr></thead>
-            <tbody>{uploadPreview.map(row=>(
-              <tr key={row.qa_email}>
-                <td style={{fontWeight:500,fontSize:13}}>{row.name}</td>
-                <td><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,
-                  background:row.existing?"var(--green-bg)":"var(--blue-bg)",color:row.existing?"var(--green)":"var(--blue)"
-                }}>{row.existing?"Update":"New"}</span></td>
-                {uploadCols.map(col=>{
-                  const ch = row.changes[col];
-                  return <td key={col} style={{fontSize:12}}>
-                    {ch?<div>
-                      {ch.old!=null&&ch.old!==""&&<span style={{textDecoration:"line-through",color:"var(--tx3)",marginRight:4}}>{ch.old}</span>}
-                      <span style={{color:"var(--green)",fontWeight:600}}>{ch.new}</span>
-                    </div>:<span style={{color:"var(--tx3)"}}>—</span>}
-                  </td>;
-                })}
-                <td><button className="btn btn-outline btn-sm" style={{padding:"2px 6px",color:"var(--red)"}} onClick={()=>setUploadPreview(prev=>prev.filter(r=>r.qa_email!==row.qa_email))} title="Remove from upload"><Icon d={icons.trash} size={12}/></button></td>
-              </tr>
-            ))}</tbody></table>
-          </div>}
-          {uploadPreview.length>0&&<div style={{display:"flex",gap:8}}>
-            <button className="btn btn-primary" disabled={uploading} onClick={executeUpload}>
-              {uploading?<><div className="spinner" style={{width:14,height:14,borderWidth:2,marginRight:6}}/>Uploading...</>:"Confirm & apply changes"}
-            </button>
-            <button className="btn btn-outline" onClick={()=>setUploadStep("config")}>Cancel</button>
-          </div>}
-        </div>}
-
-        {uploadStep==="done"&&<div style={{padding:24,textAlign:"center"}}>
-          {uploadResult?.success?<>
-            <div style={{width:48,height:48,borderRadius:"50%",background:"var(--green-bg)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--green)" strokeWidth="2.5" strokeLinecap="round"><path d={icons.check}/></svg>
-            </div>
-            <div style={{fontSize:16,fontWeight:600,marginBottom:4}}>Upload complete</div>
-            <div style={{fontSize:13,color:"var(--tx2)",marginBottom:8}}>{uploadResult.rowsAffected} row{uploadResult.rowsAffected!==1?"s":""} updated{uploadResult.rowsCreated>0?`, ${uploadResult.rowsCreated} new row${uploadResult.rowsCreated!==1?"s":""} created`:""}</div>
-            {uploadResult.errors&&<div style={{textAlign:"left",maxHeight:120,overflow:"auto",background:"var(--amber-bg)",borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:12,color:"var(--amber)"}}>
-              <div style={{fontWeight:600,marginBottom:4}}>{uploadResult.errors.length} row{uploadResult.errors.length!==1?"s":""} had issues:</div>
-              {uploadResult.errors.map((e,i)=><div key={i} style={{marginBottom:2}}>{e}</div>)}
-            </div>}
-          </>:<>
-            <div style={{width:48,height:48,borderRadius:"50%",background:"var(--red-bg)",display:"flex",alignItems:"center",justifyContent:"center",margin:"0 auto 12px"}}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--red)" strokeWidth="2.5" strokeLinecap="round"><path d="M6 18L18 6M6 6l12 12"/></svg>
-            </div>
-            <div style={{fontSize:16,fontWeight:600,color:"var(--red)",marginBottom:4}}>Upload failed</div>
-            <div style={{fontSize:13,color:"var(--tx2)",marginBottom:16}}>{uploadResult?.error||"Unknown error"}</div>
-          </>}
-          <button className="btn btn-primary" onClick={()=>setShowUpload(false)}>Done</button>
-        </div>}
-      </div>
-    </div>}
+    <MtdUploadModal
+      open={showUpload}
+      onClose={() => setShowUpload(false)}
+      uploadStep={uploadStep} setUploadStep={setUploadStep}
+      uploadMonth={uploadMonth} setUploadMonth={setUploadMonth}
+      uploadCols={uploadCols} setUploadCols={setUploadCols}
+      uploadOverwrite={uploadOverwrite} setUploadOverwrite={setUploadOverwrite}
+      uploadPreview={uploadPreview} setUploadPreview={setUploadPreview}
+      uploading={uploading}
+      uploadResult={uploadResult}
+      uploadLogs={uploadLogs}
+      months={months}
+      allMtdCols={allMtdCols}
+      nameFromEmail={nameFromEmail}
+      handleFileUpload={handleFileUpload}
+      executeUpload={executeUpload}
+      downloadTemplate={downloadTemplate}
+    />
     {/* Floating action bar for bulk selection */}
     {selectedRows.size>0&&<div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",zIndex:1000,background:"rgba(13,11,16,.85)",backdropFilter:"blur(12px)",borderRadius:14,padding:"12px 20px",display:"flex",alignItems:"center",gap:16,boxShadow:"0 12px 40px rgba(0,0,0,.4)",border:"1px solid rgba(255,255,255,.08)"}}>
       <span style={{fontSize:13,fontWeight:600,color:"#fff"}}>{selectedRows.size} selected</span>
@@ -785,64 +654,38 @@ function ScoreEntryPage(){
       <button onClick={()=>setSelectedRows(new Set())} style={{background:"none",border:"1px solid rgba(255,255,255,.2)",borderRadius:8,padding:"5px 12px",fontSize:12,color:"rgba(255,255,255,.7)",cursor:"pointer",fontFamily:"var(--font)",fontWeight:500}}>Clear</button>
     </div>}
 
-    {/* Bulk task creation modal */}
-    {bulkTaskModal&&<div style={{position:"fixed",inset:0,zIndex:9999,background:"rgba(0,0,0,.6)",backdropFilter:"blur(6px)",display:"flex",justifyContent:"center",alignItems:"center"}} onClick={()=>setBulkTaskModal(false)}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"0 25px 50px rgba(0,0,0,.5)",width:"100%",maxWidth:480,padding:24,margin:16}}>
-        <div style={{fontSize:16,fontWeight:700,marginBottom:4}}>Assign Task to {selectedRows.size} QA{selectedRows.size!==1?"s":""}</div>
-        <div style={{fontSize:12,color:"var(--tx3)",marginBottom:16}}>One task will be created for each selected specialist</div>
-        <div className="form-group" style={{marginBottom:12}}>
-          <label className="form-label">Title</label>
-          <input className="form-input" value={bulkForm.title} onChange={e=>setBulkForm({...bulkForm,title:e.target.value})} placeholder="Task title..."/>
-        </div>
-        <div className="form-group" style={{marginBottom:12}}>
-          <label className="form-label">Description</label>
-          <textarea className="form-input" rows={3} value={bulkForm.description} onChange={e=>setBulkForm({...bulkForm,description:e.target.value})} placeholder="Optional description..." style={{resize:"vertical"}}/>
-        </div>
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-          <div className="form-group">
-            <label className="form-label">Priority</label>
-            <select className="form-input" value={bulkForm.priority} onChange={e=>setBulkForm({...bulkForm,priority:e.target.value})}>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Due date</label>
-            <input type="date" className="form-input" value={bulkForm.due_date} onChange={e=>setBulkForm({...bulkForm,due_date:e.target.value})}/>
-          </div>
-        </div>
-        <div style={{display:"flex",gap:8,justifyContent:"flex-end"}}>
-          <button className="btn btn-outline" onClick={()=>setBulkTaskModal(false)}>Cancel</button>
-          <button className="btn btn-primary" disabled={!bulkForm.title.trim()||bulkSending} onClick={async()=>{
-            setBulkSending(true);
-            let created=0;
-            try{
-              for(const email of selectedRows){
-                await sb.query("tasks",{token,method:"POST",body:{
-                  assigned_to:email,
-                  created_by:profile?.email,
-                  title:bulkForm.title.trim(),
-                  description:bulkForm.description.trim()||null,
-                  priority:bulkForm.priority,
-                  due_date:bulkForm.due_date||null,
-                  status:"pending",
-                }});
-                created++;
-              }
-              globalToast("success",`Created ${created} task${created!==1?"s":""}`);
-              setBulkTaskModal(false);
-              setSelectedRows(new Set());
-            }catch(e){
-              globalToast("error",`Created ${created}/${selectedRows.size} — ${e.message||"error"}`);
-            }
-            setBulkSending(false);
-          }}>
-            {bulkSending?"Creating...":"Create tasks"}
-          </button>
-        </div>
-      </div>
-    </div>}
+    <MtdBulkTaskModal
+      open={bulkTaskModal}
+      onClose={() => setBulkTaskModal(false)}
+      selectedRows={selectedRows}
+      bulkForm={bulkForm}
+      setBulkForm={setBulkForm}
+      bulkSending={bulkSending}
+      onSubmit={async () => {
+        setBulkSending(true);
+        let created = 0;
+        try {
+          for (const email of selectedRows) {
+            await sb.query("tasks", { token, method: "POST", body: {
+              assigned_to: email,
+              created_by: profile?.email,
+              title: bulkForm.title.trim(),
+              description: bulkForm.description.trim() || null,
+              priority: bulkForm.priority,
+              due_date: bulkForm.due_date || null,
+              status: "pending",
+            } });
+            created++;
+          }
+          globalToast("success", `Created ${created} task${created !== 1 ? "s" : ""}`);
+          setBulkTaskModal(false);
+          setSelectedRows(new Set());
+        } catch (e) {
+          globalToast("error", `Created ${created}/${selectedRows.size} — ${e.message || "error"}`);
+        }
+        setBulkSending(false);
+      }}
+    />
   </div>);
 }
 
