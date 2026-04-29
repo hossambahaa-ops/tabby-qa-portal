@@ -171,7 +171,7 @@ function LeaderboardPage() {
         <div className="tabs">
           <button className={`tab ${view==="individual"?"active":""}`} onClick={()=>setView("individual")}>Individual</button>
           {hasRole(profile?.role,"qa_supervisor")&&<button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>}
-          {hasRole(profile?.role,"qa_supervisor")&&<button className={`tab ${view==="quarterly"?"active":""}`} onClick={()=>setView("quarterly")}>Quarterly</button>}
+          <button className={`tab ${view==="quarterly"?"active":""}`} onClick={()=>setView("quarterly")}>Quarterly</button>
         </div>
         {hasRole(profile?.role,"qa_lead")&&<SearchableSelect options={teams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${teams.length})`}/>}
         {view==="individual" && hasRole(profile?.role,"qa_lead") && <input className="input" placeholder="Search by name or email..." value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:220,marginLeft:"auto",fontSize:12}}/>}
@@ -635,19 +635,14 @@ function LeaderboardPage() {
         if (isAdminQ) { visibleQas = allQas; }
         else if (isSupervisorQ) { visibleQas = allQas.filter(qa => qa.email?.endsWith("@" + myDomainQ)); }
         else if (isLeadQ) { visibleQas = allQas.filter(qa => teamEmailsQ.includes(qa.email?.toLowerCase()) || qa.email?.toLowerCase() === myEmailQ); }
-        else if (profile?.role === "senior_qa") {
+        else {
+          // Both qa and senior_qa see ONLY their own row in the quarterly
+          // view — matches the requirement "just their own numbers". The
+          // rank value still reflects their real position across the
+          // whole roster, just without revealing other people's names.
           const myEntry = allQas.find(qa => qa.email?.toLowerCase() === myEmailQ);
           const myRankIdx = allQas.findIndex(qa => qa.email?.toLowerCase() === myEmailQ);
           visibleQas = myEntry ? [{ ...myEntry, _myRank: myRankIdx + 1 }] : [];
-        }
-        else {
-          const top3 = allQas.slice(0, 3);
-          const myEntry = allQas.find(qa => qa.email?.toLowerCase() === myEmailQ);
-          const myRankIdx = allQas.findIndex(qa => qa.email?.toLowerCase() === myEmailQ);
-          visibleQas = [...top3];
-          if (myEntry && myRankIdx >= 3) visibleQas.push({ ...myEntry, _myRank: myRankIdx + 1 });
-          const seen = new Set();
-          visibleQas = visibleQas.filter(qa => { const e = qa.email?.toLowerCase(); if (seen.has(e)) return false; seen.add(e); return true; });
         }
 
         // Apply search/email filter
@@ -669,7 +664,8 @@ function LeaderboardPage() {
             <select className="select" value={activeQ} onChange={e=>{setSelQuarter(e.target.value);setSelQaQuarterly("");}}>
               {quarters.map(q => <option key={q.label} value={q.label}>{q.label} ({q.months.length} month{q.months.length!==1?"s":""})</option>)}
             </select>
-            <div style={{position:"relative",minWidth:220,flex:1,maxWidth:320}}>
+            {/* Search/pick is only useful for leads & up — QAs see only themselves. */}
+            {!isQaQ && <div style={{position:"relative",minWidth:220,flex:1,maxWidth:320}}>
               <input className="form-input" value={selQaQuarterly} onChange={e=>setSelQaQuarterly(e.target.value)} placeholder={`Search specialists (${allQas.length})...`} autoComplete="off" style={{fontSize:13}}/>
               {selQaQuarterly && !allQas.find(qa=>qa.email===selQaQuarterly) && (()=>{
                 const q=selQaQuarterly.toLowerCase();
@@ -686,7 +682,7 @@ function LeaderboardPage() {
                 </div>;
               })()}
               {selQaQuarterly && <button onClick={()=>setSelQaQuarterly("")} style={{position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:16,lineHeight:1}}>×</button>}
-            </div>
+            </div>}
             {qData && <span style={{fontSize:12,color:"var(--tx3)"}}>Months: {qMonths.join(", ")}</span>}
           </div>
 
@@ -701,7 +697,7 @@ function LeaderboardPage() {
                 sublabel={`of ${55*qMonths.length}%`}
               />
             </div>
-            {allQas[0] && <div className="stat-card">
+            {!isQaQ && allQas[0] && <div className="stat-card">
               <div className="stat-label">Top performer</div>
               <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
                 <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,#FEF3C7,#FDE68A)",color:"#92400E",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:12}}>1</div>
@@ -710,7 +706,7 @@ function LeaderboardPage() {
             </div>}
           </div>
 
-          {allQas.length >= 3 && profile?.role !== "senior_qa" && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:20,marginBottom:32,flexWrap:"wrap"}}>
+          {allQas.length >= 3 && !isQaQ && <div style={{display:"flex",justifyContent:"center",alignItems:"flex-end",gap:20,marginBottom:32,flexWrap:"wrap"}}>
             {[1,0,2].map(idx => {
               const qa = allQas[idx]; const rank = idx + 1; const isGold = rank === 1;
               const podiumColors = {
@@ -736,9 +732,7 @@ function LeaderboardPage() {
           </div>}
 
           {isQaQ && <div style={{padding:"8px 14px",background:"var(--bg)",borderRadius:8,marginBottom:12,fontSize:12,color:"var(--tx3)"}}>
-            {profile?.role === "senior_qa"
-              ? "Showing your position only. Full rankings are visible to team leads."
-              : "Showing top 3 performers and your position. Full rankings are visible to team leads."}
+            Showing your position only. Full rankings are visible to team leads.
           </div>}
 
           <div className="card">
