@@ -6,7 +6,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-import { useQaProfileData } from "../lib/useQaProfileData.jsx";
+import { useQaProfileData, bustBulkCache } from "../lib/useQaProfileData.jsx";
 import { useFreshness } from "../lib/useFreshness.js";
 import FreshnessBadge from "../components/FreshnessBadge.jsx";
 
@@ -62,10 +62,19 @@ function QAProfilePage() {
       ]);
       // Re-fetch the rows the page reads from, in parallel.
       await Promise.all([refreshDailyScores(), refreshMtd()]);
+      // Extract the most descriptive error message from an edge-function response.
+      const syncErr = (name, res) => {
+        if (res.ok && res.data?.success) return null;
+        const d = res.data || {};
+        const msg = d.error || d.message || d.details || (res.ok ? "unexpected response" : `HTTP ${res.status || "?"}`);
+        const step = d.step ? ` [${d.step}]` : "";
+        console.warn(`[sync/${name}] failed:`, d);
+        return `${name}${step}: ${msg}`;
+      };
       const fail = [
-        daily.ok && daily.data.success ? null : `daily: ${daily.data.error || "failed"}`,
-        mtdRes.ok && mtdRes.data.success ? null : `mtd: ${mtdRes.data.error || "failed"}`,
-        csat.ok && csat.data.success ? null : `csat: ${csat.data.error || "failed"}`,
+        syncErr("daily", daily),
+        syncErr("mtd",   mtdRes),
+        syncErr("csat",  csat),
       ].filter(Boolean);
       if (fail.length === 0) {
         const parts = [];
@@ -74,13 +83,16 @@ function QAProfilePage() {
         if (csat.data.rows_aggregated) parts.push(`${csat.data.rows_aggregated} CSAT topics`);
         globalToast?.("success", `Live sync — ${parts.join(" · ")}`);
       } else {
-        globalToast?.("error", `Sync issues — ${fail.join(" · ")}`);
+        console.error("[sync] failures:", fail);
+        globalToast?.("error", `Sync issue — ${fail[0]}${fail.length > 1 ? ` (+${fail.length - 1} more, see console)` : ""}`);
       }
     } catch (e) {
+      console.error("[sync] unexpected:", e);
       globalToast?.("error", safeError ? safeError(e) : (e?.message || "Sync failed"));
     }
     setRefreshing(false);
     setFreshnessKey(k => k + 1); // re-fetch freshness timestamps after sync
+    bustBulkCache(); // next navigation will re-fetch from DB, not cache
   };
 
   // QAs land on their own profile by default — once data loads.

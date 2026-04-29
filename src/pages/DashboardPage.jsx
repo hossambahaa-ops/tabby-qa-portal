@@ -113,10 +113,18 @@ function DashboardPage(){
           ]);
           dataCache?.invalidate?.();
           await loadDashboard?.();
+          const syncErr = (name, res) => {
+            if (res.ok && res.data?.success) return null;
+            const d = res.data || {};
+            const msg = d.error || d.message || d.details || (res.ok ? "unexpected response" : `HTTP ${res.status || "?"}`);
+            const step = d.step ? ` [${d.step}]` : "";
+            console.warn(`[sync/${name}] failed:`, d);
+            return `${name}${step}: ${msg}`;
+          };
           const fail = [
-            daily.ok && daily.data.success ? null : `daily: ${daily.data.error || "failed"}`,
-            mtdRes.ok && mtdRes.data.success ? null : `mtd: ${mtdRes.data.error || "failed"}`,
-            csat.ok && csat.data.success ? null : `csat: ${csat.data.error || "failed"}`,
+            syncErr("daily", daily),
+            syncErr("mtd",   mtdRes),
+            syncErr("csat",  csat),
           ].filter(Boolean);
           if (fail.length === 0) {
             const parts = [];
@@ -126,9 +134,12 @@ function DashboardPage(){
             globalToast("success", `Live sync — ${parts.join(" · ")}`);
             logActivity(token, profile?.email, "live_sync_triggered", "edge_functions", null, parts.join(" · "));
           } else {
-            globalToast("error", `Sync issues — ${fail.join(" · ")}`);
+            console.error("[sync] failures:", fail);
+            globalToast("error", `Sync issue — ${fail[0]}${fail.length > 1 ? ` (+${fail.length - 1} more, see console)` : ""}`);
+            logActivity(token, profile?.email, "live_sync_failed", "edge_functions", null, fail.join(" | "));
           }
         } catch (e) {
+          console.error("[sync] unexpected:", e);
           globalToast("error", "Sync failed: " + safeError(e));
         }
         setSyncing(false);

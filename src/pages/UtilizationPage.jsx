@@ -45,6 +45,7 @@ export default function UtilizationPage() {
   const [loading, setLoading] = useState(true);
   const [scope, setScope] = useState("today"); // today | week | 30d
   const [refreshAt, setRefreshAt] = useState(Date.now());
+  const [expandedUser, setExpandedUser] = useState(null);
 
   const isAdmin = hasRole(profile?.role, "admin") || hasRole(profile?.role, "qa_supervisor");
 
@@ -98,16 +99,26 @@ export default function UtilizationPage() {
       const k = r.user_email;
       const cur = map.get(k);
       const lastSeen = new Date(r.last_seen_at).getTime();
+      // Merge page_visits objects across days
+      const mergeVisits = (existing, incoming) => {
+        const out = { ...(existing || {}) };
+        Object.entries(incoming || {}).forEach(([p, n]) => {
+          out[p] = (out[p] || 0) + (Number(n) || 0);
+        });
+        return out;
+      };
       if (!cur) {
         map.set(k, {
           email: r.user_email,
           last_seen_at: r.last_seen_at,
           last_page: r.last_page,
           total_minutes: Number(r.total_minutes) || 0,
+          page_visits: { ...(r.page_visits || {}) },
           days: 1,
         });
       } else {
         cur.total_minutes += Number(r.total_minutes) || 0;
+        cur.page_visits = mergeVisits(cur.page_visits, r.page_visits);
         cur.days += 1;
         if (lastSeen > new Date(cur.last_seen_at).getTime()) {
           cur.last_seen_at = r.last_seen_at;
@@ -183,22 +194,62 @@ export default function UtilizationPage() {
                 )}
                 {userRows.map(u => {
                   const online = (Date.now() - new Date(u.last_seen_at).getTime()) < ONLINE_THRESHOLD_MIN * 60 * 1000;
+                  const isExpanded = expandedUser === u.email;
+                  const pageEntries = Object.entries(u.page_visits || {})
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 10);
+                  const maxVisits = pageEntries[0]?.[1] || 1;
                   return (
-                    <tr key={u.email}>
-                      <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: online ? "var(--green)" : "var(--bd2)", flexShrink: 0 }} title={online ? "online now" : "offline"} />
-                          <div>
-                            <div style={{ fontWeight: 500 }}>{nameFromEmail(u.email)}</div>
-                            <div style={{ fontSize: 11, color: "var(--tx3)" }}>{u.email}</div>
+                    <React.Fragment key={u.email}>
+                      <tr
+                        onClick={() => setExpandedUser(isExpanded ? null : u.email)}
+                        style={{ cursor: "pointer", background: isExpanded ? "var(--bg)" : undefined }}
+                      >
+                        <td>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: online ? "var(--green)" : "var(--bd2)", flexShrink: 0 }} title={online ? "online now" : "offline"} />
+                            <div>
+                              <div style={{ fontWeight: 500 }}>{nameFromEmail(u.email)}</div>
+                              <div style={{ fontSize: 11, color: "var(--tx3)" }}>{u.email}</div>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmtMinutes(u.total_minutes)}</td>
-                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{u.days}</td>
-                      <td style={{ fontSize: 12, color: "var(--tx2)" }}>{u.last_page || "—"}</td>
-                      <td style={{ fontSize: 12, color: "var(--tx2)" }}>{fmtRelative(u.last_seen_at)}</td>
-                    </tr>
+                        </td>
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmtMinutes(u.total_minutes)}</td>
+                        <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{u.days}</td>
+                        <td style={{ fontSize: 12, color: "var(--tx2)" }}>{u.last_page || "—"}</td>
+                        <td style={{ fontSize: 12, color: "var(--tx2)" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            {fmtRelative(u.last_seen_at)}
+                            <span style={{ marginLeft: "auto", color: "var(--tx3)", fontSize: 11 }}>{isExpanded ? "▲" : "▼"}</span>
+                          </div>
+                        </td>
+                      </tr>
+                      {isExpanded && (
+                        <tr style={{ background: "var(--bg)" }}>
+                          <td colSpan={5} style={{ padding: "10px 16px 14px" }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 8 }}>
+                              Page visits breakdown
+                            </div>
+                            {pageEntries.length === 0
+                              ? <span style={{ fontSize: 12, color: "var(--tx3)" }}>No page visit data.</span>
+                              : <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))", gap: "6px 20px" }}>
+                                  {pageEntries.map(([page, count]) => (
+                                    <div key={page}>
+                                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 2 }}>
+                                        <span style={{ fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{page || "dashboard"}</span>
+                                        <span style={{ color: "var(--tx3)", fontVariantNumeric: "tabular-nums", flexShrink: 0, marginLeft: 6 }}>{count}</span>
+                                      </div>
+                                      <div style={{ height: 4, background: "var(--bd)", borderRadius: 2, overflow: "hidden" }}>
+                                        <div style={{ width: `${(count / maxVisits) * 100}%`, height: "100%", background: "var(--tabby-purple)", borderRadius: 2 }} />
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                            }
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>

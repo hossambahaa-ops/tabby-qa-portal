@@ -9,6 +9,15 @@ import { listCoachingSessions } from "../api/coachingSessions.js";
 import { listTeamTargets } from "../api/teamTargets.js";
 import { listPlans } from "../api/plans.js";
 
+// Module-level short-term cache: survives React re-renders/unmounts but
+// is cleared on page reload or when the session token changes.
+// 30 s TTL prevents redundant bulk-fetches when the user bounces between
+// Dashboard ↔ Profile in quick succession.
+let _bulk = { ts: 0, token: null, data: null };
+const BULK_TTL = 30 * 1000;
+// Call this after a live sync to force the next mount to re-fetch.
+export const bustBulkCache = () => { _bulk = { ts: 0, token: null, data: null }; };
+
 // Loads everything the QA Profile page needs in one round-trip and
 // derives the visible-QA universe from it. The page itself keeps the
 // per-selected-QA slicing (qaMtd, qaSessions, qaFlags …) because those
@@ -35,6 +44,29 @@ export function useQaProfileData(token, profile) {
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
+
+    const applyData = (d) => {
+      if (cancelled) return;
+      setRoster(d.roster);
+      setMtd(d.mtd);
+      setSessions(d.sessions);
+      setPlans(d.plans);
+      setTasks(d.tasks);
+      setFlags(d.flags);
+      setQaAttendance(d.qaAttendance);
+      setDailyScores(d.dailyScores);
+      setTeamTargets(d.teamTargets);
+      setAllProfiles(d.profList);
+      setQaLeadSet(new Set(d.profList.filter(p => p.role === "qa_lead").map(p => p.email?.toLowerCase()).filter(Boolean)));
+      setLoading(false);
+    };
+
+    // Serve from cache if fresh and same session.
+    if (_bulk.token === token && Date.now() - _bulk.ts < BULK_TTL && _bulk.data) {
+      applyData(_bulk.data);
+      return () => { cancelled = true; };
+    }
+
     (async () => {
       try {
         const curMonth = new Date().toISOString().slice(0, 7);
@@ -52,22 +84,24 @@ export function useQaProfileData(token, profile) {
           listTeamTargets({ token }),
         ]);
         if (cancelled) return;
-        setRoster(Array.isArray(r) ? r : []);
-        setMtd(Array.isArray(m) ? m : []);
-        setSessions(Array.isArray(s) ? s : []);
-        setPlans(Array.isArray(ap) ? ap : []);
-        setTasks(Array.isArray(t) ? t : []);
-        setFlags(Array.isArray(f) ? f : []);
-        setQaAttendance(Array.isArray(att) ? att : []);
-        setDailyScores(Array.isArray(ds) ? ds : []);
-        setTeamTargets(Array.isArray(tgt) ? tgt : []);
-        const profList = Array.isArray(profs) ? profs : [];
-        setAllProfiles(profList);
-        setQaLeadSet(new Set(profList.filter(p => p.role === "qa_lead").map(p => p.email?.toLowerCase()).filter(Boolean)));
+        const d = {
+          roster:       Array.isArray(r)   ? r   : [],
+          mtd:          Array.isArray(m)   ? m   : [],
+          sessions:     Array.isArray(s)   ? s   : [],
+          plans:        Array.isArray(ap)  ? ap  : [],
+          tasks:        Array.isArray(t)   ? t   : [],
+          flags:        Array.isArray(f)   ? f   : [],
+          qaAttendance: Array.isArray(att) ? att : [],
+          dailyScores:  Array.isArray(ds)  ? ds  : [],
+          teamTargets:  Array.isArray(tgt) ? tgt : [],
+          profList:     Array.isArray(profs) ? profs : [],
+        };
+        _bulk = { ts: Date.now(), token, data: d };
+        applyData(d);
       } catch (e) {
         console.error("QA Profile load:", e);
+        if (!cancelled) setLoading(false);
       }
-      if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [token]);

@@ -9,14 +9,36 @@ const fmtAge = (ts) => {
   return `${Math.floor(diffSec / 86400)}d ago`;
 };
 
+// Returns "green" | "amber" | "red" based on how stale the daily sync is.
+// Daily cron fires every 5 min, so > 15 min means ≥ 3 missed cycles.
+const syncStatus = (dailyTs) => {
+  if (!dailyTs) return "amber"; // No data yet today — unknown state
+  const ageMin = (Date.now() - new Date(dailyTs).getTime()) / 60000;
+  if (ageMin < 15) return "green";
+  if (ageMin < 30) return "amber";
+  return "red";
+};
+
+const STATUS_COLORS = {
+  green: "var(--green)",
+  amber: "#F59E0B",
+  red:   "var(--red)",
+};
+const STATUS_LABELS = {
+  green: "Syncing normally",
+  amber: "Sync slightly delayed",
+  red:   "Sync may be broken — last run was over 30 min ago",
+};
+
 /**
  * FreshnessBadge({ ts })
  *
- * Shows a small "Live · synced Xm ago" pill. Tooltip lists per-table ages.
- * ts = { daily, mtd, csat } — each an ISO string or null.
+ * Shows a "Live · synced Xm ago" pill with a coloured dot:
+ *   green  = daily < 15 min (normal)
+ *   amber  = daily 15–30 min (delayed)
+ *   red    = daily > 30 min (likely broken)
  *
- * The displayed age is updated every 60 s so it stays accurate while the
- * user sits on the page without triggering a full data reload.
+ * The age text ticks every 60 s. Tooltip lists per-table ages + status.
  */
 export default function FreshnessBadge({ ts }) {
   // Tick every 60 s so "Xm ago" advances in real-time.
@@ -35,28 +57,37 @@ export default function FreshnessBadge({ ts }) {
   const defined = labels.filter(l => l.v);
   if (defined.length === 0) return null;
 
-  // Show the daily score age primarily (syncs every 5 min — most relevant).
-  // Fall back to oldest if daily is missing.
+  const status = syncStatus(ts.daily);
+  const dotColor = STATUS_COLORS[status];
+
+  // Display age of daily scores (most frequently synced = most informative).
   const primary = labels.find(l => l.label === "Daily" && l.v)
     || [...defined].sort((a, b) => new Date(a.v) - new Date(b.v))[0];
   const age = fmtAge(primary.v);
-  const tooltip = labels.map(l => `${l.label}: ${l.v ? fmtAge(l.v) : "—"}`).join("\n");
+
+  const tooltip = [
+    STATUS_LABELS[status],
+    "",
+    ...labels.map(l => `${l.label}: ${l.v ? fmtAge(l.v) : "—"}`),
+  ].join("\n");
 
   return (
     <span
       title={tooltip}
       style={{
         display: "inline-flex", alignItems: "center", gap: 5,
-        fontSize: 11, color: "var(--tx3)",
+        fontSize: 11,
+        color: status === "red" ? "var(--red)" : status === "amber" ? "#F59E0B" : "var(--tx3)",
         padding: "3px 9px", borderRadius: 10,
-        background: "var(--bg)", border: "1px solid var(--bd2)",
+        background: "var(--bg)", border: `1px solid ${status === "green" ? "var(--bd2)" : dotColor}`,
         fontWeight: 500, cursor: "default", userSelect: "none",
-        whiteSpace: "nowrap",
+        whiteSpace: "nowrap", transition: "border-color .3s, color .3s",
       }}
     >
       <span style={{
         width: 6, height: 6, borderRadius: "50%",
-        background: "var(--green)", flexShrink: 0,
+        background: dotColor, flexShrink: 0,
+        boxShadow: status !== "green" ? `0 0 0 2px ${dotColor}33` : "none",
       }} />
       Live · synced {age}
     </span>
