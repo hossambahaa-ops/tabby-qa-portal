@@ -6,6 +6,8 @@ import { nameFromEmail, safeError, logActivity, csatPctValue, csatColor } from "
 import { parseRawD, KPI_SLABS_D, calcSlabD, getScore, MAX_SCORE, scoreColor, scoreBg } from "../lib/dashboardScore.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { useDashboardData } from "../lib/useDashboardData.jsx";
+import { useFreshness } from "../lib/useFreshness.js";
+import FreshnessBadge from "../components/FreshnessBadge.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { ProgressRing, MiniBarChart, SparkLine } from "../components/Charts.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
@@ -81,10 +83,14 @@ function DashboardPage(){
   const nav=(page)=>window.dispatchEvent(new CustomEvent("navigate",{detail:page}));
 
   const[syncing,setSyncing]=useState(false);
+  const[freshnessKey,setFreshnessKey]=useState(0);
+  const freshness=useFreshness(token,freshnessKey);
 
   return(<div className="page">
     {/* Admin/Supervisor action bar */}
-    {(hasRole(profile?.role,"super_admin")||canAnnounce)&&<div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:8}}>
+    {(hasRole(profile?.role,"super_admin")||canAnnounce)&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8}}>
+      <FreshnessBadge ts={freshness} />
+      <div style={{display:"flex",gap:8}}>
       {canAnnounce&&<button className="btn btn-outline btn-sm" onClick={()=>setShowAnnForm(!showAnnForm)} style={{fontSize:12}}>
         <Icon d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" size={14}/>Send announcement
       </button>}
@@ -126,9 +132,11 @@ function DashboardPage(){
           globalToast("error", "Sync failed: " + safeError(e));
         }
         setSyncing(false);
+        setFreshnessKey(k=>k+1);
       }} style={{fontSize:12}}>
         {syncing?<><div className="spinner" style={{width:14,height:14,borderWidth:2,marginRight:6}}/>Syncing...</>:<><Icon d={icons.upload} size={14}/>Refresh live</>}
       </button>}
+      </div>
     </div>}
 
     {/* Announcement form */}

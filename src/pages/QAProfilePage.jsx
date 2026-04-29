@@ -7,6 +7,8 @@ import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import { useQaProfileData } from "../lib/useQaProfileData.jsx";
+import { useFreshness } from "../lib/useFreshness.js";
+import FreshnessBadge from "../components/FreshnessBadge.jsx";
 
 // Safe render: prevent objects/arrays from crashing React
 const safe = (v) => {
@@ -31,6 +33,8 @@ function QAProfilePage() {
   const [selectedQA, setSelectedQA] = useUrlState("qa", "");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSession, setExpandedSession] = useState(null);
+  const [freshnessKey, setFreshnessKey] = useState(0);
+  const freshness = useFreshness(token, freshnessKey);
   const [expandedFlag, setExpandedFlag] = useState(null);
   const [expandedPlan, setExpandedPlan] = useState(null);
   const [expandedTask, setExpandedTask] = useState(null);
@@ -76,6 +80,7 @@ function QAProfilePage() {
       globalToast?.("error", safeError ? safeError(e) : (e?.message || "Sync failed"));
     }
     setRefreshing(false);
+    setFreshnessKey(k => k + 1); // re-fetch freshness timestamps after sync
   };
 
   // QAs land on their own profile by default — once data loads.
@@ -154,11 +159,14 @@ function QAProfilePage() {
           <div className="page-title">QA Profiles</div>
           <div className="page-subtitle">{visibleQAs.length} team members</div>
         </div>
-        <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the latest Today_Productivity CSV from Google Sheets" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-          {refreshing
-            ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />Refreshing…</>
-            : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh live</>}
-        </button>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <FreshnessBadge ts={freshness} />
+          <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the latest Today_Productivity CSV from Google Sheets" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+            {refreshing
+              ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />Refreshing…</>
+              : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh live</>}
+          </button>
+        </div>
       </div>
       <div className="card" style={{padding:16}}>
         <div style={{position:"relative",marginBottom:16}}>
@@ -198,11 +206,14 @@ function QAProfilePage() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
           Back to list
         </button>}
-        <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the latest Today_Productivity CSV from Google Sheets" style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
-          {refreshing
-            ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />Refreshing…</>
-            : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh live</>}
-        </button>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <FreshnessBadge ts={freshness} />
+          <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the latest Today_Productivity CSV from Google Sheets" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+            {refreshing
+              ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />Refreshing…</>
+              : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh live</>}
+          </button>
+        </div>
       </div>
 
       {/* Header card */}

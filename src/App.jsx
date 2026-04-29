@@ -77,6 +77,7 @@ function AppInner(){
   const[globalMonths,setGlobalMonths]=useState([]);
   const[pendingAnnouncements,setPendingAnnouncements]=useState([]);
   const[showFeedback,setShowFeedback]=useState(false);
+  const[showLogoutWarning,setShowLogoutWarning]=useState(false);
   const[showShortcutsHelp,setShowShortcutsHelp]=useState(false);
   const[showTour,setShowTour]=useState(false);
   const[feedbackForm,setFeedbackForm]=useState({category:"general",message:"",rating:0});
@@ -124,9 +125,19 @@ function AppInner(){
   // the minute ticks past midnight Riyadh, we compare that stamp to
   // today and sign out on mismatch. Supabase sign-out only clears the
   // session — every row the user wrote stays in the database.
+  //
+  // Grace window: at T-5 minutes (23:55 Riyadh) we show a dismissible
+  // banner so users can save work. The hard kick still fires at 00:00.
   useEffect(()=>{
     if(!session?.access_token)return;
     const todayRiyadh=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Riyadh",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+    // Riyadh is always UTC+3 (no DST) — compute minutes until next midnight.
+    const minsUntilMidnight=()=>{
+      const nowMs=Date.now();
+      const riyadhMs=nowMs+3*3600*1000;
+      const msInDay=riyadhMs%(24*3600*1000);
+      return Math.ceil((24*3600*1000-msInDay)/60000);
+    };
     const stamp=localStorage.getItem("login_riyadh_date");
     const today=todayRiyadh();
     if(!stamp){localStorage.setItem("login_riyadh_date",today);}
@@ -135,19 +146,27 @@ function AppInner(){
       localStorage.removeItem("login_riyadh_date");
       sb.auth.signOut().catch(()=>{});
       setSession(null);setProfile(null);
+      setShowLogoutWarning(false);
       window.location.hash="";
       return;
     }
+    // Show warning immediately if we're already in the 5-min window.
+    const minsNow=minsUntilMidnight();
+    if(minsNow<=5&&minsNow>0)setShowLogoutWarning(true);
     // Re-check every minute so a tab left open across midnight is
-    // also kicked.
+    // also kicked, and so the warning fires at the right moment.
     const tick=setInterval(()=>{
       const cur=localStorage.getItem("login_riyadh_date");
       if(cur && cur!==todayRiyadh()){
         localStorage.removeItem("login_riyadh_date");
         sb.auth.signOut().catch(()=>{});
         setSession(null);setProfile(null);
+        setShowLogoutWarning(false);
         window.location.hash="";
+        return;
       }
+      const mins=minsUntilMidnight();
+      if(mins<=5&&mins>0)setShowLogoutWarning(true);
     },60*1000);
     return()=>clearInterval(tick);
   },[session?.access_token]);
@@ -380,6 +399,19 @@ function AppInner(){
       {viewAsRole && <div className="view-as-bar">
         <span>👁 Viewing as <strong>{safe(ROLE_LABELS[viewAsRole])}</strong></span>
         <button onClick={()=>setViewAsRole("")} style={{background:"var(--amber)",color:"#fff",border:"none",borderRadius:4,padding:"2px 8px",fontSize:11,cursor:"pointer",fontFamily:"var(--font)"}}>Exit</button>
+      </div>}
+      {/* Midnight logout warning — fires at T-5 min Riyadh time */}
+      {showLogoutWarning&&<div style={{
+        display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
+        padding:"9px 16px",background:"#D97706",color:"#fff",fontSize:13,fontWeight:600,
+        zIndex:200,flexShrink:0,
+      }}>
+        <span>⏰ Your session ends at midnight Riyadh time — please save your work before then.</span>
+        <button onClick={()=>setShowLogoutWarning(false)} style={{
+          background:"rgba(0,0,0,.2)",border:"none",borderRadius:6,
+          padding:"3px 12px",fontSize:12,cursor:"pointer",
+          fontFamily:"var(--font)",fontWeight:600,color:"#fff",flexShrink:0,
+        }}>Dismiss</button>
       </div>}
       <div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Icon d={icons.menu} size={22}/></button><div className="topbar-title" style={{display:"flex",alignItems:"center",gap:6}}>{(()=>{const item=NAV_ITEMS.find(n=>n.key===page);const section=item?.section||NAV_ITEMS.slice(0,NAV_ITEMS.indexOf(item)).reverse().find(n=>n.section)?.section;return section?<><span style={{color:"var(--tx3)",fontSize:13}}>{section}</span><span style={{color:"var(--tx3)",fontSize:11}}>›</span><span>{item?.label||"Dashboard"}</span></>:<span>{item?.label||"Dashboard"}</span>;})()}</div>
       <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
