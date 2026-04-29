@@ -18,12 +18,19 @@ export const initialsFromEmail = (email) => {
   return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
 };
 
-// mtd_scores.csat_pct is stored as a decimal text string ("0.875" = 87.5%).
-// Returns the percentage number, or null for empty/missing values.
+// csat_pct comes in two shapes depending on which sync wrote it:
+//   - new mtd-sync edge function:  "100.00%" / "75.00%"  (already a percent)
+//   - legacy Apps-Script writes:    "0.875"               (fraction, ×100 to get %)
+// Decide which by looking for the % suffix or the 0–1 magnitude.
 export const csatPctValue = (v) => {
   if (v == null || v === "") return null;
-  const n = parseFloat(v);
-  return isNaN(n) ? null : n * 100;
+  const s = String(v).trim();
+  const hasPercent = s.includes("%");
+  const n = parseFloat(s.replace("%", "").replace(",", "."));
+  if (isNaN(n)) return null;
+  if (hasPercent) return n;          // already a percent
+  if (n <= 1) return n * 100;        // 0–1 fraction → percent
+  return n;                          // bare number ≥ 1 → already a percent
 };
 
 // Zero surveys means "no data", not "bad score" — gray it out instead of red.
