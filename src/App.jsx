@@ -1,8 +1,8 @@
-import React, { useState, useEffect, Suspense, lazy } from "react";
+import React, { useState, useEffect, useRef, Suspense, lazy } from "react";
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import "./index.css";
 import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc } from "./lib/constants.js";
-import { sb, SUPABASE_URL } from "./lib/supabase.js";
+import { sb, SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { initErrorLog } from "./lib/errorLog.js";
 import { listRoster } from "./api/roster.js";
 import { listMtd } from "./api/mtd.js";
@@ -33,6 +33,7 @@ const EscalationsPage = lazy(() => import("./pages/EscalationsPage.jsx"));
 const QualityControlPage = lazy(() => import("./pages/QualityControlPage.jsx"));
 const QAProfilePage = lazy(() => import("./pages/QAProfilePage.jsx"));
 const SchedulePage = lazy(() => import("./pages/SchedulePage.jsx"));
+const UtilizationPage = lazy(() => import("./pages/UtilizationPage.jsx"));
 const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
 
 document.title = "Tabby Pulse — QA Performance & Analytics";
@@ -57,6 +58,7 @@ const NAV_ITEMS=[
   {key:"escalations",label:"Escalations",icon:icons.escalation},
   {key:"hr",label:"HR cases",icon:icons.hr,minRole:"qa_supervisor"},
   {key:"admin",label:"Admin panel",icon:icons.settings,minRole:"admin",section:"System"},
+  {key:"utilization",label:"App utilization",icon:icons.dashboard,minRole:"qa_supervisor"},
 ];
 
 /* ═══ APP ═══ */
@@ -116,6 +118,102 @@ function AppInner(){
     },10*60*1000);
     return()=>clearInterval(interval);
   },[session?.refresh_token]);
+
+  // Force a fresh login each day in Riyadh time. We stamp the session
+  // with the date when the user signed in; whenever the app loads or
+  // the minute ticks past midnight Riyadh, we compare that stamp to
+  // today and sign out on mismatch. Supabase sign-out only clears the
+  // session — every row the user wrote stays in the database.
+  useEffect(()=>{
+    if(!session?.access_token)return;
+    const todayRiyadh=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Riyadh",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+    const stamp=localStorage.getItem("login_riyadh_date");
+    const today=todayRiyadh();
+    if(!stamp){localStorage.setItem("login_riyadh_date",today);}
+    else if(stamp!==today){
+      // Different Riyadh day than when this session was opened → bump.
+      localStorage.removeItem("login_riyadh_date");
+      sb.auth.signOut().catch(()=>{});
+      setSession(null);setProfile(null);
+      window.location.hash="";
+      return;
+    }
+    // Re-check every minute so a tab left open across midnight is
+    // also kicked.
+    const tick=setInterval(()=>{
+      const cur=localStorage.getItem("login_riyadh_date");
+      if(cur && cur!==todayRiyadh()){
+        localStorage.removeItem("login_riyadh_date");
+        sb.auth.signOut().catch(()=>{});
+        setSession(null);setProfile(null);
+        window.location.hash="";
+      }
+    },60*1000);
+    return()=>clearInterval(tick);
+  },[session?.access_token]);
+
+  // ─── App utilization tracking ───
+  // One row per (user, Riyadh-day). On mount and every 5 minutes we
+  // upsert: bump last_seen_at, add ~5 minutes (capped to wall-clock
+  // gap so an idle tab doesn't inflate totals), record current page
+  // in page_visits. Total writes per active user ≈ 12/hour — well
+  // under the free-plan ceiling.
+  const heartbeatRef=useRef({lastBeat:0});
+  useEffect(()=>{
+    if(!session?.access_token||!profile?.email)return;
+    const email=profile.email.toLowerCase();
+    const todayRiyadh=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Riyadh",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+    const beat=async()=>{
+      try{
+        const now=Date.now();
+        const last=heartbeatRef.current.lastBeat||0;
+        const gapMin=last?Math.max(0,Math.min(6,Math.round((now-last)/60000))):1;
+        heartbeatRef.current.lastBeat=now;
+        const date=todayRiyadh();
+        const ua=(navigator?.userAgent||"").slice(0,200);
+        const pagePath=location.pathname.replace(/^\//,"")||"dashboard";
+        // Server-side increment via PostgREST: we read-modify-write
+        // because PostgREST doesn't expose raw SQL increment. The
+        // jsonb merge keeps existing visit counts and adds 1 to the
+        // current page.
+        const existing=await sb.query("user_activity",{
+          select:"total_minutes,page_visits,first_seen_at",
+          filters:`user_email=eq.${encodeURIComponent(email)}&date=eq.${date}`,
+          token:session.access_token,
+        }).catch(()=>[]);
+        const cur=Array.isArray(existing)&&existing[0]?existing[0]:null;
+        const visits={...(cur?.page_visits||{}),[pagePath]:((cur?.page_visits||{})[pagePath]||0)+1};
+        const totalMin=(cur?.total_minutes||0)+gapMin;
+        const body={
+          user_email:email,
+          date,
+          last_seen_at:new Date().toISOString(),
+          total_minutes:totalMin,
+          page_visits:visits,
+          last_page:pagePath,
+          user_agent:ua,
+          ...(cur?{}:{first_seen_at:new Date().toISOString()}),
+        };
+        await fetch(`${SUPABASE_URL}/rest/v1/user_activity?on_conflict=user_email,date`,{
+          method:"POST",
+          headers:{
+            "Content-Type":"application/json",
+            apikey:SUPABASE_ANON,
+            Authorization:`Bearer ${session.access_token}`,
+            Prefer:"resolution=merge-duplicates,return=minimal",
+          },
+          body:JSON.stringify(body),
+        }).catch(()=>{});
+      }catch{/* swallow — utilization is best-effort */}
+    };
+    beat(); // first beat as soon as we have a session+profile
+    const id=setInterval(beat,5*60*1000); // every 5 min
+    // Also beat on tab refocus so "currently online" doesn't go stale
+    // when a user comes back to a tab they had in the background.
+    const onFocus=()=>beat();
+    window.addEventListener("focus",onFocus);
+    return()=>{clearInterval(id);window.removeEventListener("focus",onFocus);};
+  },[session?.access_token,profile?.email,location.pathname]);
   // Listen for session refresh from sb.query 401 handler
   useEffect(()=>{
     const handler=(e)=>{if(e.detail)setSession(e.detail);};
@@ -356,6 +454,7 @@ function AppInner(){
       <Route path="/violations" element={<Navigate to="/quality" replace/>}/>
       <Route path="/audit" element={<Navigate to="/admin" replace/>}/>
       <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
+      <Route path="/utilization" element={(hasRole(userRole,"admin")||hasRole(userRole,"qa_supervisor"))?<UtilizationPage/>:<PlaceholderPage title="App utilization" icon={icons.dashboard} minRole="qa_supervisor" userRole={userRole}/>}/>
       <Route path="/hr" element={<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>}/>
       <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
     </Routes></Suspense></div>
