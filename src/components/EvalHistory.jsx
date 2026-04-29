@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { sb } from "../lib/supabase.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { PulseLoader } from "./Charts.jsx";
@@ -33,7 +33,8 @@ function fmtWeek(d) {
 function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
   const { token, globalToast } = useApp();
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(false);
+  // Start in the loading state — the auto-load effect kicks in on mount.
+  const [loading, setLoading] = useState(true);
   const [view, setView] = useState("daily");
   const today = new Date().toISOString().split("T")[0];
   const thirtyAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split("T")[0]; })();
@@ -60,19 +61,18 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
     setLoading(false);
   };
 
-  if (!data && !loading) {
-    return (
-      <div className="card" style={{ marginTop: 16 }}>
-        <div className="card-header">
-          <span className="card-title">Evaluation History</span>
-        </div>
-        <div style={{ padding: "24px 16px", textAlign: "center" }}>
-          <div style={{ fontSize: 13, color: "var(--tx3)", marginBottom: 12 }}>Load the last 30 days of daily evaluation data</div>
-          <button className="btn btn-outline" onClick={() => load()}>View History</button>
-        </div>
-      </div>
-    );
-  }
+  // Auto-load the last 30 days when the component first mounts for a QA.
+  // The Today_Productivity sheet only ever holds today's data, but every
+  // sync writes a (date, qa_email) row keyed by the Riyadh date — so past
+  // dates accumulate as a read-only archive. Showing the archive
+  // immediately matches expectations for day-over-day comparison.
+  useEffect(() => {
+    if (!qaEmail) { setLoading(false); return; }
+    setData(null);
+    setLoading(true);
+    load(thirtyAgo, today);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qaEmail]);
 
   if (loading) {
     return (
