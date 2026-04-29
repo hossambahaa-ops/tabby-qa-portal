@@ -5,3 +5,4 @@ dist/
 *.zip
 client_secret_*.json
 .wrangler/
+.claude/scheduled_tasks.lock
