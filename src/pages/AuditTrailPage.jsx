@@ -18,6 +18,10 @@ function AuditTrailPage() {
   // (the person most likely to be looking at the audit trail).
   const [hideSuperAdmin, setHideSuperAdmin] = useState(false);
   const [superAdminEmails, setSuperAdminEmails] = useState(() => new Set());
+  // Click-to-sort. Default: most recent action first.
+  const [sort, setSort] = useState({ key: "time", dir: "desc" });
+  const toggleSort = (key) => setSort(p => p.key === key ? { key, dir: p.dir === "desc" ? "asc" : "desc" } : { key, dir: "desc" });
+  const sortArrow = (key) => sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : "";
 
   const nameFromEmail = (email) => {
     if (!email) return "—";
@@ -70,6 +74,27 @@ function AuditTrailPage() {
   const hiddenSaCount = hideSuperAdmin
     ? logs.filter(l => superAdminEmails.has(l.actor?.toLowerCase())).length
     : 0;
+  // Apply sort to filtered list before rendering.
+  const sortVal = (l, key) => {
+    if (key === "time")    return new Date(l.time).getTime();
+    if (key === "user")    return (nameFromEmail(l.actor) || "").toLowerCase();
+    if (key === "action")  return (l.action || "").toLowerCase();
+    if (key === "target")  return (l.target || "").toLowerCase();
+    if (key === "details") return (l.details || "").toLowerCase();
+    return null;
+  };
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    const av = sortVal(a, sort.key);
+    const bv = sortVal(b, sort.key);
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === "string") {
+      const c = av.localeCompare(bv);
+      return sort.dir === "asc" ? c : -c;
+    }
+    return sort.dir === "asc" ? av - bv : bv - av;
+  });
 
   const actionColor = (action) => {
     if(action?.includes("delete")) return {bg:"var(--red-bg)",color:"var(--red)"};
@@ -122,14 +147,24 @@ function AuditTrailPage() {
         {filtered.length===0?<div style={{padding:40,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No audit entries found</div>:
         <div className="table-wrap"><table>
           <thead><tr>
-            <th style={{width:140}}>Time</th>
-            <th style={{width:160}}>User</th>
-            <th style={{width:120}}>Action</th>
-            <th style={{width:100}}>Target</th>
-            <th>Details</th>
+            {[
+              { k: "time",    label: "Time",    w: 140 },
+              { k: "user",    label: "User",    w: 160 },
+              { k: "action",  label: "Action",  w: 120 },
+              { k: "target",  label: "Target",  w: 100 },
+              { k: "details", label: "Details" },
+            ].map(c => (
+              <th key={c.k}
+                  className={`sortable${sort.key === c.k ? " is-sorted" : ""}`}
+                  onClick={() => toggleSort(c.k)}
+                  title={`Sort by ${c.label}`}
+                  style={{ width: c.w, whiteSpace: "nowrap" }}>
+                {c.label}{sortArrow(c.k)}
+              </th>
+            ))}
           </tr></thead>
           <tbody>
-            {filtered.slice(0,200).map(l=>{
+            {sortedFiltered.slice(0,200).map(l=>{
               const ac=actionColor(l.action);
               return <tr key={l.id}>
                 <td style={{fontSize:11,color:"var(--tx3)",whiteSpace:"nowrap"}}>{new Date(l.time).toLocaleDateString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}</td>
@@ -146,7 +181,7 @@ function AuditTrailPage() {
             })}
           </tbody>
         </table></div>}
-        {filtered.length>200&&<div style={{padding:12,textAlign:"center",color:"var(--tx3)",fontSize:11}}>Showing 200 of {filtered.length} entries</div>}
+        {sortedFiltered.length>200&&<div style={{padding:12,textAlign:"center",color:"var(--tx3)",fontSize:11}}>Showing 200 of {sortedFiltered.length} entries</div>}
       </div>
     </div>
   );

@@ -176,6 +176,42 @@ body, html, #root { height: 100%; font-family: var(--font); background: var(--bg
 .table-wrap { overflow-x: auto; overflow-y: visible; }
 .table-wrap-sticky { overflow: auto; max-height: calc(100vh - 280px); }
 .table-wrap-sticky thead th { position: sticky; top: 0; z-index: 2; background: var(--bg3); box-shadow: 0 1px 0 var(--bd); }
+
+/* ── Row hover — subtle highlight while scanning multi-row tables.
+   Skips selected/active rows so it doesn't fight existing row tints. */
+.table-wrap tbody tr:not(.is-selected):hover,
+.table-wrap-sticky tbody tr:not(.is-selected):hover {
+  background: var(--bg);
+}
+
+/* ── Sticky-left first column for ultra-wide tables (MTD By QA).
+   Add class .table-sticky-first to the table; first td/th in each
+   row will pin to the left edge while horizontal-scrolling. */
+.table-sticky-first thead th:nth-child(1),
+.table-sticky-first tbody td:nth-child(1) {
+  position: sticky; left: 0;
+  background: var(--bg3);
+  box-shadow: 1px 0 0 var(--bd);
+  z-index: 1;
+}
+.table-sticky-first thead th:nth-child(1) { z-index: 3; }
+.table-sticky-first thead th:nth-child(2),
+.table-sticky-first tbody td:nth-child(2) {
+  position: sticky; left: 36px; /* width of the checkbox column */
+  background: var(--bg3);
+  box-shadow: 1px 0 0 var(--bd);
+  z-index: 1;
+}
+.table-sticky-first thead th:nth-child(2) { z-index: 3; }
+.table-sticky-first tbody tr:hover td:nth-child(1),
+.table-sticky-first tbody tr:hover td:nth-child(2) { background: var(--bg); }
+.table-sticky-first tbody tr.is-selected td:nth-child(1),
+.table-sticky-first tbody tr.is-selected td:nth-child(2) { background: var(--primary-light); }
+
+/* ── Density toggle. Apply class .table-dense to a .table-wrap to
+   tighten row padding from ~10px → ~5px. Headers stay readable. */
+.table-dense tbody td { padding: 5px 8px !important; font-size: 12px; }
+.table-dense thead th { padding-top: 8px !important; padding-bottom: 8px !important; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--tx3); font-weight: 600; padding: 12px 14px; border-bottom: 1px solid var(--bd); }
 td { padding: 14px; border-bottom: 1px solid var(--bd2); }

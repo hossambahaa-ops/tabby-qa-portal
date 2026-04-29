@@ -37,6 +37,17 @@ function ScoreEntryPage(){
   // Click-to-sort on the By QA table. Default = performance descending,
   // matching the previous static sort. Two-state cycle: desc ↔ asc.
   const [qaSort, setQaSort] = useState({ key: "performance", dir: "desc" });
+  // Density + column visibility — saved per-user in localStorage so the
+  // table remembers their preferred layout across visits.
+  const [tableDense, setTableDense] = useState(() => localStorage.getItem("mtd_table_dense") === "true");
+  useEffect(() => { localStorage.setItem("mtd_table_dense", tableDense); }, [tableDense]);
+  const [hiddenCols, setHiddenCols] = useState(() => {
+    try { const raw = localStorage.getItem("mtd_hidden_cols"); return raw ? new Set(JSON.parse(raw)) : new Set(); }
+    catch { return new Set(); }
+  });
+  useEffect(() => { localStorage.setItem("mtd_hidden_cols", JSON.stringify([...hiddenCols])); }, [hiddenCols]);
+  const [showColMenu, setShowColMenu] = useState(false);
+  const [tableSearch, setTableSearch] = useState("");
   const [bulkTaskModal, setBulkTaskModal] = useState(false);
   const [bulkForm, setBulkForm] = useState({title:"",description:"",priority:"medium",due_date:""});
   const [bulkSending, setBulkSending] = useState(false);
@@ -302,6 +313,11 @@ function ScoreEntryPage(){
   if (gf?.domain && !selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+gf.domain));
   if (gf?.teams?.length > 0 && !selTeam) filtered = filtered.filter(r => { const q = rosterMap[r.qa_email?.toLowerCase()]?.queue; return q && gf.teams.includes(q); });
   if (gf?.month && !selMonth && gf.month !== selMonth) { /* month already handled by selMonth */ }
+  // Live name/email filter — works on top of all the dropdown filters.
+  if (tableSearch.trim()) {
+    const q = tableSearch.toLowerCase().trim();
+    filtered = filtered.filter(r => (r.qa_email || "").toLowerCase().includes(q) || nameFromEmail(r.qa_email).toLowerCase().includes(q));
+  }
   // Pull a numeric value out of a percent-or-text cell ("94.00%", "0.94",
   // "—" all map to 94, 94, null). null values are pushed to the bottom
   // regardless of sort direction so they never elbow real data out of view.
@@ -369,8 +385,65 @@ function ScoreEntryPage(){
   );
   const qaSortArrow = (key) => qaSort.key === key ? (qaSort.dir === "asc" ? " ▲" : " ▼") : "";
 
+  // Hoisted because the column renderers reference them.
   const fpColor = (v) => v >= 0.4 ? "var(--green)" : v >= 0.25 ? "var(--amber)" : "var(--red)";
   const fpBg = (v) => v >= 0.4 ? "var(--green-bg)" : v >= 0.25 ? "var(--amber-bg)" : "var(--red-bg)";
+
+  // Single source of truth for the MTD By-QA table columns. Each entry
+  // controls header label, alignment, sort key (matches qaSortVal), the
+  // cell renderer, and whether it belongs to a quick-preset bundle.
+  // Keys here drive both the header and body, so adding/removing a
+  // column is a one-line change.
+  const MTD_COLUMNS = [
+    { k: "specialist", label: "Specialist", align: "left", style: { minWidth: 160 }, presets: ["all","perf","coach"], render: r => (
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>
+          {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
+        </div>
+        <div style={{fontWeight:500,fontSize:13,whiteSpace:"nowrap"}}>{nameFromEmail(r.qa_email)}</div>
+      </div>
+    )},
+    { k: "tl",              label: "TL",          align: "left", presets: ["all","perf","coach"], render: r => <span style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</span> },
+    { k: "wds",             label: "WDs",         presets: ["all","perf"],         render: r => r.working_days ?? "—" },
+    { k: "csat_pct",        label: "CSAT %",      presets: ["all","perf"],         render: r => { const v=csatPctValue(r.csat_pct); const s=Number(r.csat_total||0); const show=v!=null&&s>0; return <span style={{fontWeight:show?600:400,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</span>; } },
+    { k: "surveys",         label: "Surveys",     presets: ["all","perf"],         render: r => r.csat_total ?? "—" },
+    { k: "sbs",             label: "SBS",         presets: ["all","perf"],         render: r => r.sbs ?? "—" },
+    { k: "non_sbs",         label: "Non-SBS",     presets: ["all","perf"],         render: r => r.non_sbs ?? "—" },
+    { k: "dsat",            label: "DSAT",        presets: ["all","perf"],         render: r => r.dsat ?? "—" },
+    { k: "late",            label: "Late",        presets: ["all"],                render: r => r.late_count ?? "—" },
+    { k: "never",           label: "Never",       presets: ["all"],                render: r => r.never_count ?? "—" },
+    { k: "valid",           label: "Valid",       presets: ["all"],                render: r => r.valid_count ?? "—" },
+    { k: "invalid",         label: "Invalid",     presets: ["all"],                render: r => r.invalid_count ?? "—" },
+    { k: "sessions",        label: "Sessions",    presets: ["all","coach"],        render: r => r.coaching_sessions ?? "—" },
+    { k: "ontime_count",    label: "On-time",     presets: ["all","coach"],        render: r => r.total_ontime_coachings ?? "—" },
+    { k: "eligible",        label: "Eligible",    presets: ["all","coach"],        render: r => r.coaching_eligibility_count ?? "—" },
+    { k: "not_coached",     label: "Not coached", presets: ["all","coach"],        render: r => r.not_coached ?? "—" },
+    { k: "rtr",             label: "RTR",         presets: ["all"],                render: r => r.rtr_count ?? "—" },
+    { k: "rtr_score",       label: "RTR score",   presets: ["all"],                render: r => fmtPct(r.avg_rtr_score) },
+    { k: "obs",             label: "Obs.",        presets: ["all","coach"],        render: r => r.observed_coaching_count ?? "—" },
+    { k: "obs_pct",         label: "Obs. %",      presets: ["all","coach"],        render: r => fmtPct(r.avg_observation_score_pct) },
+    { k: "calib",           label: "Calib.",      presets: ["all","coach"],        render: r => r.calibration_count ?? "—" },
+    { k: "calib_pct",       label: "Calib. %",    presets: ["all","coach"],        render: r => fmtPct(r.avg_calibration_match_rate) },
+    { k: "completion",      label: "Completion",  presets: ["all","coach"],        render: r => fmtPct(r.coaching_completion_pct) },
+    { k: "ontime_pct",      label: "On-time %",   presets: ["all","coach"],        render: r => fmtPct(r.ontime_coaching_pct) },
+    { k: "jkq",             label: "JKQ",         align: "center", presets: ["all","perf"], render: r =>
+      r.jkq_result && r.jkq_result !== "N/A"
+        ? <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}{r.jkq_score>0?` (${r.jkq_score})`:""}</span>
+        : <span style={{color:"var(--tx3)"}}>—</span>
+    },
+    { k: "tickets_per_day", label: "Tickets/d",   presets: ["all","perf"],         render: r => <span style={{color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</span> },
+    { k: "occupancy",       label: "Occupancy",   presets: ["all","perf"],         render: r => fmtPct(r.occupancy_pct) },
+    { k: "st_time",         label: "ST Time",     presets: ["all"],                render: r => <span style={{fontSize:12,color:"var(--tx2)"}}>{r.side_tasks_duration_mins ? `${Math.floor(r.side_tasks_duration_mins/60)}h ${r.side_tasks_duration_mins%60}m` : "—"}</span> },
+    { k: "performance",     label: "Performance", presets: ["all","perf","coach"], render: r =>
+      <span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>{((r.final_performance||0)*100).toFixed(1)}%</span>
+    },
+  ];
+  const visibleColumns = MTD_COLUMNS.filter(c => !hiddenCols.has(c.k));
+  const applyPreset = (preset) => {
+    if (preset === "all") setHiddenCols(new Set());
+    else setHiddenCols(new Set(MTD_COLUMNS.filter(c => !c.presets.includes(preset)).map(c => c.k)));
+    setShowColMenu(false);
+  };
 
   if (loading) return <div className="page"><SkeletonPage/></div>;
 
@@ -511,109 +584,78 @@ function ScoreEntryPage(){
             </button>
           </div>
         </div>
-        {mtdView==="qa"&&<div className="table-wrap table-wrap-sticky">
-          <table>
-            <thead>
-              <tr>
-                <th style={{width:36,textAlign:"center"}}><input type="checkbox" checked={sorted.length>0&&selectedRows.size===sorted.length} onChange={e=>{if(e.target.checked){setSelectedRows(new Set(sorted.map(r=>r.qa_email)));}else{setSelectedRows(new Set());}}} style={{cursor:"pointer"}}/></th>
-                {[
-                  { k: "specialist",      label: "Specialist",  align: "left",   style: { minWidth: 160 } },
-                  { k: "tl",              label: "TL",          align: "left" },
-                  { k: "wds",             label: "WDs" },
-                  { k: "csat_pct",        label: "CSAT %" },
-                  { k: "surveys",         label: "Surveys" },
-                  { k: "sbs",             label: "SBS" },
-                  { k: "non_sbs",         label: "Non-SBS" },
-                  { k: "dsat",            label: "DSAT" },
-                  { k: "late",            label: "Late" },
-                  { k: "never",           label: "Never" },
-                  { k: "valid",           label: "Valid" },
-                  { k: "invalid",         label: "Invalid" },
-                  { k: "sessions",        label: "Sessions" },
-                  { k: "ontime_count",    label: "On-time" },
-                  { k: "eligible",        label: "Eligible" },
-                  { k: "not_coached",     label: "Not coached" },
-                  { k: "rtr",             label: "RTR" },
-                  { k: "rtr_score",       label: "RTR score" },
-                  { k: "obs",             label: "Obs." },
-                  { k: "obs_pct",         label: "Obs. %" },
-                  { k: "calib",           label: "Calib." },
-                  { k: "calib_pct",       label: "Calib. %" },
-                  { k: "completion",      label: "Completion" },
-                  { k: "ontime_pct",      label: "On-time %" },
-                  { k: "jkq",             label: "JKQ",         align: "center" },
-                  { k: "tickets_per_day", label: "Tickets/d" },
-                  { k: "occupancy",       label: "Occupancy" },
-                  { k: "st_time",         label: "ST Time" },
-                  { k: "performance",     label: "Performance" },
-                ].map(c => (
-                  <th
-                    key={c.k}
-                    onClick={() => toggleQaSort(c.k)}
-                    title={`Sort by ${c.label}`}
-                    className={`sortable${qaSort.key === c.k ? " is-sorted" : ""}`}
-                    style={{ textAlign: c.align || "right", whiteSpace: "nowrap", ...(c.style || {}) }}
-                  >
-                    {c.label}{qaSortArrow(c.k)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((r, i) => (
-                <tr key={r.id} style={{background:selectedRows.has(r.qa_email)?"var(--primary-light)":undefined}}>
-                  <td style={{textAlign:"center"}}><input type="checkbox" checked={selectedRows.has(r.qa_email)} onChange={e=>{const next=new Set(selectedRows);if(e.target.checked)next.add(r.qa_email);else next.delete(r.qa_email);setSelectedRows(next);}} style={{cursor:"pointer"}} onClick={e=>e.stopPropagation()}/></td>
-                  <td>
-                    <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>
-                        {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
-                      </div>
-                      <div>
-                        <div style={{fontWeight:500,fontSize:13,whiteSpace:"nowrap"}}>{nameFromEmail(r.qa_email)}</div>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.working_days ?? "—"}</td>
-                  {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:show?600:400,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
-                  <td style={{textAlign:"right"}}>{r.csat_total ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.sbs ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.non_sbs ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.dsat ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.late_count ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.never_count ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.valid_count ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.invalid_count ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.coaching_sessions ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.total_ontime_coachings ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.coaching_eligibility_count ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.not_coached ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{r.rtr_count ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{fmtPct(r.avg_rtr_score)}</td>
-                  <td style={{textAlign:"right"}}>{r.observed_coaching_count ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{fmtPct(r.avg_observation_score_pct)}</td>
-                  <td style={{textAlign:"right"}}>{r.calibration_count ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{fmtPct(r.avg_calibration_match_rate)}</td>
-                  <td style={{textAlign:"right"}}>{fmtPct(r.coaching_completion_pct)}</td>
-                  <td style={{textAlign:"right"}}>{fmtPct(r.ontime_coaching_pct)}</td>
-                  <td style={{textAlign:"center"}}>
-                    {r.jkq_result && r.jkq_result !== "N/A" ? (
-                      <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}{r.jkq_score>0?` (${r.jkq_score})`:""}</span>
-                    ) : <span style={{color:"var(--tx3)"}}>—</span>}
-                  </td>
-                  <td style={{textAlign:"right",color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</td>
-                  <td style={{textAlign:"right"}}>{fmtPct(r.occupancy_pct)}</td>
-                  <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)"}}>{r.side_tasks_duration_mins?`${Math.floor(r.side_tasks_duration_mins/60)}h ${r.side_tasks_duration_mins%60}m`:"—"}</td>
-                  <td style={{textAlign:"right"}}>
-                    <span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>
-                      {((r.final_performance||0)*100).toFixed(1)}%
-                    </span>
-                  </td>
+        {mtdView==="qa"&&<>
+          {/* Table controls — search, density toggle, column visibility menu */}
+          <div style={{display:"flex",gap:8,alignItems:"center",padding:"10px 12px",borderBottom:"1px solid var(--bd2)",flexWrap:"wrap"}}>
+            <div style={{position:"relative",flex:1,minWidth:200,maxWidth:320}}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)"}}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+              <input className="form-input" value={tableSearch} onChange={e=>setTableSearch(e.target.value)} placeholder={`Quick filter (${filtered.length} rows)`} style={{paddingLeft:30,fontSize:12,height:32}}/>
+              {tableSearch && <button onClick={()=>setTableSearch("")} style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,lineHeight:1}}>×</button>}
+            </div>
+            <button className="btn btn-outline btn-sm" onClick={()=>setTableDense(d=>!d)} title="Toggle row density" style={{fontSize:11}}>
+              {tableDense ? "↕ Comfortable" : "↔ Compact"}
+            </button>
+            <div style={{position:"relative"}}>
+              <button className="btn btn-outline btn-sm" onClick={()=>setShowColMenu(s=>!s)} style={{fontSize:11}}>
+                ⚙ Columns ({visibleColumns.length}/{MTD_COLUMNS.length})
+              </button>
+              {showColMenu && <>
+                <div onClick={()=>setShowColMenu(false)} style={{position:"fixed",inset:0,zIndex:99}}/>
+                <div style={{position:"absolute",top:"calc(100% + 6px)",right:0,zIndex:100,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:10,boxShadow:"var(--shadow-lg)",minWidth:240,maxHeight:420,overflowY:"auto"}}>
+                  <div style={{padding:"8px 12px",borderBottom:"1px solid var(--bd2)",display:"flex",gap:6,flexWrap:"wrap"}}>
+                    <button className="btn btn-outline btn-sm" onClick={()=>applyPreset("all")} style={{fontSize:10,padding:"3px 8px"}}>All</button>
+                    <button className="btn btn-outline btn-sm" onClick={()=>applyPreset("perf")} style={{fontSize:10,padding:"3px 8px"}}>Performance</button>
+                    <button className="btn btn-outline btn-sm" onClick={()=>applyPreset("coach")} style={{fontSize:10,padding:"3px 8px"}}>Coaching</button>
+                  </div>
+                  <div style={{padding:"4px 0"}}>
+                    {MTD_COLUMNS.map(c => (
+                      <label key={c.k} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 12px",fontSize:12,cursor:"pointer"}}
+                        onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"}
+                        onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                        <input type="checkbox" checked={!hiddenCols.has(c.k)} onChange={e=>{
+                          const next = new Set(hiddenCols);
+                          if (e.target.checked) next.delete(c.k); else next.add(c.k);
+                          setHiddenCols(next);
+                        }} style={{cursor:"pointer"}}/>
+                        <span>{c.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </>}
+            </div>
+          </div>
+          <div className={`table-wrap table-wrap-sticky table-sticky-first${tableDense ? " table-dense" : ""}`}>
+            <table>
+              <thead>
+                <tr>
+                  <th style={{width:36,textAlign:"center"}}><input type="checkbox" checked={sorted.length>0&&selectedRows.size===sorted.length} onChange={e=>{if(e.target.checked){setSelectedRows(new Set(sorted.map(r=>r.qa_email)));}else{setSelectedRows(new Set());}}} style={{cursor:"pointer"}}/></th>
+                  {visibleColumns.map(c => (
+                    <th
+                      key={c.k}
+                      onClick={() => toggleQaSort(c.k)}
+                      title={`Sort by ${c.label}`}
+                      className={`sortable${qaSort.key === c.k ? " is-sorted" : ""}`}
+                      style={{ textAlign: c.align || "right", whiteSpace: "nowrap", ...(c.style || {}) }}
+                    >
+                      {c.label}{qaSortArrow(c.k)}
+                    </th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>}
+              </thead>
+              <tbody>
+                {sorted.map((r) => (
+                  <tr key={r.id} className={selectedRows.has(r.qa_email) ? "is-selected" : ""} style={{background:selectedRows.has(r.qa_email)?"var(--primary-light)":undefined}}>
+                    <td style={{textAlign:"center"}}><input type="checkbox" checked={selectedRows.has(r.qa_email)} onChange={e=>{const next=new Set(selectedRows);if(e.target.checked)next.add(r.qa_email);else next.delete(r.qa_email);setSelectedRows(next);}} style={{cursor:"pointer"}} onClick={e=>e.stopPropagation()}/></td>
+                    {visibleColumns.map(c => (
+                      <td key={c.k} style={{textAlign: c.align || "right"}}>{c.render(r)}</td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>}
 
         {/* Lead Aggregation View */}
         {mtdView==="lead"&&(()=>{
