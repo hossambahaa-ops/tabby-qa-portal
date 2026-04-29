@@ -87,7 +87,13 @@ export default function CsatTopicMatrix({
         return nb - na;
       });
     }
-    return base.sort((a, b) => dirMul * ((overallOf(a) ?? -1) - (overallOf(b) ?? -1)));
+    return base.sort((a, b) => {
+      const oa = overallOf(a) ?? -1;
+      const ob = overallOf(b) ?? -1;
+      if (oa !== ob) return dirMul * (oa - ob);
+      // Tiebreaker: more surveys → higher row (consistent with per-topic sort).
+      return (matrix.totalsByAgent[b.qa_email]?.s || 0) - (matrix.totalsByAgent[a.qa_email]?.s || 0);
+    });
   })();
 
   if (visibleTopics.length === 0) {

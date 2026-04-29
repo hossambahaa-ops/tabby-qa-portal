@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 
 const fmtAge = (ts) => {
   if (!ts) return null;
@@ -14,8 +14,18 @@ const fmtAge = (ts) => {
  *
  * Shows a small "Live · synced Xm ago" pill. Tooltip lists per-table ages.
  * ts = { daily, mtd, csat } — each an ISO string or null.
+ *
+ * The displayed age is updated every 60 s so it stays accurate while the
+ * user sits on the page without triggering a full data reload.
  */
 export default function FreshnessBadge({ ts }) {
+  // Tick every 60 s so "Xm ago" advances in real-time.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   if (!ts) return null;
   const labels = [
     { label: "Daily", v: ts.daily },
@@ -25,9 +35,11 @@ export default function FreshnessBadge({ ts }) {
   const defined = labels.filter(l => l.v);
   if (defined.length === 0) return null;
 
-  // Show age of the oldest (most stale) table so users know the worst case.
-  const oldest = [...defined].sort((a, b) => new Date(a.v) - new Date(b.v))[0];
-  const age = fmtAge(oldest.v);
+  // Show the daily score age primarily (syncs every 5 min — most relevant).
+  // Fall back to oldest if daily is missing.
+  const primary = labels.find(l => l.label === "Daily" && l.v)
+    || [...defined].sort((a, b) => new Date(a.v) - new Date(b.v))[0];
+  const age = fmtAge(primary.v);
   const tooltip = labels.map(l => `${l.label}: ${l.v ? fmtAge(l.v) : "—"}`).join("\n");
 
   return (

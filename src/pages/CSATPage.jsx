@@ -120,7 +120,13 @@ export default function CSATPage() {
   // from every view so the page only shows people with actual data.
   const csatSorted = [...filtered]
     .filter(r => Number(r.csat_total || 0) > 0)
-    .sort((a, b) => (csatPctValue(b.csat_pct) ?? -1) - (csatPctValue(a.csat_pct) ?? -1));
+    .sort((a, b) => {
+      const pa = csatPctValue(a.csat_pct) ?? -1;
+      const pb = csatPctValue(b.csat_pct) ?? -1;
+      if (pa !== pb) return pb - pa;
+      // Tiebreaker: more surveys → higher row.
+      return Number(b.csat_total || 0) - Number(a.csat_total || 0);
+    });
   // csat_by_topic.month is stored as text ("Apr-2026"), matching the
   // mtd_scores.month convention — NOT a date.
   const monthKey = selMonth || null;
@@ -152,7 +158,11 @@ export default function CSATPage() {
           pick[norm] = { topic: norm, csat_score: score, surveys_count: surveys };
         }
       });
-      const aggRows = Object.values(pick).sort((x, y) => (y.csat_score ?? -1) - (x.csat_score ?? -1));
+      const aggRows = Object.values(pick).sort((x, y) => {
+        const diff = (y.csat_score ?? -1) - (x.csat_score ?? -1);
+        if (diff !== 0) return diff;
+        return (y.surveys_count || 0) - (x.surveys_count || 0);
+      });
       setTopics(prev => ({ ...prev, [key]: aggRows }));
     } catch (e) { setTopics(prev => ({ ...prev, [key]: [] })); }
     setTopicsLoading(null);
@@ -177,7 +187,11 @@ export default function CSATPage() {
     return Object.values(map).map(l => ({
       ...l,
       csat: l.weight > 0 ? l.weightedSum / l.weight : (l.simpleCount > 0 ? l.simpleSum / l.simpleCount : null),
-    })).sort((a, b) => (b.csat ?? -1) - (a.csat ?? -1));
+    })).sort((a, b) => {
+      const ca = b.csat ?? -1, cb = a.csat ?? -1;
+      if (ca !== cb) return ca - cb;
+      return (b.surveys || 0) - (a.surveys || 0);
+    });
   })();
 
   const toggleLeadRow = async (lead) => {
@@ -220,7 +234,11 @@ export default function CSATPage() {
         topic: a.topic,
         csat_score: a.n > 0 ? a.w / a.n : (a.simpleCount > 0 ? a.simpleSum / a.simpleCount : null),
         surveys_count: a.s,
-      })).sort((x, y) => (y.csat_score ?? -1) - (x.csat_score ?? -1));
+      })).sort((x, y) => {
+        const sx = y.csat_score ?? -1, sy = x.csat_score ?? -1;
+        if (sx !== sy) return sx - sy;
+        return (y.surveys_count || 0) - (x.surveys_count || 0);
+      });
       setLeadTopics(prev => ({ ...prev, [key]: aggRows }));
     } catch (e) { setLeadTopics(prev => ({ ...prev, [key]: [] })); }
     setLeadTopicsLoading(null);
