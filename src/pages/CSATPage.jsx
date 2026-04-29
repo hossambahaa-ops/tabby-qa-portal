@@ -53,9 +53,13 @@ export default function CSATPage() {
         ]);
         setRoster(rosterRows);
         // Mirror ScoreEntryPage filtering: exclude non-QA profiles and entries
-        // not managed by a QA lead.
+        // not managed by a recognised lead. Both qa_lead AND qa_supervisor
+        // count as valid managers — some QAs (and SQAs) report directly to
+        // a supervisor (e.g. Amer Saad's reports), and previously they were
+        // dropped from CSAT just because their TL wasn't a qa_lead.
+        const leadRoles = new Set(["qa_lead", "qa_supervisor"]);
         const qaLeadSet = new Set();
-        profRows.filter(p => p.role === "qa_lead").forEach(p => {
+        profRows.filter(p => leadRoles.has(p.role)).forEach(p => {
           const email = p.email?.toLowerCase();
           if (!email) return;
           qaLeadSet.add(email);
