@@ -28,6 +28,13 @@ function LeaderboardPage() {
   const [search, setSearch] = useState("");
   const [selQuarter, setSelQuarter] = useState("");
   const [selYear, setSelYear] = useState("");
+  // For QAs viewing their own "My Performance" card: clicking a month bar
+  // in Score history switches the KPIs above to that month, without
+  // touching the page-level selMonth filter. null = current selMonth.
+  const [histMonth, setHistMonth] = useState(null);
+  // When the page-level month dropdown changes, drop any time-travel
+  // selection so the card always returns to "current = page-level month".
+  useEffect(() => { setHistMonth(null); }, [selMonth]);
   const [selQaQuarterly, setSelQaQuarterly] = useState("");
   const [selectedEmails, setSelectedEmails] = useState(new Set());
   const [compareMode, setCompareMode] = useState(false);
@@ -237,12 +244,22 @@ function LeaderboardPage() {
 
         {/* ── QA Self-Service: My Performance Panel ── */}
         {isQaInd && (()=>{
-          const myRankIdx = ranked.findIndex(r => r.qa_email?.toLowerCase() === myEmailInd);
-          const myRow = myRankIdx >= 0 ? ranked[myRankIdx] : null;
+          // Which month is the card actually displaying? `histMonth` lets
+          // the user click a Score-history bar to time-travel within this
+          // card without touching the page-level selMonth filter.
+          const viewMonth = histMonth || selMonth;
+          const isHistView = !!histMonth && histMonth !== selMonth;
+          // Row + rank for the chosen month
+          const monthRows = data.filter(r => r.month === viewMonth);
+          const monthRanked = [...monthRows].sort((a, b) => getTotalScore(b) - getTotalScore(a));
+          const myRankIdx = monthRanked.findIndex(r => r.qa_email?.toLowerCase() === myEmailInd);
+          const myRow = myRankIdx >= 0 ? monthRanked[myRankIdx] : null;
           if (!myRow) return null;
           const myKpis = getKpiScores(myRow);
           const myTotal = myKpis.reduce((s,k) => s + k.score, 0);
-          // Historical scores across months
+          // Historical scores across months (always built from data, not
+          // tied to the chosen view month — so the bars stay stable while
+          // you hop around).
           const history = months.slice(0,6).reverse().map(m => {
             const row = data.find(r => r.month === m && r.qa_email?.toLowerCase() === myEmailInd);
             if (!row) return { month: m, score: null };
@@ -253,11 +270,16 @@ function LeaderboardPage() {
           return <div className="card" style={{marginBottom:24,borderLeft:"4px solid var(--tabby-purple,#6A2C79)"}}>
             <div className="card-header">
               <span className="card-title" style={{display:"flex",alignItems:"center",gap:8}}>
-                <span style={{fontSize:18}}>📊</span> My Performance — {selMonth}
+                <span style={{fontSize:18}}>📊</span> My Performance — {viewMonth}
+                {isHistView && <button
+                  onClick={()=>setHistMonth(null)}
+                  title="Back to current month"
+                  style={{fontSize:10,fontWeight:600,padding:"3px 9px",borderRadius:8,border:"1px solid var(--bd)",background:"var(--bg)",color:"var(--tx2)",cursor:"pointer",fontFamily:"var(--font)"}}
+                >← {selMonth}</button>}
               </span>
               <span style={{fontSize:22,fontWeight:800,letterSpacing:"-1px",color:scoreColor(myTotal)}}>
                 {myTotal.toFixed(1)} <span style={{fontSize:13,fontWeight:400,color:"var(--tx3)"}}>/ {maxScore}</span>
-                <span style={{fontSize:12,fontWeight:600,color:"var(--tx3)",marginLeft:8}}>Rank #{myRankIdx+1} of {ranked.length}</span>
+                <span style={{fontSize:12,fontWeight:600,color:"var(--tx3)",marginLeft:8}}>Rank #{myRankIdx+1} of {monthRanked.length}</span>
               </span>
             </div>
 
@@ -292,18 +314,30 @@ function LeaderboardPage() {
               <div style={{fontSize:12}}><span style={{color:"var(--tx3)"}}>Working days: </span><span style={{fontWeight:600}}>{myRow.working_days||"—"}</span></div>
             </div>
 
-            {/* Historical Trend */}
+            {/* Historical Trend — click any bar to view that month's KPIs */}
             {history.length >= 2 && <div>
-              <div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Score history</div>
+              <div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Score history <span style={{textTransform:"none",fontWeight:500,color:"var(--tx3)",letterSpacing:0,fontSize:10,marginLeft:4}}>· click a bar to view that month</span></div>
               <div style={{display:"flex",alignItems:"flex-end",gap:6,height:60}}>
                 {history.map((h,i) => {
                   const pct = h.score / maxScore * 100;
-                  const isLatest = i === history.length - 1;
-                  return <div key={h.month} style={{display:"flex",flexDirection:"column",alignItems:"center",flex:1,gap:4}}>
-                    <span style={{fontSize:10,fontWeight:isLatest?700:400,color:isLatest?scoreColor(h.score):"var(--tx3)"}}>{h.score.toFixed(1)}</span>
-                    <div style={{width:"100%",height:`${Math.max(pct*0.5,4)}px`,borderRadius:4,background:isLatest?scoreColor(h.score):"var(--bd)",transition:"height .3s"}}/>
-                    <span style={{fontSize:9,color:"var(--tx3)"}}>{h.month.split("-")[0]}</span>
-                  </div>;
+                  const isActive = h.month === viewMonth;
+                  const barColor = isActive ? scoreColor(h.score) : "var(--bd)";
+                  return <button
+                    key={h.month}
+                    onClick={()=>setHistMonth(h.month === selMonth ? null : h.month)}
+                    title={`View ${h.month}`}
+                    style={{
+                      display:"flex",flexDirection:"column",alignItems:"center",flex:1,gap:4,
+                      cursor:"pointer",background:"transparent",border:"none",padding:"0 2px",
+                      fontFamily:"var(--font)",borderRadius:6,transition:"background .15s",
+                    }}
+                    onMouseEnter={e=>{ if(!isActive) e.currentTarget.style.background="var(--bg)"; }}
+                    onMouseLeave={e=>{ e.currentTarget.style.background="transparent"; }}
+                  >
+                    <span style={{fontSize:10,fontWeight:isActive?700:400,color:isActive?scoreColor(h.score):"var(--tx3)"}}>{h.score.toFixed(1)}</span>
+                    <div style={{width:"100%",height:`${Math.max(pct*0.5,4)}px`,borderRadius:4,background:barColor,transition:"height .3s, background .2s",boxShadow:isActive?`0 0 0 2px ${scoreColor(h.score)}33`:"none"}}/>
+                    <span style={{fontSize:9,color:isActive?"var(--tx2)":"var(--tx3)",fontWeight:isActive?700:400}}>{h.month.split("-")[0]}</span>
+                  </button>;
                 })}
               </div>
             </div>}
