@@ -388,6 +388,7 @@ export default function CSATPage() {
             topicSort={topicSort}
             setTopicSort={setTopicSort}
             topicMinSurveys={topicMinSurveys}
+            setTopicMinSurveys={setTopicMinSurveys}
             topicMatrixLoading={topicMatrixLoading}
             selMonth={selMonth}
           />

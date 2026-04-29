@@ -1,4 +1,5 @@
 import React from "react";
+import EmptyState from "../EmptyState.jsx";
 
 const nameFromEmail = (email) => {
   if (!email) return "—";
@@ -42,6 +43,7 @@ export default function CsatTopicMatrix({
   topicSort,
   setTopicSort,
   topicMinSurveys,
+  setTopicMinSurveys,
   topicMatrixLoading,
   selMonth,
 }) {
@@ -49,7 +51,13 @@ export default function CsatTopicMatrix({
     return <div className="placeholder" style={{ padding: 40, color: "var(--tx3)" }}>Loading topic matrix…</div>;
   }
   if (!matrix || matrix.topics.length === 0) {
-    return <div className="placeholder" style={{ padding: 40, color: "var(--tx3)" }}>No per-topic CSAT data for {selMonth}.</div>;
+    return (
+      <EmptyState
+        title="No per-topic CSAT data"
+        description={`No survey data has been recorded for ${selMonth}. Sync may not have run yet.`}
+        icon="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+      />
+    );
   }
 
   const visibleTopics = matrix.topics.filter(t => (matrix.totalsByTopic[t]?.s || 0) >= Math.max(1, topicMinSurveys));
@@ -97,10 +105,27 @@ export default function CsatTopicMatrix({
   })();
 
   if (visibleTopics.length === 0) {
-    return <div className="placeholder" style={{ padding: 40, color: "var(--tx3)" }}>No topics with ≥ {topicMinSurveys} surveys. Lower the threshold.</div>;
+    return (
+      <EmptyState
+        title="No topics meet that threshold"
+        description={topicMinSurveys > 1
+          ? `No topics have ≥ ${topicMinSurveys} surveys this month.`
+          : `Topics exist but none have any surveys yet for ${selMonth}.`}
+        cta={topicMinSurveys > 1 && setTopicMinSurveys
+          ? { label: "Lower threshold to 1", onClick: () => setTopicMinSurveys(1) }
+          : undefined}
+        icon="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"
+      />
+    );
   }
   if (visibleAgents.length === 0) {
-    return <div className="placeholder" style={{ padding: 40, color: "var(--tx3)" }}>No specialists have surveys in {selMonth}.</div>;
+    return (
+      <EmptyState
+        title="No specialists with surveys"
+        description={`No specialist has CSAT data in ${selMonth}.`}
+        icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
+      />
+    );
   }
 
   const sortArrow = (key) => {
@@ -122,19 +147,22 @@ export default function CsatTopicMatrix({
           <thead>
             <tr>
               <th onClick={() => toggleSort("__name__")} title="Sort by specialist name"
-                  style={{ position: "sticky", left: 0, top: 0, zIndex: 3, background: "var(--bg2)", padding: "10px 12px", textAlign: "left", borderBottom: "1px solid var(--bd2)", borderRight: "1px solid var(--bd2)", minWidth: 210, fontSize: 10, color: topicSort.key === "__name__" ? "var(--accent-text)" : "var(--tx3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", verticalAlign: "bottom", cursor: "pointer", userSelect: "none" }}>
+                  className={`sortable${topicSort.key === "__name__" ? " is-sorted" : ""}`}
+                  style={{ position: "sticky", left: 0, top: 0, zIndex: 3, background: "var(--bg2)", padding: "10px 12px", textAlign: "left", borderBottom: "1px solid var(--bd2)", borderRight: "1px solid var(--bd2)", minWidth: 210, fontSize: 10, color: topicSort.key === "__name__" ? "var(--accent-text)" : "var(--tx3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", verticalAlign: "bottom" }}>
                 Specialist{sortArrow("__name__")}
               </th>
               {visibleTopics.map(t => {
                 const isActive = topicSort.key === t;
                 return <th key={t} onClick={() => toggleSort(t)}
                     title={`${t}\n${matrix.totalsByTopic[t]?.s || 0} surveys across team\nClick to sort`}
-                    style={{ position: "sticky", top: 0, zIndex: 2, background: isActive ? "var(--accent-light)" : "var(--bg2)", padding: "6px 2px 8px", textAlign: "center", borderBottom: "1px solid var(--bd2)", verticalAlign: "bottom", height: 96, minWidth: 36, maxWidth: 36, width: 36, cursor: "pointer", userSelect: "none" }}>
+                    className={`sortable${isActive ? " is-sorted" : ""}`}
+                    style={{ position: "sticky", top: 0, zIndex: 2, background: isActive ? "var(--accent-light)" : "var(--bg2)", padding: "6px 2px 8px", textAlign: "center", borderBottom: "1px solid var(--bd2)", verticalAlign: "bottom", height: 96, minWidth: 36, maxWidth: 36, width: 36 }}>
                   <div style={{ writingMode: "vertical-rl", transform: "rotate(180deg)", whiteSpace: "nowrap", fontSize: 10, color: isActive ? "var(--accent-text)" : "var(--tx2)", fontWeight: isActive ? 700 : 600, letterSpacing: ".2px", maxHeight: 82, overflow: "hidden", textOverflow: "ellipsis" }}>{shortTopic(t)}{sortArrow(t)}</div>
                 </th>;
               })}
               <th onClick={() => toggleSort("__overall__")} title="Sort by overall CSAT"
-                  style={{ position: "sticky", top: 0, right: 0, zIndex: 3, background: "var(--bg2)", padding: "10px 12px", textAlign: "center", borderBottom: "1px solid var(--bd2)", borderLeft: "1px solid var(--bd2)", fontSize: 10, color: (topicSort.key === null || topicSort.key === "__overall__") ? "var(--accent-text)" : "var(--tx3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", minWidth: 72, verticalAlign: "bottom", cursor: "pointer", userSelect: "none" }}>
+                  className={`sortable${(topicSort.key === null || topicSort.key === "__overall__") ? " is-sorted" : ""}`}
+                  style={{ position: "sticky", top: 0, right: 0, zIndex: 3, background: "var(--bg2)", padding: "10px 12px", textAlign: "center", borderBottom: "1px solid var(--bd2)", borderLeft: "1px solid var(--bd2)", fontSize: 10, color: (topicSort.key === null || topicSort.key === "__overall__") ? "var(--accent-text)" : "var(--tx3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", minWidth: 72, verticalAlign: "bottom" }}>
                 Overall{sortArrow("__overall__")}
               </th>
             </tr>

@@ -9,6 +9,7 @@ import { useUrlState } from "../lib/useUrlState.jsx";
 import { useQaProfileData, bustBulkCache } from "../lib/useQaProfileData.jsx";
 import { useFreshness } from "../lib/useFreshness.js";
 import FreshnessBadge from "../components/FreshnessBadge.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 
 // Safe render: prevent objects/arrays from crashing React
 const safe = (v) => {
@@ -34,6 +35,7 @@ function QAProfilePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSession, setExpandedSession] = useState(null);
   const [freshnessKey, setFreshnessKey] = useState(0);
+  const [syncPulse, setSyncPulse] = useState(0);
   const freshness = useFreshness(token, freshnessKey);
   const [expandedFlag, setExpandedFlag] = useState(null);
   const [expandedPlan, setExpandedPlan] = useState(null);
@@ -82,6 +84,7 @@ function QAProfilePage() {
         if (mtdRes.data.rows_upserted) parts.push(`${mtdRes.data.rows_upserted} MTD`);
         if (csat.data.rows_aggregated) parts.push(`${csat.data.rows_aggregated} CSAT topics`);
         globalToast?.("success", `Live sync — ${parts.join(" · ")}`);
+        setSyncPulse(p => p + 1); // pulse the FreshnessBadge to confirm visually
       } else {
         console.error("[sync] failures:", fail);
         globalToast?.("error", `Sync issue — ${fail[0]}${fail.length > 1 ? ` (+${fail.length - 1} more, see console)` : ""}`);
@@ -172,7 +175,7 @@ function QAProfilePage() {
           <div className="page-subtitle">{visibleQAs.length} team members</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <FreshnessBadge ts={freshness} />
+          <FreshnessBadge ts={freshness} pulseKey={syncPulse} />
           <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the latest Today_Productivity CSV from Google Sheets" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
             {refreshing
               ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />Refreshing…</>
@@ -219,7 +222,7 @@ function QAProfilePage() {
           Back to list
         </button>}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          <FreshnessBadge ts={freshness} />
+          <FreshnessBadge ts={freshness} pulseKey={syncPulse} />
           <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the latest Today_Productivity CSV from Google Sheets" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
             {refreshing
               ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />Refreshing…</>
@@ -529,7 +532,13 @@ function QAProfilePage() {
                 </div>}
               </div>;
             })}
-          </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No coaching sessions yet</div>}
+          </div> : <EmptyState
+            variant="compact"
+            title="No coaching sessions yet"
+            description={isLead && !isQA ? "Schedule a coaching session to start tracking growth." : "Your lead hasn't logged any sessions yet."}
+            icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+            cta={isLead && !isQA ? { label: "Schedule one →", onClick: () => window.dispatchEvent(new CustomEvent("navigate", { detail: "quality" })) } : undefined}
+          />}
         </div>
       </div>
 

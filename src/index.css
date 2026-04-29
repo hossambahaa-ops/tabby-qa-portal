@@ -38,6 +38,11 @@
   /* Transitions */
   --ease: cubic-bezier(.4,0,.2,1);
   --ease-spring: cubic-bezier(.34,1.56,.64,1);
+
+  /* Spacing scale — use these instead of raw px so layout rhythm stays
+     consistent. 1=4px, 2=8px, 3=12px, 4=16px, 5=24px, 6=32px, 7=48px. */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px;
+  --sp-5: 24px; --sp-6: 32px; --sp-7: 48px;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -137,11 +142,35 @@ body, html, #root { height: 100%; font-family: var(--font); background: var(--bg
 .welcome-role { display: inline-block; background: rgba(59,255,157,.1); color: var(--tabby-green); padding: 4px 14px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-top: 14px; position: relative; z-index: 1; border: 1px solid rgba(59,255,157,.15); }
 
 /* ── Placeholder ── */
-.placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 60px 20px; }
-.placeholder-icon { width: 64px; height: 64px; background: var(--primary-light); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: 20px; color: var(--primary); }
-.placeholder h3 { font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: -.3px; }
+.placeholder { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: var(--sp-7) var(--sp-5); }
+.placeholder-icon { width: 64px; height: 64px; background: var(--primary-light); border-radius: 16px; display: flex; align-items: center; justify-content: center; margin-bottom: var(--sp-5); color: var(--primary); }
+.placeholder h3 { font-size: 18px; font-weight: 700; margin-bottom: var(--sp-1); letter-spacing: -.3px; }
 .placeholder p { color: var(--tx2); font-size: 14px; max-width: 400px; }
-.placeholder-badge { margin-top: 16px; padding: 6px 16px; background: var(--amber-bg); color: var(--amber); font-size: 12px; font-weight: 600; border-radius: 20px; }
+.placeholder-badge { margin-top: var(--sp-4); padding: 6px 16px; background: var(--amber-bg); color: var(--amber); font-size: 12px; font-weight: 600; border-radius: 20px; }
+.placeholder-cta { margin-top: var(--sp-4); }
+.placeholder-compact { padding: var(--sp-5) var(--sp-4); gap: var(--sp-2); }
+.placeholder-compact .placeholder-icon { width: 40px; height: 40px; border-radius: 12px; margin-bottom: var(--sp-3); }
+.placeholder-compact h3 { font-size: 14px; }
+.placeholder-compact p { font-size: 12px; }
+
+/* ── Dashboard KPI strip ── thin metric row inside welcome banner.
+   Translucent so it blends with the hero gradient. */
+.kpi-strip {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--sp-3); margin-top: var(--sp-4);
+  padding: var(--sp-3); border-radius: var(--radius);
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.10);
+  backdrop-filter: blur(4px);
+}
+.kpi-strip-item { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kpi-strip-label { font-size: 10px; color: rgba(255,255,255,.55); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
+.kpi-strip-value { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -.3px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi-strip-delta { font-size: 11px; font-weight: 600; }
+.kpi-strip-delta-up   { color: var(--tabby-green); }
+.kpi-strip-delta-down { color: #FCA5A5; }
+.kpi-strip-delta-flat { color: rgba(255,255,255,.5); }
+.kpi-strip-sub { font-size: 10px; color: rgba(255,255,255,.55); font-weight: 500; }
 
 /* ── Table ── */
 .table-wrap { overflow-x: auto; overflow-y: visible; }
@@ -180,6 +209,42 @@ tr:hover td { background: var(--bg2); }
 .status-active { background: var(--green-bg); color: var(--green); }
 .status-inactive { background: var(--bg2); color: var(--tx3); }
 .status-on_leave { background: var(--amber-bg); color: var(--amber); }
+
+/* ── Generic status pill ── single source of truth for inline badges
+   (freshness, online dot, generic chips). Use tones to colour. */
+.pill {
+  display: inline-flex; align-items: center; gap: var(--sp-1);
+  padding: 3px 9px; border-radius: 10px;
+  font-size: 11px; font-weight: 500;
+  background: var(--bg); border: 1px solid var(--bd2);
+  color: var(--tx3);
+  white-space: nowrap; user-select: none;
+  transition: border-color .25s var(--ease), color .25s var(--ease), background .25s var(--ease);
+}
+.pill-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
+.pill-tone-neutral { color: var(--tx3); }
+.pill-tone-green   { color: var(--green);  border-color: rgba(16,185,129,.35); }
+.pill-tone-amber   { color: var(--amber);  border-color: rgba(245,158,11,.45); }
+.pill-tone-red     { color: var(--red);    border-color: rgba(239,68,68,.45); }
+.pill-tone-purple  { color: var(--tabby-purple); border-color: rgba(106,44,121,.30); }
+.pill-tone-blue    { color: var(--blue);   border-color: rgba(59,130,246,.40); }
+.pill-soft         { background: var(--bg2); border-color: transparent; }
+.pill-pulse        { animation: pillPulse 1.4s var(--ease); }
+@keyframes pillPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16,185,129,.45); border-color: var(--green); }
+  60%  { box-shadow: 0 0 0 8px rgba(16,185,129,0); }
+  100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+}
+
+/* ── Sortable table headers ── click affordance + arrow alignment.
+   Add class "sortable" to any <th>. The component still renders
+   ▲/▼ next to the label; this just gives consistent hover/cursor. */
+th.sortable {
+  cursor: pointer; user-select: none;
+  transition: color .2s var(--ease), background .2s var(--ease);
+}
+th.sortable:hover { color: var(--tabby-purple); background: var(--bg); }
+th.sortable.is-sorted { color: var(--tabby-purple); }
 
 /* ── Buttons ── */
 .btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: var(--radius); font-family: var(--font); font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s var(--ease); border: 1px solid transparent; letter-spacing: -.1px; }

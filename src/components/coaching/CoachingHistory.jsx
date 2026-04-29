@@ -5,6 +5,7 @@ import { nameFromEmail, safeError } from "../../lib/utils.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
+import EmptyState from "../EmptyState.jsx";
 
 const ENUM_TO_LABEL = {"weekly_1on1":"1:1 Meeting","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
 
@@ -46,7 +47,20 @@ export default function CoachingHistory({ sessions, onDelete }) {
       <div style={{fontSize:12,color:"var(--tx3)"}}>{filtered.length} session{filtered.length!==1?"s":""}</div>
     </div>
 
-    {filtered.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>{historySearch?"No sessions matching your search.":"No coaching sessions logged yet."}</p></div> :
+    {filtered.length === 0 ? (historySearch
+      ? <EmptyState
+          title="No matches"
+          description={`No sessions match "${historySearch}". Try a different keyword or clear the search.`}
+          icon="M21 21l-4.35-4.35M16 11a5 5 0 11-10 0 5 5 0 0110 0z"
+          cta={{ label: "Clear search", onClick: () => setHistorySearch("") }}
+        />
+      : <EmptyState
+          title="No coaching sessions yet"
+          description={hasRole(profile?.role, "qa_lead") ? "Log your first session to start tracking your team's growth." : "Your lead hasn't logged any sessions yet."}
+          icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          cta={hasRole(profile?.role, "qa_lead") ? { label: "Switch to Schedule tab →", onClick: () => window.dispatchEvent(new CustomEvent("qc-tab", { detail: "schedule" })) } : undefined}
+        />
+    ) :
     <div className="table-wrap"><table>
       <thead><tr><th>Date</th><th>Type</th><th>Member</th><th>Sent by</th><th>Performance</th><th>Outcome</th>{hasRole(profile?.role,"super_admin")&&<th></th>}<th style={{width:30}}></th></tr></thead>
       <tbody>

@@ -84,12 +84,13 @@ function DashboardPage(){
 
   const[syncing,setSyncing]=useState(false);
   const[freshnessKey,setFreshnessKey]=useState(0);
+  const[syncPulse,setSyncPulse]=useState(0);
   const freshness=useFreshness(token,freshnessKey);
 
   return(<div className="page">
     {/* Admin/Supervisor action bar */}
     {(hasRole(profile?.role,"super_admin")||canAnnounce)&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8}}>
-      <FreshnessBadge ts={freshness} />
+      <FreshnessBadge ts={freshness} pulseKey={syncPulse} />
       <div style={{display:"flex",gap:8}}>
       {canAnnounce&&<button className="btn btn-outline btn-sm" onClick={()=>setShowAnnForm(!showAnnForm)} style={{fontSize:12}}>
         <Icon d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" size={14}/>Send announcement
@@ -132,6 +133,7 @@ function DashboardPage(){
             if (mtdRes.data.rows_upserted) parts.push(`${mtdRes.data.rows_upserted} MTD`);
             if (csat.data.rows_aggregated) parts.push(`${csat.data.rows_aggregated} CSAT topics`);
             globalToast("success", `Live sync — ${parts.join(" · ")}`);
+            setSyncPulse(p => p + 1);
             logActivity(token, profile?.email, "live_sync_triggered", "edge_functions", null, parts.join(" · "));
           } else {
             console.error("[sync] failures:", fail);
@@ -185,6 +187,62 @@ function DashboardPage(){
           >Log Coaching →</button>}
         </div>
       </div>
+      {/* KPI strip — at-a-glance personal metrics. Falls back to team
+          metrics for leads who don't have their own MTD row. */}
+      {myData && (() => {
+        const myScore = getScore(myData);
+        const myCsat = csatPctValue(myData.csat_pct);
+        const delta = myPrevData ? myScore - getScore(myPrevData) : null;
+        const dCls = delta == null ? "" : delta >= 0.05 ? "kpi-strip-delta-up" : delta <= -0.05 ? "kpi-strip-delta-down" : "kpi-strip-delta-flat";
+        const dArrow = delta == null ? "" : delta >= 0.05 ? "↑" : delta <= -0.05 ? "↓" : "·";
+        return (
+          <div className="kpi-strip">
+            <div className="kpi-strip-item">
+              <span className="kpi-strip-label">My MTD score</span>
+              <span className="kpi-strip-value">{myScore.toFixed(1)}<span style={{fontSize:13,color:"rgba(255,255,255,.55)",fontWeight:500}}> / {maxScore}</span></span>
+              {delta != null && <span className={`kpi-strip-delta ${dCls}`}>{dArrow} {Math.abs(delta).toFixed(1)} pts vs {prevMonth}</span>}
+            </div>
+            <div className="kpi-strip-item">
+              <span className="kpi-strip-label">My CSAT</span>
+              <span className="kpi-strip-value">{myCsat != null ? myCsat.toFixed(1) + "%" : "—"}</span>
+              <span className="kpi-strip-sub">{Number(myData.csat_total) > 0 ? `${myData.csat_total} surveys` : "no surveys yet"}</span>
+            </div>
+            <div className="kpi-strip-item">
+              <span className="kpi-strip-label">Rank</span>
+              <span className="kpi-strip-value">{myRank > 0 ? "#" + myRank : "—"}<span style={{fontSize:13,color:"rgba(255,255,255,.55)",fontWeight:500}}> / {ranked.length}</span></span>
+              <span className="kpi-strip-sub">in {latestMonth}</span>
+            </div>
+            <div className="kpi-strip-item">
+              <span className="kpi-strip-label">DSATs</span>
+              <span className="kpi-strip-value">{myData.dsat || 0}</span>
+              <span className="kpi-strip-sub">this month</span>
+            </div>
+          </div>
+        );
+      })()}
+      {!myData && isLead && teamCurrent.length > 0 && (() => {
+        const dCls = teamTrend == null ? "" : Number(teamTrend) >= 0.05 ? "kpi-strip-delta-up" : Number(teamTrend) <= -0.05 ? "kpi-strip-delta-down" : "kpi-strip-delta-flat";
+        const dArrow = teamTrend == null ? "" : Number(teamTrend) >= 0.05 ? "↑" : Number(teamTrend) <= -0.05 ? "↓" : "·";
+        return (
+          <div className="kpi-strip">
+            <div className="kpi-strip-item">
+              <span className="kpi-strip-label">Team avg score</span>
+              <span className="kpi-strip-value">{teamAvgScore.toFixed(1)}<span style={{fontSize:13,color:"rgba(255,255,255,.55)",fontWeight:500}}> / {maxScore}</span></span>
+              {teamTrend != null && <span className={`kpi-strip-delta ${dCls}`}>{dArrow} {Math.abs(Number(teamTrend)).toFixed(1)} pts vs {prevMonth}</span>}
+            </div>
+            <div className="kpi-strip-item">
+              <span className="kpi-strip-label">Team size</span>
+              <span className="kpi-strip-value">{teamCurrent.length}</span>
+              <span className="kpi-strip-sub">QAs in {latestMonth}</span>
+            </div>
+            <div className="kpi-strip-item">
+              <span className="kpi-strip-label">Team DSATs</span>
+              <span className="kpi-strip-value">{teamDsat}</span>
+              <span className="kpi-strip-sub">this month</span>
+            </div>
+          </div>
+        );
+      })()}
     </div>
     {loading?<SkeletonPage/>:<>
 
