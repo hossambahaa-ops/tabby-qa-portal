@@ -152,7 +152,7 @@ export default function CsatTopicMatrix({
   return (
     <div style={{ padding: "0 0 12px" }}>
       <div style={{ overflow: "auto", maxHeight: "72vh", borderTop: "1px solid var(--bd2)" }}>
-        <table style={{ borderCollapse: "separate", borderSpacing: 0, fontSize: 12, width: "100%" }}>
+        <table style={{ borderCollapse: "separate", borderSpacing: 0, fontSize: 12 }}>
           <thead>
             <tr>
               <th onClick={() => toggleSort("__name__")} title="Sort by specialist name"
@@ -171,7 +171,7 @@ export default function CsatTopicMatrix({
               })}
               <th onClick={() => toggleSort("__overall__")} title="Sort by overall CSAT"
                   className={`sortable${(topicSort.key === null || topicSort.key === "__overall__") ? " is-sorted" : ""}`}
-                  style={{ position: "sticky", top: 0, right: 0, zIndex: 3, background: "var(--bg2)", padding: "10px 12px", textAlign: "center", borderBottom: "1px solid var(--bd2)", borderLeft: "1px solid var(--bd2)", fontSize: 10, color: (topicSort.key === null || topicSort.key === "__overall__") ? "var(--accent-text)" : "var(--tx3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", minWidth: 72, verticalAlign: "bottom" }}>
+                  style={{ position: "sticky", top: 0, right: 0, zIndex: 3, background: "var(--bg2)", padding: "10px 12px", textAlign: "center", borderBottom: "1px solid var(--bd2)", borderLeft: "1px solid var(--bd2)", fontSize: 10, color: (topicSort.key === null || topicSort.key === "__overall__") ? "var(--accent-text)" : "var(--tx3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", width: 88, minWidth: 88, maxWidth: 88, verticalAlign: "bottom" }}>
                 Overall{sortArrow("__overall__")}
               </th>
             </tr>
@@ -202,7 +202,7 @@ export default function CsatTopicMatrix({
                     {score != null && surveys > 0 ? Math.round(score) : ""}
                   </td>;
                 })}
-                <td style={{ padding: "0 10px", borderBottom: "1px solid var(--bd2)", borderLeft: "1px solid var(--bd2)", textAlign: "center", fontWeight: 700, fontSize: 12, ...cellStyle(overall, agentTot?.s || 0) }}
+                <td style={{ padding: "0 10px", borderBottom: "1px solid var(--bd2)", borderLeft: "1px solid var(--bd2)", textAlign: "center", fontWeight: 700, fontSize: 12, width: 88, minWidth: 88, maxWidth: 88, ...cellStyle(overall, agentTot?.s || 0) }}
                     title={`${agentTot.s} survey${agentTot.s !== 1 ? "s" : ""} · weighted across topics`}>
                   {overall != null ? overall.toFixed(1) + "%" : "—"}
                 </td>
