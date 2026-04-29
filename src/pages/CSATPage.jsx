@@ -64,8 +64,12 @@ export default function CSATPage() {
           if (email.endsWith("@tabby.ai")) qaLeadSet.add(local + "@tabby.sa");
           if (email.endsWith("@tabby.sa")) qaLeadSet.add(local + "@tabby.ai");
         });
+        // Senior QAs handle customer chats just like QAs, so their CSAT
+        // surveys are meaningful here. Only profile roles outside this
+        // allow-list (qa_lead, qa_supervisor, admin, etc.) get blacklisted.
+        const csatRoles = new Set(["qa", "senior_qa"]);
         const blacklist = new Set();
-        profRows.filter(p => p.role !== "qa").forEach(p => {
+        profRows.filter(p => !csatRoles.has(p.role)).forEach(p => {
           const email = p.email?.toLowerCase();
           if (!email) return;
           blacklist.add(email);
