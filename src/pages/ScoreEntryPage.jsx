@@ -34,6 +34,9 @@ function ScoreEntryPage(){
   const [uploadPreview, setUploadPreview] = useState([]);
   const [uploadFile, setUploadFile] = useState(null);
   const [selectedRows, setSelectedRows] = useState(new Set());
+  // Click-to-sort on the By QA table. Default = performance descending,
+  // matching the previous static sort. Two-state cycle: desc ↔ asc.
+  const [qaSort, setQaSort] = useState({ key: "performance", dir: "desc" });
   const [bulkTaskModal, setBulkTaskModal] = useState(false);
   const [bulkForm, setBulkForm] = useState({title:"",description:"",priority:"medium",due_date:""});
   const [bulkSending, setBulkSending] = useState(false);
@@ -299,7 +302,72 @@ function ScoreEntryPage(){
   if (gf?.domain && !selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+gf.domain));
   if (gf?.teams?.length > 0 && !selTeam) filtered = filtered.filter(r => { const q = rosterMap[r.qa_email?.toLowerCase()]?.queue; return q && gf.teams.includes(q); });
   if (gf?.month && !selMonth && gf.month !== selMonth) { /* month already handled by selMonth */ }
-  const sorted = [...filtered].sort((a, b) => (b.final_performance || 0) - (a.final_performance || 0));
+  // Pull a numeric value out of a percent-or-text cell ("94.00%", "0.94",
+  // "—" all map to 94, 94, null). null values are pushed to the bottom
+  // regardless of sort direction so they never elbow real data out of view.
+  const numFromText = (v) => {
+    if (v == null) return null;
+    const s = String(v).trim();
+    if (!s || s === "--" || s === "—") return null;
+    const n = parseFloat(s.replace("%", "").replace(",", "."));
+    if (isNaN(n)) return null;
+    return s.includes("%") ? n : (n > 0 && n <= 1 ? n * 100 : n);
+  };
+  const qaSortVal = (r, key) => {
+    switch (key) {
+      case "specialist":      return nameFromEmail(r.qa_email).toLowerCase();
+      case "tl":              return r.qa_tl ? nameFromEmail(r.qa_tl).toLowerCase() : "";
+      case "wds":             return r.working_days ?? null;
+      case "csat_pct": {
+        const v = csatPctValue(r.csat_pct);
+        return Number(r.csat_total||0) > 0 ? v : null;
+      }
+      case "surveys":         return r.csat_total ?? null;
+      case "sbs":             return r.sbs ?? null;
+      case "non_sbs":         return r.non_sbs ?? null;
+      case "dsat":            return r.dsat ?? null;
+      case "late":            return r.late_count ?? null;
+      case "never":           return r.never_count ?? null;
+      case "valid":           return r.valid_count ?? null;
+      case "invalid":         return r.invalid_count ?? null;
+      case "sessions":        return r.coaching_sessions ?? null;
+      case "ontime_count":    return r.total_ontime_coachings ?? null;
+      case "eligible":        return r.coaching_eligibility_count ?? null;
+      case "not_coached":     return r.not_coached ?? null;
+      case "rtr":             return r.rtr_count ?? null;
+      case "rtr_score":       return numFromText(r.avg_rtr_score);
+      case "obs":             return r.observed_coaching_count ?? null;
+      case "obs_pct":         return numFromText(r.avg_observation_score_pct);
+      case "calib":           return r.calibration_count ?? null;
+      case "calib_pct":       return numFromText(r.avg_calibration_match_rate);
+      case "completion":      return numFromText(r.coaching_completion_pct);
+      case "ontime_pct":      return numFromText(r.ontime_coaching_pct);
+      case "jkq":             return r.jkq_result === "Pass" ? 2 : r.jkq_result === "Missed" ? 0 : 1;
+      case "tickets_per_day": return Number(r.ticket_per_day) || null;
+      case "occupancy":       return numFromText(r.occupancy_pct);
+      case "st_time":         return r.side_tasks_duration_mins ?? null;
+      case "performance":     return Number(r.final_performance) || null;
+      default:                return null;
+    }
+  };
+  const sorted = [...filtered].sort((a, b) => {
+    const av = qaSortVal(a, qaSort.key);
+    const bv = qaSortVal(b, qaSort.key);
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    if (typeof av === "string") {
+      const c = av.localeCompare(bv);
+      return qaSort.dir === "asc" ? c : -c;
+    }
+    return qaSort.dir === "asc" ? av - bv : bv - av;
+  });
+  const toggleQaSort = (key) => setQaSort(prev =>
+    prev.key === key
+      ? { key, dir: prev.dir === "desc" ? "asc" : "desc" }
+      : { key, dir: "desc" }
+  );
+  const qaSortArrow = (key) => qaSort.key === key ? (qaSort.dir === "asc" ? " ▲" : " ▼") : "";
 
   const fpColor = (v) => v >= 0.4 ? "var(--green)" : v >= 0.25 ? "var(--amber)" : "var(--red)";
   const fpBg = (v) => v >= 0.4 ? "var(--green-bg)" : v >= 0.25 ? "var(--amber-bg)" : "var(--red-bg)";
@@ -448,35 +516,47 @@ function ScoreEntryPage(){
             <thead>
               <tr>
                 <th style={{width:36,textAlign:"center"}}><input type="checkbox" checked={sorted.length>0&&selectedRows.size===sorted.length} onChange={e=>{if(e.target.checked){setSelectedRows(new Set(sorted.map(r=>r.qa_email)));}else{setSelectedRows(new Set());}}} style={{cursor:"pointer"}}/></th>
-                <th style={{minWidth:160}}>Specialist</th>
-                <th>TL</th>
-                <th style={{textAlign:"right"}}>WDs</th>
-                <th style={{textAlign:"right"}}>CSAT %</th>
-                <th style={{textAlign:"right"}}>Surveys</th>
-                <th style={{textAlign:"right"}}>SBS</th>
-                <th style={{textAlign:"right"}}>Non-SBS</th>
-                <th style={{textAlign:"right"}}>DSAT</th>
-                <th style={{textAlign:"right"}}>Late</th>
-                <th style={{textAlign:"right"}}>Never</th>
-                <th style={{textAlign:"right"}}>Valid</th>
-                <th style={{textAlign:"right"}}>Invalid</th>
-                <th style={{textAlign:"right"}}>Sessions</th>
-                <th style={{textAlign:"right"}}>On-time</th>
-                <th style={{textAlign:"right"}}>Eligible</th>
-                <th style={{textAlign:"right"}}>Not coached</th>
-                <th style={{textAlign:"right"}}>RTR</th>
-                <th style={{textAlign:"right"}}>RTR score</th>
-                <th style={{textAlign:"right"}}>Obs.</th>
-                <th style={{textAlign:"right"}}>Obs. %</th>
-                <th style={{textAlign:"right"}}>Calib.</th>
-                <th style={{textAlign:"right"}}>Calib. %</th>
-                <th style={{textAlign:"right"}}>Completion</th>
-                <th style={{textAlign:"right"}}>On-time %</th>
-                <th style={{textAlign:"center"}}>JKQ</th>
-                <th style={{textAlign:"right"}}>Tickets/d</th>
-                <th style={{textAlign:"right"}}>Occupancy</th>
-                <th style={{textAlign:"right"}}>ST Time</th>
-                <th style={{textAlign:"right"}}>Performance</th>
+                {[
+                  { k: "specialist",      label: "Specialist",  align: "left",   style: { minWidth: 160 } },
+                  { k: "tl",              label: "TL",          align: "left" },
+                  { k: "wds",             label: "WDs" },
+                  { k: "csat_pct",        label: "CSAT %" },
+                  { k: "surveys",         label: "Surveys" },
+                  { k: "sbs",             label: "SBS" },
+                  { k: "non_sbs",         label: "Non-SBS" },
+                  { k: "dsat",            label: "DSAT" },
+                  { k: "late",            label: "Late" },
+                  { k: "never",           label: "Never" },
+                  { k: "valid",           label: "Valid" },
+                  { k: "invalid",         label: "Invalid" },
+                  { k: "sessions",        label: "Sessions" },
+                  { k: "ontime_count",    label: "On-time" },
+                  { k: "eligible",        label: "Eligible" },
+                  { k: "not_coached",     label: "Not coached" },
+                  { k: "rtr",             label: "RTR" },
+                  { k: "rtr_score",       label: "RTR score" },
+                  { k: "obs",             label: "Obs." },
+                  { k: "obs_pct",         label: "Obs. %" },
+                  { k: "calib",           label: "Calib." },
+                  { k: "calib_pct",       label: "Calib. %" },
+                  { k: "completion",      label: "Completion" },
+                  { k: "ontime_pct",      label: "On-time %" },
+                  { k: "jkq",             label: "JKQ",         align: "center" },
+                  { k: "tickets_per_day", label: "Tickets/d" },
+                  { k: "occupancy",       label: "Occupancy" },
+                  { k: "st_time",         label: "ST Time" },
+                  { k: "performance",     label: "Performance" },
+                ].map(c => (
+                  <th
+                    key={c.k}
+                    onClick={() => toggleQaSort(c.k)}
+                    title={`Sort by ${c.label}`}
+                    className={`sortable${qaSort.key === c.k ? " is-sorted" : ""}`}
+                    style={{ textAlign: c.align || "right", whiteSpace: "nowrap", ...(c.style || {}) }}
+                  >
+                    {c.label}{qaSortArrow(c.k)}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
