@@ -157,7 +157,7 @@ export default function CsatTopicMatrix({
             <tr>
               <th onClick={() => toggleSort("__name__")} title="Sort by specialist name"
                   className={`sortable${topicSort.key === "__name__" ? " is-sorted" : ""}`}
-                  style={{ position: "sticky", left: 0, top: 0, zIndex: 3, background: "var(--bg2)", padding: "10px 12px", textAlign: "left", borderBottom: "1px solid var(--bd2)", borderRight: "1px solid var(--bd2)", minWidth: 210, fontSize: 10, color: topicSort.key === "__name__" ? "var(--accent-text)" : "var(--tx3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", verticalAlign: "bottom" }}>
+                  style={{ position: "sticky", left: 0, top: 0, zIndex: 3, background: "var(--bg2)", padding: "10px 12px", textAlign: "left", borderBottom: "1px solid var(--bd2)", borderRight: "1px solid var(--bd2)", width: 220, minWidth: 180, maxWidth: 220, fontSize: 10, color: topicSort.key === "__name__" ? "var(--accent-text)" : "var(--tx3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", verticalAlign: "bottom" }}>
                 Specialist{sortArrow("__name__")}
               </th>
               {visibleTopics.map(t => {
@@ -183,13 +183,13 @@ export default function CsatTopicMatrix({
               const overall = agentTot && agentTot.n > 0 ? agentTot.w / agentTot.n : null;
               const rowBg = ri % 2 === 0 ? "var(--bg)" : "var(--bg2)";
               return <tr key={email}>
-                <td style={{ position: "sticky", left: 0, zIndex: 1, background: rowBg, padding: "6px 12px", borderBottom: "1px solid var(--bd2)", borderRight: "1px solid var(--bd2)", whiteSpace: "nowrap" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <td style={{ position: "sticky", left: 0, zIndex: 1, background: rowBg, padding: "6px 12px", borderBottom: "1px solid var(--bd2)", borderRight: "1px solid var(--bd2)", width: 220, maxWidth: 220, whiteSpace: "nowrap", overflow: "hidden" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                     <div style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, background: "var(--accent-light)", color: "var(--accent-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>
                       {nameFromEmail(email).split(" ").map(p => p[0]).join("").toUpperCase().slice(0, 2)}
                     </div>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: "var(--tx)" }}>{nameFromEmail(email)}</span>
-                    <span style={{ fontSize: 10, color: "var(--tx3)" }}>· {agentTot.s}</span>
+                    <span title={nameFromEmail(email)} style={{ fontSize: 12, fontWeight: 500, color: "var(--tx)", overflow: "hidden", textOverflow: "ellipsis", flex: 1, minWidth: 0 }}>{nameFromEmail(email)}</span>
+                    <span style={{ fontSize: 10, color: "var(--tx3)", flexShrink: 0 }}>· {agentTot.s}</span>
                   </div>
                 </td>
                 {visibleTopics.map(t => {
