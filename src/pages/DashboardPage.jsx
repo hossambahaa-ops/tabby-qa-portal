@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import { hasRole, ROLE_LABELS, sortMonthsDesc } from "../lib/constants.js";
-import { sb, dataCache } from "../lib/supabase.js";
+import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity, csatPctValue, csatColor } from "../lib/utils.js";
 import { parseRawD, KPI_SLABS_D, calcSlabD, getScore, MAX_SCORE, scoreColor, scoreBg } from "../lib/dashboardScore.js";
 import { useConfirm } from "../lib/hooks.jsx";
@@ -25,7 +25,7 @@ function DashboardPage(){
   const {
     mtd, roster, appProfiles, damCount, profileCount,
     todayAttendance, apPlans, apWeeks, apDetections, apDismissals,
-    dailyScores, loading,
+    dailyScores, loading, refresh: loadDashboard,
     setApDetections, setApDismissals,
   } = useDashboardData(token, profile);
   const[showAnnForm,setShowAnnForm]=useState(false);
@@ -89,17 +89,45 @@ function DashboardPage(){
         <Icon d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" size={14}/>Send announcement
       </button>}
       {hasRole(profile?.role,"super_admin")&&<button className="btn btn-outline btn-sm" disabled={syncing} onClick={async()=>{
+        // Pulls all three live CSVs (Today_Productivity, MTD,
+        // Q_Support_Performance) through the Supabase edge functions
+        // — same path as the QA Profile "Refresh live" button. Cron
+        // already fires every 5 min; this is the manual trigger.
+        if (syncing) return;
         setSyncing(true);
-        try{
-          const r=await fetch("https://script.google.com/macros/s/AKfycbwpQjACvkSQBkbJok5L00-jXNMJm9x8b5-cdd4c5imZXeXCD5eHu8_zCsRNgWIegzvZ/exec",{method:"POST",mode:"no-cors"});
-          globalToast("success","Sync triggered — data will update in ~30 seconds");
-          logActivity(token, profile?.email, "mtd_sync_triggered", "mtd_scores", null, "Manual sync from dashboard");
-        }catch(e){
-          globalToast("error","Sync request failed: "+e.message);
+        try {
+          const callSync = (slug) => fetch(`${SUPABASE_URL}/functions/v1/${slug}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
+            body: JSON.stringify({}),
+          }).then(r => r.json().then(d => ({ ok: r.ok, data: d })).catch(() => ({ ok: r.ok, data: {} })))
+            .catch(e => ({ ok: false, data: { error: e?.message || "fetch failed" } }));
+          const [daily, mtdRes, csat] = await Promise.all([
+            callSync("daily-scores-sync"), callSync("mtd-sync"), callSync("csat-topic-sync"),
+          ]);
+          dataCache?.invalidate?.();
+          await loadDashboard?.();
+          const fail = [
+            daily.ok && daily.data.success ? null : `daily: ${daily.data.error || "failed"}`,
+            mtdRes.ok && mtdRes.data.success ? null : `mtd: ${mtdRes.data.error || "failed"}`,
+            csat.ok && csat.data.success ? null : `csat: ${csat.data.error || "failed"}`,
+          ].filter(Boolean);
+          if (fail.length === 0) {
+            const parts = [];
+            if (daily.data.rows_upserted) parts.push(`${daily.data.rows_upserted} daily`);
+            if (mtdRes.data.rows_upserted) parts.push(`${mtdRes.data.rows_upserted} MTD`);
+            if (csat.data.rows_aggregated) parts.push(`${csat.data.rows_aggregated} CSAT topics`);
+            globalToast("success", `Live sync — ${parts.join(" · ")}`);
+            logActivity(token, profile?.email, "live_sync_triggered", "edge_functions", null, parts.join(" · "));
+          } else {
+            globalToast("error", `Sync issues — ${fail.join(" · ")}`);
+          }
+        } catch (e) {
+          globalToast("error", "Sync failed: " + safeError(e));
         }
         setSyncing(false);
       }} style={{fontSize:12}}>
-        {syncing?<><div className="spinner" style={{width:14,height:14,borderWidth:2,marginRight:6}}/>Syncing...</>:<><Icon d={icons.upload} size={14}/>Sync MTD data</>}
+        {syncing?<><div className="spinner" style={{width:14,height:14,borderWidth:2,marginRight:6}}/>Syncing...</>:<><Icon d={icons.upload} size={14}/>Refresh live</>}
       </button>}
     </div>}
 

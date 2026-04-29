@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { hasRole } from "./constants.js";
-import { sb } from "./supabase.js";
+import { sb, dataCache } from "./supabase.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -110,9 +110,8 @@ export function useQaProfileData(token, profile) {
     return [...map.values()];
   })();
 
-  // Re-pull just today's daily_scores after a Refresh button press —
-  // avoids re-running the full 10-table load when only those numbers
-  // change.
+  // Re-pull just today's daily_scores after the daily-scores-sync ran —
+  // cheap because it's the smallest table.
   const refreshDailyScores = useCallback(async () => {
     if (!token) return;
     const today = new Date().toISOString().split("T")[0];
@@ -120,8 +119,18 @@ export function useQaProfileData(token, profile) {
     setDailyScores(Array.isArray(ds) ? ds : []);
   }, [token]);
 
+  // After mtd-sync ran, dump the cached mtd_scores response and re-fetch.
+  // We don't reuse listMtd here so the in-memory cache layer doesn't hand
+  // back stale rows.
+  const refreshMtd = useCallback(async () => {
+    if (!token) return;
+    dataCache?.invalidate?.();
+    const m = await sb.query("mtd_scores", { select: "*", filters: "order=month.desc", token }).catch(() => []);
+    setMtd(Array.isArray(m) ? m : []);
+  }, [token]);
+
   return {
     roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
-    loading, allQAs, qaLeadSet, refreshDailyScores,
+    loading, allQAs, qaLeadSet, refreshDailyScores, refreshMtd,
   };
 }

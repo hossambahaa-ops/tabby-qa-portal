@@ -25,7 +25,7 @@ function QAProfilePage() {
   // selection / search / expanded-row state plus the per-QA derivations.
   const {
     roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
-    loading, allQAs, qaLeadSet, refreshDailyScores,
+    loading, allQAs, qaLeadSet, refreshDailyScores, refreshMtd,
   } = useQaProfileData(token, profile);
 
   const [selectedQA, setSelectedQA] = useUrlState("qa", "");
@@ -37,26 +37,40 @@ function QAProfilePage() {
   const [selMonth, setSelMonth] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Pulls the live Today_Productivity CSV via the daily-scores-sync edge
-  // function, then re-reads today's daily_scores so the KPI cards reflect
-  // the new numbers without needing a full page reload. Cron runs the
-  // same sync every 5 min — this button is for "I want it now."
+  // Pulls all three live CSVs (Today_Productivity → daily_scores, MTD,
+  // Q_Support_Performance → csat_by_topic) in parallel via the matching
+  // edge functions, then re-reads the affected tables. Cron runs every
+  // 5 min — this button is for "I want it now."
   const refreshLive = async () => {
     if (refreshing) return;
     setRefreshing(true);
+    const callSync = (slug) => fetch(`${SUPABASE_URL}/functions/v1/${slug}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
+      body: JSON.stringify({}),
+    }).then(r => r.json().then(d => ({ ok: r.ok, data: d })).catch(() => ({ ok: r.ok, data: {} })))
+      .catch(e => ({ ok: false, data: { error: e?.message || "fetch failed" } }));
     try {
-      const r = await fetch(`${SUPABASE_URL}/functions/v1/daily-scores-sync`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
-        body: JSON.stringify({}),
-      });
-      const data = await r.json().catch(() => ({}));
-      if (r.ok && data.success) {
-        await refreshDailyScores();
-        const dups = data.duplicates_summed > 0 ? `, ${data.duplicates_summed} dup summed` : "";
-        globalToast?.("success", `Live sync — ${data.rows_upserted} QAs updated${dups}`);
+      const [daily, mtdRes, csat] = await Promise.all([
+        callSync("daily-scores-sync"),
+        callSync("mtd-sync"),
+        callSync("csat-topic-sync"),
+      ]);
+      // Re-fetch the rows the page reads from, in parallel.
+      await Promise.all([refreshDailyScores(), refreshMtd()]);
+      const fail = [
+        daily.ok && daily.data.success ? null : `daily: ${daily.data.error || "failed"}`,
+        mtdRes.ok && mtdRes.data.success ? null : `mtd: ${mtdRes.data.error || "failed"}`,
+        csat.ok && csat.data.success ? null : `csat: ${csat.data.error || "failed"}`,
+      ].filter(Boolean);
+      if (fail.length === 0) {
+        const parts = [];
+        if (daily.data.rows_upserted) parts.push(`${daily.data.rows_upserted} daily`);
+        if (mtdRes.data.rows_upserted) parts.push(`${mtdRes.data.rows_upserted} MTD`);
+        if (csat.data.rows_aggregated) parts.push(`${csat.data.rows_aggregated} CSAT topics`);
+        globalToast?.("success", `Live sync — ${parts.join(" · ")}`);
       } else {
-        globalToast?.("error", data.error || "Sync failed");
+        globalToast?.("error", `Sync issues — ${fail.join(" · ")}`);
       }
     } catch (e) {
       globalToast?.("error", safeError ? safeError(e) : (e?.message || "Sync failed"));
