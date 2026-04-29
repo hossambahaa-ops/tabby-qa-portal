@@ -62,12 +62,16 @@ export default function CsatTopicMatrix({
 
   const visibleTopics = matrix.topics.filter(t => (matrix.totalsByTopic[t]?.s || 0) >= Math.max(1, topicMinSurveys));
 
-  // Only show specialists who have at least one survey in the visible
-  // topics — otherwise the matrix is hundreds of blank rows.
+  // The "Min surveys" threshold applies to BOTH topics and specialists.
+  // A topic shows only if its team-wide total >= threshold; a specialist
+  // shows only if their personal total >= threshold. Without the row
+  // filter the matrix would still display tiny-sample scores (100% on 1
+  // survey) for people whose total is below the trust threshold.
+  const minSurveys = Math.max(1, topicMinSurveys);
   const visibleAgents = (() => {
     const base = csatSorted.filter(r => {
       const a = matrix.totalsByAgent[r.qa_email];
-      if (!a || a.s <= 0) return false;
+      if (!a || a.s < minSurveys) return false;
       return visibleTopics.some(t => matrix.cells[r.qa_email + "\u0000" + t]?.surveys > 0);
     });
     const dirMul = topicSort.dir === "asc" ? 1 : -1;
@@ -121,8 +125,13 @@ export default function CsatTopicMatrix({
   if (visibleAgents.length === 0) {
     return (
       <EmptyState
-        title="No specialists with surveys"
-        description={`No specialist has CSAT data in ${selMonth}.`}
+        title={topicMinSurveys > 1 ? "No specialists meet that threshold" : "No specialists with surveys"}
+        description={topicMinSurveys > 1
+          ? `No specialist has ≥ ${topicMinSurveys} total surveys in ${selMonth}.`
+          : `No specialist has CSAT data in ${selMonth}.`}
+        cta={topicMinSurveys > 1 && setTopicMinSurveys
+          ? { label: "Lower threshold to 1", onClick: () => setTopicMinSurveys(1) }
+          : undefined}
         icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"
       />
     );
