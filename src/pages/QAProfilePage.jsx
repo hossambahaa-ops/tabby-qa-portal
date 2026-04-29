@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
-import { nameFromEmail, csatPctValue, csatColor, safeError } from "../lib/utils.js";
+import { nameFromEmail, csatPctValue, csatColor, safeError, logActivity } from "../lib/utils.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
@@ -85,9 +85,11 @@ function QAProfilePage() {
         if (csat.data.rows_aggregated) parts.push(`${csat.data.rows_aggregated} CSAT topics`);
         globalToast?.("success", `Live sync — ${parts.join(" · ")}`);
         setSyncPulse(p => p + 1); // pulse the FreshnessBadge to confirm visually
+        logActivity(token, profile?.email, "live_sync_triggered", "edge_functions", null, `from QA Profile · ${parts.join(" · ")}`);
       } else {
         console.error("[sync] failures:", fail);
         globalToast?.("error", `Sync issue — ${fail[0]}${fail.length > 1 ? ` (+${fail.length - 1} more, see console)` : ""}`);
+        logActivity(token, profile?.email, "live_sync_failed", "edge_functions", null, `from QA Profile · ${fail.join(" | ")}`);
       }
     } catch (e) {
       console.error("[sync] unexpected:", e);

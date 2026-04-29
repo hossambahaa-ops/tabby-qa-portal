@@ -12,6 +12,12 @@ function AuditTrailPage() {
   const [filterAction, setFilterAction] = useState("");
   const [filterActor, setFilterActor] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
+  // Default OFF: show every action including super-admin. Toggle ON to
+  // hide super-admin noise. Was previously hard-coded to "always hide",
+  // which left ~90% of all log rows invisible to the only super_admin
+  // (the person most likely to be looking at the audit trail).
+  const [hideSuperAdmin, setHideSuperAdmin] = useState(false);
+  const [superAdminEmails, setSuperAdminEmails] = useState(() => new Set());
 
   const nameFromEmail = (email) => {
     if (!email) return "—";
@@ -27,20 +33,19 @@ function AuditTrailPage() {
           sb.query("audit_trail", {select:"*",filters:"order=created_at.desc&limit=500",token}).catch(()=>[]),
           listProfiles({ token, select: "email,role", filters: "", cache: false }),
         ]);
-        // Build super_admin email set to exclude their actions.
-        const superAdminEmails = new Set(
+        // Build super_admin email set so the toggle can hide them on demand.
+        const saSet = new Set(
           (Array.isArray(profs)?profs:[]).filter(p=>p.role==="super_admin").map(p=>p.email?.toLowerCase()).filter(Boolean)
         );
-        // Merge and filter out super_admin actions
+        setSuperAdminEmails(saSet);
         const merged = [
           ...(Array.isArray(activities)?activities:[]).map(a=>({
-            id:a.id, type:"activity", actor:a.actor_email, action:a.action, target:a.target_type, target_id:a.target_id, details:a.details, time:a.created_at
+            id:`a-${a.id}`, type:"activity", actor:a.actor_email, action:a.action, target:a.target_type, target_id:a.target_id, details:a.details, time:a.created_at
           })),
           ...(Array.isArray(audits)?audits:[]).map(a=>({
-            id:a.id, type:"audit", actor:a.actor_email, action:a.action, target:a.table_name, target_id:a.record_id, details:JSON.stringify(a.new_data||a.old_data||"").slice(0,200), time:a.created_at
+            id:`t-${a.id}`, type:"audit", actor:a.actor_email, action:a.action, target:a.table_name, target_id:a.record_id, details:JSON.stringify(a.new_data||a.old_data||"").slice(0,200), time:a.created_at
           })),
-        ].filter(l=>!superAdminEmails.has(l.actor?.toLowerCase()))
-         .sort((a,b)=>new Date(b.time)-new Date(a.time));
+        ].sort((a,b)=>new Date(b.time)-new Date(a.time));
         setLogs(merged);
       } catch(e) { console.error("Audit load:", e); }
       setLoading(false);
@@ -53,6 +58,7 @@ function AuditTrailPage() {
   const logMonths = [...new Set(logs.map(l=>{const d=new Date(l.time);return d.toLocaleDateString("en-GB",{month:"short",year:"numeric"});}))];
 
   const filtered = logs.filter(l=>{
+    if(hideSuperAdmin && superAdminEmails.has(l.actor?.toLowerCase())) return false;
     if(filterAction && l.action !== filterAction) return false;
     if(filterActor && l.actor !== filterActor) return false;
     if(filterMonth) {
@@ -61,6 +67,9 @@ function AuditTrailPage() {
     }
     return true;
   });
+  const hiddenSaCount = hideSuperAdmin
+    ? logs.filter(l => superAdminEmails.has(l.actor?.toLowerCase())).length
+    : 0;
 
   const actionColor = (action) => {
     if(action?.includes("delete")) return {bg:"var(--red-bg)",color:"var(--red)"};
@@ -76,7 +85,7 @@ function AuditTrailPage() {
     <div className="page">
       <div className="page-header">
         <div className="page-title">Audit Trail</div>
-        <div className="page-subtitle">{filtered.length} actions logged (super admin actions excluded)</div>
+        <div className="page-subtitle">{filtered.length} action{filtered.length === 1 ? "" : "s"} shown{hiddenSaCount ? ` · ${hiddenSaCount} super-admin entries hidden` : ""}</div>
       </div>
 
       {/* Filters */}
@@ -100,7 +109,11 @@ function AuditTrailPage() {
               {actors.map(a=><option key={a} value={a}>{nameFromEmail(a)} ({a})</option>)}
             </select>
           </div>
-          {(filterMonth||filterAction||filterActor)&&<button className="btn btn-outline btn-sm" style={{fontSize:10}} onClick={()=>{setFilterMonth("");setFilterAction("");setFilterActor("");}}>Clear filters</button>}
+          <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--tx2)",cursor:"pointer",userSelect:"none"}}>
+            <input type="checkbox" checked={hideSuperAdmin} onChange={e=>setHideSuperAdmin(e.target.checked)} style={{cursor:"pointer"}} />
+            Hide super admin actions
+          </label>
+          {(filterMonth||filterAction||filterActor||hideSuperAdmin)&&<button className="btn btn-outline btn-sm" style={{fontSize:10}} onClick={()=>{setFilterMonth("");setFilterAction("");setFilterActor("");setHideSuperAdmin(false);}}>Clear filters</button>}
         </div>
       </div>
 
