@@ -439,17 +439,36 @@ function AppInner(){
             <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-light))",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{safe(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>}
           </div>
           <input id="avatar-upload" type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
-            const file=e.target.files?.[0]; if(!file)return;
-            if(file.size>2*1024*1024){globalToast("error","Image must be under 2MB");return;}
+            const file=e.target.files?.[0]; if(!file){return;}
+            if(!file.type?.startsWith("image/")){globalToast("error","Please select an image file");e.target.value="";return;}
+            if(file.size>2*1024*1024){globalToast("error","Image must be under 2MB");e.target.value="";return;}
             try{
-              const ext=file.name.split(".").pop();
+              // Always pin the path to the user id + a single canonical
+              // extension so the avatar URL is stable and re-uploads
+              // overwrite (never orphan) the previous file. We use PUT
+              // with x-upsert:true — POST would 409 if the path exists.
+              const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"") || "jpg";
               const path=`${profile.id}.${ext}`;
               const formData=new FormData();formData.append("file",file);
-              await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`,{method:"POST",headers:{"Authorization":`Bearer ${session.access_token}`},body:formData});
+              const upRes=await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`,{
+                method:"PUT",
+                headers:{"Authorization":`Bearer ${session.access_token}`,"x-upsert":"true"},
+                body:formData,
+              });
+              if(!upRes.ok){
+                const detail=await upRes.text().catch(()=>"");
+                console.error("Avatar storage upload failed:",upRes.status,detail);
+                globalToast("error",`Upload failed (${upRes.status}). ${detail.slice(0,120)||"Try a different image."}`);
+                e.target.value="";return;
+              }
               const url=`${SUPABASE_URL}/storage/v1/object/public/avatars/${path}?t=${Date.now()}`;
               await sb.query("profiles",{token:session.access_token,method:"PATCH",body:{avatar_url:url},filters:`id=eq.${profile.id}`});
               setProfile({...profile,avatar_url:url});
-            }catch(err){console.error("Avatar upload:",err);}
+              globalToast("success","Profile picture updated");
+            }catch(err){
+              console.error("Avatar upload:",err);
+              globalToast("error",`Couldn't save profile picture: ${err?.message||"unknown error"}`);
+            }
             e.target.value="";
           }}/>
           <div style={{display:"flex",flexDirection:"column",lineHeight:1.2}}>
