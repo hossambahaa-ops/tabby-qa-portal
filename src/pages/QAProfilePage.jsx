@@ -11,6 +11,7 @@ import { useFreshness } from "../lib/useFreshness.js";
 import FreshnessBadge from "../components/FreshnessBadge.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import ExpertiseProfileCard from "../components/ExpertiseProfileCard.jsx";
+import { ATT_MAP } from "../lib/attendance.js";
 
 // Safe render: prevent objects/arrays from crashing React
 const safe = (v) => {
@@ -43,6 +44,8 @@ function QAProfilePage() {
   const [expandedTask, setExpandedTask] = useState(null);
   const [selMonth, setSelMonth] = useState(null);
   const [refreshing, setRefreshing] = useState(false);
+  // Tab state — "overview" (today + activity) vs "monthly" (perf + trend + expertise)
+  const [activeTab, setActiveTab] = useUrlState("ptab", "overview");
 
   // Pulls all three live CSVs (Today_Productivity → daily_scores, MTD,
   // Q_Support_Performance → csat_by_topic) in parallel via the matching
@@ -235,23 +238,69 @@ function QAProfilePage() {
       </div>
 
       {/* Header card */}
-      <div className="card" style={{marginBottom:16,padding:20}}>
-        <div style={{display:"flex",alignItems:"center",gap:16}}>
-          <div style={{width:56,height:56,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,color:"var(--accent-text)"}}>
-            {nameFromEmail(selectedQA).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
-          </div>
-          <div>
-            <div style={{fontSize:20,fontWeight:700}}>{nameFromEmail(selectedQA)}</div>
-            <div style={{fontSize:13,color:"var(--tx2)"}}>{selectedQA}</div>
-            <div style={{display:"flex",gap:8,marginTop:4,flexWrap:"wrap"}}>
-              {qa?.queue && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600}}>{qa.queue}</span>}
-              {qa?.country && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--bg3)",color:"var(--tx3)",fontWeight:600}}>{qa.country}</span>}
-              {qa?.manager_email && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--green-bg)",color:"var(--green)",fontWeight:600}}>Lead: {nameFromEmail(qa.manager_email)}</span>}
+      {(()=>{
+        // Tenure from hiring_date (or fall back to operations_date)
+        const startStr = qa?.hiring_date || qa?.operations_date;
+        let tenureText = null;
+        if (startStr) {
+          const start = new Date(startStr);
+          const now = new Date();
+          const months = (now.getFullYear()-start.getFullYear())*12 + (now.getMonth()-start.getMonth()) - (now.getDate()<start.getDate()?1:0);
+          if (months >= 0) {
+            const years = Math.floor(months/12);
+            const rem = months % 12;
+            tenureText = years > 0 ? `${years}y ${rem}m` : `${months}m`;
+          }
+        }
+        // Today's attendance status (from already-loaded qaAttendance)
+        const todayStr = new Date().toISOString().split("T")[0];
+        const todayAtt = (qaAttendance || []).find(a => matchQA(a.email) && a.date === todayStr);
+        const todayCode = todayAtt?.status;
+        const todayType = todayCode ? ATT_MAP[todayCode] : null;
+        const todayPending = todayAtt?.approval_status === "pending";
+        return (
+          <div className="card" style={{marginBottom:16,padding:20}}>
+            <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+              <div style={{width:56,height:56,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,color:"var(--accent-text)",flexShrink:0}}>
+                {nameFromEmail(selectedQA).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+              </div>
+              <div style={{flex:1,minWidth:200}}>
+                <div style={{fontSize:20,fontWeight:700}}>{nameFromEmail(selectedQA)}</div>
+                <div style={{fontSize:13,color:"var(--tx2)"}}>{selectedQA}</div>
+                <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap",alignItems:"center"}}>
+                  {qa?.queue && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600}}>{qa.queue}</span>}
+                  {qa?.country && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--bg3)",color:"var(--tx3)",fontWeight:600}}>{qa.country}</span>}
+                  {qa?.manager_email && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--green-bg)",color:"var(--green)",fontWeight:600}}>Lead: {nameFromEmail(qa.manager_email)}</span>}
+                  {tenureText && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--bg3)",color:"var(--tx3)",fontWeight:600}} title={`Joined ${new Date(startStr).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}`}>📅 {tenureText} tenure</span>}
+                  {todayCode && todayType && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:todayType.bg,color:todayType.color,fontWeight:700,border:`1px solid ${todayType.color}40`}} title={`Today: ${todayType.label}${todayPending?" (pending approval)":""}`}>Today: {todayCode}{todayPending?" ⏳":""}</span>}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        );
+      })()}
+
+      {/* Tabs — Overview (today + activity) vs Monthly (perf + trend) */}
+      <div style={{display:"flex",gap:0,borderBottom:"1px solid var(--bd)",marginBottom:16,overflowX:"auto"}}>
+        {[
+          { key: "overview", label: "Overview", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
+          { key: "monthly",  label: "Monthly performance", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
+        ].map(tab => (
+          <button key={tab.key} onClick={()=>setActiveTab(tab.key)} style={{
+            display:"flex",alignItems:"center",gap:6,padding:"10px 18px",border:"none",
+            borderBottom:activeTab===tab.key?"2px solid var(--tabby-purple)":"2px solid transparent",
+            background:"transparent",cursor:"pointer",fontSize:13,fontWeight:activeTab===tab.key?700:500,
+            color:activeTab===tab.key?"var(--tabby-purple)":"var(--tx2)",
+            fontFamily:"var(--font)",whiteSpace:"nowrap",position:"relative",
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={tab.icon}/></svg>
+            {tab.label}
+          </button>
+        ))}
       </div>
 
+      {/* ── OVERVIEW TAB ── */}
+      {activeTab === "overview" && <>
       {/* KPI cards row */}
       {/* ── Today's KPI cards ── */}
       {(()=>{
@@ -415,137 +464,46 @@ function QAProfilePage() {
         </div>
       </div>
 
-      {/* Two-column layout: Performance + Coaching */}
-      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
-        {/* Performance metrics with month selector */}
-        <div className="card">
-          <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-            <span className="card-title">Performance</span>
-            {qaMtd.length > 0 && <select className="select form-input" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={selMonth||latestMtd?.month||""} onChange={e=>setSelMonth(e.target.value)}>
-              {qaMtd.map(m=><option key={m.month} value={m.month}>{m.month}</option>)}
-            </select>}
-          </div>
-          {(()=>{
-            const m = selMonth ? qaMtd.find(x=>x.month===selMonth) : latestMtd;
-            if(!m) return <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No MTD data available</div>;
-            const totalLogin = parseFloat(m.total_login_hours || 0);
-            const totalTickets = parseFloat(m.total_tickets_handled || 0);
-            const avgProd = totalLogin > 0 ? totalTickets / totalLogin : null;
-            const rows = [
-              ["SBS", m.sbs],["Non-SBS", m.non_sbs],["DSAT", m.dsat],
-              ["RTR Score", fmtPct(m.avg_rtr_score)],["Calibration", fmtPct(m.avg_calibration_match_rate)],
-              ["CO Score", fmtPct(m.avg_observation_score_pct)],["Coaching on-time", fmtPct(m.ontime_coaching_pct)],
-              ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"],
-              ["Occupancy", fmtPct(m.occupancy_pct)],["JKQ", m.jkq_score || "—"],
-              ["CSAT %", (() => { const v = csatPctValue(m.csat_pct); const s = Number(m.csat_total || 0); return (v != null && s > 0) ? v.toFixed(1) + "%" : "—"; })()],
-              ["Surveys", m.csat_total ?? "—"],
-            ];
-            // Ticket handling rows — only include if there's any ticket activity this month
-            if (totalLogin > 0 || totalTickets > 0 || m.avg_apt != null || m.avg_agpt != null) {
-              rows.push(
-                ["Login Hours (total)", totalLogin > 0 ? totalLogin.toFixed(1) + "h" : "—"],
-                ["Tickets Handled (total)", totalTickets > 0 ? Math.round(totalTickets) : "—"],
-                ["Productivity (avg)", avgProd !== null ? avgProd.toFixed(1) + "/h" : "—"],
-                ["APT (avg)", m.avg_apt != null ? Number(m.avg_apt).toFixed(1) + "m" : "—"],
-                ["AGPT (avg)", m.avg_agpt != null ? Number(m.avg_agpt).toFixed(1) + "m" : "—"],
-              );
-            }
-            return <div style={{padding:"0 16px 16px"}}>
-              {rows.map(([label, val], i) => (
-                <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<rows.length-1?"1px solid var(--bd)":"none"}}>
-                  <span style={{fontSize:13,color:"var(--tx2)"}}>{label}</span>
-                  <span style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{safe(val)}</span>
+      {/* Coaching history — full width (Overview) */}
+      <div className="card" style={{marginBottom:16}}>
+        <div className="card-header"><span className="card-title">Coaching sessions ({qaSessions.length})</span></div>
+        {qaSessions.length > 0 ? <div style={{padding:"0 16px 16px",maxHeight:expandedSession?500:340,overflowY:"auto"}}>
+          {qaSessions.map(s => {
+            const isExpanded = expandedSession === s.id;
+            return <div key={s.id}>
+              <div onClick={()=>setExpandedSession(isExpanded?null:s.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--bd)",cursor:"pointer"}}>
+                <div>
+                  <div style={{fontSize:12,fontWeight:600,color:"var(--tx)"}}>{new Date(s.session_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
+                  <div style={{fontSize:11,color:"var(--tx3)"}}>{s.meeting_type?.replace(/_/g," ")} — by {nameFromEmail(s.sender_email)}</div>
                 </div>
-              ))}
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  {s.performance_rating && <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,
+                    background:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green-bg)":"var(--amber-bg)",
+                    color:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green)":"var(--amber)"
+                  }}>{safe(s.performance_rating)}</span>}
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s"}}><path d="M6 9l6 6 6-6"/></svg>
+                </div>
+              </div>
+              {isExpanded && <div style={{padding:12,background:"var(--bg)",borderRadius:8,margin:"8px 0",borderBottom:"1px solid var(--bd)"}}>
+                {s.email_subject && <div style={{fontSize:12,fontWeight:600,color:"var(--tx)",marginBottom:8}}>Subject: {safe(s.email_subject)}</div>}
+                {[["Topics",s.topics],["Strengths",s.strengths],["Areas for improvement",s.weaknesses],["Goals",s.goals],["Action items",s.action_items],["Notes",s.notes||s.agenda],["Next steps",s.next_steps]].map(([label,val])=>
+                  val ? <div key={label} style={{marginBottom:8}}>
+                    <div style={{fontSize:10,fontWeight:600,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
+                    <div style={{fontSize:12,color:"var(--tx2)",whiteSpace:"pre-wrap",lineHeight:1.5}}>{safe(val)}</div>
+                  </div> : null
+                )}
+                {s.outcome && <div style={{marginTop:4}}><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,background:s.outcome==="pass"?"var(--green-bg)":"var(--red-bg)",color:s.outcome==="pass"?"var(--green)":"var(--red)"}}>Outcome: {safe(s.outcome)}</span></div>}
+                {s.conclusion && <div style={{marginTop:4}}><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,background:"var(--blue-bg)",color:"var(--blue)"}}>Conclusion: {safe(s.conclusion)}</span></div>}
+              </div>}
             </div>;
-          })()}
-        </div>
-
-        {/* Expertise — admin-only pilot. CSAT-driven topic mastery, follows the same selected month */}
-        {hasRole(profile?.role, "admin") && <ExpertiseProfileCard qaEmail={selectedQA} month={selMonth || latestMtd?.month} />}
-
-        {/* Individual Performance Trend */}
-        {qaMtd.length >= 2 && <div className="card" style={{marginBottom:16}}>
-          <div className="card-header"><span className="card-title">Performance trend</span></div>
-          <div style={{padding:"12px 16px 8px"}}>
-            {(()=>{
-              const trendData = [...qaMtd].reverse().slice(-6);
-              if(trendData.length < 2) return null;
-              const chartH = 100; const chartW = Math.max(300, trendData.length * 70);
-              const maxPerf = Math.max(...trendData.map(d=>(parseFloat(d.final_performance)||0)*100), 1);
-              const points = trendData.map((d, i) => {
-                const x = 35 + i * (chartW - 50) / (trendData.length - 1 || 1);
-                const perf = (parseFloat(d.final_performance) || 0) * 100;
-                const y = chartH - 8 - (perf / Math.max(maxPerf, 50)) * (chartH - 25);
-                return { x, y, perf, month: d.month?.split("-")[0]?.slice(0,3) || "", dsat: d.dsat || 0, occ: parseFloat(d.occupancy_pct) || 0 };
-              });
-              const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x} ${p.y}`).join(" ");
-              const areaPath = line + ` L${points[points.length-1].x} ${chartH-8} L${points[0].x} ${chartH-8} Z`;
-              return <div style={{overflowX:"auto"}}>
-                <svg width={chartW} height={chartH + 25} viewBox={`0 0 ${chartW} ${chartH + 25}`}>
-                  {[0, 25, 50].map(v => { const y = chartH - 8 - (v / Math.max(maxPerf, 50)) * (chartH - 25); return <g key={v}><line x1="30" y1={y} x2={chartW - 5} y2={y} stroke="var(--bd)" strokeWidth="0.5" strokeDasharray="3" /><text x="25" y={y + 3} textAnchor="end" fill="var(--tx3)" fontSize="8">{v}%</text></g>; })}
-                  <path d={areaPath} fill="url(#perfGradArea)" opacity="0.15" />
-                  <path d={line} fill="none" stroke="#3BFF9D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                  {points.map((p, i) => <g key={i}>
-                    <circle cx={p.x} cy={p.y} r="4" fill="#3BFF9D" stroke="var(--bg3)" strokeWidth="2" />
-                    <text x={p.x} y={p.y - 10} textAnchor="middle" fill="#3BFF9D" fontSize="10" fontWeight="700">{p.perf.toFixed(1)}%</text>
-                    <text x={p.x} y={chartH + 15} textAnchor="middle" fill="var(--tx3)" fontSize="9">{p.month}</text>
-                  </g>)}
-                  <defs><linearGradient id="perfGradArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3BFF9D" /><stop offset="100%" stopColor="transparent" /></linearGradient></defs>
-                </svg>
-                <div style={{display:"flex",gap:16,justifyContent:"center",flexWrap:"wrap",marginTop:4}}>
-                  {trendData.map((d, i) => <div key={i} style={{textAlign:"center",fontSize:10,color:"var(--tx3)"}}>
-                    <div style={{fontWeight:600,color:"var(--tx2)"}}>{d.month?.split("-")[0]?.slice(0,3)}</div>
-                    <div>Occ: {d.occupancy_pct ? (parseFloat(d.occupancy_pct) > 2 ? parseFloat(d.occupancy_pct).toFixed(1) : (parseFloat(d.occupancy_pct)*100).toFixed(1)) : "—"}%</div>
-                    <div style={{color:"var(--tx3)"}}>DSAT: {d.dsat||0}</div>
-                  </div>)}
-                </div>
-              </div>;
-            })()}
-          </div>
-        </div>}
-
-        {/* Coaching history — expandable */}
-        <div className="card">
-          <div className="card-header"><span className="card-title">Coaching sessions ({qaSessions.length})</span></div>
-          {qaSessions.length > 0 ? <div style={{padding:"0 16px 16px",maxHeight:expandedSession?500:300,overflowY:"auto"}}>
-            {qaSessions.map(s => {
-              const isExpanded = expandedSession === s.id;
-              return <div key={s.id}>
-                <div onClick={()=>setExpandedSession(isExpanded?null:s.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--bd)",cursor:"pointer"}}>
-                  <div>
-                    <div style={{fontSize:12,fontWeight:600,color:"var(--tx)"}}>{new Date(s.session_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
-                    <div style={{fontSize:11,color:"var(--tx3)"}}>{s.meeting_type?.replace(/_/g," ")} — by {nameFromEmail(s.sender_email)}</div>
-                  </div>
-                  <div style={{display:"flex",alignItems:"center",gap:6}}>
-                    {s.performance_rating && <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,
-                      background:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green-bg)":"var(--amber-bg)",
-                      color:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green)":"var(--amber)"
-                    }}>{safe(s.performance_rating)}</span>}
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s"}}><path d="M6 9l6 6 6-6"/></svg>
-                  </div>
-                </div>
-                {isExpanded && <div style={{padding:"12px 0",borderBottom:"1px solid var(--bd)",background:"var(--bg)",borderRadius:8,padding:12,margin:"8px 0"}}>
-                  {s.email_subject && <div style={{fontSize:12,fontWeight:600,color:"var(--tx)",marginBottom:8}}>Subject: {safe(s.email_subject)}</div>}
-                  {[["Topics",s.topics],["Strengths",s.strengths],["Areas for improvement",s.weaknesses],["Goals",s.goals],["Action items",s.action_items],["Notes",s.notes||s.agenda],["Next steps",s.next_steps]].map(([label,val])=>
-                    val ? <div key={label} style={{marginBottom:8}}>
-                      <div style={{fontSize:10,fontWeight:600,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
-                      <div style={{fontSize:12,color:"var(--tx2)",whiteSpace:"pre-wrap",lineHeight:1.5}}>{safe(val)}</div>
-                    </div> : null
-                  )}
-                  {s.outcome && <div style={{marginTop:4}}><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,background:s.outcome==="pass"?"var(--green-bg)":"var(--red-bg)",color:s.outcome==="pass"?"var(--green)":"var(--red)"}}>Outcome: {safe(s.outcome)}</span></div>}
-                  {s.conclusion && <div style={{marginTop:4}}><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,background:"var(--blue-bg)",color:"var(--blue)"}}>Conclusion: {safe(s.conclusion)}</span></div>}
-                </div>}
-              </div>;
-            })}
-          </div> : <EmptyState
-            variant="compact"
-            title="No coaching sessions yet"
-            description={isLead && !isQA ? "Schedule a coaching session to start tracking growth." : "Your lead hasn't logged any sessions yet."}
-            icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-            cta={isLead && !isQA ? { label: "Schedule one →", onClick: () => window.dispatchEvent(new CustomEvent("navigate", { detail: "quality" })) } : undefined}
-          />}
-        </div>
+          })}
+        </div> : <EmptyState
+          variant="compact"
+          title="No coaching sessions yet"
+          description={isLead && !isQA ? "Schedule a coaching session to start tracking growth." : "Your lead hasn't logged any sessions yet."}
+          icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          cta={isLead && !isQA ? { label: "Schedule one →", onClick: () => window.dispatchEvent(new CustomEvent("navigate", { detail: "quality" })) } : undefined}
+        />}
       </div>
 
       {/* Bottom row: Tasks + AP/PIP + DAM — all expandable */}
@@ -602,7 +560,12 @@ function QAProfilePage() {
                 </div>}
               </div>;
             })}
-          </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No tasks</div>}
+          </div> : <EmptyState
+            variant="compact"
+            title="No tasks yet"
+            description={isLead && !isQA ? "Assign a task or use a template to get started." : "No tasks assigned to you right now."}
+            icon="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+          />}
         </div>
 
         {/* AP/PIP — expandable with weekly targets */}
@@ -647,7 +610,12 @@ function QAProfilePage() {
                 </div>}
               </div>;
             })}
-          </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No plans</div>}
+          </div> : <EmptyState
+            variant="compact"
+            title="No action plans"
+            description="No PIPs or improvement plans on file — keep it that way."
+            icon="M9 12l2 2 4-4M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          />}
         </div>
 
         {/* DAM Flags — expandable */}
@@ -681,34 +649,115 @@ function QAProfilePage() {
                 </div>}
               </div>;
             })}
-          </div> : <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No flags</div>}
+          </div> : <EmptyState
+            variant="compact"
+            title="No DAM flags"
+            description="No deviance from acceptable monitoring rules — clean record."
+            icon="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+          />}
         </div>
       </div>
 
       {/* Evaluation History — on-demand */}
       {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} />}
+      </>}
 
-      {/* Score history */}
-      {qaMtd.length > 1 && <div className="card" style={{marginTop:16}}>
-        <div className="card-header"><span className="card-title">Score trend</span></div>
-        <div style={{padding:"0 16px 16px"}}>
-          <div style={{display:"flex",gap:12,overflowX:"auto",padding:"8px 0"}}>
-            {qaMtd.slice(0,6).reverse().map(m => {
-              const score = (m.final_performance||0)*100;
-              const color = score >= 40 ? "var(--green)" : score >= 25 ? "var(--amber)" : "var(--red)";
-              return (
-                <div key={m.month} style={{textAlign:"center",minWidth:60,cursor:"pointer"}} onClick={()=>setSelMonth(m.month)}>
-                  <div style={{height:80,display:"flex",alignItems:"flex-end",justifyContent:"center",marginBottom:4}}>
-                    <div style={{width:32,borderRadius:"4px 4px 0 0",background:color,height:`${Math.max(8,score*1.5)}px`,transition:"height .3s",border:selMonth===m.month?"2px solid var(--tx)":"none"}}/>
+      {/* ── MONTHLY PERFORMANCE TAB ── */}
+      {activeTab === "monthly" && <>
+        {/* Performance + Trend in 2-col */}
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+          {/* Performance metrics with month selector */}
+          <div className="card">
+            <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span className="card-title">Performance</span>
+              {qaMtd.length > 0 && <select className="select form-input" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={selMonth||latestMtd?.month||""} onChange={e=>setSelMonth(e.target.value)}>
+                {qaMtd.map(m=><option key={m.month} value={m.month}>{m.month}</option>)}
+              </select>}
+            </div>
+            {(()=>{
+              const m = selMonth ? qaMtd.find(x=>x.month===selMonth) : latestMtd;
+              if(!m) return <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No MTD data available</div>;
+              const totalLogin = parseFloat(m.total_login_hours || 0);
+              const totalTickets = parseFloat(m.total_tickets_handled || 0);
+              const avgProd = totalLogin > 0 ? totalTickets / totalLogin : null;
+              const rows = [
+                ["SBS", m.sbs],["Non-SBS", m.non_sbs],["DSAT", m.dsat],
+                ["RTR Score", fmtPct(m.avg_rtr_score)],["Calibration", fmtPct(m.avg_calibration_match_rate)],
+                ["CO Score", fmtPct(m.avg_observation_score_pct)],["Coaching on-time", fmtPct(m.ontime_coaching_pct)],
+                ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"],
+                ["Occupancy", fmtPct(m.occupancy_pct)],["JKQ", m.jkq_score || "—"],
+                ["CSAT %", (() => { const v = csatPctValue(m.csat_pct); const s = Number(m.csat_total || 0); return (v != null && s > 0) ? v.toFixed(1) + "%" : "—"; })()],
+                ["Surveys", m.csat_total ?? "—"],
+              ];
+              if (totalLogin > 0 || totalTickets > 0 || m.avg_apt != null || m.avg_agpt != null) {
+                rows.push(
+                  ["Login Hours (total)", totalLogin > 0 ? totalLogin.toFixed(1) + "h" : "—"],
+                  ["Tickets Handled (total)", totalTickets > 0 ? Math.round(totalTickets) : "—"],
+                  ["Productivity (avg)", avgProd !== null ? avgProd.toFixed(1) + "/h" : "—"],
+                  ["APT (avg)", m.avg_apt != null ? Number(m.avg_apt).toFixed(1) + "m" : "—"],
+                  ["AGPT (avg)", m.avg_agpt != null ? Number(m.avg_agpt).toFixed(1) + "m" : "—"],
+                );
+              }
+              return <div style={{padding:"0 16px 16px"}}>
+                {rows.map(([label, val], i) => (
+                  <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<rows.length-1?"1px solid var(--bd)":"none"}}>
+                    <span style={{fontSize:13,color:"var(--tx2)"}}>{label}</span>
+                    <span style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{safe(val)}</span>
                   </div>
-                  <div style={{fontSize:13,fontWeight:700,color}}>{score.toFixed(1)}%</div>
-                  <div style={{fontSize:10,color:"var(--tx3)"}}>{m.month}</div>
-                </div>
-              );
-            })}
+                ))}
+              </div>;
+            })()}
           </div>
+
+          {/* Performance Trend */}
+          {qaMtd.length >= 2 ? <div className="card">
+            <div className="card-header"><span className="card-title">Performance trend</span></div>
+            <div style={{padding:"12px 16px 8px"}}>
+              {(()=>{
+                const trendData = [...qaMtd].reverse().slice(-6);
+                if(trendData.length < 2) return null;
+                const chartH = 100; const chartW = Math.max(300, trendData.length * 70);
+                const maxPerf = Math.max(...trendData.map(d=>(parseFloat(d.final_performance)||0)*100), 1);
+                const points = trendData.map((d, i) => {
+                  const x = 35 + i * (chartW - 50) / (trendData.length - 1 || 1);
+                  const perf = (parseFloat(d.final_performance) || 0) * 100;
+                  const y = chartH - 8 - (perf / Math.max(maxPerf, 50)) * (chartH - 25);
+                  return { x, y, perf, month: d.month?.split("-")[0]?.slice(0,3) || "", dsat: d.dsat || 0, occ: parseFloat(d.occupancy_pct) || 0 };
+                });
+                const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x} ${p.y}`).join(" ");
+                const areaPath = line + ` L${points[points.length-1].x} ${chartH-8} L${points[0].x} ${chartH-8} Z`;
+                return <div style={{overflowX:"auto"}}>
+                  <svg width={chartW} height={chartH + 25} viewBox={`0 0 ${chartW} ${chartH + 25}`}>
+                    {[0, 25, 50].map(v => { const y = chartH - 8 - (v / Math.max(maxPerf, 50)) * (chartH - 25); return <g key={v}><line x1="30" y1={y} x2={chartW - 5} y2={y} stroke="var(--bd)" strokeWidth="0.5" strokeDasharray="3" /><text x="25" y={y + 3} textAnchor="end" fill="var(--tx3)" fontSize="8">{v}%</text></g>; })}
+                    <path d={areaPath} fill="url(#perfGradArea)" opacity="0.15" />
+                    <path d={line} fill="none" stroke="#3BFF9D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                    {points.map((p, i) => <g key={i}>
+                      <circle cx={p.x} cy={p.y} r="4" fill="#3BFF9D" stroke="var(--bg3)" strokeWidth="2" />
+                      <text x={p.x} y={p.y - 10} textAnchor="middle" fill="#3BFF9D" fontSize="10" fontWeight="700">{p.perf.toFixed(1)}%</text>
+                      <text x={p.x} y={chartH + 15} textAnchor="middle" fill="var(--tx3)" fontSize="9">{p.month}</text>
+                    </g>)}
+                    <defs><linearGradient id="perfGradArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3BFF9D" /><stop offset="100%" stopColor="transparent" /></linearGradient></defs>
+                  </svg>
+                  <div style={{display:"flex",gap:16,justifyContent:"center",flexWrap:"wrap",marginTop:4}}>
+                    {trendData.map((d, i) => <div key={i} style={{textAlign:"center",fontSize:10,color:"var(--tx3)"}}>
+                      <div style={{fontWeight:600,color:"var(--tx2)"}}>{d.month?.split("-")[0]?.slice(0,3)}</div>
+                      <div>Occ: {d.occupancy_pct ? (parseFloat(d.occupancy_pct) > 2 ? parseFloat(d.occupancy_pct).toFixed(1) : (parseFloat(d.occupancy_pct)*100).toFixed(1)) : "—"}%</div>
+                      <div style={{color:"var(--tx3)"}}>DSAT: {d.dsat||0}</div>
+                    </div>)}
+                  </div>
+                </div>;
+              })()}
+            </div>
+          </div> : <div className="card" style={{padding:32,textAlign:"center",color:"var(--tx3)",fontSize:13}}>
+            <div style={{fontSize:24,marginBottom:6}}>📈</div>
+            <div style={{fontWeight:600,color:"var(--tx2)",marginBottom:2}}>Trend appears after 2 months</div>
+            <div>Need at least two months of MTD data to draw the line.</div>
+          </div>}
         </div>
-      </div>}
+
+        {/* Expertise — admin-only pilot. CSAT-driven topic mastery, follows the same selected month. Full-width below. */}
+        {hasRole(profile?.role, "admin") && <ExpertiseProfileCard qaEmail={selectedQA} month={selMonth || latestMtd?.month} />}
+      </>}
     </div>
   );
 }
