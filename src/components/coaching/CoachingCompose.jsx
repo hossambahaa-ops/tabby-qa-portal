@@ -14,6 +14,7 @@ import {
   PERF_MESSAGES,
   TEMPLATES,
   buildAutoCc,
+  AMANDA_EMAIL,
 } from "../../lib/coachingTemplates.js";
 import { buildCoachingEmailBody, fmtCoachingDate } from "../../lib/coachingEmail.js";
 
