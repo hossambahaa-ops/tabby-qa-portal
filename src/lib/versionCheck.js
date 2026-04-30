@@ -10,7 +10,7 @@
 // session is preserved automatically — window.location.reload() does
 // NOT clear localStorage, and the sb_session row stays put.
 
-const CHECK_INTERVAL_MS = 5 * 60 * 1000;     // poll every 5 min
+const CHECK_INTERVAL_MS = 60 * 1000;         // poll every 1 min — catch deploys before users navigate to a stale chunk
 const FORCE_AFTER_MS    = 60 * 60 * 1000;    // force-reload 1 h after first detection
 
 const currentBundleHash = () => {
