@@ -378,11 +378,13 @@ function ScoreEntryPage(){
     }
     return qaSort.dir === "asc" ? av - bv : bv - av;
   });
-  const toggleQaSort = (key) => setQaSort(prev =>
-    prev.key === key
-      ? { key, dir: prev.dir === "desc" ? "asc" : "desc" }
-      : { key, dir: "desc" }
-  );
+  // 3-state cycle on the active column: desc → asc → default (performance desc).
+  // Clicking a different column always starts at desc.
+  const toggleQaSort = (key) => setQaSort(prev => {
+    if (prev.key !== key) return { key, dir: "desc" };
+    if (prev.dir === "desc") return { key, dir: "asc" };
+    return { key: "performance", dir: "desc" }; // back to default
+  });
   const qaSortArrow = (key) => qaSort.key === key ? (qaSort.dir === "asc" ? " ▲" : " ▼") : "";
 
   // Hoisted because the column renderers reference them.
