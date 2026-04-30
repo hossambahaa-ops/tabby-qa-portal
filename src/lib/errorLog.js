@@ -86,10 +86,14 @@ async function shipError({ source, message, stack, context }) {
 }
 
 export function initErrorLog({ getToken: gt, getUser: gu } = {}) {
-  if (initialized) return;
-  initialized = true;
+  // Always update the accessor closures, even on subsequent calls. The
+  // App.jsx effect re-runs every time session/profile changes; if we
+  // captured only the first call (when profile was still null), every
+  // logged error would forever have user_email=null even after login.
   if (gt) getToken = gt;
   if (gu) getUser = gu;
+  if (initialized) return;
+  initialized = true;
 
   if (typeof window === "undefined") return;
 

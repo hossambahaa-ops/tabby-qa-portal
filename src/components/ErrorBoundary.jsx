@@ -57,20 +57,13 @@ class ErrorBoundary extends React.Component {
   }
   render() {
     if (this.state.hasError) {
-      // While the silent reload is firing, render a tiny "Updating to
-      // latest version…" hint instead of going black — it's a friendlier
-      // 100-200 ms transition than a blank screen.
+      // Stale-chunk reload is firing — return null so the page stays
+      // visually on whatever was last painted (usually the previous
+      // page's content). The browser swaps the document on reload
+      // ~100 ms later. No flash, no spinner, no panic.
       if (isStaleChunkError(this.state.error)) {
         const lastReload = parseInt(sessionStorage.getItem("__chunk_reload_at") || "0", 10);
-        if (Date.now() - lastReload < 30_000) {
-          return React.createElement("div", {
-            style: { position: "fixed", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0D1117", color: "rgba(255,255,255,.7)", fontFamily: "'Inter', system-ui, sans-serif", fontSize: 13, gap: 12, zIndex: 99999 }
-          },
-            React.createElement("div", { style: { width: 28, height: 28, border: "2px solid rgba(255,255,255,.15)", borderTopColor: "#3BFF9D", borderRadius: "50%", animation: "spin .7s linear infinite" } }),
-            React.createElement("div", null, "Updating to the latest version…"),
-            React.createElement("style", null, "@keyframes spin { to { transform: rotate(360deg); } }")
-          );
-        }
+        if (Date.now() - lastReload < 30_000) return null;
       }
       return React.createElement("div", {
         style: { height: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: "#0D1117", color: "#fff", fontFamily: "'Inter', system-ui, sans-serif", padding: 24, textAlign: "center" }
