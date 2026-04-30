@@ -159,7 +159,8 @@ export function useQaProfileData(token, profile) {
   const refreshMtd = useCallback(async () => {
     if (!token) return;
     dataCache?.invalidate?.();
-    const m = await sb.query("mtd_scores", { select: "*", filters: "order=month.desc", token }).catch(() => []);
+    // Read from mtd_scores_v — same shape as mtd_scores but with resolved calibration.
+    const m = await sb.query("mtd_scores_v", { select: "*", filters: "order=month.desc", token }).catch(() => []);
     setMtd(Array.isArray(m) ? m : []);
   }, [token]);
 

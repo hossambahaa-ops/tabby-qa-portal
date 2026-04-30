@@ -48,7 +48,7 @@ export function useDashboardData(token, profile) {
           const sixAgo = new Date();
           sixAgo.setMonth(sixAgo.getMonth() - 6);
           const minMonth = sixAgo.toISOString().slice(0, 7);
-          return sb.query("mtd_scores", { select: "*", filters: `month=gte.${minMonth}&order=month.desc`, token }).catch(() => []);
+          return sb.query("mtd_scores_v", { select: "*", filters: `month=gte.${minMonth}&order=month.desc`, token }).catch(() => []);
         }),
         listRoster({ token, select: "*" }),
         listProfiles({ token, select: "id,email,display_name,role,status" }),

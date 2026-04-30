@@ -265,7 +265,7 @@ function ScoreEntryPage(){
       }
       setUploadStep("done");
       dataCache.invalidate("mtd_scores");
-      const newRows = await sb.query("mtd_scores", {select:"*",filters:"order=month.desc,qa_email.asc",token});
+      const newRows = await sb.query("mtd_scores_v", {select:"*",filters:"order=month.desc,qa_email.asc",token});
       dataCache.set("mtd_scores", newRows);
       setData(newRows);
     } catch (e) {
