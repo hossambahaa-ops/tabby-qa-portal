@@ -10,6 +10,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import CsatTopicMatrix from "../components/csat/CsatTopicMatrix.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import SavedViews from "../components/SavedViews.jsx";
 
 const nameFromEmail = (email) => {
   if (!email) return "—";
@@ -330,6 +331,20 @@ export default function CSATPage() {
       </div>
       <div className="page-subtitle">CSAT % and surveys — explore By QA, By Lead, or the agent × topic heatmap under By Topic.</div>
     </div>
+
+    <SavedViews
+      pageKey="csat"
+      currentFilters={{ selMonth, selDomain, selTeam, selTL, selQA, csatView, topicMinSurveys }}
+      onApply={(f) => {
+        if (f.selMonth !== undefined) setSelMonth(f.selMonth || "");
+        if (f.selDomain !== undefined) setSelDomain(f.selDomain || "");
+        if (f.selTeam !== undefined) setSelTeam(f.selTeam || "");
+        if (f.selTL !== undefined) setSelTL(f.selTL || "");
+        if (Array.isArray(f.selQA)) setSelQA(f.selQA);
+        if (f.csatView !== undefined) setCsatView(f.csatView || "qa");
+        if (typeof f.topicMinSurveys === "number") setTopicMinSurveys(f.topicMinSurveys);
+      }}
+    />
 
     <div className="card" style={{marginBottom:16}}>
       <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>

@@ -13,6 +13,7 @@ import { SYSTEM_COLS, DEFAULT_MTD_COLS, COL_LABELS } from "../lib/mtdColumns.js"
 import MtdUploadModal from "../components/mtd/MtdUploadModal.jsx";
 import MtdBulkTaskModal from "../components/mtd/MtdBulkTaskModal.jsx";
 import { useRowContextMenu } from "../components/RowContextMenu.jsx";
+import SavedViews from "../components/SavedViews.jsx";
 
 function ScoreEntryPage(){
   const{token,profile,gf,globalToast}=useApp();
@@ -479,6 +480,27 @@ function ScoreEntryPage(){
         </div>
       </div>}
     </div>
+
+    <SavedViews
+      pageKey="mtd"
+      currentFilters={{
+        selMonth, selQA, selTL, selDomain, selTeam,
+        mtdView, hiddenCols: [...hiddenCols], tableDense,
+        qaSort, tableSearch,
+      }}
+      onApply={(f) => {
+        if (f.selMonth !== undefined) setSelMonth(f.selMonth || "");
+        if (f.selQA !== undefined) setSelQA(Array.isArray(f.selQA) ? f.selQA : []);
+        if (f.selTL !== undefined) setSelTL(f.selTL || "");
+        if (f.selDomain !== undefined) setSelDomain(f.selDomain || "");
+        if (f.selTeam !== undefined) setSelTeam(f.selTeam || "");
+        if (f.mtdView !== undefined) setMtdView(f.mtdView || "qa");
+        if (Array.isArray(f.hiddenCols)) setHiddenCols(new Set(f.hiddenCols));
+        if (typeof f.tableDense === "boolean") setTableDense(f.tableDense);
+        if (f.qaSort && f.qaSort.key) setQaSort({ key: f.qaSort.key, dir: f.qaSort.dir || "desc" });
+        if (typeof f.tableSearch === "string") setTableSearch(f.tableSearch);
+      }}
+    />
 
     <div className="card" style={{marginBottom:16,position:"relative",zIndex:50,overflow:"visible"}}>
       <div className="controls-row" style={{overflow:"visible"}}>

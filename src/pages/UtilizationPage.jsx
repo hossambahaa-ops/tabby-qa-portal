@@ -4,6 +4,7 @@ import { hasRole } from "../lib/constants.js";
 import { nameFromEmail } from "../lib/utils.js";
 import { useApp } from "../lib/AppContext.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
+import SavedViews from "../components/SavedViews.jsx";
 
 // Returns the date string YYYY-MM-DD for "today" in Asia/Riyadh.
 const todayRiyadh = () => new Intl.DateTimeFormat("en-CA", {
@@ -140,6 +141,14 @@ export default function UtilizationPage() {
         <div className="page-title">App utilization</div>
         <div className="page-subtitle">Who's using the app, when, and where their time goes.</div>
       </div>
+
+      <SavedViews
+        pageKey="utilization"
+        currentFilters={{ scope }}
+        onApply={(f) => {
+          if (f.scope === "today" || f.scope === "week" || f.scope === "30d") setScope(f.scope);
+        }}
+      />
 
       <div className="card" style={{ padding: 12, marginBottom: 12 }}>
         <div style={{ display: "flex", borderRadius: 8, border: "1px solid var(--bd)", overflow: "hidden", width: "fit-content" }}>

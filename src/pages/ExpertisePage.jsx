@@ -7,6 +7,7 @@ import { useApp } from "../lib/AppContext.jsx";
 import { fetchExpertise, fetchExpertiseMonths, fetchExpertiseConfig, saveExpertiseThreshold, recomputeExpertise, renderStars, starColor, starLabel, productOf, productColor } from "../lib/expertise.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import EmptyState from "../components/EmptyState.jsx";
+import SavedViews from "../components/SavedViews.jsx";
 
 const fmtScore = (v) => Number(v || 0).toFixed(2);
 
@@ -235,6 +236,18 @@ export default function ExpertisePage() {
       <div style={{ padding: "10px 14px", marginBottom: 16, background: "var(--amber-bg)", borderLeft: "3px solid var(--amber)", borderRadius: 8, fontSize: 12, color: "var(--tx2)" }}>
         <strong style={{ color: "var(--amber)" }}>Pilot version</strong> — based on {selMonth} data only. Threshold currently set to <strong>{activeThreshold} survey{activeThreshold === 1 ? "" : "s"}</strong> per topic — admins can adjust it below as the dataset grows. Expertise calls will become more accurate as 3+ months of data accumulate.
       </div>
+
+      <SavedViews
+        pageKey="expertise"
+        currentFilters={{ selMonth, selDomain, selTeam, selStar, search }}
+        onApply={(f) => {
+          if (f.selMonth !== undefined && months.includes(f.selMonth)) setSelMonth(f.selMonth);
+          if (f.selDomain !== undefined) setSelDomain(f.selDomain || "");
+          if (f.selTeam !== undefined) setSelTeam(f.selTeam || "");
+          if (f.selStar !== undefined) setSelStar(f.selStar || "");
+          if (typeof f.search === "string") setSearch(f.search);
+        }}
+      />
 
       {/* Admin threshold control + manual recompute. Whole page is admin-
           only at the route level, so no extra role gate needed here. */}

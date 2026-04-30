@@ -13,6 +13,7 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import LeaderboardCompareTable from "../components/leaderboard/LeaderboardCompareTable.jsx";
+import SavedViews from "../components/SavedViews.jsx";
 
 function LeaderboardPage() {
   const{token,profile,gf,globalToast}=useApp();
@@ -166,6 +167,25 @@ function LeaderboardPage() {
       </div>
 
       {loading ? <SkeletonPage/> : <>
+
+      <SavedViews
+        pageKey="leaderboard"
+        currentFilters={{ selMonth, selTeam, selDomain, view, search, focusOnly }}
+        hasUrlParams={() => {
+          const h = window.location.hash || "";
+          const q = h.includes("?") ? h.split("?")[1] : "";
+          const sp = new URLSearchParams(q);
+          return sp.has("month") || sp.has("view");
+        }}
+        onApply={(f) => {
+          if (f.selMonth !== undefined && months.includes(f.selMonth)) setSelMonth(f.selMonth);
+          if (f.selTeam !== undefined) setSelTeam(f.selTeam || "");
+          if (f.selDomain !== undefined) setSelDomain(f.selDomain || "");
+          if (f.view !== undefined) setView(f.view || "individual");
+          if (typeof f.search === "string") setSearch(f.search);
+          if (typeof f.focusOnly === "boolean") setFocusOnly(f.focusOnly);
+        }}
+      />
 
       <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:20}}>
         <div className="tabs">
