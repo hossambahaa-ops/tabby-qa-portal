@@ -183,7 +183,7 @@ export default function ExpertisePage() {
 
       {/* Pilot disclaimer */}
       <div style={{ padding: "10px 14px", marginBottom: 16, background: "var(--amber-bg)", borderLeft: "3px solid var(--amber)", borderRadius: 8, fontSize: 12, color: "var(--tx2)" }}>
-        <strong style={{ color: "var(--amber)" }}>Pilot version</strong> — based on {selMonth} data only. Threshold lowered to 12 surveys per topic (down from the eventual 20). Expertise calls will become more accurate as 3+ months of data accumulate.
+        <strong style={{ color: "var(--amber)" }}>Pilot version</strong> — based on {selMonth} data only. Threshold currently set to 5 surveys per topic — will be raised to 12, then 20, as the dataset grows. Expertise calls will become more accurate as 3+ months of data accumulate.
       </div>
 
       {/* Filters + star summary */}
@@ -294,7 +294,7 @@ export default function ExpertisePage() {
                               Topic breakdown · {(r.topic_breakdown || []).length} qualified topic{(r.topic_breakdown || []).length === 1 ? "" : "s"}
                             </div>
                             {(!r.topic_breakdown || r.topic_breakdown.length === 0) ? (
-                              <span style={{ fontSize: 12, color: "var(--tx3)" }}>No topic met the 12-survey threshold this month.</span>
+                              <span style={{ fontSize: 12, color: "var(--tx3)" }}>No topic met the 5-survey threshold this month.</span>
                             ) : (
                               <div className="table-wrap">
                                 <table style={{ fontSize: 12 }}>

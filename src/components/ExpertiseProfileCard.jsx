@@ -69,7 +69,7 @@ export default function ExpertiseProfileCard({ qaEmail, month }) {
           <span className="card-title">Expertise — {month}</span>
           <span style={{ fontSize: 10, fontWeight: 600, padding: "2px 8px", borderRadius: 8, background: "var(--amber-bg)", color: "var(--amber)", letterSpacing: ".5px" }}>PILOT</span>
         </div>
-        <div style={{ fontSize: 12, color: "var(--tx3)" }}>No expertise data for this month yet. Needs CSAT data with at least 12 surveys per topic.</div>
+        <div style={{ fontSize: 12, color: "var(--tx3)" }}>No expertise data for this month yet. Needs CSAT data with at least 5 surveys per topic.</div>
       </div>
     );
   }
