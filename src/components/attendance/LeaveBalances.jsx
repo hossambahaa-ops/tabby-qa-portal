@@ -37,7 +37,7 @@ export default function LeaveBalances({ visibleQAs, token, profile, myEmail, glo
     // build in.(a,b,c) — values don't need URL-encoding inside the parens for PostgREST
     const inList = emails.map(e => `"${e}"`).join(",");
     fetch(
-      `${SUPABASE_URL}/rest/v1/qa_leave_balance_v?year=eq.${year}&email=in.(${inList})&order=email.asc`,
+      `${SUPABASE_URL}/rest/v1/qa_leave_balance_v?year=eq.${year}&qa_email=in.(${inList})&order=qa_email.asc`,
       { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` } }
     )
       .then(r => r.json())
@@ -45,7 +45,7 @@ export default function LeaveBalances({ visibleQAs, token, profile, myEmail, glo
       .catch(e => { console.error("Leave balances:", e); globalToast?.("error", "Could not load balances"); setLoading(false); });
   }, [token, year, visibleQAs.length]);
 
-  const rows = isQARole ? balances.filter(b => b.email?.toLowerCase() === myEmail) : balances;
+  const rows = isQARole ? balances.filter(b => b.qa_email?.toLowerCase() === myEmail) : balances;
 
   const currentYear = new Date().getFullYear();
   const yearOptions = [currentYear - 1, currentYear, currentYear + 1];
@@ -92,15 +92,15 @@ export default function LeaveBalances({ visibleQAs, token, profile, myEmail, glo
                 const alRemaining = (b.al_allowance || 21) - (b.al_used || 0);
                 const tdRemaining = (b.tabby_day_allowance || 1) - (b.tabby_day_used || 0);
                 return (
-                  <tr key={b.email} style={{ borderBottom: "1px solid var(--bd)" }}>
+                  <tr key={b.qa_email} style={{ borderBottom: "1px solid var(--bd)" }}>
                     <td style={{ padding: "13px 16px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         <div style={{ width: 26, height: 26, borderRadius: "50%", background: "var(--accent-light)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "var(--accent-text)", flexShrink: 0 }}>
-                          {nameFromEmail(b.email).split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
+                          {nameFromEmail(b.qa_email).split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase()}
                         </div>
                         <div>
-                          <div style={{ fontWeight: 500 }}>{nameFromEmail(b.email)}</div>
-                          <div style={{ fontSize: 10, color: "var(--tx3)" }}>{b.email}</div>
+                          <div style={{ fontWeight: 500 }}>{nameFromEmail(b.qa_email)}</div>
+                          <div style={{ fontSize: 10, color: "var(--tx3)" }}>{b.qa_email}</div>
                         </div>
                       </div>
                     </td>
