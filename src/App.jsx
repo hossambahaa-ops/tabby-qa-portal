@@ -3,6 +3,7 @@ import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "r
 import "./index.css";
 import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc } from "./lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
+import { fetchUnreadReleases, ackRelease } from "./lib/featureReleases.js";
 import { initErrorLog } from "./lib/errorLog.js";
 import { listRoster } from "./api/roster.js";
 import { listMtd } from "./api/mtd.js";
@@ -243,6 +244,26 @@ function AppInner(){
   },[]);
   // Listen for legacy "navigate" custom events from child pages
   useEffect(()=>{const handler=(e)=>navigate("/"+e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[navigate]);
+
+  // Auto-ack feature releases when the user organically visits the
+  // target page. Fetch the unread set on every route change (cheap;
+  // small table); if any matches the current path, ack it so it stops
+  // appearing in the bell on this device AND on any other device the
+  // user logs into.
+  useEffect(()=>{
+    if(!session?.access_token||!profile?.email)return;
+    const currentPath="/"+(location.pathname.replace(/^\//,"")||"dashboard");
+    let cancelled=false;
+    (async()=>{
+      try{
+        const releases=await fetchUnreadReleases({token:session.access_token,userEmail:profile.email,role:profile.role});
+        if(cancelled)return;
+        const match=(releases||[]).find(r=>r.target_path===currentPath);
+        if(match){ackRelease({token:session.access_token,userEmail:profile.email,featureKey:match.key,via:"auto_visit"});}
+      }catch{}
+    })();
+    return()=>{cancelled=true;};
+  },[session?.access_token,profile?.email,profile?.role,location.pathname]);
   useEffect(()=>{
     // Hard ceiling: regardless of what happens with auth or profile fetch,
     // never leave the user staring at "Loading your workspace…" longer than

@@ -9,6 +9,7 @@ import { listPlans } from "../api/plans.js";
 import { listViolations } from "../api/violations.js";
 import { listEscalations } from "../api/escalations.js";
 import { listRoster } from "../api/roster.js";
+import { fetchUnreadReleases, ackRelease } from "../lib/featureReleases.js";
 
 const safe=(v)=>{if(v==null)return"";if(typeof v==="object")return JSON.stringify(v);return String(v);};
 
@@ -181,6 +182,26 @@ function NotificationBell({ onNavigate }) {
             }
           }
         } catch(e) { console.error("Daily reminders:", e); }
+
+        // Feature-release "what's new" entries — admin-curated, role-gated,
+        // auto-expire after 30 days. Pre-acked rows in feature_release_acks
+        // are filtered out by fetchUnreadReleases so the user never sees
+        // a release they've already dismissed/visited on another device.
+        try {
+          const releases = await fetchUnreadReleases({ token, userEmail: profile?.email, role: profile?.role });
+          for (const r of (releases || [])) {
+            all.push({
+              id: "fr-" + r.key,
+              type: "feature_release",
+              title: `🎉 ${r.title}`,
+              sub: r.description || "Click to explore",
+              time: r.released_at,
+              page: (r.target_path || "/dashboard").replace(/^\//, "") || "dashboard",
+              releaseKey: r.key,
+            });
+          }
+        } catch (e) { console.error("Feature releases:", e); }
+
         all.sort((a, b) => new Date(b.time) - new Date(a.time));
         setItems(all);
       } catch {}
@@ -198,7 +219,7 @@ function NotificationBell({ onNavigate }) {
 
   const visible = items.filter(i => !dismissed.includes(i.id));
   const count = visible.length;
-  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" }, coaching: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, error: { bg: "var(--red-bg)", color: "var(--red)" }, attendance: { bg: "rgba(13,148,136,0.12)", color: "#0D9488" } };
+  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" }, coaching: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, error: { bg: "var(--red-bg)", color: "var(--red)" }, attendance: { bg: "rgba(13,148,136,0.12)", color: "#0D9488" }, feature_release: { bg: "var(--green-bg)", color: "var(--green)" } };
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -221,14 +242,14 @@ function NotificationBell({ onNavigate }) {
             {visible.slice(0, 5).map(item => {
               const tc = typeColor[item.type] || {};
               return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8}}>
-                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); if(item.qcTab) setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:item.qcTab})),100); if(item.adminTab) setTimeout(()=>{const h=window.location.hash||"#/";const [b,q=""]=h.split("?");const p=new URLSearchParams(q);p.set("tab",item.adminTab);window.location.hash=`${b}?${p.toString()}`;},150); setOpen(false); dismiss(item.id); }}>
+                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); if(item.qcTab) setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:item.qcTab})),100); if(item.adminTab) setTimeout(()=>{const h=window.location.hash||"#/";const [b,q=""]=h.split("?");const p=new URLSearchParams(q);p.set("tab",item.adminTab);window.location.hash=`${b}?${p.toString()}`;},150); setOpen(false); dismiss(item.id); if(item.releaseKey) ackRelease({ token, userEmail: profile?.email, featureKey: item.releaseKey, via: "click" }); }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
                     <span style={{ fontWeight: 500, fontSize: 12 }}>{safe(item.title)}</span>
                   </div>
                   <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{safe(item.sub)} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); dismiss(item.id); }} title="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,padding:"2px",lineHeight:1,flexShrink:0,marginTop:2}}>×</button>
+                <button onClick={(e) => { e.stopPropagation(); dismiss(item.id); if(item.releaseKey) ackRelease({ token, userEmail: profile?.email, featureKey: item.releaseKey, via: "dismiss" }); }} title="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,padding:"2px",lineHeight:1,flexShrink:0,marginTop:2}}>×</button>
               </div>;
             })}
             {visible.length > 5 && <div style={{padding:"8px 16px",textAlign:"center"}}><span style={{fontSize:11,color:"var(--accent-text)",cursor:"pointer",fontWeight:600}} onClick={()=>{}}>+{visible.length-5} more</span></div>}
