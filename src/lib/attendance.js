@@ -13,16 +13,18 @@ export const ATTENDANCE_TYPES = [
   { code: "Paid SL", label: "Sick Leave",         color: "#B91C1C", bg: "#B91C1C20" },
   { code: "ML",      label: "Maternity Leave",    color: "#EC4899", bg: "#EC489920" },
   { code: "UL",      label: "Unpaid Leave",       color: "#6B7280", bg: "#6B728020" },
-  { code: "NSNC",    label: "No Show No Call",    color: "#E11D48", bg: "#E11D4825" },
-  { code: "OFF",     label: "Weekend / Holiday",  color: "#9CA3AF", bg: "#9CA3AF15" },
-  { code: "X",       label: "Not Employed",       color: "#6B7280", bg: "#6B728010" },
+  { code: "NSNC",      label: "No Show No Call",          color: "#E11D48", bg: "#E11D4825" },
+  { code: "OFF",       label: "Weekend / Holiday",        color: "#9CA3AF", bg: "#9CA3AF15" },
+  { code: "X",         label: "Not Employed",             color: "#6B7280", bg: "#6B728010" },
+  { code: "CDO",       label: "Cancel Day Off (worked)",  color: "#14B8A6", bg: "#14B8A620" },
+  { code: "Tabby Day", label: "Tabby Day (annual perk)",  color: "#A855F7", bg: "#A855F720" },
 ];
 
 export const ATT_MAP = ATTENDANCE_TYPES.reduce((acc, t) => { acc[t.code] = t; return acc; }, {});
 
 // Codes that need lead approval when set by a QA themselves. Leads
 // setting these for their team approve them implicitly.
-export const APPROVAL_CODES = new Set(["OT", "PH"]);
+export const APPROVAL_CODES = new Set(["OT", "PH", "CDO", "Tabby Day"]);
 
 // Codes shown in the cell picker. OT is intentionally excluded — it's a
 // separate request flow behind the "Request OT" header button so it
