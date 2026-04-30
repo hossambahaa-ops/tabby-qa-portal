@@ -222,6 +222,59 @@ export default function ExpertisePage() {
     return counts;
   }, [visibleRows]);
 
+  // Click-to-sort state. "default" = star_level desc, expertise_score desc
+  // (matches the original DB ordering). 3-state cycle on the active
+  // column: desc → asc → default.
+  const [sort, setSort] = useState({ key: "default", dir: "desc" });
+  const toggleSort = (key) => setSort(prev => {
+    if (prev.key !== key) return { key, dir: "desc" };
+    if (prev.dir === "desc") return { key, dir: "asc" };
+    return { key: "default", dir: "desc" };
+  });
+  const sortArrow = (key) => sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : "";
+
+  const sortVal = (r, key) => {
+    switch (key) {
+      case "default":    return Number(r.star_level || 0) * 10000 + Number(r.expertise_score || 0);
+      case "specialist": return nameFromEmail(r.qa_email).toLowerCase();
+      case "stars":      return Number(r.star_level || 0) * 10000 + Number(r.expertise_score || 0);
+      case "score":      return Number(r.expertise_score || 0);
+      case "champion":   return (r.champion_topics || []).length;
+      case "solid":      return (r.solid_topics || []).length;
+      case "bnpl":       return Number(r.bnpl_score || 0);
+      case "card":       return Number(r.card_score || 0);
+      case "universal":  return Number(r.universal_score || 0);
+      default:           return 0;
+    }
+  };
+
+  // Sort the table rows. No-sample QAs ALWAYS sort to the bottom
+  // regardless of direction — they're a separate population, not a
+  // low-ranked one, and shouldn't appear above QAs with real data
+  // when sorting ascending. Among themselves they're sorted by name
+  // so they have a stable display order.
+  const sortedRows = useMemo(() => {
+    const arr = [...visibleRows];
+    arr.sort((a, b) => {
+      const aNoSample = !hasSample(a);
+      const bNoSample = !hasSample(b);
+      if (aNoSample && !bNoSample) return 1;
+      if (!aNoSample && bNoSample) return -1;
+      if (aNoSample && bNoSample) {
+        return nameFromEmail(a.qa_email).localeCompare(nameFromEmail(b.qa_email));
+      }
+      const av = sortVal(a, sort.key);
+      const bv = sortVal(b, sort.key);
+      if (typeof av === "string") {
+        const c = av.localeCompare(bv);
+        return sort.dir === "asc" ? c : -c;
+      }
+      return sort.dir === "asc" ? av - bv : bv - av;
+    });
+    return arr;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleRows, sort]);
+
   if (loading) return <div className="page"><SkeletonPage /></div>;
   if (!selMonth || months.length === 0) {
     return (
@@ -357,19 +410,29 @@ export default function ExpertisePage() {
               <thead>
                 <tr>
                   <th style={{ width: 40 }}>#</th>
-                  <th style={{ minWidth: 180 }}>Specialist</th>
-                  <th style={{ width: 100 }}>Stars</th>
-                  <th style={{ width: 80, textAlign: "right" }}>Score</th>
-                  <th style={{ minWidth: 200 }}>Champion topics</th>
-                  <th style={{ minWidth: 200 }}>Solid topics</th>
-                  <th style={{ width: 80, textAlign: "right" }}>BNPL</th>
-                  <th style={{ width: 80, textAlign: "right" }}>Card</th>
-                  <th style={{ width: 90, textAlign: "right" }}>Universal</th>
+                  {[
+                    { k: "specialist", label: "Specialist", align: "left",  style: { minWidth: 180 } },
+                    { k: "stars",      label: "Stars",      align: "left",  style: { width: 100 } },
+                    { k: "score",      label: "Score",      align: "right", style: { width: 80 } },
+                    { k: "champion",   label: "Champion topics", align: "left", style: { minWidth: 200 } },
+                    { k: "solid",      label: "Solid topics",    align: "left", style: { minWidth: 200 } },
+                    { k: "bnpl",       label: "BNPL",       align: "right", style: { width: 80 } },
+                    { k: "card",       label: "Card",       align: "right", style: { width: 80 } },
+                    { k: "universal",  label: "Universal",  align: "right", style: { width: 90 } },
+                  ].map(c => (
+                    <th key={c.k}
+                        className={`sortable${sort.key === c.k ? " is-sorted" : ""}`}
+                        onClick={() => toggleSort(c.k)}
+                        title={`Sort by ${c.label}`}
+                        style={{ textAlign: c.align, whiteSpace: "nowrap", ...(c.style || {}) }}>
+                      {c.label}{sortArrow(c.k)}
+                    </th>
+                  ))}
                   <th style={{ width: 30 }}></th>
                 </tr>
               </thead>
               <tbody>
-                {visibleRows.map((r, i) => {
+                {sortedRows.map((r, i) => {
                   const isExp = expanded === r.qa_email;
                   return (
                     <React.Fragment key={r.qa_email}>
