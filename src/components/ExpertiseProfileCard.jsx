@@ -75,6 +75,11 @@ export default function ExpertiseProfileCard({ qaEmail, month }) {
   }
 
   const lvl = Number(data.star_level) || 0;
+  // Distinguish "no stars due to low rank" from "no stars due to no
+  // sample" — the former is real performance signal, the latter is
+  // just "we don't have enough surveys to evaluate yet".
+  const hasSample = Array.isArray(data.topic_breakdown) && data.topic_breakdown.length > 0;
+  const lowSample = lvl === 0 && !hasSample;
   return (
     <div className="card" style={{ marginBottom: 16, padding: 16 }}>
       <div className="card-header" style={{ padding: 0, marginBottom: 12, display: "flex", alignItems: "center" }}>
@@ -88,11 +93,20 @@ export default function ExpertiseProfileCard({ qaEmail, month }) {
           {lvl > 0 ? renderStars(lvl) : "☆☆☆"}
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: starColor(lvl), fontVariantNumeric: "tabular-nums" }}>
-            {fmtScore(data.expertise_score)}
-            <span style={{ fontSize: 12, fontWeight: 500, color: "var(--tx3)", marginLeft: 6 }}>expertise score</span>
-          </div>
-          <div style={{ fontSize: 12, color: "var(--tx2)", marginTop: 2 }}>{starLabel(lvl)}</div>
+          {lowSample ? (
+            <>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "var(--tx2)", letterSpacing: "-.2px" }}>Not enough sample yet</div>
+              <div style={{ fontSize: 12, color: "var(--tx3)", marginTop: 2 }}>No topic met the survey threshold this month — keep handling chats and the score will follow.</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-.5px", color: starColor(lvl), fontVariantNumeric: "tabular-nums" }}>
+                {fmtScore(data.expertise_score)}
+                <span style={{ fontSize: 12, fontWeight: 500, color: "var(--tx3)", marginLeft: 6 }}>expertise score</span>
+              </div>
+              <div style={{ fontSize: 12, color: "var(--tx2)", marginTop: 2 }}>{starLabel(lvl)}</div>
+            </>
+          )}
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>Qualified topics</div>

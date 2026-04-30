@@ -173,6 +173,13 @@ export default function ExpertisePage() {
 
   const myDomain = profile?.operational_domain || profile?.domain || "";
 
+  // A QA "has sample" if at least one of their topics met the active
+  // survey threshold (and therefore has a row in topic_breakdown). 0★
+  // QAs with sample = low performance on real data; 0★ QAs without
+  // sample = simply not enough surveys to evaluate yet — totally
+  // different stories that should read differently in the UI.
+  const hasSample = (r) => Array.isArray(r?.topic_breakdown) && r.topic_breakdown.length > 0;
+
   // Apply role-based visibility + UI filters
   const visibleRows = useMemo(() => {
     let r = rows;
@@ -185,7 +192,11 @@ export default function ExpertisePage() {
     }
     if (selDomain) r = r.filter(x => x.qa_email?.toLowerCase().endsWith("@" + selDomain));
     if (selTeam)   r = r.filter(x => rosterMap[x.qa_email?.toLowerCase()]?.queue === selTeam);
-    if (selStar !== "") r = r.filter(x => Number(x.star_level) === Number(selStar));
+    if (selStar !== "") {
+      if (selStar === "no_sample") r = r.filter(x => !hasSample(x));
+      else if (selStar === "0_lowperf") r = r.filter(x => Number(x.star_level) === 0 && hasSample(x));
+      else r = r.filter(x => Number(x.star_level) === Number(selStar));
+    }
     if (search.trim()) {
       const q = search.toLowerCase().trim();
       r = r.filter(x =>
@@ -198,9 +209,16 @@ export default function ExpertisePage() {
 
   const teams = useMemo(() => [...new Set(roster.map(r => r.queue).filter(q => q && !q.includes(",")))].sort(), [roster]);
 
+  // Split the 0★ bucket so the chip strip reflects the two distinct
+  // populations: low-performance (data, but ranked too low) vs
+  // no-sample (didn't even meet the survey threshold yet).
   const starCounts = useMemo(() => {
-    const counts = { 3: 0, 2: 0, 1: 0, 0: 0 };
-    visibleRows.forEach(r => { counts[r.star_level || 0]++; });
+    const counts = { 3: 0, 2: 0, 1: 0, 0: 0, no_sample: 0 };
+    visibleRows.forEach(r => {
+      const lvl = Number(r.star_level) || 0;
+      if (lvl === 0 && !hasSample(r)) counts.no_sample++;
+      else counts[lvl]++;
+    });
     return counts;
   }, [visibleRows]);
 
@@ -307,7 +325,8 @@ export default function ExpertisePage() {
             <option value="3">⭐⭐⭐ Triple-domain</option>
             <option value="2">⭐⭐ Cross-domain</option>
             <option value="1">⭐ Specialist</option>
-            <option value="0">No stars yet</option>
+            <option value="0_lowperf">0★ — has data, low rank</option>
+            <option value="no_sample">Not enough sample yet</option>
           </select>
           <div style={{ position: "relative", minWidth: 180, flex: 1, maxWidth: 240 }}>
             <input className="form-input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or email" style={{ fontSize: 12, padding: "6px 10px" }} />
@@ -315,11 +334,15 @@ export default function ExpertisePage() {
           </div>
           <div style={{ display: "flex", gap: 12, marginLeft: "auto", fontSize: 11, color: "var(--tx2)", fontWeight: 600 }}>
             {[3, 2, 1, 0].map(lv => (
-              <span key={lv} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                <span style={{ color: starColor(lv) }}>{lv > 0 ? renderStars(lv) : "·"}</span>
+              <span key={lv} style={{ display: "inline-flex", alignItems: "center", gap: 4 }} title={lv === 0 ? "0★ — has CSAT data but didn't reach champion/solid percentile on any topic" : undefined}>
+                <span style={{ color: starColor(lv) }}>{lv > 0 ? renderStars(lv) : "0★"}</span>
                 <span>{starCounts[lv]}</span>
               </span>
             ))}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--tx3)" }} title="No topic met the survey threshold yet — these QAs need more CSAT data before we can score them">
+              <span style={{ fontSize: 10, fontWeight: 500 }}>n/a</span>
+              <span>{starCounts.no_sample}</span>
+            </span>
           </div>
         </div>
       </div>
@@ -364,11 +387,25 @@ export default function ExpertisePage() {
                           </div>
                         </td>
                         <td>
-                          <span title={starLabel(r.star_level)} style={{ fontSize: 14, color: starColor(r.star_level) }}>
-                            {r.star_level > 0 ? renderStars(r.star_level) : <span style={{ color: "var(--tx3)", fontSize: 11 }}>·</span>}
-                          </span>
+                          {r.star_level > 0 ? (
+                            <span title={starLabel(r.star_level)} style={{ fontSize: 14, color: starColor(r.star_level) }}>
+                              {renderStars(r.star_level)}
+                            </span>
+                          ) : !hasSample(r) ? (
+                            <span title={`No topic met the ${activeThreshold}-survey threshold this month`} style={{
+                              fontSize: 10, fontWeight: 600,
+                              padding: "2px 8px", borderRadius: 8,
+                              background: "var(--bg)", color: "var(--tx3)",
+                              border: "1px dashed var(--bd)",
+                              whiteSpace: "nowrap",
+                            }}>Not enough sample</span>
+                          ) : (
+                            <span title="Has CSAT data but didn't reach champion/solid percentile on any topic" style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>0★</span>
+                          )}
                         </td>
-                        <td style={{ textAlign: "right", fontWeight: 700, fontSize: 13, color: starColor(r.star_level), fontVariantNumeric: "tabular-nums" }}>{fmtScore(r.expertise_score)}</td>
+                        <td style={{ textAlign: "right", fontWeight: 700, fontSize: 13, color: starColor(r.star_level), fontVariantNumeric: "tabular-nums" }}>
+                          {hasSample(r) ? fmtScore(r.expertise_score) : <span style={{ color: "var(--tx3)", fontWeight: 500 }}>—</span>}
+                        </td>
                         <td>
                           <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                             {(r.champion_topics || []).slice(0, 4).map(t => <TopicChip key={t} topic={t} strength="champion" />)}
