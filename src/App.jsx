@@ -4,6 +4,7 @@ import "./index.css";
 import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc } from "./lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { fetchUnreadReleases, ackRelease } from "./lib/featureReleases.js";
+import { avatarStyle, initialsFromEmail as initialsForAvatar } from "./lib/avatar.js";
 import { initErrorLog } from "./lib/errorLog.js";
 import { listRoster } from "./api/roster.js";
 import { listMtd } from "./api/mtd.js";
@@ -81,6 +82,11 @@ function AppInner(){
   const[pendingAnnouncements,setPendingAnnouncements]=useState([]);
   const[showFeedback,setShowFeedback]=useState(false);
   const[showLogoutWarning,setShowLogoutWarning]=useState(false);
+  // Recently viewed QA emails for the sidebar's "Recent" section.
+  // Stored per-user in localStorage so it survives sessions.
+  const[recentQAs,setRecentQAs]=useState(()=>{
+    try{return JSON.parse(localStorage.getItem("recent_qas")||"[]");}catch{return[];}
+  });
   const[showShortcutsHelp,setShowShortcutsHelp]=useState(false);
   const[showTour,setShowTour]=useState(false);
   const[feedbackForm,setFeedbackForm]=useState({category:"general",message:"",rating:0});
@@ -244,6 +250,23 @@ function AppInner(){
   },[]);
   // Listen for legacy "navigate" custom events from child pages
   useEffect(()=>{const handler=(e)=>navigate("/"+e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[navigate]);
+
+  // Track recently viewed QA profiles. Reads ?qa= from the hash and
+  // pushes the email to the front of the list (max 5, dedup, drop self).
+  useEffect(()=>{
+    if(page!=="profile")return;
+    try{
+      const hash=window.location.hash||"";
+      const q=hash.includes("?")?new URLSearchParams(hash.split("?")[1]):null;
+      const qa=(q?.get("qa")||"").toLowerCase();
+      if(!qa||qa===profile?.email?.toLowerCase())return;
+      setRecentQAs(prev=>{
+        const next=[qa,...prev.filter(e=>e!==qa)].slice(0,6);
+        try{localStorage.setItem("recent_qas",JSON.stringify(next));}catch{}
+        return next;
+      });
+    }catch{}
+  },[page,location.search,location.hash,profile?.email]);
 
   // Auto-ack feature releases when the user organically visits the
   // target page. Fetch the unread set on every route change (cheap;
@@ -444,6 +467,19 @@ function AppInner(){
         </button>
       </div>
       <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}><Icon d={item.icon} size={18}/><span className="nav-item-label">{item.label}</span></button></div>);})}</nav>
+      {/* Recently viewed QA profiles — only shown for users who can view
+          others' profiles (leads+). Hidden when sidebar is collapsed. */}
+      {recentQAs.length > 0 && hasRole(userRole, "qa_lead") && !sidebarCollapsed && (
+        <div className="sidebar-recent">
+          <div className="sidebar-recent-label">Recent</div>
+          {recentQAs.slice(0, 5).map(em => (
+            <button key={em} className="sidebar-recent-item" onClick={() => { window.location.hash = `#/profile?qa=${encodeURIComponent(em)}`; setSidebarOpen(false); }}>
+              <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, ...avatarStyle(em), display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{initialsForAvatar(em)}</span>
+              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{em.split("@")[0].split(".").map(p => p.charAt(0).toUpperCase() + p.slice(1).replace(/\d+$/, "")).filter(Boolean).join(" ")}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </aside>
     <div className="main-content">
       {/* View-as banner for super admin */}
@@ -487,7 +523,7 @@ function AppInner(){
         <div style={{display:"flex",alignItems:"center",gap:10,marginLeft:8,paddingLeft:12,borderLeft:"1px solid var(--bd)"}}>
           <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0,cursor:"pointer",position:"relative"}} title="Change profile picture" onClick={()=>document.getElementById("avatar-upload")?.click()}>
             {profile?.avatar_url ? <img src={profile.avatar_url} alt="" style={{width:32,height:32,objectFit:"cover",borderRadius:"50%"}}/> :
-            <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-light))",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{safe(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>}
+            <div style={{width:32,height:32,borderRadius:"50%",...avatarStyle(profile?.email),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{initialsForAvatar(profile?.email)||"U"}</div>}
           </div>
           <input id="avatar-upload" type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
             const file=e.target.files?.[0]; if(!file){return;}

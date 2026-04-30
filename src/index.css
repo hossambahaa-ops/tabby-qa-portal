@@ -212,6 +212,68 @@ body, html, #root { height: 100%; font-family: var(--font); background: var(--bg
    tighten row padding from ~10px → ~5px. Headers stay readable. */
 .table-dense tbody td { padding: 5px 8px !important; font-size: 12px; }
 .table-dense thead th { padding-top: 8px !important; padding-bottom: 8px !important; }
+
+/* ── Page transition — a 180ms fade on every route change so the app
+   feels alive. The .page-animate wrapper already exists; we just key
+   the animation off it changing keys (via React Router rendering). */
+.page-animate { animation: pageFadeIn .18s var(--ease) both; }
+@keyframes pageFadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Row context menu (right-click on table rows) ── */
+.row-ctx-menu {
+  position: fixed;
+  z-index: 10000;
+  min-width: 200px;
+  background: var(--bg3);
+  border: 1px solid var(--bd);
+  border-radius: 10px;
+  box-shadow: var(--shadow-lg);
+  padding: 4px 0;
+  font-family: var(--font);
+  animation: ctxFadeIn .12s var(--ease) both;
+}
+@keyframes ctxFadeIn {
+  from { opacity: 0; transform: scale(.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+.row-ctx-item {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 7px 14px;
+  background: none; border: none; cursor: pointer;
+  font-family: var(--font); font-size: 12px;
+  color: var(--tx); text-align: left;
+  transition: background .12s;
+}
+.row-ctx-item:hover { background: var(--bg); }
+.row-ctx-item:disabled { color: var(--tx3); cursor: default; }
+.row-ctx-divider { height: 1px; background: var(--bd2); margin: 4px 0; }
+
+/* ── Sidebar "Recent" section — chips for last visited QA profiles ── */
+.sidebar-recent { padding: 4px 14px 12px; border-top: 1px solid var(--bd2); margin-top: 8px; }
+.sidebar-recent-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: rgba(255,255,255,.4); margin-bottom: 6px; padding: 0 0 0 4px; }
+.sidebar-recent-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 6px;
+  font-size: 12px; color: rgba(255,255,255,.7);
+  cursor: pointer; transition: background .15s, color .15s;
+  background: none; border: none; width: 100%; text-align: left;
+  font-family: var(--font);
+}
+.sidebar-recent-item:hover { background: rgba(255,255,255,.06); color: #fff; }
+.sidebar-collapsed .sidebar-recent { display: none; }
+
+/* ── Page freshness banner — thin strip at the top of data pages ── */
+.page-freshness {
+  display: flex; align-items: center; gap: var(--sp-3);
+  padding: 6px 12px; margin-bottom: var(--sp-3);
+  border-radius: 8px;
+  background: var(--bg2); border: 1px solid var(--bd2);
+  font-size: 11px; color: var(--tx3);
+}
+.page-freshness strong { color: var(--tx2); font-weight: 600; }
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th { text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .8px; color: var(--tx3); font-weight: 600; padding: 12px 14px; border-bottom: 1px solid var(--bd); }
 td { padding: 14px; border-bottom: 1px solid var(--bd2); }

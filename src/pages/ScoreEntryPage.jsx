@@ -12,6 +12,7 @@ import { useApp } from "../lib/AppContext.jsx";
 import { SYSTEM_COLS, DEFAULT_MTD_COLS, COL_LABELS } from "../lib/mtdColumns.js";
 import MtdUploadModal from "../components/mtd/MtdUploadModal.jsx";
 import MtdBulkTaskModal from "../components/mtd/MtdBulkTaskModal.jsx";
+import { useRowContextMenu } from "../components/RowContextMenu.jsx";
 
 function ScoreEntryPage(){
   const{token,profile,gf,globalToast}=useApp();
@@ -34,6 +35,7 @@ function ScoreEntryPage(){
   const [uploadPreview, setUploadPreview] = useState([]);
   const [uploadFile, setUploadFile] = useState(null);
   const [selectedRows, setSelectedRows] = useState(new Set());
+  const ctxMenu = useRowContextMenu();
   // Click-to-sort on the By QA table. Default = performance descending,
   // matching the previous static sort. Two-state cycle: desc ↔ asc.
   const [qaSort, setQaSort] = useState({ key: "performance", dir: "desc" });
@@ -647,7 +649,15 @@ function ScoreEntryPage(){
               </thead>
               <tbody>
                 {sorted.map((r) => (
-                  <tr key={r.id} className={selectedRows.has(r.qa_email) ? "is-selected" : ""} style={{background:selectedRows.has(r.qa_email)?"var(--primary-light)":undefined}}>
+                  <tr key={r.id} className={selectedRows.has(r.qa_email) ? "is-selected" : ""}
+                      onContextMenu={(e) => ctxMenu.openFor(e, [
+                        { label: "View profile", onClick: () => { window.location.hash = `#/profile?qa=${encodeURIComponent(r.qa_email)}`; } },
+                        { label: "Open Leaderboard", onClick: () => { window.location.hash = "#/leaderboard"; } },
+                        { divider: true },
+                        { label: "Copy email", onClick: () => navigator.clipboard?.writeText(r.qa_email).then(() => globalToast("success", "Email copied")) },
+                        { label: "Copy name", onClick: () => navigator.clipboard?.writeText(nameFromEmail(r.qa_email)).then(() => globalToast("success", "Name copied")) },
+                      ])}
+                      style={{background:selectedRows.has(r.qa_email)?"var(--primary-light)":undefined}}>
                     <td style={{textAlign:"center"}}><input type="checkbox" checked={selectedRows.has(r.qa_email)} onChange={e=>{const next=new Set(selectedRows);if(e.target.checked)next.add(r.qa_email);else next.delete(r.qa_email);setSelectedRows(next);}} style={{cursor:"pointer"}} onClick={e=>e.stopPropagation()}/></td>
                     {visibleColumns.map(c => (
                       <td key={c.k} style={{textAlign: c.align || "right"}}>{c.render(r)}</td>
@@ -812,6 +822,7 @@ function ScoreEntryPage(){
         setBulkSending(false);
       }}
     />
+    <ctxMenu.Menu />
   </div>);
 }
 
