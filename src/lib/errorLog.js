@@ -61,19 +61,27 @@ async function shipError({ source, message, stack, context }) {
 
   // Use raw fetch so we don't depend on sb.query behaviour or any
   // higher-level wrapper that might itself be the thing throwing.
+  // Falls back to anon (just apikey) when the user isn't yet logged in
+  // so boot-time and OAuth-flow errors still get captured.
   try {
-    await fetch(`${SUPABASE_URL}/rest/v1/client_errors`, {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/client_errors`, {
       method: "POST",
       headers: {
         apikey: SUPABASE_ANON,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        Authorization: `Bearer ${token || SUPABASE_ANON}`,
         "Content-Type": "application/json",
         Prefer: "return=minimal",
       },
       body: JSON.stringify(body),
     });
-  } catch {
-    // Intentionally silent — error reporting itself must never throw.
+    // 4xx/5xx is interesting — log to console so we know the reporter
+    // itself is broken (RLS rejection, schema drift, etc.). Won't throw.
+    if (!r.ok) {
+      try { console.warn(`[errorLog] insert returned ${r.status}: ${(await r.text()).slice(0, 200)}`); } catch {}
+    }
+  } catch (e) {
+    // Last-resort: never throw from the reporter.
+    try { console.warn("[errorLog] network error:", e?.message || e); } catch {}
   }
 }
 
