@@ -13,6 +13,7 @@ import { SYSTEM_COLS, DEFAULT_MTD_COLS, COL_LABELS } from "../lib/mtdColumns.js"
 import MtdUploadModal from "../components/mtd/MtdUploadModal.jsx";
 import MtdBulkTaskModal from "../components/mtd/MtdBulkTaskModal.jsx";
 import { useRowContextMenu } from "../components/RowContextMenu.jsx";
+import SavedViews from "../components/SavedViews.jsx";
 
 function ScoreEntryPage(){
   const{token,profile,gf,globalToast}=useApp();
@@ -478,6 +479,26 @@ function ScoreEntryPage(){
           <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px",color:"var(--tx)"}}>{sorted.reduce((a,r)=>a+(r.dsat||0),0)}</div>
         </div>
       </div>}
+    </div>
+
+    {/* Saved views — star a filter combo, recall it next visit */}
+    <div style={{marginBottom: 12}}>
+      <SavedViews
+        pageKey="mtd"
+        currentFilters={{selMonth, selDomain, selTeam, selTL, selQA, mtdView, qaSort, tableDense, tableSearch, hiddenCols: [...hiddenCols]}}
+        onApply={(f) => {
+          if ('selMonth' in f) setSelMonth(f.selMonth || "");
+          if ('selDomain' in f) setSelDomain(f.selDomain || "");
+          if ('selTeam' in f) setSelTeam(f.selTeam || "");
+          if ('selTL' in f) setSelTL(f.selTL || "");
+          if ('selQA' in f) setSelQA(Array.isArray(f.selQA) ? f.selQA : []);
+          if ('mtdView' in f) setMtdView(f.mtdView || "qa");
+          if ('qaSort' in f && f.qaSort) setQaSort(f.qaSort);
+          if ('tableDense' in f) setTableDense(!!f.tableDense);
+          if ('tableSearch' in f) setTableSearch(f.tableSearch || "");
+          if ('hiddenCols' in f) setHiddenCols(new Set(Array.isArray(f.hiddenCols) ? f.hiddenCols : []));
+        }}
+      />
     </div>
 
     <div className="card" style={{marginBottom:16,position:"relative",zIndex:50,overflow:"visible"}}>
