@@ -65,3 +65,35 @@ export const fetchExpertiseMonths = async ({ token }) => {
   const rows = await sb.query("qa_expertise", { select: "month", filters: "order=month.desc", token }).catch(() => []);
   return [...new Set((rows || []).map(r => r.month).filter(Boolean))];
 };
+
+// Read the active min-surveys threshold (single-row config table).
+export const fetchExpertiseConfig = async ({ token }) => {
+  const rows = await sb.query("qa_expertise_config", {
+    select: "min_surveys,updated_at,updated_by",
+    filters: "id=eq.1",
+    token,
+  }).catch(() => []);
+  return rows && rows[0] ? rows[0] : { min_surveys: 5 };
+};
+
+// Persist a new threshold and recompute every month using it. Admin-only
+// at the RLS layer (the PATCH will fail with 401/403 for non-admins, which
+// surfaces as an error toast in the UI).
+export const saveExpertiseThreshold = async ({ token, minSurveys, actorEmail }) => {
+  await sb.query("qa_expertise_config", {
+    method: "PATCH",
+    body: { min_surveys: minSurveys, updated_at: new Date().toISOString(), updated_by: actorEmail || null },
+    filters: "id=eq.1",
+    token,
+  });
+  // Recompute every month so the leaderboard reflects the new threshold.
+  return await sb.rpc("recalculate_qa_expertise", { target_month: null }, token);
+};
+
+// Recompute without persisting a threshold change — useful after a CSAT
+// re-sync or for admins to refresh stars without changing the config.
+export const recomputeExpertise = async ({ token, month, override }) =>
+  sb.rpc("recalculate_qa_expertise", {
+    target_month: month || null,
+    min_surveys_override: override ?? null,
+  }, token);

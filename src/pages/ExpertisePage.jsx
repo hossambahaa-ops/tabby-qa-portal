@@ -4,7 +4,7 @@ import { nameFromEmail } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { useApp } from "../lib/AppContext.jsx";
-import { fetchExpertise, fetchExpertiseMonths, renderStars, starColor, starLabel, productOf, productColor } from "../lib/expertise.js";
+import { fetchExpertise, fetchExpertiseMonths, fetchExpertiseConfig, saveExpertiseThreshold, recomputeExpertise, renderStars, starColor, starLabel, productOf, productColor } from "../lib/expertise.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 
@@ -45,7 +45,7 @@ const TopicChip = ({ topic, strength = "champion" }) => {
 };
 
 export default function ExpertisePage() {
-  const { token, profile, gf } = useApp();
+  const { token, profile, gf, globalToast } = useApp();
   const myEmail = profile?.email?.toLowerCase() || "";
   const isAdmin      = hasRole(profile?.role, "admin");
   const isSupervisor = hasRole(profile?.role, "qa_supervisor");
@@ -63,23 +63,35 @@ export default function ExpertisePage() {
   const [selStar, setSelStar] = useState("");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState(null);
+  // Threshold management — admin-only. activeThreshold is what's stored
+  // in the DB; pendingThreshold is the value in the input (lets users
+  // type without firing recompute on every keystroke).
+  const [activeThreshold, setActiveThreshold] = useState(5);
+  const [pendingThreshold, setPendingThreshold] = useState(5);
+  const [thresholdMeta, setThresholdMeta] = useState({ updated_at: null, updated_by: null });
+  const [recomputing, setRecomputing] = useState(false);
 
-  // Initial month + dropdowns
+  // Initial month + dropdowns + threshold config
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
     (async () => {
       try {
-        const [ms, r, ps] = await Promise.all([
+        const [ms, r, ps, cfg] = await Promise.all([
           fetchExpertiseMonths({ token }),
           listRoster({ token, select: "email,queue,manager_email" }).catch(() => []),
           listProfiles({ token, select: "email,role" }).catch(() => []),
+          fetchExpertiseConfig({ token }),
         ]);
         if (cancelled) return;
         const sorted = sortMonthsDesc(ms);
         setMonths(sorted);
         setRoster(Array.isArray(r) ? r : []);
         setProfiles(Array.isArray(ps) ? ps : []);
+        const t = Number(cfg?.min_surveys) || 5;
+        setActiveThreshold(t);
+        setPendingThreshold(t);
+        setThresholdMeta({ updated_at: cfg?.updated_at, updated_by: cfg?.updated_by });
         const initial = (gf?.month && sorted.includes(gf.month)) ? gf.month : sorted[0] || "";
         setSelMonth(initial);
       } catch (e) { console.error("Expertise initial:", e); }
@@ -88,6 +100,44 @@ export default function ExpertisePage() {
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Apply a new threshold: persist to qa_expertise_config + recompute
+  // every month + reload current view.
+  const applyThreshold = async () => {
+    const v = Math.max(1, Math.min(200, Math.round(Number(pendingThreshold) || 1)));
+    if (v === activeThreshold) return;
+    setRecomputing(true);
+    try {
+      const res = await saveExpertiseThreshold({ token, minSurveys: v, actorEmail: profile?.email });
+      setActiveThreshold(v);
+      setThresholdMeta({ updated_at: new Date().toISOString(), updated_by: profile?.email });
+      // Refetch the current month's rows so the UI reflects the new scoring.
+      const data = await fetchExpertise({ token, month: selMonth });
+      setRows(Array.isArray(data) ? data : []);
+      const upserted = res?.rows_upserted ?? "?";
+      globalToast?.("success", `Threshold set to ${v} surveys · ${upserted} rows recomputed`);
+    } catch (e) {
+      console.error("threshold update:", e);
+      globalToast?.("error", `Couldn't update threshold: ${e?.message || "permission denied or server error"}`);
+      setPendingThreshold(activeThreshold);
+    }
+    setRecomputing(false);
+  };
+
+  // Recompute without changing the threshold — useful after a CSAT re-sync.
+  const handleRecompute = async () => {
+    setRecomputing(true);
+    try {
+      const res = await recomputeExpertise({ token, month: null });
+      const data = await fetchExpertise({ token, month: selMonth });
+      setRows(Array.isArray(data) ? data : []);
+      globalToast?.("success", `Recomputed · ${res?.rows_upserted ?? "?"} rows refreshed`);
+    } catch (e) {
+      console.error("recompute:", e);
+      globalToast?.("error", `Couldn't recompute: ${e?.message || "server error"}`);
+    }
+    setRecomputing(false);
+  };
 
   // Reload rows when month changes
   useEffect(() => {
@@ -183,7 +233,58 @@ export default function ExpertisePage() {
 
       {/* Pilot disclaimer */}
       <div style={{ padding: "10px 14px", marginBottom: 16, background: "var(--amber-bg)", borderLeft: "3px solid var(--amber)", borderRadius: 8, fontSize: 12, color: "var(--tx2)" }}>
-        <strong style={{ color: "var(--amber)" }}>Pilot version</strong> — based on {selMonth} data only. Threshold currently set to 5 surveys per topic — will be raised to 12, then 20, as the dataset grows. Expertise calls will become more accurate as 3+ months of data accumulate.
+        <strong style={{ color: "var(--amber)" }}>Pilot version</strong> — based on {selMonth} data only. Threshold currently set to <strong>{activeThreshold} survey{activeThreshold === 1 ? "" : "s"}</strong> per topic — admins can adjust it below as the dataset grows. Expertise calls will become more accurate as 3+ months of data accumulate.
+      </div>
+
+      {/* Admin threshold control + manual recompute. Whole page is admin-
+          only at the route level, so no extra role gate needed here. */}
+      <div className="card" style={{ padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Threshold</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <input
+            type="number" min={1} max={200}
+            value={pendingThreshold}
+            onChange={e => setPendingThreshold(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") applyThreshold(); }}
+            disabled={recomputing}
+            className="form-input"
+            style={{ width: 64, fontSize: 12, padding: "5px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}
+          />
+          <span style={{ fontSize: 11, color: "var(--tx3)" }}>min surveys per topic</span>
+        </div>
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={applyThreshold}
+          disabled={recomputing || Number(pendingThreshold) === activeThreshold}
+          style={{ fontSize: 11 }}
+        >
+          {recomputing ? "Recomputing…" : Number(pendingThreshold) !== activeThreshold ? `Apply ${pendingThreshold}` : `Active: ${activeThreshold}`}
+        </button>
+        <button
+          className="btn btn-outline btn-sm"
+          onClick={handleRecompute}
+          disabled={recomputing}
+          title="Re-run the expertise calculation against the current threshold (use after a CSAT re-sync)"
+          style={{ fontSize: 11 }}
+        >
+          ↻ Recompute now
+        </button>
+        {[3, 5, 8, 12, 20].map(v => (
+          <button
+            key={v}
+            onClick={() => setPendingThreshold(v)}
+            disabled={recomputing}
+            className={`pill${v === activeThreshold ? " pill-tone-purple" : ""}`}
+            style={{ cursor: "pointer", fontSize: 11 }}
+          >
+            {v}
+          </button>
+        ))}
+        {thresholdMeta.updated_at && (
+          <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--tx3)" }}>
+            Last changed {new Date(thresholdMeta.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}{thresholdMeta.updated_by ? ` by ${thresholdMeta.updated_by.split("@")[0]}` : ""}
+          </span>
+        )}
       </div>
 
       {/* Filters + star summary */}
@@ -294,7 +395,7 @@ export default function ExpertisePage() {
                               Topic breakdown · {(r.topic_breakdown || []).length} qualified topic{(r.topic_breakdown || []).length === 1 ? "" : "s"}
                             </div>
                             {(!r.topic_breakdown || r.topic_breakdown.length === 0) ? (
-                              <span style={{ fontSize: 12, color: "var(--tx3)" }}>No topic met the 5-survey threshold this month.</span>
+                              <span style={{ fontSize: 12, color: "var(--tx3)" }}>No topic met the {activeThreshold}-survey threshold this month.</span>
                             ) : (
                               <div className="table-wrap">
                                 <table style={{ fontSize: 12 }}>
