@@ -53,7 +53,7 @@ const NAV_ITEMS=[
   {key:"profile",label:"QA Profile",icon:icons.hr,section:"Performance"},
   {key:"scores",label:"MTD",icon:icons.scores},
   {key:"csat",label:"CSAT",icon:icons.leaderboard},
-  {key:"expertise",label:"Expertise",icon:icons.leaderboard},
+  {key:"expertise",label:"Expertise",icon:icons.leaderboard,minRole:"admin"},
   {key:"targets",label:"Targets",icon:icons.scores,minRole:"qa_lead"},
   {key:"schedule",label:"Schedule",icon:icons.coaching,section:"Management"},
   {key:"quality",label:"Quality Control",icon:icons.dam,minRole:"qa_lead"},
@@ -494,7 +494,7 @@ function AppInner(){
       <Route path="/dashboard" element={<DashboardPage/>}/>
       <Route path="/scores" element={<ScoreEntryPage/>}/>
       <Route path="/csat" element={<CSATPage/>}/>
-      <Route path="/expertise" element={<ExpertisePage/>}/>
+      <Route path="/expertise" element={hasRole(userRole,"admin")?<ExpertisePage/>:<PlaceholderPage title="Expertise" icon={icons.leaderboard} minRole="admin" userRole={userRole}/>}/>
       <Route path="/targets" element={<TargetsPage/>}/>
       <Route path="/leaderboard" element={<LeaderboardPage/>}/>
       <Route path="/profile" element={<QAProfilePage/>}/>

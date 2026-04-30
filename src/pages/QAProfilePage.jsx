@@ -461,8 +461,8 @@ function QAProfilePage() {
           })()}
         </div>
 
-        {/* Expertise — CSAT-driven topic mastery, follows the same selected month */}
-        <ExpertiseProfileCard qaEmail={selectedQA} month={selMonth || latestMtd?.month} />
+        {/* Expertise — admin-only pilot. CSAT-driven topic mastery, follows the same selected month */}
+        {hasRole(profile?.role, "admin") && <ExpertiseProfileCard qaEmail={selectedQA} month={selMonth || latestMtd?.month} />}
 
         {/* Individual Performance Trend */}
         {qaMtd.length >= 2 && <div className="card" style={{marginBottom:16}}>
