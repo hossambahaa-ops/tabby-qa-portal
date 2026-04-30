@@ -44,6 +44,7 @@ function SchedulePage() {
   const [selectedQAs, setSelectedQAs] = useState(new Set());
   const [editCell, setEditCell] = useState(null);
   const [pendingReason, setPendingReason] = useState(""); // reason input in cell picker
+  const [pickerStage, setPickerStage] = useState(null); // null | { code } — sub-stage inside open cell picker
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
   const [monthLock, setMonthLock] = useState(null);
@@ -89,6 +90,9 @@ function SchedulePage() {
   }, [token, selMonth]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // Reset picker sub-stage whenever the open cell changes (or picker closes)
+  useEffect(() => { setPickerStage(null); }, [editCell]);
 
   // Undo/Redo
   const tokenRef = useRef(token);
@@ -849,8 +853,6 @@ function SchedulePage() {
                             <span style={{fontSize:10,color:"var(--bd2)",pointerEvents:"none"}}>·</span>
                           )}
                           {isEditing && (()=>{
-                            // State for pending-reason sub-state within this cell
-                            const [pickerStage, setPickerStage] = React.useState(null); // null | { code }
                             const isSelfApproval = isQA && em === myEmail;
                             return (
                               <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:8,padding:6,boxShadow:"var(--shadow-lg)",width:180}} onClick={e=>e.stopPropagation()}>
