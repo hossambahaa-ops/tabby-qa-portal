@@ -243,28 +243,56 @@ function AppInner(){
   },[]);
   // Listen for legacy "navigate" custom events from child pages
   useEffect(()=>{const handler=(e)=>navigate("/"+e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[navigate]);
-  useEffect(()=>{(async()=>{let s=await sb.auth.handleCallback();if(!s)s=await sb.auth.getSession();if(s){setSession(s);try{
-    // First try by Auth UUID
-    let p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user?.id}`,token:s.access_token});
-    // If not found, check by email (pre-created profile from violations/admin)
-    if(p.length===0 && s.user?.email){
-      const emailProf=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`email=eq.${s.user.email}`,token:s.access_token}).catch(()=>[]);
-      if(emailProf.length>0){
-        // Update the pre-created profile with the real Auth UUID
-        await sb.query("profiles",{token:s.access_token,method:"PATCH",body:{id:s.user.id,display_name:s.user.user_metadata?.full_name||s.user.user_metadata?.name||emailProf[0].display_name,avatar_url:s.user.user_metadata?.avatar_url||null},filters:`email=eq.${s.user.email}`}).catch(()=>{});
-        p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user.id}`,token:s.access_token}).catch(()=>[]);
+  useEffect(()=>{
+    // Hard ceiling: regardless of what happens with auth or profile fetch,
+    // never leave the user staring at "Loading your workspace…" longer than
+    // 12 s. Better to show login or an empty dashboard than a frozen screen.
+    let done=false;
+    const safety=setTimeout(()=>{if(!done){console.warn("App load watchdog tripped — forcing past loading screen");setLoading(false);}},12000);
+    (async()=>{
+      try{
+        let s=await sb.auth.handleCallback();
+        if(!s)s=await sb.auth.getSession();
+        if(s){
+          setSession(s);
+          try{
+            let p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user?.id}`,token:s.access_token});
+            if(p.length===0 && s.user?.email){
+              const emailProf=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`email=eq.${s.user.email}`,token:s.access_token}).catch(()=>[]);
+              if(emailProf.length>0){
+                await sb.query("profiles",{token:s.access_token,method:"PATCH",body:{id:s.user.id,display_name:s.user.user_metadata?.full_name||s.user.user_metadata?.name||emailProf[0].display_name,avatar_url:s.user.user_metadata?.avatar_url||null},filters:`email=eq.${s.user.email}`}).catch(()=>{});
+                p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user.id}`,token:s.access_token}).catch(()=>[]);
+              }
+              // Last-resort fallback: still no profile by id but found one
+              // by email — use the email-matched profile directly so the
+              // user gets through. (Happens when the PATCH/refetch above
+              // is blocked by RLS or returns 0 rows due to a stale id.)
+              if(p.length===0 && emailProf.length>0){
+                console.warn("Falling back to email-matched profile (id sync didn't take):",emailProf[0].id);
+                p=emailProf;
+              }
+            }
+            if(p.length>0){setProfile(p[0]);}else if(s.user?.id){
+              const email=s.user.email||"";const domain=email.endsWith("@tabby.sa")?"tabby.sa":"tabby.ai";
+              const name=s.user.user_metadata?.full_name||s.user.user_metadata?.name||email.split("@")[0].split(".").map(p=>p.charAt(0).toUpperCase()+p.slice(1)).join(" ");
+              try{
+                await sb.query("profiles",{token:s.access_token,method:"POST",body:{id:s.user.id,email,display_name:name,role:"qa",domain,operational_domain:domain,status:"active",avatar_url:s.user.user_metadata?.avatar_url||null}});
+                const p2=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user.id}`,token:s.access_token});
+                if(p2.length>0)setProfile(p2[0]);
+              }catch(e){console.error("Auto-create profile:",e);}
+            }
+          }catch(e){console.error("Profile:",e);}
+        }
+      }catch(e){
+        console.error("App boot:",e);
+      }finally{
+        done=true;
+        clearTimeout(safety);
+        setLoading(false);
       }
-    }
-    if(p.length>0){setProfile(p[0]);}else if(s.user?.id){
-    // Auto-create profile for first-time login
-    const email=s.user.email||"";const domain=email.endsWith("@tabby.sa")?"tabby.sa":"tabby.ai";
-    const name=s.user.user_metadata?.full_name||s.user.user_metadata?.name||email.split("@")[0].split(".").map(p=>p.charAt(0).toUpperCase()+p.slice(1)).join(" ");
-    try{
-      await sb.query("profiles",{token:s.access_token,method:"POST",body:{id:s.user.id,email,display_name:name,role:"qa",domain,operational_domain:domain,status:"active",avatar_url:s.user.user_metadata?.avatar_url||null}});
-      const p2=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user.id}`,token:s.access_token});
-      if(p2.length>0)setProfile(p2[0]);
-    }catch(e){console.error("Auto-create profile:",e);}
-  }}catch(e){console.error("Profile:",e);}}setLoading(false);})();},[]);
+    })();
+    return()=>{clearTimeout(safety);};
+  },[]);
 
   // Load global filter data (roster + months)
   useEffect(()=>{if(!session)return;(async()=>{try{
