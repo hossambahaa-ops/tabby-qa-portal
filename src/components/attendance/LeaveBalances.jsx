@@ -121,9 +121,11 @@ export default function LeaveBalances({ visibleQAs, token, profile, myEmail, glo
                         fontWeight: 700,
                         border: `1px solid ${tdRemaining > 0 ? "#A855F740" : "var(--bd)"}`,
                       }}>
-                        {b.tabby_day_used || 0} / {b.tabby_day_allowance || 1}
-                        {tdRemaining > 0 && <span style={{ marginLeft: 4, fontSize: 9, opacity: 0.8 }}>✓ available</span>}
+                        {tdRemaining > 0 ? "✓ Available" : "Used"}
                       </span>
+                      <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 3 }}>
+                        {b.tabby_day_used || 0} of {b.tabby_day_allowance || 1} used
+                      </div>
                     </td>
                   </tr>
                 );
