@@ -133,7 +133,7 @@ export const sb = {
       }
       return null;
     },
-    signOut(){dataCache.invalidate();localStorage.removeItem("sb_session");sessionStorage.clear();window.location.href=window.location.origin;},
+    async signOut(){dataCache.invalidate();localStorage.removeItem("sb_session");sessionStorage.clear();window.location.href=window.location.origin;},
   },
 };
 
