@@ -21,6 +21,7 @@ import TeamHealth from "../components/dashboard/TeamHealth.jsx";
 import TeamChampions from "../components/dashboard/TeamChampions.jsx";
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
 import QASelfServiceDashboard from "../components/dashboard/QASelfServiceDashboard.jsx";
+import AttendanceQuickSet from "../components/dashboard/AttendanceQuickSet.jsx";
 
 function DashboardPage(){
   const{profile,token,gf,globalToast}=useApp();
@@ -169,7 +170,8 @@ function DashboardPage(){
             <div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div>
           </div>
         </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",position:"relative",zIndex:1}}>
+        <div style={{display:"flex",gap:8,flexWrap:"wrap",position:"relative",zIndex:1,alignItems:"center"}}>
+          {!isLead&&!isSupervisor&&(profile?.role==="qa"||profile?.role==="senior_qa")&&<AttendanceQuickSet myEmail={myEmail} todayAttendance={todayAttendance} token={token} globalToast={globalToast}/>}
           <button onClick={()=>nav("leaderboard")} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(255,255,255,.12)",background:"rgba(255,255,255,.06)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",backdropFilter:"blur(4px)"}}
             onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,.12)";e.currentTarget.style.borderColor="rgba(59,255,157,.3)";}}
             onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.06)";e.currentTarget.style.borderColor="rgba(255,255,255,.12)";}}
