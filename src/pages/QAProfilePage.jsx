@@ -10,6 +10,7 @@ import { useQaProfileData, bustBulkCache } from "../lib/useQaProfileData.jsx";
 import { useFreshness } from "../lib/useFreshness.js";
 import FreshnessBadge from "../components/FreshnessBadge.jsx";
 import EmptyState from "../components/EmptyState.jsx";
+import ExpertiseProfileCard from "../components/ExpertiseProfileCard.jsx";
 
 // Safe render: prevent objects/arrays from crashing React
 const safe = (v) => {
@@ -459,6 +460,9 @@ function QAProfilePage() {
             </div>;
           })()}
         </div>
+
+        {/* Expertise — CSAT-driven topic mastery, follows the same selected month */}
+        <ExpertiseProfileCard qaEmail={selectedQA} month={selMonth || latestMtd?.month} />
 
         {/* Individual Performance Trend */}
         {qaMtd.length >= 2 && <div className="card" style={{marginBottom:16}}>

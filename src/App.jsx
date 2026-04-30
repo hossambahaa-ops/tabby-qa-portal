@@ -34,6 +34,7 @@ const QualityControlPage = lazy(() => import("./pages/QualityControlPage.jsx"));
 const QAProfilePage = lazy(() => import("./pages/QAProfilePage.jsx"));
 const SchedulePage = lazy(() => import("./pages/SchedulePage.jsx"));
 const UtilizationPage = lazy(() => import("./pages/UtilizationPage.jsx"));
+const ExpertisePage = lazy(() => import("./pages/ExpertisePage.jsx"));
 const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
 
 document.title = "Tabby Pulse — QA Performance & Analytics";
@@ -52,6 +53,7 @@ const NAV_ITEMS=[
   {key:"profile",label:"QA Profile",icon:icons.hr,section:"Performance"},
   {key:"scores",label:"MTD",icon:icons.scores},
   {key:"csat",label:"CSAT",icon:icons.leaderboard},
+  {key:"expertise",label:"Expertise",icon:icons.leaderboard},
   {key:"targets",label:"Targets",icon:icons.scores,minRole:"qa_lead"},
   {key:"schedule",label:"Schedule",icon:icons.coaching,section:"Management"},
   {key:"quality",label:"Quality Control",icon:icons.dam,minRole:"qa_lead"},
@@ -492,6 +494,7 @@ function AppInner(){
       <Route path="/dashboard" element={<DashboardPage/>}/>
       <Route path="/scores" element={<ScoreEntryPage/>}/>
       <Route path="/csat" element={<CSATPage/>}/>
+      <Route path="/expertise" element={<ExpertisePage/>}/>
       <Route path="/targets" element={<TargetsPage/>}/>
       <Route path="/leaderboard" element={<LeaderboardPage/>}/>
       <Route path="/profile" element={<QAProfilePage/>}/>

@@ -18,6 +18,7 @@ import MyResponsibilities from "../components/dashboard/MyResponsibilities.jsx";
 import AnnouncementForm from "../components/dashboard/AnnouncementForm.jsx";
 import APDetectionAlerts from "../components/dashboard/APDetectionAlerts.jsx";
 import TeamHealth from "../components/dashboard/TeamHealth.jsx";
+import TeamChampions from "../components/dashboard/TeamChampions.jsx";
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
 import QASelfServiceDashboard from "../components/dashboard/QASelfServiceDashboard.jsx";
 
@@ -343,6 +344,9 @@ function DashboardPage(){
 
       {/* Team Health — KPI vs targets */}
       <TeamHealth teamData={teamCurrent} allTeamEmails={allTeamEmails} qaQueue={roster.find(r=>r.email?.toLowerCase()===myEmail)?.queue||""} qaDomain={myEmail?.endsWith("@tabby.sa")?"tabby.sa":"tabby.ai"} />
+
+      {/* Team Champions — expertise stars across the team */}
+      {isLead && allTeamEmails.length > 0 && <TeamChampions teamEmails={allTeamEmails} month={latestMonth} onOpen={()=>nav("expertise")} />}
 
       {/* Today's live activity */}
       {dailyScores.length>0&&<div className="card" style={{marginBottom:16}}>
