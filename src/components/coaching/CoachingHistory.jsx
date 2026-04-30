@@ -84,10 +84,26 @@ export default function CoachingHistory({ sessions, onDelete }) {
               <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async(e)=>{
                 e.stopPropagation();
                 confirmAsk("Delete coaching session?","This will permanently delete this session log.",async()=>{
+                const snapshot = {...s};
                 try{
                   await sb.query("coaching_sessions",{token,method:"DELETE",filters:`id=eq.${s.id}`});
                   onDelete(s.id);
-                  globalToast("success","Session deleted");
+                  globalToast("success","Session deleted",{
+                    action: { label: "Undo", onClick: async () => {
+                      try {
+                        const restored = await sb.query("coaching_sessions", { token, method: "POST", body: snapshot });
+                        const row = Array.isArray(restored) ? restored[0] : restored;
+                        if (row && onDelete) {
+                          // Notify parent so it can append the restored row.
+                          // Re-using onDelete with a "restore" sentinel keeps
+                          // the API minimal — parents can listen for the
+                          // restored event via a separate prop or just refetch.
+                          window.dispatchEvent(new CustomEvent("coaching-session-restored", { detail: row }));
+                        }
+                        globalToast("success", "Session restored");
+                      } catch (e) { globalToast("error", `Restore failed: ${e?.message || "unknown"}`); }
+                    }}
+                  });
                 }catch(err){globalToast("error",safeError(err));}
               },"Delete","var(--red)");}}><Icon d={icons.trash} size={14}/></button>
             </td>}

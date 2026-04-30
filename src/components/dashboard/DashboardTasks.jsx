@@ -185,6 +185,8 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
     confirmAsk("Delete all assigned tasks?",bodyLine,async()=>{
       const ids = assignedOut.map(t=>t.id);
       const idSet = new Set(ids);
+      // Snapshot the rows so Undo can bulk-recreate them.
+      const snapshots = assignedOut.map(t => ({...t}));
       try{
         // Optimistic: remove from local state immediately so the UI reflects
         // the delete without waiting for a round-trip + re-fetch.
@@ -207,7 +209,25 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
           globalToast("error",`Deleted ${deleted}, ${failed} failed (refetching)`);
           loadTasks(); // refetch to reconcile any failures
         } else {
-          globalToast("success",`Deleted ${deleted} assigned task${deleted!==1?"s":""}`);
+          globalToast("success",`Deleted ${deleted} assigned task${deleted!==1?"s":""}`,{
+            action: { label: "Undo", onClick: async () => {
+              try {
+                // Re-insert in the same chunked batches.
+                let restored = 0;
+                for (let i = 0; i < snapshots.length; i += CHUNK) {
+                  const chunk = snapshots.slice(i, i + CHUNK);
+                  await sb.query("tasks", { token, method: "POST", body: chunk });
+                  restored += chunk.length;
+                }
+                logActivity(token, profile?.email, "bulk_tasks_restored", "tasks", null, `Restored ${restored} tasks`);
+                globalToast("success", `Restored ${restored} task${restored !== 1 ? "s" : ""}`);
+                loadTasks(); // reconcile to pick up any server-side default-fills
+              } catch (e) {
+                globalToast("error", `Restore failed: ${e?.message || "unknown"}`);
+                loadTasks();
+              }
+            }}
+          });
         }
       }catch(e){
         globalToast("error",safeError(e));
@@ -318,11 +338,27 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
 
   const deleteTask=(task)=>{
     confirmAsk("Delete task?",`Are you sure you want to delete "${task.title}"?`,async()=>{
+      // Capture full snapshot so Undo can re-insert with original fields.
+      const snapshot = {...task};
       setUserTasks(prev=>prev.filter(t=>t.id!==task.id));
       try{
         await sb.query("tasks",{token,method:"DELETE",filters:`id=eq.${task.id}`});
         logActivity(token,profile?.email,"task_deleted","tasks",task.id,`Title: ${task.title}`);
-        globalToast("success","Task deleted");
+        globalToast("success","Task deleted",{
+          action: { label: "Undo", onClick: async () => {
+            try {
+              const restored = await sb.query("tasks", { token, method: "POST", body: snapshot });
+              const row = Array.isArray(restored) ? restored[0] : restored;
+              if (row) setUserTasks(prev => [row, ...prev]);
+              else loadTasks(); // server stripped fields — reconcile from server
+              logActivity(token, profile?.email, "task_restored", "tasks", row?.id || task.id, `Title: ${task.title}`);
+              globalToast("success", "Task restored");
+            } catch (e) {
+              globalToast("error", `Couldn't restore: ${e?.message || "unknown"}`);
+              loadTasks();
+            }
+          }}
+        });
       }catch(e){globalToast("error",safeError(e));loadTasks();}
     },"Delete","var(--red)");
   };
