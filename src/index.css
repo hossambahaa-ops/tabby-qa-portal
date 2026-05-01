@@ -9,22 +9,23 @@
   --tabby-green-dim: #2BD882;
   --tabby-dark: #003227;
 
-  /* Surfaces — muted warm neutral; cards still lift above the page */
-  --bg: #E5E0EE; --bg2: #DBD5E5; --bg3: #EFEAF6; --sidebar-bg: #0D0B10;
-  --tx: #1A1A1A; --tx2: #5C5868; --tx3: #8E8A98;
-  --bd: #CAC3D8; --bd2: #D6CFE3;
+  /* Surfaces — calm warm-neutral palette; less saturation, gentler contrast */
+  --bg: #D5D0DC; --bg2: #CAC4D2; --bg3: #DFDAE6; --sidebar-bg: #0D0B10;
+  --tx: #28252E; --tx2: #595463; --tx3: #847F8E;
+  --bd: #B6AEC2; --bd2: #C3BCD0;
 
   /* Accents mapped to Tabby */
   --accent: #3BFF9D; --accent-light: #E8FFF3; --accent-dark: #00CC7A;
   --accent-text: #00804D;
   --primary: #6A2C79; --primary-light: #F3EBF5; --primary-text: #6A2C79;
 
-  /* Semantic */
-  --green: #10B981; --green-bg: #D1FAE5;
-  --amber: #F59E0B; --amber-bg: #FEF3C7;
-  --red: #EF4444; --red-bg: #FEE2E2;
-  --teal: #14B8A6; --teal-bg: #CCFBF1;
-  --blue: #3B82F6; --blue-bg: #DBEAFE;
+  /* Semantic — slightly desaturated foregrounds + muted backgrounds so chips
+     don't shout against the calmer surfaces. */
+  --green: #0F9D74; --green-bg: #C7EBD8;
+  --amber: #D88B0A; --amber-bg: #F0E4BF;
+  --red: #D93838; --red-bg: #F0CFCF;
+  --teal: #0FA293; --teal-bg: #BFE9E0;
+  --blue: #3676E0; --blue-bg: #C9DAF0;
 
   /* System */
   --radius: 12px; --radius-lg: 16px; --radius-xl: 20px;
@@ -780,7 +781,7 @@ table tbody tr:hover {
 }
 
 /* ═══ Topbar, collapsible sidebar, notifications, search ═══ */
-.topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(229,224,238,.9) !important; }
+.topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(213,208,220,.92) !important; }
 @media (min-width: 769px) {
   .topbar-menu { display: none !important; }
 }
@@ -1217,7 +1218,7 @@ input[type="text"]:focus {
    sidebar children use rgba(255,255,255,…) for hover/active/borders,
    which is invisible on a white background — overrides below. */
 html:not(.dark) .sidebar {
-  background: #E8E2F2;
+  background: #D8D0E2;
   color: var(--tx);
   border-right: 1px solid var(--bd);
 }
