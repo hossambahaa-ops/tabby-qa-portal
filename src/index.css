@@ -9,10 +9,10 @@
   --tabby-green-dim: #2BD882;
   --tabby-dark: #003227;
 
-  /* Surfaces — slightly warm neutral so the app isn't blinding white */
-  --bg: #F0EDF5; --bg2: #E7E3EF; --bg3: #F8F5FB; --sidebar-bg: #0D0B10;
-  --tx: #1A1A1A; --tx2: #6B6B6B; --tx3: #A0A0A0;
-  --bd: #DAD5E5; --bd2: #E4DFEE;
+  /* Surfaces — muted warm neutral; cards still lift above the page */
+  --bg: #E5E0EE; --bg2: #DBD5E5; --bg3: #EFEAF6; --sidebar-bg: #0D0B10;
+  --tx: #1A1A1A; --tx2: #5C5868; --tx3: #8E8A98;
+  --bd: #CAC3D8; --bd2: #D6CFE3;
 
   /* Accents mapped to Tabby */
   --accent: #3BFF9D; --accent-light: #E8FFF3; --accent-dark: #00CC7A;
@@ -780,7 +780,7 @@ table tbody tr:hover {
 }
 
 /* ═══ Topbar, collapsible sidebar, notifications, search ═══ */
-.topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(240,237,245,.88) !important; }
+.topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(229,224,238,.9) !important; }
 @media (min-width: 769px) {
   .topbar-menu { display: none !important; }
 }
@@ -1217,7 +1217,7 @@ input[type="text"]:focus {
    sidebar children use rgba(255,255,255,…) for hover/active/borders,
    which is invisible on a white background — overrides below. */
 html:not(.dark) .sidebar {
-  background: #F4F0FA;
+  background: #E8E2F2;
   color: var(--tx);
   border-right: 1px solid var(--bd);
 }
