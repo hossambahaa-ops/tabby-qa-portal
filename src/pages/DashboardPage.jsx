@@ -425,14 +425,14 @@ function DashboardPage(){
             return <div style={{overflowX:"auto"}}>
               <svg width={chartW} height={chartH+30} viewBox={`0 0 ${chartW} ${chartH+30}`}>
                 {[0,25,50,75,100].map(v=>{const y=chartH-10-(v/maxPerf)*(chartH-30);return <g key={v}><line x1="35" y1={y} x2={chartW-10} y2={y} stroke="var(--bd)" strokeWidth="0.5" strokeDasharray="4"/><text x="30" y={y+4} textAnchor="end" fill="var(--tx3)" fontSize="9">{v}%</text></g>})}
-                <path d={perfLine} fill="none" stroke="#3BFF9D" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                {perfPoints.map((p,i)=><g key={i}><circle cx={p.x} cy={p.y} r="4" fill="#3BFF9D" stroke="var(--bg3)" strokeWidth="2"/><text x={p.x} y={p.y-10} textAnchor="middle" fill="var(--green)" fontSize="10" fontWeight="700">{p.avgPerf.toFixed(1)}%</text></g>)}
+                <path d={perfLine} fill="none" stroke="var(--chart-perf)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                {perfPoints.map((p,i)=><g key={i}><circle cx={p.x} cy={p.y} r="4" fill="var(--chart-perf)" stroke="var(--bg3)" strokeWidth="2"/><text x={p.x} y={p.y-10} textAnchor="middle" fill="var(--chart-perf)" fontSize="10" fontWeight="700">{p.avgPerf.toFixed(1)}%</text></g>)}
                 <path d={dsatLine} fill="none" stroke="var(--amber)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4"/>
                 {dsatPoints.map((p,i)=><g key={i}><circle cx={p.x} cy={p.y} r="3" fill="var(--amber)" stroke="var(--bg3)" strokeWidth="1.5"/>{p.dsat>0&&<text x={p.x} y={p.y-9} textAnchor="middle" fill="var(--amber)" fontSize="10" fontWeight="700">{p.dsat}</text>}</g>)}
                 {perfPoints.map((p,i)=><text key={i} x={p.x} y={chartH+18} textAnchor="middle" fill="var(--tx3)" fontSize="10" fontWeight="500">{p.label}</text>)}
               </svg>
               <div style={{display:"flex",gap:16,justifyContent:"center",marginTop:4,fontSize:11}}>
-                <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:3,borderRadius:2,background:"#3BFF9D",display:"inline-block"}}/>Avg Performance</span>
+                <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:3,borderRadius:2,background:"var(--chart-perf)",display:"inline-block"}}/>Avg Performance</span>
                 <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:3,borderRadius:2,background:"var(--amber)",display:"inline-block",borderTop:"1px dashed var(--amber)"}}/>Total DSAT</span>
               </div>
             </div>;

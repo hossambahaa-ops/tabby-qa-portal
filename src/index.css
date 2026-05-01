@@ -19,6 +19,8 @@
   --accent: #3BFF9D; --accent-light: #BFC8C0; --accent-dark: #00CC7A;
   --accent-text: #2A5F42;
   --primary: #6A2C79; --primary-light: #BEB4C2; --primary-text: #6A2C79;
+  /* Chart accent — muted green in light, neon in dark (overridden below) */
+  --chart-perf: #0F9D74;
 
   /* Semantic — slightly desaturated foregrounds + muted backgrounds so chips
      don't shout against the calmer surfaces. */
@@ -860,7 +862,7 @@ body:has(.view-as-bar) .sidebar { filter: saturate(.85); }
 .search-result-type { font-size: 9px; padding: 2px 8px; border-radius: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
 
 /* Dark mode — Tabby branded */
-.dark { --bg: #0F0D14; --bg2: #181522; --bg3: #211D30; --tx: #F5F3F8; --tx2: #B8B0C8; --tx3: #7E7694; --bd: #332D48; --bd2: #2A2540; --accent-light: #0D3320; --accent-text: #3BFF9D; --primary-light: #251838; --primary-text: #C9A0D8; --sidebar-bg: #0A0814; --green-bg: #0D2E1A; --amber-bg: #2E2410; --red-bg: #2E1010; }
+.dark { --bg: #0F0D14; --bg2: #181522; --bg3: #211D30; --tx: #F5F3F8; --tx2: #B8B0C8; --tx3: #7E7694; --bd: #332D48; --bd2: #2A2540; --accent-light: #0D3320; --accent-text: #3BFF9D; --primary-light: #251838; --primary-text: #C9A0D8; --sidebar-bg: #0A0814; --green-bg: #0D2E1A; --amber-bg: #2E2410; --red-bg: #2E1010; --chart-perf: #3BFF9D; }
 .dark .topbar { background: rgba(15,13,20,.9) !important; border-color: rgba(255,255,255,.06); }
 .dark .card { background: var(--bg3); border-color: var(--bd2); }
 .dark .card:hover { box-shadow: 0 4px 24px rgba(106,44,121,.1); }
