@@ -360,7 +360,9 @@ function DashboardPage(){
             const totNon=teamDs.reduce((a,d)=>a+(d.non_sbs||0),0);
             const totCoach=teamDs.reduce((a,d)=>a+(d.coaching_sessions||0),0);
             const totST=teamDs.reduce((a,d)=>a+(parseFloat(d.side_task_minutes)||0),0);
-            const avgOcc=teamDs.length?teamDs.reduce((a,d)=>a+(parseFloat(d.occupancy_pct)||0),0)/teamDs.length:0;
+            // Exclude QAs with 0 / no occupancy data so they don't drag the avg down
+            const occVals=teamDs.map(d=>parseFloat(d.occupancy_pct)||0).filter(v=>v>0);
+            const avgOcc=occVals.length?occVals.reduce((a,b)=>a+b,0)/occVals.length:0;
             const occPct=avgOcc>2?avgOcc:avgOcc*100;
             return [
               {label:"SBS",value:totSbs,color:"var(--green)",icon:"📋"},

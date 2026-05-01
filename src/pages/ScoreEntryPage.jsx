@@ -471,7 +471,7 @@ function ScoreEntryPage(){
         <div style={{width:1,height:32,background:"var(--bd)"}}/>
         <div style={{textAlign:"center"}}>
           <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>Avg Score</div>
-          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px"}}>{(sorted.reduce((a,r)=>a+(r.final_performance||0),0)/sorted.length*100).toFixed(1)}%</div>
+          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px"}}>{(()=>{const vals=sorted.map(r=>parseFloat(r.final_performance)||0).filter(v=>v>0);return vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length*100).toFixed(1)+"%":"—";})()}</div>
         </div>
         <div style={{width:1,height:32,background:"var(--bd)"}}/>
         <div style={{textAlign:"center"}}>
@@ -692,6 +692,15 @@ function ScoreEntryPage(){
 
         {/* Lead Aggregation View */}
         {mtdView==="lead"&&(()=>{
+          // Bugfix: previous code did `if (r.avg_rtr_score) push(parseFloat(...)||0)`,
+          // which is truthy for the string "0" (and "0.00") — Postgres returns
+          // numerics as strings, so QAs with no activity for a metric (RTR=0,
+          // occupancy=0, etc.) had a literal 0 pushed into the lead's average,
+          // dragging it down. Helper below parses first and only includes
+          // values strictly > 0, so QAs with no activity for a metric are
+          // excluded from THAT metric's average (they still count for the
+          // sums above).
+          const pushPos=(arr,raw)=>{const v=parseFloat(raw);if(!isNaN(v)&&v>0)arr.push(v);};
           const leadMap={};
           sorted.forEach(r=>{
             const tl=(r.qa_tl||"unknown").toLowerCase();
@@ -699,15 +708,15 @@ function ScoreEntryPage(){
             const l=leadMap[tl];
             l.count++;l.sbs+=(r.sbs||0);l.non_sbs+=(r.non_sbs||0);l.dsat+=(r.dsat||0);l.late+=(r.late_count||0);l.never+=(r.never_count||0);l.valid+=(r.valid_count||0);l.invalid+=(r.invalid_count||0);
             l.sessions+=(r.coaching_sessions||0);l.ontime+=(r.total_ontime_coachings||0);l.eligible+=(r.coaching_eligibility_count||0);l.not_coached+=(r.not_coached||0);
-            l.rtr+=(r.rtr_count||0);if(r.avg_rtr_score)l.rtr_scores.push(parseFloat(r.avg_rtr_score)||0);
-            l.obs+=(r.observed_coaching_count||0);if(r.avg_observation_score_pct)l.obs_scores.push(parseFloat(r.avg_observation_score_pct)||0);
-            l.calib+=(r.calibration_count||0);if(r.avg_calibration_match_rate)l.calib_scores.push(parseFloat(r.avg_calibration_match_rate)||0);
-            if(r.coaching_completion_pct)l.completion.push(parseFloat(r.coaching_completion_pct)||0);
-            if(r.ontime_coaching_pct)l.ontime_pct.push(parseFloat(r.ontime_coaching_pct)||0);
-            if(r.ticket_per_day)l.tickets.push(parseFloat(r.ticket_per_day)||0);
-            if(r.occupancy_pct)l.occupancy.push(parseFloat(r.occupancy_pct)||0);
+            l.rtr+=(r.rtr_count||0);pushPos(l.rtr_scores,r.avg_rtr_score);
+            l.obs+=(r.observed_coaching_count||0);pushPos(l.obs_scores,r.avg_observation_score_pct);
+            l.calib+=(r.calibration_count||0);pushPos(l.calib_scores,r.avg_calibration_match_rate);
+            pushPos(l.completion,r.coaching_completion_pct);
+            pushPos(l.ontime_pct,r.ontime_coaching_pct);
+            pushPos(l.tickets,r.ticket_per_day);
+            pushPos(l.occupancy,r.occupancy_pct);
             l.days+=(r.working_days||0);l.st_mins+=(r.side_tasks_duration_mins||0);
-            if(r.final_performance)l.performance.push(parseFloat(r.final_performance)||0);
+            pushPos(l.performance,r.final_performance);
             const _csat=csatPctValue(r.csat_pct);
             if(_csat!=null){
               const surveys=Number(r.csat_total||0);

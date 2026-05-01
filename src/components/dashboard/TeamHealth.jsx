@@ -90,7 +90,14 @@ function TeamHealth({ teamData, allTeamEmails, qaQueue, qaDomain }) {
   };
 
   const rows = KPI_DEFS.map(kpi => {
-    const vals = teamData.map(r => parseVal(r[kpi.field])).filter(v => v !== null);
+    // For avg-type KPIs (occupancy %, completion %, RTR/calib/obs %, etc.) we
+    // exclude 0 values — they typically mean "QA had no activity for this
+    // metric" (Postgres returns numerics as strings, so the parser turns "0"
+    // into a valid 0). Including those drags the team avg down. Sum-type
+    // KPIs keep 0s — adding 0 to a sum is harmless and the row still counts.
+    const vals = teamData
+      .map(r => parseVal(r[kpi.field]))
+      .filter(v => v !== null && (kpi.type === "sum" || v > 0));
     if (vals.length === 0) return null;
 
     if (kpi.noTarget) {
