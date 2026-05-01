@@ -84,10 +84,6 @@ function AppInner(){
   const[pendingAnnouncements,setPendingAnnouncements]=useState([]);
   const[showFeedback,setShowFeedback]=useState(false);
   const[showLogoutWarning,setShowLogoutWarning]=useState(false);
-  // Update available — set to true when versionCheck detects a newer
-  // production bundle than what this tab is running. Auto-forces a
-  // reload after 1h if user keeps dismissing.
-  const[updateAvailable,setUpdateAvailable]=useState(false);
   // Recently viewed QA emails for the sidebar's "Recent" section.
   // Stored per-user in localStorage so it survives sessions.
   const[recentQAs,setRecentQAs]=useState(()=>{
@@ -256,20 +252,6 @@ function AppInner(){
   },[]);
   // Listen for legacy "navigate" custom events from child pages
   useEffect(()=>{const handler=(e)=>navigate("/"+e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[navigate]);
-
-  // Version-check: detect when Cloudflare Pages serves a newer build
-  // than this tab is running and prompt the user to reload before they
-  // hit a stale-chunk import error. Auto-force after 1h if the user
-  // keeps dismissing. Session is preserved across reload because
-  // sb_session lives in localStorage and reload() doesn't clear it.
-  useEffect(()=>{
-    const stop=startVersionCheck({
-      onUpdateAvailable:(info)=>setUpdateAvailable(!!info),
-      // onForce defaults to window.location.reload(); override here only
-      // if we want to add UX (e.g. a flash before reload).
-    });
-    return()=>stop?.();
-  },[]);
 
   // Track recently viewed QA profiles. Reads ?qa= from the hash and
   // pushes the email to the front of the list (max 5, dedup, drop self).
@@ -520,29 +502,7 @@ function AppInner(){
           fontFamily:"var(--font)",fontWeight:600,color:"#fff",flexShrink:0,
         }}>Dismiss</button>
       </div>}
-      {/* Update-available banner — shows when versionCheck detects a
-          newer production build. Reload preserves sb_session so the
-          user stays signed in. Will auto-force after 1h. */}
-      {updateAvailable&&<div style={{
-        display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,
-        padding:"9px 16px",background:"linear-gradient(90deg, var(--tabby-purple) 0%, var(--tabby-purple-light) 100%)",
-        color:"#fff",fontSize:13,fontWeight:600,zIndex:200,flexShrink:0,
-      }}>
-        <span>✨ A new version of Tabby Pulse is available — your work-in-progress is preserved on reload.</span>
-        <div style={{display:"flex",gap:6,flexShrink:0}}>
-          <button onClick={()=>window.location.reload()} style={{
-            background:"#fff",border:"none",borderRadius:6,
-            padding:"4px 14px",fontSize:12,cursor:"pointer",
-            fontFamily:"var(--font)",fontWeight:700,color:"var(--tabby-purple)",
-          }}>Reload now</button>
-          <button onClick={()=>setUpdateAvailable(false)} style={{
-            background:"rgba(0,0,0,.2)",border:"none",borderRadius:6,
-            padding:"4px 12px",fontSize:12,cursor:"pointer",
-            fontFamily:"var(--font)",fontWeight:600,color:"#fff",
-          }}>Later</button>
-        </div>
-      </div>}
-      <div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Icon d={icons.menu} size={22}/></button><div className="topbar-title" style={{display:"flex",alignItems:"center",gap:6}}>{(()=>{const item=NAV_ITEMS.find(n=>n.key===page);const section=item?.section||NAV_ITEMS.slice(0,NAV_ITEMS.indexOf(item)).reverse().find(n=>n.section)?.section;return section?<><span style={{color:"var(--tx3)",fontSize:13}}>{section}</span><span style={{color:"var(--tx3)",fontSize:11}}>›</span><span>{item?.label||"Dashboard"}</span></>:<span>{item?.label||"Dashboard"}</span>;})()}</div>
+<div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Icon d={icons.menu} size={22}/></button><div className="topbar-title" style={{display:"flex",alignItems:"center",gap:6}}>{(()=>{const item=NAV_ITEMS.find(n=>n.key===page);const section=item?.section||NAV_ITEMS.slice(0,NAV_ITEMS.indexOf(item)).reverse().find(n=>n.section)?.section;return section?<><span style={{color:"var(--tx3)",fontSize:13}}>{section}</span><span style={{color:"var(--tx3)",fontSize:11}}>›</span><span>{item?.label||"Dashboard"}</span></>:<span>{item?.label||"Dashboard"}</span>;})()}</div>
       <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
         {/* Search */}
         <button className="notif-btn" onClick={()=>setShowSearch(true)} title="Search (⌘K)" aria-label="Search">
@@ -803,6 +763,51 @@ function AppInner(){
   </div></AppContext.Provider>);
 }
 
+// Version-check banner — owns its own state and runs the poll loop
+// independently of AppInner. Rendered OUTSIDE the ErrorBoundary so a
+// crash inside the app doesn't take this banner down with it; the user
+// can always click "Reload now" to escape a broken bundle. Session is
+// preserved on reload because sb_session lives in localStorage.
+function VersionBanner() {
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  useEffect(() => {
+    const stop = startVersionCheck({
+      onUpdateAvailable: (info) => setUpdateAvailable(!!info),
+    });
+    return () => stop?.();
+  }, []);
+  if (!updateAvailable) return null;
+  return (
+    <div style={{
+      position: "fixed", top: 0, left: 0, right: 0,
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+      padding: "9px 16px",
+      background: "linear-gradient(90deg, var(--tabby-purple, #6A2C79) 0%, var(--tabby-purple-light, #8B5CF6) 100%)",
+      color: "#fff", fontSize: 13, fontWeight: 600, zIndex: 9999,
+      fontFamily: "'Inter', system-ui, sans-serif",
+    }}>
+      <span>✨ A new version of Tabby Pulse is available — your work-in-progress is preserved on reload.</span>
+      <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
+        <button onClick={() => window.location.reload()} style={{
+          background: "#fff", border: "none", borderRadius: 6,
+          padding: "4px 14px", fontSize: 12, cursor: "pointer",
+          fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700, color: "#6A2C79",
+        }}>Reload now</button>
+        <button onClick={() => setUpdateAvailable(false)} style={{
+          background: "rgba(0,0,0,.2)", border: "none", borderRadius: 6,
+          padding: "4px 12px", fontSize: 12, cursor: "pointer",
+          fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 600, color: "#fff",
+        }}>Later</button>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  return <ErrorBoundary><ToastProvider><HashRouter><AppInner/></HashRouter></ToastProvider></ErrorBoundary>;
+  return (
+    <>
+      <VersionBanner />
+      <ErrorBoundary><ToastProvider><HashRouter><AppInner/></HashRouter></ToastProvider></ErrorBoundary>
+    </>
+  );
 }
