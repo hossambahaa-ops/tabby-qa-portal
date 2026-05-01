@@ -9,15 +9,16 @@
   --tabby-green-dim: #2BD882;
   --tabby-dark: #003227;
 
-  /* Surfaces — deeper muted palette; cards still lift but page sits low */
-  --bg: #C4BDD0; --bg2: #B8B0C5; --bg3: #D0C9DC; --sidebar-bg: #0D0B10;
-  --tx: #25222B; --tx2: #534F5D; --tx3: #7B7585;
-  --bd: #A398B5; --bd2: #AFA4C0;
+  /* Surfaces — warm-neutral greys; almost no purple cast, easy on the eyes */
+  --bg: #C2BFBD; --bg2: #B6B3B0; --bg3: #CECBC9; --sidebar-bg: #0D0B10;
+  --tx: #26242A; --tx2: #545058; --tx3: #7C7882;
+  --bd: #9F9B98; --bd2: #ABA7A4;
 
-  /* Accents mapped to Tabby — light variants softened to fit muted surfaces */
-  --accent: #3BFF9D; --accent-light: #BCD0C0; --accent-dark: #00CC7A;
+  /* Accents mapped to Tabby — light variants are mostly neutral grey
+     with just a hint of brand colour, so chips don't feel saturated. */
+  --accent: #3BFF9D; --accent-light: #BFC8C0; --accent-dark: #00CC7A;
   --accent-text: #2A5F42;
-  --primary: #6A2C79; --primary-light: #BFB1CB; --primary-text: #6A2C79;
+  --primary: #6A2C79; --primary-light: #BEB4C2; --primary-text: #6A2C79;
 
   /* Semantic — slightly desaturated foregrounds + muted backgrounds so chips
      don't shout against the calmer surfaces. */
@@ -781,7 +782,7 @@ table tbody tr:hover {
 }
 
 /* ═══ Topbar, collapsible sidebar, notifications, search ═══ */
-.topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(196,189,208,.92) !important; }
+.topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(194,191,189,.92) !important; }
 @media (min-width: 769px) {
   .topbar-menu { display: none !important; }
 }
@@ -1218,7 +1219,7 @@ input[type="text"]:focus {
    sidebar children use rgba(255,255,255,…) for hover/active/borders,
    which is invisible on a white background — overrides below. */
 html:not(.dark) .sidebar {
-  background: #C8BFD8;
+  background: #C5C2C0;
   color: var(--tx);
   border-right: 1px solid var(--bd);
 }
