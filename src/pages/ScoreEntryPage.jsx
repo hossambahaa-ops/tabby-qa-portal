@@ -701,6 +701,11 @@ function ScoreEntryPage(){
           // excluded from THAT metric's average (they still count for the
           // sums above).
           const pushPos=(arr,raw)=>{const v=parseFloat(raw);if(!isNaN(v)&&v>0)arr.push(v);};
+          // Same as pushPos but normalises fractional percentages (e.g., 0.95)
+          // to whole percentages (95). Most rows already arrive as 0-100 but
+          // some upstream paths return 0-1, and mixing both in one average
+          // produces nonsense. Heuristic matches fmtPct elsewhere.
+          const pushPctPos=(arr,raw)=>{let v=parseFloat(raw);if(isNaN(v)||v<=0)return;if(v<=2)v*=100;arr.push(v);};
           const leadMap={};
           sorted.forEach(r=>{
             const tl=(r.qa_tl||"unknown").toLowerCase();
@@ -711,10 +716,10 @@ function ScoreEntryPage(){
             l.rtr+=(r.rtr_count||0);pushPos(l.rtr_scores,r.avg_rtr_score);
             l.obs+=(r.observed_coaching_count||0);pushPos(l.obs_scores,r.avg_observation_score_pct);
             l.calib+=(r.calibration_count||0);pushPos(l.calib_scores,r.avg_calibration_match_rate);
-            pushPos(l.completion,r.coaching_completion_pct);
-            pushPos(l.ontime_pct,r.ontime_coaching_pct);
+            pushPctPos(l.completion,r.coaching_completion_pct);
+            pushPctPos(l.ontime_pct,r.ontime_coaching_pct);
             pushPos(l.tickets,r.ticket_per_day);
-            pushPos(l.occupancy,r.occupancy_pct);
+            pushPctPos(l.occupancy,r.occupancy_pct);
             l.days+=(r.working_days||0);l.st_mins+=(r.side_tasks_duration_mins||0);
             pushPos(l.performance,r.final_performance);
             const _csat=csatPctValue(r.csat_pct);
@@ -774,9 +779,9 @@ function ScoreEntryPage(){
                   <td style={{textAlign:"right"}}>{avg(l.rtr_scores).toFixed(1)}</td>
                   <td style={{textAlign:"right"}}>{l.obs}</td>
                   <td style={{textAlign:"right"}}>{l.calib}</td>
-                  <td style={{textAlign:"right"}}>{(avg(l.completion)*100).toFixed(1)}%</td>
+                  <td style={{textAlign:"right"}}>{avg(l.completion).toFixed(1)}%</td>
                   <td style={{textAlign:"right"}}>{avg(l.tickets).toFixed(1)}</td>
-                  <td style={{textAlign:"right"}}>{(avg(l.occupancy)*100).toFixed(1)}%</td>
+                  <td style={{textAlign:"right"}}>{avg(l.occupancy).toFixed(1)}%</td>
                   <td style={{textAlign:"right"}}>{l.days}</td>
                   <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)"}}>{l.st_mins?`${Math.floor(l.st_mins/60)}h ${l.st_mins%60}m`:"—"}</td>
                   <td style={{textAlign:"right"}}>
