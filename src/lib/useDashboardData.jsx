@@ -43,22 +43,38 @@ export function useDashboardData(token, profile) {
 
   const refresh = useCallback(async () => {
     try {
-      const [mtdRows, rosterRows, profs] = await Promise.all([
-        dataCache.fetch("mtd_scores", () => {
-          const sixAgo = new Date();
-          sixAgo.setMonth(sixAgo.getMonth() - 6);
-          const minMonth = sixAgo.toISOString().slice(0, 7);
-          return sb.query("mtd_scores_v", { select: "*", filters: `month=gte.${minMonth}&order=month.desc`, token }).catch(() => []);
-        }),
+      const todayStr = new Date().toISOString().split("T")[0];
+      const sixAgo = new Date();
+      sixAgo.setMonth(sixAgo.getMonth() - 6);
+      const minMonth = sixAgo.toISOString().slice(0, 7);
+
+      // All 11 queries fire in a single round — no sequential waterfalls.
+      const [
+        mtdRows, rosterRows, profs,
+        damFlagsRaw, plans, planWeeks, dismissals, damStepsRaw,
+        attRaw, dsRaw, teamsRaw,
+      ] = await Promise.all([
+        dataCache.fetch("mtd_scores", () =>
+          sb.query("mtd_scores_v", { select: "*", filters: `month=gte.${minMonth}&order=month.desc`, token }).catch(() => [])
+        ),
         listRoster({ token, select: "*" }),
         listProfiles({ token, select: "id,email,display_name,role,status" }),
-      ]);
-      const [damFlagsRaw, plans, planWeeks, dismissals, damStepsRaw] = await Promise.all([
-        dataCache.fetch("dam_flags_full", () => sb.query("dam_flags", { select: "id,profile_id,qa_email,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)", filters: "order=triggered_at.desc", token }).catch(() => [])),
+        dataCache.fetch("dam_flags_full", () =>
+          sb.query("dam_flags", { select: "id,profile_id,qa_email,rule_id,occurrence_number,status,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)", filters: "order=triggered_at.desc", token }).catch(() => [])
+        ),
         listPlans({ token, cacheKey: "action_plans", cache: true }),
         listPlanWeeks({ token, cacheKey: "action_plan_weeks", cache: true }),
-        dataCache.fetch("ap_dismissals", () => sb.query("ap_dismissals", { select: "*", filters: "order=created_at.desc", token }).catch(() => [])),
-        dataCache.fetch("dam_escalation_steps", () => sb.query("dam_escalation_steps", { select: "id,rule_id,occurrence,action,includes_pip,pip_action", token }).catch(() => [])),
+        dataCache.fetch("ap_dismissals", () =>
+          sb.query("ap_dismissals", { select: "*", filters: "order=created_at.desc", token }).catch(() => [])
+        ),
+        dataCache.fetch("dam_escalation_steps", () =>
+          sb.query("dam_escalation_steps", { select: "id,rule_id,occurrence,action,includes_pip,pip_action", token }).catch(() => [])
+        ),
+        sb.query("qa_attendance", { select: "email,status", filters: `date=eq.${todayStr}`, token }).catch(() => []),
+        sb.query("daily_scores", { select: "*", filters: `date=eq.${todayStr}`, token }).catch(() => []),
+        dataCache.fetch("teams_hierarchy", () =>
+          sb.query("teams", { select: "name,domain,profiles!fk_teams_lead(email),sup:profiles!fk_teams_supervisor(email)", token }).catch(() => [])
+        ),
       ]);
 
       // Filter out non-QA profiles + roster rows whose manager isn't a qa_lead.
@@ -131,26 +147,14 @@ export function useDashboardData(token, profile) {
       setApWeeks(planWeeks);
       setApDismissals(dismissals);
 
-      // Today's attendance + daily scores + teams (separate try so the
-      // main load still succeeds if any of these mini-queries fails).
-      try {
-        const todayStr = new Date().toISOString().split("T")[0];
-        const [att, ds, teamsData] = await Promise.all([
-          sb.query("qa_attendance", { select: "email,status", filters: `date=eq.${todayStr}`, token }).catch(() => []),
-          sb.query("daily_scores", { select: "*", filters: `date=eq.${todayStr}`, token }).catch(() => []),
-          dataCache.fetch("teams_hierarchy", () => sb.query("teams", { select: "name,domain,profiles!fk_teams_lead(email),sup:profiles!fk_teams_supervisor(email)", token }).catch(() => [])),
-        ]);
-        setTodayAttendance(Array.isArray(att) ? att : []);
-        setDailyScores(Array.isArray(ds) ? ds : []);
-        // teams hierarchy is consumed by ad-hoc subtree code that reads
-        // window.__teamsData; preserve that contract until those readers
-        // are refactored to take it as a prop.
-        window.__teamsData = (Array.isArray(teamsData) ? teamsData : []).map(tm => ({
-          name: tm.name, domain: tm.domain,
-          lead_email: tm.profiles?.email || null,
-          supervisor_email: tm.sup?.email || null,
-        }));
-      } catch { /* noop */ }
+      // Today's att / daily scores / teams were fetched in the same round above.
+      setTodayAttendance(Array.isArray(attRaw) ? attRaw : []);
+      setDailyScores(Array.isArray(dsRaw) ? dsRaw : []);
+      window.__teamsData = (Array.isArray(teamsRaw) ? teamsRaw : []).map(tm => ({
+        name: tm.name, domain: tm.domain,
+        lead_email: tm.profiles?.email || null,
+        supervisor_email: tm.sup?.email || null,
+      }));
 
       // QA-lead-only AP detection alerts: active DAM flags whose
       // escalation step calls for a PIP, scoped to the lead's team, not

@@ -144,8 +144,11 @@ export const dataCache = {
   get(key) {
     const entry = this._store[key];
     if (!entry) return null;
-    if (Date.now() - entry.ts > this._ttl) { delete this._store[key]; return null; }
-    return entry.data;
+    return entry.data; // return regardless of age; freshness checked separately
+  },
+  isFresh(key) {
+    const entry = this._store[key];
+    return !!entry && Date.now() - entry.ts < this._ttl;
   },
   set(key, data) { this._store[key] = { data, ts: Date.now() }; },
   invalidate(key) { if (key) delete this._store[key]; else this._store = {}; },
@@ -157,8 +160,16 @@ export const dataCache = {
     window.dispatchEvent(new CustomEvent("data-changed"));
   },
   async fetch(key, queryFn) {
-    const cached = this.get(key);
-    if (cached) return cached;
+    const entry = this._store[key];
+    if (entry) {
+      const stale = Date.now() - entry.ts > this._ttl;
+      if (stale) {
+        // Return stale data immediately; refresh silently in the background.
+        queryFn().then(data => this.set(key, data)).catch(() => {});
+      }
+      return entry.data;
+    }
+    // Nothing cached — wait for fresh data.
     const data = await queryFn();
     this.set(key, data);
     return data;
