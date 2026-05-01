@@ -9,15 +9,15 @@
   --tabby-green-dim: #2BD882;
   --tabby-dark: #003227;
 
-  /* Surfaces — calm warm-neutral palette; less saturation, gentler contrast */
-  --bg: #D5D0DC; --bg2: #CAC4D2; --bg3: #DFDAE6; --sidebar-bg: #0D0B10;
-  --tx: #28252E; --tx2: #595463; --tx3: #847F8E;
-  --bd: #B6AEC2; --bd2: #C3BCD0;
+  /* Surfaces — deeper muted palette; cards still lift but page sits low */
+  --bg: #C4BDD0; --bg2: #B8B0C5; --bg3: #D0C9DC; --sidebar-bg: #0D0B10;
+  --tx: #25222B; --tx2: #534F5D; --tx3: #7B7585;
+  --bd: #A398B5; --bd2: #AFA4C0;
 
   /* Accents mapped to Tabby — light variants softened to fit muted surfaces */
-  --accent: #3BFF9D; --accent-light: #CCDED1; --accent-dark: #00CC7A;
-  --accent-text: #2F6B4A;
-  --primary: #6A2C79; --primary-light: #CFC2D8; --primary-text: #6A2C79;
+  --accent: #3BFF9D; --accent-light: #BCD0C0; --accent-dark: #00CC7A;
+  --accent-text: #2A5F42;
+  --primary: #6A2C79; --primary-light: #BFB1CB; --primary-text: #6A2C79;
 
   /* Semantic — slightly desaturated foregrounds + muted backgrounds so chips
      don't shout against the calmer surfaces. */
@@ -781,7 +781,7 @@ table tbody tr:hover {
 }
 
 /* ═══ Topbar, collapsible sidebar, notifications, search ═══ */
-.topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(213,208,220,.92) !important; }
+.topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(196,189,208,.92) !important; }
 @media (min-width: 769px) {
   .topbar-menu { display: none !important; }
 }
@@ -1218,7 +1218,7 @@ input[type="text"]:focus {
    sidebar children use rgba(255,255,255,…) for hover/active/borders,
    which is invisible on a white background — overrides below. */
 html:not(.dark) .sidebar {
-  background: #D8D0E2;
+  background: #C8BFD8;
   color: var(--tx);
   border-right: 1px solid var(--bd);
 }
