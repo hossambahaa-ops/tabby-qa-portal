@@ -17,6 +17,85 @@ import PendingApprovals from "../components/attendance/PendingApprovals.jsx";
 import LeaveBalances from "../components/attendance/LeaveBalances.jsx";
 import MonthlySummary from "../components/attendance/MonthlySummary.jsx";
 
+// ── Memoized calendar day cell ────────────────────────────────────────────────
+// Custom comparator: skip re-render unless attendance data, editing state,
+// or picker content changed. ~30× fewer renders per cell click / keystroke.
+function areCellPropsEqual(p, n) {
+  return (
+    p.att === n.att &&
+    p.isEditing === n.isEditing &&
+    p.canEdit === n.canEdit &&
+    p.selMonth === n.selMonth &&
+    p.monthIsLocked === n.monthIsLocked &&
+    p.onSetAtt === n.onSetAtt &&
+    p.onApproveAtt === n.onApproveAtt &&
+    p.onClearAtt === n.onClearAtt &&
+    (!p.isEditing || (p.pickerStage === n.pickerStage && p.pendingReason === n.pendingReason))
+  );
+}
+
+const DayCell = React.memo(function DayCell({
+  em, dayNum, isWeekend, att, isEditing, canEdit, isLead, isQA, canApprove,
+  pickerStage, pendingReason,
+  onOpen, onClose, onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
+}) {
+  const st = att?.status || null;
+  const attType = st ? ATT_MAP[st] : null;
+  const isPending = att?.approval_status === "pending";
+  const isDenied  = att?.approval_status === "denied";
+  const cellTitle = isPending
+    ? `${attType?.label || st} — pending lead approval${att?.requested_by ? ` (by ${nameFromEmail(att.requested_by)})` : ""}${att?.request_note ? ` · "${att.request_note}"` : ""}`
+    : isDenied
+    ? `${attType?.label || st} — denied by ${nameFromEmail(att?.denied_by || "")}${att?.denial_reason ? ` · "${att.denial_reason}"` : ""}`
+    : (attType?.label || "");
+  return (
+    <td style={{textAlign:"center",padding:1,background:isWeekend?"rgba(156,163,175,0.05)":"transparent",position:"relative",cursor:canEdit?"pointer":"default"}}
+      onClick={() => { if (canEdit) { isEditing ? onClose() : onOpen(); } }}
+      title={cellTitle}>
+      {st ? (
+        <span style={{position:"relative",display:"inline-block",minWidth:20,pointerEvents:"none"}}>
+          <span style={{fontSize:9,padding:"2px 3px",borderRadius:3,background:attType?.bg||"var(--bg3)",color:attType?.color||"var(--tx3)",fontWeight:700,display:"inline-block",minWidth:20,opacity:isPending?0.55:isDenied?0.4:1,outline:isPending?`1px dashed ${attType?.color||"var(--tx3)"}`:isDenied?"1px dashed var(--red)":"none"}}>{st}</span>
+          {isPending && <span style={{position:"absolute",top:-4,right:-4,fontSize:8,lineHeight:1,background:"var(--bg3)",border:"1px solid var(--amber)",color:"var(--amber)",borderRadius:6,padding:"1px 2px",fontWeight:700}}>⏳</span>}
+          {isDenied  && <span style={{position:"absolute",top:-4,right:-4,fontSize:8,lineHeight:1,background:"var(--bg3)",border:"1px solid var(--red)",color:"var(--red)",borderRadius:6,padding:"1px 2px",fontWeight:700}}>✗</span>}
+        </span>
+      ) : (
+        <span style={{fontSize:10,color:"var(--bd2)",pointerEvents:"none"}}>·</span>
+      )}
+      {isEditing && (
+        <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:8,padding:6,boxShadow:"var(--shadow-lg)",width:180}} onClick={e=>e.stopPropagation()}>
+          {canApprove && <>
+            <button onClick={e=>{e.stopPropagation();onApproveAtt(em,dayNum);}} style={{fontSize:9,padding:"4px 6px",borderRadius:4,border:"1px solid var(--green)",cursor:"pointer",background:"var(--green-bg)",color:"var(--green)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginBottom:2}}>✓ Approve {st}</button>
+            <div style={{fontSize:8,color:"var(--tx3)",width:"100%",padding:"2px 0",textAlign:"center",fontStyle:"italic"}}>Or pick a different code to replace</div>
+          </>}
+          {pickerStage ? (
+            <div>
+              <div style={{fontSize:9,color:"var(--tx3)",marginBottom:4,fontWeight:600}}>Reason for {pickerStage.code} <span style={{fontWeight:400}}>(optional)</span></div>
+              <input autoFocus type="text" placeholder="e.g. Eid holiday, sick" value={pendingReason}
+                onChange={e=>setPendingReason(e.target.value)}
+                onKeyDown={ev=>{if(ev.key==="Enter"){ev.preventDefault();onSetAtt(em,dayNum,pickerStage.code,pendingReason);}if(ev.key==="Escape"){setPickerStage(null);setPendingReason("");}}}
+                style={{width:"100%",fontSize:10,padding:"4px 6px",borderRadius:4,border:"1px solid var(--bd)",background:"var(--bg)",color:"var(--tx)",fontFamily:"var(--font)",boxSizing:"border-box",marginBottom:4}}/>
+              <div style={{display:"flex",gap:4}}>
+                <button onClick={()=>onSetAtt(em,dayNum,pickerStage.code,pendingReason)} style={{flex:1,fontSize:9,padding:"4px 0",borderRadius:4,border:"none",cursor:"pointer",background:"var(--tabby-purple)",color:"#fff",fontWeight:700,fontFamily:"var(--font)"}}>Send for approval</button>
+                <button onClick={()=>{setPickerStage(null);setPendingReason("");}} style={{fontSize:9,padding:"4px 8px",borderRadius:4,border:"1px solid var(--bd)",cursor:"pointer",background:"var(--bg)",color:"var(--tx2)",fontFamily:"var(--font)"}}>Back</button>
+              </div>
+            </div>
+          ) : (
+            <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
+              {PICKER_TYPES.map(t => {
+                const SK = {P:"p",H:"h",L:"l",AL:"a","Paid SL":"s",NSNC:"n",EL:"e",UL:"u",ML:"m"}[t.code];
+                const needsReason = isQA && APPROVAL_CODES.has(t.code);
+                return <button key={t.code} onClick={e=>{e.stopPropagation();if(needsReason){setPickerStage({code:t.code});setPendingReason("");}else{onSetAtt(em,dayNum,t.code);}}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"none",cursor:"pointer",background:t.bg,color:t.color,fontWeight:700,fontFamily:"var(--font)"}} title={`${t.label}${SK?` (${SK})`:""}`}>{t.code}</button>;
+              })}
+              <div style={{fontSize:7,color:"var(--tx3)",width:"100%",textAlign:"center",marginTop:2,letterSpacing:.3}}>Type a key · ← → ↑ ↓ to nav · Esc to close</div>
+              {st && <button onClick={e=>{e.stopPropagation();onClearAtt(em,dayNum);}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"1px solid var(--red)",cursor:"pointer",background:"var(--red-bg)",color:"var(--red)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginTop:2}}>✕ Clear</button>}
+            </div>
+          )}
+        </div>
+      )}
+    </td>
+  );
+}, areCellPropsEqual);
+
 function SchedulePage() {
   const{token,profile,gf,globalToast}=useApp();
   const [attendance, setAttendance] = useState([]);
@@ -66,20 +145,19 @@ function SchedulePage() {
     try {
       const [yr, mo] = selMonth.split("-").map(Number);
       const dim = new Date(yr, mo, 0).getDate();
-      const chunk1End = Math.min(10, dim);
-      const chunk2End = Math.min(20, dim);
-      const chunk3End = dim;
+      // 2 parallel chunks of ~15 days each — safely under Supabase's 1000-row cap
+      // even for 50 QAs (50 × 15 = 750 rows per chunk).
+      const mid = Math.ceil(dim / 2);
       const fmtD = (d) => `${selMonth}-${String(d).padStart(2,"0")}`;
       const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
       const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at,ot_hours,request_note,denial_reason,denied_by,denied_at`;
-      const [r, a1, a2, a3] = await Promise.all([
+      const [r, a1, a2] = await Promise.all([
         listRoster({ token, select: "email,display_name,manager_email,queue,country" }),
-        fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(chunk1End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
-        chunk1End < dim ? fetch(`${base}&date=gte.${fmtD(chunk1End+1)}&date=lte.${fmtD(chunk2End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]) : Promise.resolve([]),
-        chunk2End < dim ? fetch(`${base}&date=gte.${fmtD(chunk2End+1)}&date=lte.${fmtD(chunk3End)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]) : Promise.resolve([]),
+        fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(mid)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
+        fetch(`${base}&date=gte.${fmtD(mid+1)}&date=lte.${fmtD(dim)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
       ]);
       setRoster(Array.isArray(r) ? r : []);
-      const allAtt = [...(Array.isArray(a1)?a1:[]), ...(Array.isArray(a2)?a2:[]), ...(Array.isArray(a3)?a3:[])];
+      const allAtt = [...(Array.isArray(a1)?a1:[]), ...(Array.isArray(a2)?a2:[])];
       setAttendance(allAtt);
       try {
         const lock = await sb.query("attendance_month_locks", { token, select: "year_month,locked_by,locked_at", filters: `year_month=eq.${selMonth}&limit=1` }).catch(() => []);
@@ -98,7 +176,22 @@ function SchedulePage() {
   const tokenRef = useRef(token);
   const myEmailRef = useRef(myEmail);
   const loadDataRef = useRef(loadData);
-  useEffect(() => { tokenRef.current = token; myEmailRef.current = myEmail; loadDataRef.current = loadData; });
+  const attRef = useRef(attendance);
+  const selMonthRef = useRef(selMonth);
+  const monthIsLockedRef = useRef(monthIsLocked);
+  const actionsRef = useRef({});
+  useEffect(() => {
+    tokenRef.current = token;
+    myEmailRef.current = myEmail;
+    loadDataRef.current = loadData;
+    attRef.current = attendance;
+    selMonthRef.current = selMonth;
+    monthIsLockedRef.current = monthIsLocked;
+    actionsRef.current = {
+      getManagerEmail: (qaEmail) => { const r = roster.find(r => r.email?.toLowerCase() === qaEmail?.toLowerCase()); return r?.manager_email?.toLowerCase() || null; },
+      logAttendanceEvent,
+    };
+  });
   useEffect(() => {
     const handler = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
@@ -120,7 +213,10 @@ function SchedulePage() {
                 });
               }
               setRedoStack(p => [...p, last]);
-              loadDataRef.current();
+              setAttendance(prev => {
+                const f = prev.filter(a => !(a.email?.toLowerCase() === last.email && a.date === last.date));
+                return last.oldStatus ? [...f, {email:last.email,date:last.date,status:last.oldStatus,id:"undo-"+Date.now()}] : f;
+              });
             } catch (err) { console.error("Undo failed", err); }
           })();
           return rest;
@@ -145,7 +241,10 @@ function SchedulePage() {
                 });
               }
               setUndoStack(p => [...p, last]);
-              loadDataRef.current();
+              setAttendance(prev => {
+                const f = prev.filter(a => !(a.email?.toLowerCase() === last.email && a.date === last.date));
+                return last.newStatus ? [...f, {email:last.email,date:last.date,status:last.newStatus,id:"redo-"+Date.now()}] : f;
+              });
             } catch (err) { console.error("Redo failed", err); }
           })();
           return rest;
@@ -258,18 +357,20 @@ function SchedulePage() {
   };
 
   // ── setAtt (cell picker commit) ──────────────────────────────────────────
-  const setAtt = async (email, dayNum, status, requestNote) => {
-    if (monthIsLocked) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
-    const dateStr = `${selMonth}-${String(dayNum).padStart(2,"0")}`;
+  // Wrapped in useCallback with stable refs so DayCell memoization holds.
+  const setAtt = useCallback(async (email, dayNum, status, requestNote) => {
+    if (monthIsLockedRef.current) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
+    const sm = selMonthRef.current;
+    const dateStr = `${sm}-${String(dayNum).padStart(2,"0")}`;
+    const existing = attRef.current.find(a => a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr);
+    const oldStatus = existing?.status || null;
+    const isSelfRequest = isQA && email?.toLowerCase() === myEmail && APPROVAL_CODES.has(status);
+    const approval_status = isSelfRequest ? "pending" : null;
+    const requested_by = isSelfRequest ? myEmail : null;
+    const approved_by = isSelfRequest ? null : myEmail;
+    const approved_at = isSelfRequest ? null : new Date().toISOString();
+    const note = requestNote || null;
     try {
-      const existing = getAtt(email, dayNum);
-      const oldStatus = existing?.status || null;
-      const isSelfRequest = isQA && email?.toLowerCase() === myEmail && APPROVAL_CODES.has(status);
-      const approval_status = isSelfRequest ? "pending" : null;
-      const requested_by = isSelfRequest ? myEmail : null;
-      const approved_by = isSelfRequest ? null : myEmail;
-      const approved_at = isSelfRequest ? null : new Date().toISOString();
-      const note = requestNote || null;
       if (existing) {
         if (status === existing.status && (existing.approval_status || null) === approval_status) { setEditCell(null); setPendingReason(""); return; }
         await sb.query("qa_attendance", {token, method:"PATCH", body:{status, approval_status, requested_by, approved_by, approved_at, request_note: note, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
@@ -290,18 +391,19 @@ function SchedulePage() {
       setPendingReason("");
       if (isSelfRequest) {
         globalToast("success", `${status} requested — pending lead approval`);
-        const mgr = getManagerEmail(email);
-        if (mgr) await logAttendanceEvent("attendance_request_submitted", mgr, { qa_email: email, date: dateStr, status, request_note: note });
+        const mgr = actionsRef.current.getManagerEmail(email);
+        if (mgr) await actionsRef.current.logAttendanceEvent("attendance_request_submitted", mgr, { qa_email: email, date: dateStr, status, request_note: note });
       }
     } catch(e) { globalToast("error", safeError(e)); }
-  };
+  }, [token, isQA, myEmail, globalToast]);
 
   // ── approveAtt ────────────────────────────────────────────────────────────
-  const approveAtt = async (email, dayNum) => {
-    if (monthIsLocked) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
-    const existing = getAtt(email, dayNum);
+  const approveAtt = useCallback(async (email, dayNum) => {
+    if (monthIsLockedRef.current) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
+    const sm = selMonthRef.current;
+    const dateStr = `${sm}-${String(dayNum).padStart(2,"0")}`;
+    const existing = attRef.current.find(a => a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr);
     if (!existing) return;
-    const dateStr = `${selMonth}-${String(dayNum).padStart(2,"0")}`;
     try {
       const body = { approval_status: "approved", approved_by: myEmail, approved_at: new Date().toISOString(), updated_at: new Date().toISOString() };
       if (existing.id && !String(existing.id).startsWith("new")) {
@@ -314,17 +416,18 @@ function SchedulePage() {
       }
       setAttendance(prev => prev.map(a => (a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr) ? { ...a, ...body } : a));
       setEditCell(null);
-      globalToast("success", `Approved ${existing.status} for ${_nameFromEmail(email)}`);
-      await logAttendanceEvent("attendance_request_approved", email.toLowerCase(), { date: dateStr, status: existing.status });
+      globalToast("success", `Approved ${existing.status} for ${nameFromEmail(email)}`);
+      await actionsRef.current.logAttendanceEvent("attendance_request_approved", email.toLowerCase(), { date: dateStr, status: existing.status });
     } catch(e) { globalToast("error", safeError(e)); }
-  };
+  }, [token, myEmail, globalToast]);
 
   // ── denyAtt ───────────────────────────────────────────────────────────────
-  const denyAtt = async (email, dayNum, reason) => {
-    if (monthIsLocked) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
-    const existing = getAtt(email, dayNum);
+  const denyAtt = useCallback(async (email, dayNum, reason) => {
+    if (monthIsLockedRef.current) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
+    const sm = selMonthRef.current;
+    const dateStr = `${sm}-${String(dayNum).padStart(2,"0")}`;
+    const existing = attRef.current.find(a => a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr);
     if (!existing) return;
-    const dateStr = `${selMonth}-${String(dayNum).padStart(2,"0")}`;
     try {
       const body = { approval_status: "denied", denied_by: myEmail, denied_at: new Date().toISOString(), denial_reason: reason || null, updated_at: new Date().toISOString() };
       if (existing.id && !String(existing.id).startsWith("new")) {
@@ -337,10 +440,32 @@ function SchedulePage() {
       }
       setAttendance(prev => prev.map(a => (a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr) ? { ...a, ...body } : a));
       setEditCell(null);
-      globalToast("success", `Denied ${existing.status} for ${_nameFromEmail(email)}`);
-      await logAttendanceEvent("attendance_request_denied", email.toLowerCase(), { date: dateStr, status: existing.status, denial_reason: reason || null });
+      globalToast("success", `Denied ${existing.status} for ${nameFromEmail(email)}`);
+      await actionsRef.current.logAttendanceEvent("attendance_request_denied", email.toLowerCase(), { date: dateStr, status: existing.status, denial_reason: reason || null });
     } catch(e) { globalToast("error", safeError(e)); }
-  };
+  }, [token, myEmail, globalToast]);
+
+  // ── clearAtt (remove a cell's attendance record) ──────────────────────────
+  const clearAtt = useCallback(async (email, dayNum) => {
+    const sm = selMonthRef.current;
+    const dateStr = `${sm}-${String(dayNum).padStart(2,"0")}`;
+    const existing = attRef.current.find(a => a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr);
+    if (!existing) { setEditCell(null); return; }
+    const oldStatus = existing.status || null;
+    try {
+      if (existing.id && !String(existing.id).startsWith("new")) {
+        await sb.query("qa_attendance", {token, method:"DELETE", filters:`id=eq.${existing.id}`});
+      } else {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(email)}&date=eq.${dateStr}`, {method:"DELETE", headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`}});
+        if (!resp.ok) throw new Error(await resp.text());
+      }
+      setAttendance(prev => prev.filter(a => !(a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr)));
+      setUndoStack(prev => [...prev.slice(-50), {email: email.toLowerCase(), date: dateStr, oldStatus, newStatus: null}]);
+      setRedoStack([]);
+      setEditCell(null); setPendingReason("");
+      globalToast("success", "Removed");
+    } catch(err) { globalToast("error", safeError(err)); }
+  }, [token, globalToast]);
 
   // ── bulkApprove ───────────────────────────────────────────────────────────
   const bulkApprove = (rows) => {
@@ -824,95 +949,34 @@ function SchedulePage() {
                     </td>
                     {days.map(d => {
                       const att = getAtt(em, d.num);
-                      const st = att?.status || null;
-                      const attType = st ? ATT_MAP[st] : null;
-                      const isPending = att?.approval_status === "pending";
-                      const isDenied  = att?.approval_status === "denied";
                       const cellKey = `${em}-${d.num}`;
                       const isEditing = editCell === cellKey;
                       const canEdit = (isLead || em === myEmail) && !monthIsLocked;
-                      // Determine if this code needs approval (for reason input)
-                      const needsApproval = isQA && em === myEmail && st && APPROVAL_CODES.has(st);
-                      const cellTitle = isPending
-                        ? `${attType?.label || st} — pending lead approval${att?.requested_by?` (by ${_nameFromEmail(att.requested_by)})`:""}${att?.request_note?` · "${att.request_note}"`:"" }`
-                        : isDenied
-                        ? `${attType?.label || st} — denied by ${_nameFromEmail(att?.denied_by||"")}${att?.denial_reason?` · "${att.denial_reason}"`:"" }`
-                        : (attType?.label || "");
-
+                      const canApprove = att?.approval_status === "pending" && isLead && em !== myEmail;
                       return (
-                        <td key={d.num} style={{textAlign:"center",padding:1,background:d.isWeekend?"rgba(156,163,175,0.05)":"transparent",position:"relative",cursor:canEdit?"pointer":"default"}}
-                          onClick={()=>{ if(canEdit){ if(isEditing){setEditCell(null);setPendingReason("");}else{setEditCell(cellKey);setPendingReason("");} } }}
-                          title={cellTitle}>
-                          {st ? (
-                            <span style={{position:"relative",display:"inline-block",minWidth:20,pointerEvents:"none"}}>
-                              <span style={{fontSize:9,padding:"2px 3px",borderRadius:3,background:attType?.bg||"var(--bg3)",color:attType?.color||"var(--tx3)",fontWeight:700,display:"inline-block",minWidth:20,opacity:isPending?0.55:isDenied?0.4:1,outline:isPending?`1px dashed ${attType?.color||"var(--tx3)"}`:isDenied?"1px dashed var(--red)":"none"}}>{st}</span>
-                              {isPending && <span style={{position:"absolute",top:-4,right:-4,fontSize:8,lineHeight:1,background:"var(--bg3)",border:"1px solid var(--amber)",color:"var(--amber)",borderRadius:6,padding:"1px 2px",fontWeight:700}}>⏳</span>}
-                              {isDenied  && <span style={{position:"absolute",top:-4,right:-4,fontSize:8,lineHeight:1,background:"var(--bg3)",border:"1px solid var(--red)",color:"var(--red)",borderRadius:6,padding:"1px 2px",fontWeight:700}}>✗</span>}
-                            </span>
-                          ) : (
-                            <span style={{fontSize:10,color:"var(--bd2)",pointerEvents:"none"}}>·</span>
-                          )}
-                          {isEditing && (()=>{
-                            const isSelfApproval = isQA && em === myEmail;
-                            return (
-                              <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:8,padding:6,boxShadow:"var(--shadow-lg)",width:180}} onClick={e=>e.stopPropagation()}>
-                                {/* Approve/deny for lead */}
-                                {isPending && isLead && em !== myEmail && <>
-                                  <button onClick={(e)=>{e.stopPropagation();approveAtt(em,d.num);}} style={{fontSize:9,padding:"4px 6px",borderRadius:4,border:"1px solid var(--green)",cursor:"pointer",background:"var(--green-bg)",color:"var(--green)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginBottom:2}}>✓ Approve {st}</button>
-                                  <div style={{fontSize:8,color:"var(--tx3)",width:"100%",padding:"2px 0",textAlign:"center",fontStyle:"italic"}}>Or pick a different code to replace</div>
-                                </>}
-                                {/* Reason input for self-approval-required codes */}
-                                {pickerStage ? (
-                                  <div>
-                                    <div style={{fontSize:9,color:"var(--tx3)",marginBottom:4,fontWeight:600}}>Reason for {pickerStage.code} <span style={{fontWeight:400}}>(optional)</span></div>
-                                    <input
-                                      autoFocus
-                                      type="text"
-                                      placeholder="e.g. Eid holiday, sick"
-                                      value={pendingReason}
-                                      onChange={e=>setPendingReason(e.target.value)}
-                                      onKeyDown={ev=>{if(ev.key==="Enter"){ev.preventDefault();setAtt(em,d.num,pickerStage.code,pendingReason);}if(ev.key==="Escape"){setPickerStage(null);setPendingReason("");}}}
-                                      style={{width:"100%",fontSize:10,padding:"4px 6px",borderRadius:4,border:"1px solid var(--bd)",background:"var(--bg)",color:"var(--tx)",fontFamily:"var(--font)",boxSizing:"border-box",marginBottom:4}}
-                                    />
-                                    <div style={{display:"flex",gap:4}}>
-                                      <button onClick={()=>setAtt(em,d.num,pickerStage.code,pendingReason)} style={{flex:1,fontSize:9,padding:"4px 0",borderRadius:4,border:"none",cursor:"pointer",background:"var(--tabby-purple)",color:"#fff",fontWeight:700,fontFamily:"var(--font)"}}>Send for approval</button>
-                                      <button onClick={()=>{setPickerStage(null);setPendingReason("");}} style={{fontSize:9,padding:"4px 8px",borderRadius:4,border:"1px solid var(--bd)",cursor:"pointer",background:"var(--bg)",color:"var(--tx2)",fontFamily:"var(--font)"}}>Back</button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
-                                    {PICKER_TYPES.map(t => {
-                                      const SK = { P:"p", H:"h", L:"l", AL:"a", "Paid SL":"s", NSNC:"n", EL:"e", UL:"u", ML:"m" }[t.code];
-                                      const needsReason = isSelfApproval && APPROVAL_CODES.has(t.code);
-                                      return <button key={t.code} onClick={(e)=>{e.stopPropagation();if(needsReason){setPickerStage({code:t.code});setPendingReason("");}else{setAtt(em,d.num,t.code);}}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"none",cursor:"pointer",background:t.bg,color:t.color,fontWeight:700,fontFamily:"var(--font)"}} title={`${t.label}${SK?` (${SK})`:""}`}>{t.code}</button>;
-                                    })}
-                                    <div style={{fontSize:7,color:"var(--tx3)",width:"100%",textAlign:"center",marginTop:2,letterSpacing:.3}}>Type a key · ← → ↑ ↓ to nav · Esc to close</div>
-                                    {st&&<button onClick={async(e)=>{
-                                      e.stopPropagation();
-                                      const existing=getAtt(em,d.num);
-                                      if(!existing){setEditCell(null);return;}
-                                      const dateStr=`${selMonth}-${String(d.num).padStart(2,"0")}`;
-                                      const oldStatus=existing.status||null;
-                                      try{
-                                        if(existing.id&&!String(existing.id).startsWith("new")){
-                                          await sb.query("qa_attendance",{token,method:"DELETE",filters:`id=eq.${existing.id}`});
-                                        }else{
-                                          const resp=await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(em)}&date=eq.${dateStr}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`}});
-                                          if(!resp.ok)throw new Error(await resp.text());
-                                        }
-                                        setAttendance(prev=>prev.filter(a=>!(a.email?.toLowerCase()===em&&a.date===dateStr)));
-                                        setUndoStack(prev=>[...prev.slice(-50),{email:em,date:dateStr,oldStatus,newStatus:null}]);
-                                        setRedoStack([]);
-                                        setEditCell(null);setPendingReason("");
-                                        globalToast("success","Removed");
-                                      }catch(err){globalToast("error",safeError(err));}
-                                    }} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"1px solid var(--red)",cursor:"pointer",background:"var(--red-bg)",color:"var(--red)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginTop:2}}>✕ Clear</button>}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </td>
+                        <DayCell
+                          key={d.num}
+                          em={em}
+                          dayNum={d.num}
+                          isWeekend={d.isWeekend}
+                          att={att}
+                          isEditing={isEditing}
+                          canEdit={canEdit}
+                          isLead={isLead}
+                          isQA={isQA}
+                          canApprove={canApprove}
+                          pickerStage={isEditing ? pickerStage : null}
+                          pendingReason={isEditing ? pendingReason : ""}
+                          selMonth={selMonth}
+                          monthIsLocked={monthIsLocked}
+                          onOpen={() => { setEditCell(cellKey); setPendingReason(""); }}
+                          onClose={() => { setEditCell(null); setPendingReason(""); }}
+                          onSetAtt={setAtt}
+                          onApproveAtt={approveAtt}
+                          onClearAtt={clearAtt}
+                          setPendingReason={setPendingReason}
+                          setPickerStage={setPickerStage}
+                        />
                       );
                     })}
                     <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"var(--green)"}}>{counts["P"]||0}</td>
