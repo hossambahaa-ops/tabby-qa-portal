@@ -14,10 +14,10 @@
   --tx: #28252E; --tx2: #595463; --tx3: #847F8E;
   --bd: #B6AEC2; --bd2: #C3BCD0;
 
-  /* Accents mapped to Tabby */
-  --accent: #3BFF9D; --accent-light: #E8FFF3; --accent-dark: #00CC7A;
-  --accent-text: #00804D;
-  --primary: #6A2C79; --primary-light: #F3EBF5; --primary-text: #6A2C79;
+  /* Accents mapped to Tabby — light variants softened to fit muted surfaces */
+  --accent: #3BFF9D; --accent-light: #CCDED1; --accent-dark: #00CC7A;
+  --accent-text: #2F6B4A;
+  --primary: #6A2C79; --primary-light: #CFC2D8; --primary-text: #6A2C79;
 
   /* Semantic — slightly desaturated foregrounds + muted backgrounds so chips
      don't shout against the calmer surfaces. */

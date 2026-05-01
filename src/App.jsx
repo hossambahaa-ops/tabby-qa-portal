@@ -471,17 +471,22 @@ function AppInner(){
       <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}><Icon d={item.icon} size={18}/><span className="nav-item-label">{item.label}</span></button></div>);})}</nav>
       {/* Recently viewed QA profiles — only shown for users who can view
           others' profiles (leads+). Hidden when sidebar is collapsed. */}
-      {recentQAs.length > 0 && hasRole(userRole, "qa_lead") && !sidebarCollapsed && (
-        <div className="sidebar-recent">
-          <div className="sidebar-recent-label">Recent</div>
-          {recentQAs.slice(0, 5).map(em => (
-            <button key={em} className="sidebar-recent-item" onClick={() => { window.location.hash = `#/profile?qa=${encodeURIComponent(em)}`; setSidebarOpen(false); }}>
-              <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, ...avatarStyle(em), display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{initialsForAvatar(em)}</span>
-              <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{em.split("@")[0].split(".").map(p => p.charAt(0).toUpperCase() + p.slice(1).replace(/\d+$/, "")).filter(Boolean).join(" ")}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      {(() => {
+        const myEm = profile?.email?.toLowerCase();
+        const filteredRecent = recentQAs.filter(em => em && em.toLowerCase() !== myEm);
+        if (!filteredRecent.length || !hasRole(userRole, "qa_lead") || sidebarCollapsed) return null;
+        return (
+          <div className="sidebar-recent">
+            <div className="sidebar-recent-label">Recent</div>
+            {filteredRecent.slice(0, 5).map(em => (
+              <button key={em} className="sidebar-recent-item" onClick={() => { window.location.hash = `#/profile?qa=${encodeURIComponent(em)}`; setSidebarOpen(false); }}>
+                <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, ...avatarStyle(em), display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{initialsForAvatar(em)}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{em.split("@")[0].split(".").map(p => p.charAt(0).toUpperCase() + p.slice(1).replace(/\d+$/, "")).filter(Boolean).join(" ")}</span>
+              </button>
+            ))}
+          </div>
+        );
+      })()}
     </aside>
     <div className="main-content">
       {/* View-as banner for super admin */}
