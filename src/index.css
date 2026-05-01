@@ -9,10 +9,10 @@
   --tabby-green-dim: #2BD882;
   --tabby-dark: #003227;
 
-  /* Surfaces */
-  --bg: #FAFAFA; --bg2: #F0EFF2; --bg3: #FFFFFF; --sidebar-bg: #0D0B10;
+  /* Surfaces — slightly warm neutral so the app isn't blinding white */
+  --bg: #F0EDF5; --bg2: #E7E3EF; --bg3: #F8F5FB; --sidebar-bg: #0D0B10;
   --tx: #1A1A1A; --tx2: #6B6B6B; --tx3: #A0A0A0;
-  --bd: #E8E5ED; --bd2: #F0EDF3;
+  --bd: #DAD5E5; --bd2: #E4DFEE;
 
   /* Accents mapped to Tabby */
   --accent: #3BFF9D; --accent-light: #E8FFF3; --accent-dark: #00CC7A;
@@ -780,7 +780,7 @@ table tbody tr:hover {
 }
 
 /* ═══ Topbar, collapsible sidebar, notifications, search ═══ */
-.topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(250,250,250,.8) !important; }
+.topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(240,237,245,.88) !important; }
 @media (min-width: 769px) {
   .topbar-menu { display: none !important; }
 }
@@ -1217,7 +1217,7 @@ input[type="text"]:focus {
    sidebar children use rgba(255,255,255,…) for hover/active/borders,
    which is invisible on a white background — overrides below. */
 html:not(.dark) .sidebar {
-  background: #FFFFFF;
+  background: #F4F0FA;
   color: var(--tx);
   border-right: 1px solid var(--bd);
 }
