@@ -1573,6 +1573,100 @@ label, summary, select {
 html:not(.dark) .sidebar-mobile-btn { color: var(--tx2); }
 html:not(.dark) .sidebar-mobile-btn:hover { background: var(--bg2); color: var(--tx); }
 
+/* ═══════════════════════════════════════════════════════ */
+/* ══ Sidebar polish: collapsible sections, animated      */
+/* ══ chevrons, sliding active indicator, entry animation */
+/* ═══════════════════════════════════════════════════════ */
+
+/* Section header is now a button; click to collapse/expand its group */
+.sidebar-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 20px 12px 8px;
+  font-family: var(--font);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.25);
+  cursor: pointer;
+  text-align: left;
+  transition: color .2s var(--ease);
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.sidebar-section:hover {
+  color: rgba(255,255,255,.55);
+}
+html:not(.dark) .sidebar-section { color: var(--tx3); }
+html:not(.dark) .sidebar-section:hover { color: var(--tx); }
+
+/* Chevron rotation — points down when expanded, right when collapsed */
+.sidebar-section-chevron {
+  transition: transform .25s var(--ease);
+  opacity: .6;
+}
+.sidebar-section.is-collapsed .sidebar-section-chevron {
+  transform: rotate(-90deg);
+}
+
+/* Smooth height + opacity collapse for the items in a section */
+.sidebar-group-items {
+  overflow: hidden;
+  max-height: 600px;
+  transition: max-height .28s var(--ease), opacity .2s var(--ease);
+  opacity: 1;
+}
+.sidebar-group-items.is-collapsed {
+  max-height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Active item: sliding indicator on the left edge */
+.nav-item {
+  position: relative;
+}
+.nav-item::before {
+  content: "";
+  position: absolute;
+  left: -2px;
+  top: 50%;
+  width: 3px;
+  height: 0;
+  background: var(--tabby-green);
+  border-radius: 0 3px 3px 0;
+  transform: translateY(-50%);
+  transition: height .22s var(--ease-spring);
+  pointer-events: none;
+}
+.nav-item.active::before {
+  height: 22px;
+}
+
+/* Sidebar items: subtle scale/fade-in on first paint */
+@keyframes sidebarItemIn {
+  from { opacity: 0; transform: translateX(-6px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.sidebar-nav .nav-item {
+  animation: sidebarItemIn .35s var(--ease) backwards;
+}
+.sidebar-nav .sidebar-group:nth-child(1) .nav-item { animation-delay: .04s; }
+.sidebar-nav .sidebar-group:nth-child(2) .nav-item { animation-delay: .08s; }
+.sidebar-nav .sidebar-group:nth-child(3) .nav-item { animation-delay: .12s; }
+.sidebar-nav .sidebar-group:nth-child(4) .nav-item { animation-delay: .16s; }
+.sidebar-nav .sidebar-group:nth-child(5) .nav-item { animation-delay: .20s; }
+
+/* When sidebar is collapsed (icon-only on desktop), hide the section
+   headers entirely — chevrons + section labels would clutter the rail */
+.sidebar.collapsed .sidebar-section { display: none; }
+.sidebar.collapsed .sidebar-group-items { max-height: none !important; opacity: 1 !important; pointer-events: auto !important; overflow: visible !important; }
+
 /* User info card at top of mobile sidebar footer */
 .sidebar-mobile-user {
   display: flex;

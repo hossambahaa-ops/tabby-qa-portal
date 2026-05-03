@@ -95,6 +95,15 @@ function AppInner(){
   const[feedbackSending,setFeedbackSending]=useState(false);
   const[feedbackSent,setFeedbackSent]=useState(false);
   const[isMobile,setIsMobile]=useState(()=>typeof window!=="undefined"&&window.innerWidth<768);
+  // Collapsible sidebar sections — persisted per user across sessions
+  const[collapsedSections,setCollapsedSections]=useState(()=>{
+    try{return JSON.parse(localStorage.getItem("sb_collapsed_sections")||"[]");}catch{return[];}
+  });
+  const toggleSection=(s)=>setCollapsedSections(prev=>{
+    const next=prev.includes(s)?prev.filter(x=>x!==s):[...prev,s];
+    try{localStorage.setItem("sb_collapsed_sections",JSON.stringify(next));}catch{}
+    return next;
+  });
   const setPage=(p)=>navigate("/"+p);
   // Global runtime error capture → Supabase public.client_errors
   useEffect(() => {
@@ -494,7 +503,36 @@ function AppInner(){
           <Icon d={sidebarCollapsed?"M9 5l7 7-7 7":"M15 19l-7-7 7-7"} size={16}/>
         </button>
       </div>
-      <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">{visibleNav.map(item=>{let sh=null;if(item.section&&item.section!==curSec){curSec=item.section;sh=<div className="sidebar-section" key={`s-${item.section}`}>{item.section}</div>;}return(<div key={item.key}>{sh}<button className={`nav-item ${page===item.key?"active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}><Icon d={item.icon} size={18}/><span className="nav-item-label">{item.label}</span></button></div>);})}</nav>
+      <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">{(()=>{
+        // Group items by section so each section header can collapse/expand
+        // its items as a unit (with smooth height + chevron animation).
+        const groups=[];
+        let cur=null;
+        visibleNav.forEach(item=>{
+          if(item.section&&item.section!==cur){cur=item.section;groups.push({section:item.section,items:[]});}
+          else if(groups.length===0){groups.push({section:null,items:[]});}
+          groups[groups.length-1].items.push(item);
+        });
+        return groups.map(g=>{
+          const isCollapsed=g.section&&!sidebarCollapsed&&collapsedSections.includes(g.section);
+          return(<div key={`grp-${g.section||"root"}`} className="sidebar-group">
+            {g.section&&!sidebarCollapsed&&(
+              <button className={`sidebar-section${isCollapsed?" is-collapsed":""}`} onClick={()=>toggleSection(g.section)} aria-expanded={!isCollapsed}>
+                <span>{g.section}</span>
+                <Icon d="M19 9l-7 7-7-7" size={12} className="sidebar-section-chevron"/>
+              </button>
+            )}
+            <div className={`sidebar-group-items${isCollapsed?" is-collapsed":""}`}>
+              {g.items.map(item=>(
+                <button key={item.key} className={`nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}>
+                  <Icon d={item.icon} size={18}/>
+                  <span className="nav-item-label">{item.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>);
+        });
+      })()}</nav>
       {/* Recently viewed QA profiles — only shown for users who can view
           others' profiles (leads+). Hidden when sidebar is collapsed. */}
       {(() => {
