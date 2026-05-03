@@ -563,6 +563,16 @@ function ScoreEntryPage(){
         !!selDomain ||
         !!selTeam ||
         (tableSearch && tableSearch.trim().length > 0);
+      // Pre-compute the human-readable filter summary outside JSX so
+      // we don't end up with template-literals nested in template-
+      // literals inside an inline JSX ternary (parser hates that).
+      const filterParts = [];
+      if (selQA && selQA.length > 0) filterParts.push(selQA.length + " specialist" + (selQA.length > 1 ? "s" : ""));
+      if (selTL) filterParts.push("lead: " + nameFromEmail(selTL));
+      if (selDomain) filterParts.push("domain: " + selDomain);
+      if (selTeam) filterParts.push("team: " + selTeam);
+      if (tableSearch && tableSearch.trim()) filterParts.push('search: "' + tableSearch.trim() + '"');
+      const filterDesc = filterParts.length > 0 ? " (" + filterParts.join(" · ") + ")" : "";
       const clearAll = () => {
         setSelQA([]); setSelTL(""); setSelDomain(""); setSelTeam(""); setTableSearch("");
       };
@@ -572,15 +582,7 @@ function ScoreEntryPage(){
             <div style={{fontSize:36,marginBottom:10}}>🔍</div>
             <h3 style={{fontSize:15,fontWeight:700,color:"var(--tx)",marginBottom:6}}>No matching records</h3>
             <p style={{color:"var(--tx3)",fontSize:13,maxWidth:340,margin:"0 auto 18px"}}>
-              {selMonth} has data, but nothing matches your current filters
-              {(selQA?.length>0||selTL||selDomain||selTeam||tableSearch?` (${[
-                selQA?.length>0&&`${selQA.length} specialist${selQA.length>1?"s":""}`,
-                selTL&&`lead: ${nameFromEmail(selTL)}`,
-                selDomain&&`domain: ${selDomain}`,
-                selTeam&&`team: ${selTeam}`,
-                tableSearch?.trim()&&`search: "${tableSearch.trim()}"`,
-              ].filter(Boolean).join(" · ")})`:""}
-              . Try clearing one or all of them.
+              {selMonth} has data, but nothing matches your current filters{filterDesc}. Try clearing one or all of them.
             </p>
             <button className="btn btn-primary btn-sm" onClick={clearAll}>Clear all filters</button>
           </> : <>
