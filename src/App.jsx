@@ -505,6 +505,17 @@ function AppInner(){
           </div>
         );
       })()}
+      {/* Mobile-only footer: dark mode + sign out (topbar versions hidden on mobile) */}
+      <div className="sidebar-mobile-footer">
+        <button className="sidebar-mobile-btn" onClick={()=>setDarkMode(!darkMode)}>
+          <Icon d={darkMode?"M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z":"M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"} size={16}/>
+          <span>{darkMode?"Light mode":"Dark mode"}</span>
+        </button>
+        <button className="sidebar-mobile-btn sidebar-mobile-signout" onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}}>
+          <Icon d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" size={16}/>
+          <span>Sign out</span>
+        </button>
+      </div>
     </aside>
     <div className="main-content">
       {/* View-as banner for super admin */}
@@ -534,18 +545,18 @@ function AppInner(){
         {/* Notifications */}
         <NotificationBell onNavigate={setPage}/>
         {/* Dark mode */}
-        <button className="notif-btn" onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Light mode":"Dark mode"} aria-label={darkMode?"Switch to light mode":"Switch to dark mode"}>
+        <button className="notif-btn topbar-dm-toggle" onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Light mode":"Dark mode"} aria-label={darkMode?"Switch to light mode":"Switch to dark mode"}>
           <Icon d={darkMode?"M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z":"M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"} size={18}/>
         </button>
         {/* View-as dropdown for super admin */}
-        {realRole==="super_admin"&&!viewAsRole&&<select value={viewAsRole} onChange={e=>setViewAsRole(e.target.value)} style={{fontSize:11,padding:"4px 8px",borderRadius:6,border:"1px solid var(--bd)",background:"var(--bg3)",fontFamily:"var(--font)",color:"var(--tx2)",cursor:"pointer"}}>
+        {realRole==="super_admin"&&!viewAsRole&&<select className="topbar-viewas" value={viewAsRole} onChange={e=>setViewAsRole(e.target.value)} style={{fontSize:11,padding:"4px 8px",borderRadius:6,border:"1px solid var(--bd)",background:"var(--bg3)",fontFamily:"var(--font)",color:"var(--tx2)",cursor:"pointer"}}>
           <option value="">View as...</option>
           <option value="qa">QA</option>
           <option value="qa_lead">QA Lead</option>
           <option value="qa_supervisor">QA Supervisor</option>
           <option value="admin">Admin</option>
         </select>}
-        <div style={{display:"flex",alignItems:"center",gap:10,marginLeft:8,paddingLeft:12,borderLeft:"1px solid var(--bd)"}}>
+        <div className="topbar-user-section" style={{display:"flex",alignItems:"center",gap:10,marginLeft:8,paddingLeft:12,borderLeft:"1px solid var(--bd)"}}>
           <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0,cursor:"pointer",position:"relative"}} title="Change profile picture" onClick={()=>document.getElementById("avatar-upload")?.click()}>
             {profile?.avatar_url ? <img src={profile.avatar_url} alt="" style={{width:32,height:32,objectFit:"cover",borderRadius:"50%"}}/> :
             <div style={{width:32,height:32,borderRadius:"50%",...avatarStyle(profile?.email),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{initialsForAvatar(profile?.email)||"U"}</div>}
@@ -588,8 +599,8 @@ function AppInner(){
             <span className={`role-badge role-${viewAsRole||profile?.role}`} style={{fontSize:9,padding:"1px 6px",alignSelf:"flex-start"}}>{safe(ROLE_LABELS[viewAsRole||profile?.role])||"QA"}{viewAsRole?" (viewing)":""}</span>
           </div>
         </div>
-        <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:safe(profile?.domain)==="tabby.sa"?"rgba(234,88,12,.1)":"rgba(79,70,229,.1)",color:safe(profile?.domain)==="tabby.sa"?"#EA580C":"#4F46E5",fontWeight:600}}>{safe(profile?.domain)}</span>
-        <button onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{background:"none",border:"1px solid var(--bd)",borderRadius:8,padding:"5px 12px",fontSize:11,color:"var(--tx3)",cursor:"pointer",fontFamily:"var(--font)",fontWeight:500,transition:"all .2s"}}
+        <span className="topbar-domain-badge" style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:safe(profile?.domain)==="tabby.sa"?"rgba(234,88,12,.1)":"rgba(79,70,229,.1)",color:safe(profile?.domain)==="tabby.sa"?"#EA580C":"#4F46E5",fontWeight:600}}>{safe(profile?.domain)}</span>
+        <button className="topbar-signout-btn" onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{background:"none",border:"1px solid var(--bd)",borderRadius:8,padding:"5px 12px",fontSize:11,color:"var(--tx3)",cursor:"pointer",fontFamily:"var(--font)",fontWeight:500,transition:"all .2s"}}
           onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--red)";e.currentTarget.style.color="var(--red)";}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--bd)";e.currentTarget.style.color="var(--tx3)";}}
         >Sign out</button>
@@ -691,7 +702,7 @@ function AppInner(){
     </div>}
 
     {/* ═══ FEEDBACK FLOATING BUTTON + MODAL ═══ */}
-    {!showFeedback&&<button onClick={()=>{setShowFeedback(true);setFeedbackSent(false);setFeedbackForm({category:"general",message:"",rating:0});}} style={{
+    {!showFeedback&&<button className="feedback-fab" onClick={()=>{setShowFeedback(true);setFeedbackSent(false);setFeedbackForm({category:"general",message:"",rating:0});}} style={{
       position:"fixed",bottom:24,right:24,width:48,height:48,borderRadius:"50%",border:"none",
       background:"var(--tabby-purple,#6A2C79)",color:"#fff",fontSize:20,cursor:"pointer",
       boxShadow:"0 4px 20px rgba(106,44,121,.4)",display:"flex",alignItems:"center",justifyContent:"center",
@@ -703,7 +714,7 @@ function AppInner(){
       aria-label="Send feedback"
     >💬</button>}
 
-    {showFeedback&&<div style={{position:"fixed",bottom:24,right:24,width:380,maxHeight:"80vh",background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"0 16px 48px rgba(0,0,0,.25)",zIndex:950,overflow:"hidden",display:"flex",flexDirection:"column"}}>
+    {showFeedback&&<div className="feedback-panel" style={{position:"fixed",bottom:24,right:24,width:380,maxHeight:"80vh",background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"0 16px 48px rgba(0,0,0,.25)",zIndex:950,overflow:"hidden",display:"flex",flexDirection:"column"}}>
       {/* Header */}
       <div style={{padding:"16px 20px",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
