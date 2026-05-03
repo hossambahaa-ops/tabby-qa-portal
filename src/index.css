@@ -1725,3 +1725,208 @@ html:not(.dark) .sidebar-section:hover { color: var(--tx); }
 html:not(.dark) .sidebar-mobile-user { border-bottom-color: var(--bd2); }
 html:not(.dark) .sidebar-mobile-user-name { color: var(--tx); }
 html:not(.dark) .sidebar-mobile-user-domain { color: var(--tx3); }
+
+/* ═══════════════════════════════════════════════════════ */
+/* ══ UI POLISH PASS — motion, focus, density, toasts    ══ */
+/* ═══════════════════════════════════════════════════════ */
+
+/* ── 1. Hover lifts on every card-like surface ──────────── */
+/* Cards already had a translateY(-1px) on hover — extend the
+   same micro-interaction to leaderboard rows, stat tiles,
+   notification items, and search results so the whole UI feels
+   responsive to the cursor without going overboard. */
+table tbody tr {
+  transition: background .15s var(--ease), transform .15s var(--ease);
+}
+table tbody tr:not(.no-hover):hover {
+  transform: translateY(-1px);
+}
+.notif-item, .search-result, .sidebar-recent-item {
+  transition: background .15s var(--ease), transform .15s var(--ease);
+}
+.notif-item:hover, .search-result:hover, .sidebar-recent-item:hover {
+  transform: translateY(-1px);
+}
+
+/* ── 2. Visible focus rings on every interactive element ─── */
+/* Replaces browser default outline with a soft purple ring that
+   matches the brand. Only shows on keyboard focus (:focus-visible)
+   so mouse users aren't distracted, but keyboard users always
+   know where they are. */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--tabby-purple);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* Form inputs already have border-color focus styling — we use a
+   thinner ring so it doesn't double up. */
+.form-input:focus-visible,
+.input:focus-visible,
+.select:focus-visible {
+  outline: none;  /* let the existing border + box-shadow do the work */
+}
+
+/* ── 3. Density toggle (cozy / comfortable / compact) ───── */
+/* Apply via `document.body.dataset.density = "compact"` etc.
+   "comfortable" is the default; the other two adjust paddings
+   and table row heights so power users can fit more, casual
+   users get more breathing room. */
+body[data-density="compact"] .card { padding: 14px; }
+body[data-density="compact"] .stat-card { padding: 16px 18px; }
+body[data-density="compact"] table th,
+body[data-density="compact"] table td { padding: 6px 10px; font-size: 12px; }
+body[data-density="compact"] .nav-item { padding: 7px 12px; font-size: 12.5px; }
+body[data-density="compact"] .stats-grid { gap: 12px; }
+
+body[data-density="cozy"] .card { padding: 28px; }
+body[data-density="cozy"] .stat-card { padding: 32px 28px; }
+body[data-density="cozy"] table th,
+body[data-density="cozy"] table td { padding: 14px 16px; font-size: 13.5px; }
+body[data-density="cozy"] .nav-item { padding: 13px 16px; font-size: 14px; }
+body[data-density="cozy"] .stats-grid { gap: 24px; }
+
+/* ── 4. Page transition smoother on route change ────────── */
+/* Existing pageIn keyframe is fine — just give it a touch more
+   travel and slow it slightly so the whole page lands instead
+   of popping in stiffly. */
+@keyframes pageIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-animate > * {
+  animation: pageIn .38s var(--ease) both;
+}
+
+/* ── 5. Status-pill consistency ─────────────────────────── */
+/* All semantic pills now use the same recipe: soft tinted bg,
+   bolder coloured text, no borders, consistent padding. Replaces
+   the patchwork of border / no-border / different paddings that
+   accumulated across pages. */
+.pill,
+.pill-tone-green,
+.pill-tone-amber,
+.pill-tone-red,
+.pill-tone-blue,
+.pill-tone-purple {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 999px;
+  letter-spacing: .2px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.pill-tone-green  { background: var(--green-bg);  color: var(--green); }
+.pill-tone-amber  { background: var(--amber-bg);  color: var(--amber); }
+.pill-tone-red    { background: var(--red-bg);    color: var(--red); }
+.pill-tone-blue   { background: var(--blue-bg);   color: var(--blue); }
+.pill-tone-purple { background: var(--primary-light); color: var(--tabby-purple); }
+.pill .pill-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: currentColor; flex-shrink: 0;
+}
+@keyframes pillPulse {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+  50%      { box-shadow: 0 0 0 4px transparent; }
+}
+.pill-pulse { animation: pillPulse 1.4s ease-out 1; }
+
+/* ── 6. Toast redesign ─────────────────────────────────── */
+/* Slides in from the top, type-specific icon to the left, soft
+   shadow + bigger border-radius so it feels less like a Bootstrap
+   alert and more like a modern OS notification. */
+.toast {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px 12px 14px;
+  background: var(--bg3);
+  color: var(--tx);
+  border: 1px solid var(--bd);
+  border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.18), 0 4px 10px rgba(0,0,0,.08);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -.1px;
+  max-width: 440px;
+  min-width: 240px;
+  animation: toastIn .3s var(--ease-spring) both;
+}
+.toast::before {
+  content: "";
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 14px 14px;
+}
+.toast-success { border-color: rgba(15,157,116,.35); }
+.toast-success::before {
+  background-color: var(--green-bg);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%230F9D74' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'><polyline points='20 6 9 17 4 12'/></svg>");
+}
+.toast-error { border-color: rgba(217,56,56,.35); }
+.toast-error::before {
+  background-color: var(--red-bg);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23D93838' stroke-width='3' stroke-linecap='round'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg>");
+}
+.toast-info { border-color: rgba(54,118,224,.35); }
+.toast-info::before {
+  background-color: var(--blue-bg);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%233676E0' stroke-width='3' stroke-linecap='round'><line x1='12' y1='8' x2='12' y2='12'/><circle cx='12' cy='16' r='1' fill='%233676E0'/></svg>");
+}
+.toast-warn,
+.toast-warning { border-color: rgba(216,139,10,.35); }
+.toast-warn::before,
+.toast-warning::before {
+  background-color: var(--amber-bg);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23D88B0A' stroke-width='3' stroke-linecap='round'><line x1='12' y1='9' x2='12' y2='13'/><circle cx='12' cy='17' r='1' fill='%23D88B0A'/></svg>");
+}
+@keyframes toastIn {
+  from { opacity: 0; transform: translateY(-12px) scale(.96); }
+  to   { opacity: 1; transform: translateY(0)    scale(1);   }
+}
+.dark .toast {
+  background: var(--bg3);
+  border-color: var(--bd);
+  box-shadow: 0 18px 40px rgba(0,0,0,.5), 0 4px 12px rgba(0,0,0,.3);
+}
+
+/* ── 7. Skeleton polish — give the existing `.skeleton`
+       class a subtle gradient sweep instead of just opacity
+       pulse, for a more "loading" feel. ────────────────── */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--bd2);
+}
+.skeleton::after {
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,.08) 50%,
+    transparent 100%);
+  animation: skeletonSweep 1.4s ease-in-out infinite;
+}
+.dark .skeleton::after {
+  background: linear-gradient(90deg,
+    transparent 0%,
+    rgba(255,255,255,.04) 50%,
+    transparent 100%);
+}
+@keyframes skeletonSweep {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}

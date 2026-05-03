@@ -1,11 +1,26 @@
 import React from "react";
+import { useCountUp } from "../lib/useCountUp.jsx";
 
-// Progress Ring — circular progress indicator
-export const ProgressRing = ({ value, max, size = 64, stroke = 5, color = "var(--tabby-green)", label, sublabel }) => {
+// Progress Ring — circular progress indicator with number count-up on
+// the label. If `label` is a numeric string ("32.5"), it animates from
+// 0 to the value on first paint, matching the ring's stroke fill.
+// Pass `animateLabel={false}` to disable for non-numeric labels like
+// "#3 / 25" if auto-detection fails.
+export const ProgressRing = ({ value, max, size = 64, stroke = 5, color = "var(--tabby-green)", label, sublabel, animateLabel }) => {
   const r = (size - stroke) / 2;
   const circ = 2 * Math.PI * r;
   const pct = Math.min(value / max, 1);
   const offset = circ * (1 - pct);
+
+  // Decide whether to count-up the label
+  const labelStr = label != null ? String(label) : "";
+  const numericMatch = labelStr.match(/^-?\d+(\.\d+)?$/);
+  const shouldAnimate = animateLabel !== false && !!numericMatch;
+  const targetNum = shouldAnimate ? Number(labelStr) : 0;
+  const decimals = shouldAnimate && numericMatch[1] ? numericMatch[1].length - 1 : 0;
+  const animated = useCountUp(shouldAnimate ? targetNum : 0, { decimals, durationMs: 700 });
+  const renderedLabel = shouldAnimate ? animated.toFixed(decimals) : label;
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
@@ -15,7 +30,7 @@ export const ProgressRing = ({ value, max, size = 64, stroke = 5, color = "var(-
           style={{ transition: "stroke-dashoffset 1s cubic-bezier(.4,0,.2,1)" }} />
       </svg>
       {(label || sublabel) && <div>
-        {label && <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-1px", fontVariantNumeric: "tabular-nums" }}>{label}</div>}
+        {label && <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-1px", fontVariantNumeric: "tabular-nums" }}>{renderedLabel}</div>}
         {sublabel && <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 500 }}>{sublabel}</div>}
       </div>}
     </div>

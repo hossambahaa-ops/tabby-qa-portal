@@ -77,6 +77,10 @@ function AppInner(){
   const[sidebarCollapsed,setSidebarCollapsed]=useState(()=>localStorage.getItem("sb_collapsed")==="true");
   const[viewAsRole,setViewAsRole]=useState("");
   const[darkMode,setDarkMode]=useState(()=>{const stored=localStorage.getItem("dark_mode");return stored===null?true:stored==="true";});
+  // Density toggle — power users want compact tables, others want
+  // breathing room. Stored per-user in localStorage; CSS rules in
+  // index.css read body[data-density] to scale paddings + font sizes.
+  const[density,setDensity]=useState(()=>localStorage.getItem("density")||"comfortable");
   const[showSearch,setShowSearch]=useState(false);
   const[globalFilters,setGlobalFilters]=useState({...defaultFilters});
   const[globalRoster,setGlobalRoster]=useState([]);
@@ -129,6 +133,8 @@ function AppInner(){
   useEffect(()=>{localStorage.setItem("sb_collapsed",sidebarCollapsed);},[sidebarCollapsed]);
   // Dark mode
   useEffect(()=>{document.documentElement.classList.toggle("dark",darkMode);localStorage.setItem("dark_mode",darkMode);},[darkMode]);
+  // Density (cozy / comfortable / compact) — applies via body data-attr
+  useEffect(()=>{document.body.dataset.density=density;localStorage.setItem("density",density);},[density]);
   // Global keyboard shortcuts
   useKeyboard({"Meta+k":()=>setShowSearch(true),"Ctrl+k":()=>setShowSearch(true),"Escape":()=>{if(showSearch)setShowSearch(false);else if(showFeedback)setShowFeedback(false);else if(showShortcutsHelp)setShowShortcutsHelp(false);},"?":()=>setShowShortcutsHelp(s=>!s)});
   // Auto-refresh JWT every 10 minutes to prevent expiry
@@ -552,6 +558,10 @@ function AppInner(){
         </button>
         {/* Notifications */}
         <NotificationBell onNavigate={setPage}/>
+        {/* Density toggle — cycles cozy → comfortable → compact → cozy */}
+        <button className="notif-btn topbar-dm-toggle" onClick={()=>{const next={cozy:"comfortable",comfortable:"compact",compact:"cozy"}[density]||"comfortable";setDensity(next);}} title={`Density: ${density} (click to change)`} aria-label={`Toggle density (${density})`}>
+          <Icon d={density==="compact"?"M3 6h18M3 10h18M3 14h18M3 18h18":density==="cozy"?"M3 6h18M3 18h18":"M3 6h18M3 12h18M3 18h18"} size={18}/>
+        </button>
         {/* Dark mode */}
         <button className="notif-btn topbar-dm-toggle" onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Light mode":"Dark mode"} aria-label={darkMode?"Switch to light mode":"Switch to dark mode"}>
           <Icon d={darkMode?"M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z":"M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"} size={18}/>
