@@ -523,12 +523,14 @@ function AppInner(){
               </button>
             )}
             <div className={`sidebar-group-items${isCollapsed?" is-collapsed":""}`}>
-              {g.items.map(item=>(
-                <button key={item.key} className={`nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}>
-                  <Icon d={item.icon} size={18}/>
-                  <span className="nav-item-label">{item.label}</span>
-                </button>
-              ))}
+              <div className="sidebar-group-items-inner">
+                {g.items.map(item=>(
+                  <button key={item.key} className={`nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}>
+                    <Icon d={item.icon} size={18}/>
+                    <span className="nav-item-label">{item.label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>);
         });
