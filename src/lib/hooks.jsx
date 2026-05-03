@@ -36,9 +36,12 @@ export function useConfirm(){
       </div>
       <div id="confirm-dialog-title" style={{fontSize:15,fontWeight:700,marginBottom:6,color:"var(--tx)"}}>{state.title}</div>
       <div style={{fontSize:13,color:"var(--tx2)",marginBottom:20,lineHeight:1.6}}>{state.message}</div>
+      {/* Cancel left, primary/destructive action right — matches the
+          platform convention users expect (Mac/iOS/Android/Windows
+          all put the affirmative action on the right). */}
       <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-        <button className="btn btn-sm" style={{background:state.yesColor,color:"#fff",border:"none",fontWeight:600,padding:"8px 20px"}} onClick={()=>{close();state.onYes();}}>{state.yesLabel}</button>
         <button className="btn btn-outline btn-sm" style={{padding:"8px 20px"}} onClick={close}>Cancel</button>
+        <button className="btn btn-sm" style={{background:state.yesColor,color:"#fff",border:"none",fontWeight:600,padding:"8px 20px"}} onClick={()=>{close();state.onYes();}}>{state.yesLabel}</button>
       </div>
     </div>
   </div>:null;
