@@ -13,6 +13,7 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import LeaderboardCompareTable from "../components/leaderboard/LeaderboardCompareTable.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 
 function LeaderboardPage() {
   const{token,profile,gf,globalToast}=useApp();
@@ -39,6 +40,30 @@ function LeaderboardPage() {
   const [selectedEmails, setSelectedEmails] = useState(new Set());
   const [compareMode, setCompareMode] = useState(false);
   const [focusOnly, setFocusOnly] = useState(false);
+  // Pinned QAs — float to top of any list, persisted per browser
+  const [pinnedEmails, setPinnedEmails] = useState(() => {
+    try { return new Set(JSON.parse(localStorage.getItem("lb_pinned_qas") || "[]")); } catch { return new Set(); }
+  });
+  const togglePin = (email) => setPinnedEmails(prev => {
+    const e = email?.toLowerCase(); if (!e) return prev;
+    const next = new Set(prev);
+    next.has(e) ? next.delete(e) : next.add(e);
+    try { localStorage.setItem("lb_pinned_qas", JSON.stringify([...next])); } catch {}
+    return next;
+  });
+  // "Refreshed Xm ago" — set whenever data finishes loading
+  const [lastLoadedAt, setLastLoadedAt] = useState(null);
+  // Tick every minute so the relative timestamp advances live
+  const [, setNowTick] = useState(0);
+  useEffect(() => { const id = setInterval(() => setNowTick(t => t + 1), 60000); return () => clearInterval(id); }, []);
+  const fmtAge = (ts) => {
+    if (!ts) return null;
+    const diff = (Date.now() - ts) / 1000;
+    if (diff < 60) return "just now";
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
 
   // Sync global filters to local state — runs whenever global filters change
   useEffect(() => {
@@ -94,6 +119,7 @@ function LeaderboardPage() {
         console.error("Leaderboard:", e);
         globalToast("error", "Failed to load leaderboard data");
       }
+      setLastLoadedAt(Date.now());
       setLoading(false);
     })();
   }, [token]);
@@ -156,8 +182,13 @@ function LeaderboardPage() {
     <div className="page">
       <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
         <div>
-          <div className="page-title">Leaderboard</div>
-          <div className="page-subtitle">Performance rankings — {selMonth || "All months"}</div>
+          <div className="page-title" style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
+            Leaderboard
+            {lastLoadedAt && <span className="pill pill-tone-green" style={{fontSize:11,fontWeight:500,padding:"3px 9px"}} title={new Date(lastLoadedAt).toLocaleString()}>
+              <span className="pill-dot"/> Refreshed {fmtAge(lastLoadedAt)}
+            </span>}
+          </div>
+          <div className="page-subtitle">Performance rankings — {selMonth || "All months"}{pinnedEmails.size>0?` · ${pinnedEmails.size} pinned`:""}</div>
         </div>
         {hasRole(profile?.role,"qa_lead")&&<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
           <SearchableSelect options={months} value={selMonth} onChange={v=>{setSelMonth(v);setSelDomain("");setSelTeam("");}} placeholder="Select month"/>
@@ -233,6 +264,16 @@ function LeaderboardPage() {
         // Focus mode: only show selected QAs
         if (focusOnly && selectedEmails.size > 0) {
           visibleRanked = visibleRanked.filter(r => selectedEmails.has(r.qa_email?.toLowerCase()));
+        }
+        // Float pinned QAs to the top while preserving their relative
+        // score order. The rank number shown in column # still reflects
+        // the QA's actual leaderboard position, not their visual slot.
+        if (pinnedEmails.size > 0) {
+          visibleRanked = [...visibleRanked].sort((a, b) => {
+            const aP = pinnedEmails.has(a.qa_email?.toLowerCase()) ? 1 : 0;
+            const bP = pinnedEmails.has(b.qa_email?.toLowerCase()) ? 1 : 0;
+            return bP - aP; // pinned first, otherwise stable
+          });
         }
 
         return <>
@@ -474,7 +515,16 @@ function LeaderboardPage() {
                 <tr onClick={() => setExpandedRow(isExp ? null : r.id)} style={{cursor:"pointer",background:selectedEmails.has(r.qa_email?.toLowerCase())?"var(--accent-light)":isMe?"var(--accent-light)":"transparent"}}>
                   <td onClick={e=>e.stopPropagation()}><input type="checkbox" style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}} checked={selectedEmails.has(r.qa_email?.toLowerCase())} onChange={()=>{const em=r.qa_email?.toLowerCase();setSelectedEmails(prev=>{const n=new Set(prev);n.has(em)?n.delete(em):n.add(em);return n;});}}/></td>
                   <td>{rank <= 3 ? <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",fontWeight:700,fontSize:12,background:rank===1?"linear-gradient(135deg,#FEF3C7,#FDE68A)":rank===2?"linear-gradient(135deg,#F3F4F6,#E5E7EB)":"linear-gradient(135deg,#FED7AA,#FDBA74)",color:rank===1?"#92400E":rank===2?"#374151":"#9A3412",boxShadow:rank===1?"0 2px 8px rgba(245,158,11,.3)":"none"}}>{rank}</span> : <span style={{color:"var(--tx3)",fontWeight:600,fontSize:13}}>{rank}</span>}</td>
-                  <td><div style={{display:"flex",alignItems:"center",gap:10}}><div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:"var(--primary-light)",color:"var(--tabby-purple-light,var(--accent-text))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,border:"2px solid var(--bd2)"}}>{initialsFromEmail(r.qa_email)}</div><div><div style={{fontWeight:600,fontSize:13.5,letterSpacing:"-.2px"}}>{nameFromEmail(r.qa_email)}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{r.qa_email}</div></div></div></td>
+                  <td><div style={{display:"flex",alignItems:"center",gap:10}}>
+                    {/* Pin/star — visible always for leads+, click toggles. Pinned QAs float to the top of the list. */}
+                    {hasRole(profile?.role,"qa_lead") && (()=>{const isPinned = pinnedEmails.has(r.qa_email?.toLowerCase()); return (
+                      <button onClick={(e)=>{e.stopPropagation();togglePin(r.qa_email);}} title={isPinned?"Unpin from top":"Pin to top of list"} aria-label={isPinned?"Unpin":"Pin"} style={{background:"none",border:"none",padding:2,cursor:"pointer",lineHeight:0,opacity:isPinned?1:.35,transition:"opacity .15s, transform .15s",flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=isPinned?1:.35}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill={isPinned?"#F59E0B":"none"} stroke={isPinned?"#F59E0B":"var(--tx3)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                      </button>
+                    );})()}
+                    <div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:"var(--primary-light)",color:"var(--tabby-purple-light,var(--accent-text))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,border:"2px solid var(--bd2)"}}>{initialsFromEmail(r.qa_email)}</div>
+                    <div><div style={{fontWeight:600,fontSize:13.5,letterSpacing:"-.2px"}}>{nameFromEmail(r.qa_email)}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{r.qa_email}</div></div>
+                  </div></td>
                   <td style={{fontSize:13,color:"var(--tx2)"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
                   {kpis.map(k => (
                     <td key={k.key} style={{textAlign:"center",padding:"8px 6px"}}>
@@ -533,7 +583,11 @@ function LeaderboardPage() {
       })()}
 
       {view==="team" && <div style={{display:"flex",flexDirection:"column",gap:16}}>
-        {teamData.length === 0 ? <div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {selMonth}.</p></div></div> :
+        {teamData.length === 0 ? <EmptyState
+          icon="M9 17v-2a4 4 0 014-4h4M3 10v6a2 2 0 002 2h4M9 7h6a2 2 0 012 2v6"
+          title={`No team data for ${selMonth || "this month"}`}
+          description={selDomain || selTeam ? "Try clearing the domain or team filter — the current selection may be empty." : "Performance data hasn't synced yet for this month, or no QAs are mapped to a team yet."}
+        /> :
         teamData.map((team, ti) => {
           const rank = ti + 1; const isGold = rank === 1;
           return (<div key={team.tl} className="card" style={{border:isGold?"2px solid var(--amber)":"1px solid var(--bd2)"}}>

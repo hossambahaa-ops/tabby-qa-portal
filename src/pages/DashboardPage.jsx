@@ -8,6 +8,7 @@ import { useConfirm } from "../lib/hooks.jsx";
 import { useDashboardData } from "../lib/useDashboardData.jsx";
 import { useFreshness } from "../lib/useFreshness.js";
 import FreshnessBadge from "../components/FreshnessBadge.jsx";
+import HelpTip from "../components/HelpTip.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { ProgressRing, MiniBarChart, SparkLine } from "../components/Charts.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
@@ -310,14 +311,14 @@ function DashboardPage(){
     {isLead&&<>
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-label">My team</div>
+          <div className="stat-label">My team<HelpTip text="Active QAs whose manager_email matches your email — pulled live from the roster."/></div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div className="stat-value">{allTeamEmails.length}</div>
             <div style={{width:40,height:40,borderRadius:12,background:"var(--primary-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18}}>👥</div>
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Team avg score</div>
+          <div className="stat-label">Team avg score<HelpTip text={`Average MTD score across your active team for ${selMonth||"the latest month"}. Out of ${maxScore} pts. Green ≥ 80%, amber 50–80%, red < 50%.`}/></div>
           <ProgressRing value={teamAvgScore} max={maxScore} size={56} stroke={5}
             color={scoreColor(teamAvgScore)}
             label={teamAvgScore.toFixed(1)}
@@ -326,7 +327,7 @@ function DashboardPage(){
           {teamTrend&&<div style={{fontSize:12,marginTop:8,color:Number(teamTrend)>=0?"var(--green)":"var(--red)",fontWeight:600}}>{Number(teamTrend)>=0?"↑":"↓"} {Math.abs(teamTrend)} pts vs {prevMonth}</div>}
         </div>
         <div className="stat-card">
-          <div className="stat-label">Team DSAT</div>
+          <div className="stat-label">Team DSAT<HelpTip text="Sum of dissatisfied (DSAT) survey responses across the team this month. Lower is better. Bars show the last 4 months for trend."/></div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div className="stat-value">{teamDsat}</div>
             <MiniBarChart data={months.slice(0,4).reverse().map(m=>{
@@ -336,7 +337,7 @@ function DashboardPage(){
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Pending DAM flags</div>
+          <div className="stat-label">Pending DAM flags<HelpTip text="DAM (Direct Action Monitoring) flags raised by you or peers that are still awaiting a lead's review. Click Review to triage them in the Quality page."/></div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div className="stat-value" style={{color:damCount>0?"var(--amber)":"var(--tx)"}}>{damCount}</div>
             {damCount>0&&<button className="btn btn-outline btn-sm" onClick={()=>nav("quality")} style={{fontSize:11}}>Review →</button>}
@@ -485,7 +486,7 @@ function DashboardPage(){
     {myData&&(isLead||hasRole(profile?.role,"qa_supervisor"))?<>
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-label">My score</div>
+          <div className="stat-label">My score<HelpTip text={`Your MTD performance score for ${selMonth||"the latest month"} — combined CSAT, DSAT, productivity & coaching. Out of ${maxScore} pts.`}/></div>
           <ProgressRing value={myData?getScore(myData):0} max={maxScore} size={56} stroke={5}
             color={scoreColor(myData?getScore(myData):0)}
             label={myData?getScore(myData).toFixed(1):"0"}
@@ -494,7 +495,7 @@ function DashboardPage(){
           {myPrevData&&<div style={{fontSize:12,marginTop:8,color:(getScore(myData)-getScore(myPrevData))>=0?"var(--green)":"var(--red)",fontWeight:600}}>{(getScore(myData)-getScore(myPrevData))>=0?"↑":"↓"} {Math.abs(getScore(myData)-getScore(myPrevData)).toFixed(1)} pts vs {prevMonth}</div>}
         </div>
         <div className="stat-card">
-          <div className="stat-label">Rank</div>
+          <div className="stat-label">Rank<HelpTip text="Your position on the leaderboard for this month, vs every QA in scope (filtered by domain/team if you set those filters). Sparkline shows your last few months."/></div>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
             <div className="stat-value">{myRank>0?"#"+myRank:"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {ranked.length}</span></div>
             {myHistory.length>=2&&<SparkLine data={myHistory.map(h=>h.score)} width={80} height={32} color={scoreColor(myData?getScore(myData):0)} />}
@@ -502,16 +503,16 @@ function DashboardPage(){
           <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>Performance trend</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Tickets / day</div>
+          <div className="stat-label">Tickets / day<HelpTip text="Average tickets you handled per working day this month. Pulled from the live productivity feed."/></div>
           <div className="stat-value">{myData.ticket_per_day??0}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">DSAT</div>
+          <div className="stat-label">DSAT<HelpTip text="Number of dissatisfied (DSAT) survey responses tied to your tickets this month. Lower is better."/></div>
           <div className="stat-value">{myData.dsat??0}</div>
         </div>
         {(()=>{const v=csatPctValue(myData.csat_pct);const s=Number(myData.csat_total||0);const show=v!=null&&s>0;return (
         <div className="stat-card" onClick={()=>nav("csat")} style={{cursor:"pointer"}} title="View CSAT breakdown">
-          <div className="stat-label">CSAT %</div>
+          <div className="stat-label">CSAT %<HelpTip text="Customer Satisfaction percentage from CSAT surveys this month. Coloured grey when survey count is low (sample size unreliable)."/></div>
           <div className="stat-value" style={{color:csatColor(v,s)}}>
             {show?v.toFixed(1)+"%":"—"}
           </div>

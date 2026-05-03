@@ -34,6 +34,9 @@ function QAProfilePage() {
   } = useQaProfileData(token, profile);
 
   const [selectedQA, setSelectedQA] = useUrlState("qa", "");
+  // Compare with another QA — shows a side-by-side delta strip in the
+  // header card. Persisted in the URL so leads can share comparison links.
+  const [compareQA, setCompareQA] = useUrlState("vs", "");
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedSession, setExpandedSession] = useState(null);
   const [freshnessKey, setFreshnessKey] = useState(0);
@@ -450,6 +453,66 @@ function QAProfilePage() {
             </div>
           </div>
         </div>;
+      })()}
+
+      {/* ─── Compare with another QA ─────────────────────────────────
+          Lets a lead/admin pick a second QA and see a side-by-side
+          delta strip (Score / CSAT / DSAT / Rank). Persisted via the
+          `vs=` URL param so links like /profile?qa=a@…&vs=b@… work.   */}
+      {!isQA && hasRole(profile?.role, "qa_lead") && (() => {
+        const qaOptions = (allQAs || [])
+          .filter(r => r.email && r.email.toLowerCase() !== selectedQA?.toLowerCase())
+          .map(r => ({ value: r.email.toLowerCase(), label: nameFromEmail(r.email) }))
+          .sort((a, b) => a.label.localeCompare(b.label));
+        const compareLatest = compareQA ? mtd.filter(m => m.qa_email?.toLowerCase() === compareQA.toLowerCase()).sort((a, b) => (b.month || "").localeCompare(a.month || ""))[0] : null;
+        const myLatest = (() => {
+          const rows = mtd.filter(m => matchQA(m.qa_email)).sort((a, b) => (b.month || "").localeCompare(a.month || ""));
+          return rows[0];
+        })();
+        const fmtPct = (v) => (v == null || isNaN(v) ? "—" : Number(v).toFixed(1) + "%");
+        const fmtNum = (v) => (v == null ? "—" : Number(v).toFixed(1));
+        const delta = (mine, other) => {
+          if (mine == null || other == null || isNaN(mine) || isNaN(other)) return null;
+          const d = mine - other;
+          return d;
+        };
+        const renderRow = (label, mine, other, fmt = fmtNum, higherIsBetter = true) => {
+          const d = delta(mine, other);
+          const showDelta = d !== null;
+          const winLeft = showDelta && (higherIsBetter ? d > 0 : d < 0);
+          const winRight = showDelta && (higherIsBetter ? d < 0 : d > 0);
+          return (<div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:12,alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--bd2)",fontSize:13}}>
+            <div style={{textAlign:"right",fontWeight:winLeft?700:500,color:winLeft?"var(--green)":"var(--tx2)"}}>{fmt(mine)}</div>
+            <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",textAlign:"center",minWidth:60}}>{label}</div>
+            <div style={{textAlign:"left",fontWeight:winRight?700:500,color:winRight?"var(--green)":"var(--tx2)"}}>{fmt(other)}</div>
+          </div>);
+        };
+        return (
+          <div className="card" style={{padding:16,marginBottom:16}}>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:compareQA?14:0,flexWrap:"wrap"}}>
+              <span style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Compare with</span>
+              <select className="form-input" style={{maxWidth:280,fontSize:13}} value={compareQA||""} onChange={e=>setCompareQA(e.target.value)}>
+                <option value="">— Select another QA —</option>
+                {qaOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+              {compareQA && <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setCompareQA("")}>Clear</button>}
+            </div>
+            {compareQA && (
+              <>
+                <div style={{display:"grid",gridTemplateColumns:"1fr auto 1fr",gap:12,alignItems:"center",marginBottom:8}}>
+                  <div style={{textAlign:"right",fontWeight:700,fontSize:14,color:"var(--tx)"}}>{nameFromEmail(selectedQA)}</div>
+                  <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",textAlign:"center",minWidth:60}}>vs</div>
+                  <div style={{textAlign:"left",fontWeight:700,fontSize:14,color:"var(--tx)"}}>{nameFromEmail(compareQA)}</div>
+                </div>
+                {renderRow("Score", parseFloat(myLatest?.final_performance), parseFloat(compareLatest?.final_performance))}
+                {renderRow("CSAT", csatPctValue(myLatest?.csat_pct), csatPctValue(compareLatest?.csat_pct), fmtPct)}
+                {renderRow("DSAT", parseFloat(myLatest?.dsat) || 0, parseFloat(compareLatest?.dsat) || 0, (v)=>v==null?"—":Math.round(v), false /* lower is better */)}
+                {renderRow("Tickets/day", parseFloat(myLatest?.ticket_per_day), parseFloat(compareLatest?.ticket_per_day))}
+                <div style={{fontSize:10,color:"var(--tx3)",marginTop:10,textAlign:"center"}}>Latest month — bold green = winner. DSAT lower is better.</div>
+              </>
+            )}
+          </div>
+        );
       })()}
 
       {/* Tasks summary row */}
