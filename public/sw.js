@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tabby-pulse-v3';
+const CACHE_NAME = 'tabby-pulse-v4';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
@@ -7,6 +7,10 @@ self.addEventListener('install', (e) => {
 self.addEventListener('activate', (e) => {
   e.waitUntil(
     caches.keys().then((keys) =>
+      // Drop EVERY old cache when this SW activates — v3 cached
+      // authenticated Supabase responses, which is both a privacy
+      // hazard and the cause of indefinite request hangs (SW promise
+      // never resolved → page stuck on "Loading your workspace…").
       Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
     )
   );
@@ -16,21 +20,12 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
-  // Network-first for API requests (Supabase)
-  if (url.hostname.includes('supabase')) {
-    e.respondWith(
-      fetch(e.request)
-        .then((res) => {
-          if (res.ok) {
-            const clone = res.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(e.request, clone));
-          }
-          return res;
-        })
-        .catch(() => caches.match(e.request))
-    );
-    return;
-  }
+  // CRITICAL: never intercept or cache Supabase requests. Caching
+  // authenticated responses leaks data across users, and the previous
+  // network-first/cache-fallback could hang indefinitely when the
+  // network promise neither resolved nor rejected. Letting the
+  // browser handle these directly is the safe default.
+  if (url.hostname.includes('supabase')) return;
 
   // Network-first for HTML / navigation — always get latest index.html
   if (e.request.mode === 'navigate' || e.request.destination === 'document' ||

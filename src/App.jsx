@@ -296,14 +296,22 @@ function AppInner(){
     // 12 s. Better to show login or an empty dashboard than a frozen screen.
     let done=false;
     const safety=setTimeout(()=>{if(!done){console.warn("App load watchdog tripped — forcing past loading screen");setLoading(false);}},12000);
+    // Race any promise against a per-call timeout so a single hung
+    // request can't pin the whole boot for 12 s. Returns the promise's
+    // result on success, or null on timeout / rejection so callers can
+    // proceed gracefully (and the user can sign in / retry).
+    const withTimeout=(p,ms)=>Promise.race([
+      Promise.resolve(p).catch(()=>null),
+      new Promise(r=>setTimeout(()=>r(null),ms)),
+    ]);
     (async()=>{
       try{
-        let s=await sb.auth.handleCallback();
-        if(!s)s=await sb.auth.getSession();
+        let s=await withTimeout(sb.auth.handleCallback(),6000);
+        if(!s)s=await withTimeout(sb.auth.getSession(),4000);
         if(s){
           setSession(s);
           try{
-            let p=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user?.id}`,token:s.access_token});
+            let p=await withTimeout(sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user?.id}`,token:s.access_token}),5000)||[];
             if(p.length===0 && s.user?.email){
               const emailProf=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`email=eq.${s.user.email}`,token:s.access_token}).catch(()=>[]);
               if(emailProf.length>0){

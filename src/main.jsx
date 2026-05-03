@@ -61,8 +61,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 // SW takes control after an update, soft-reload once so the page picks
 // up the freshly-deployed bundle without requiring a hard refresh.
 if ('serviceWorker' in navigator) {
+  // Aggressively clear ALL old caches — v3 cached authenticated
+  // Supabase responses which can hang the boot. The new SW (v4) skips
+  // Supabase entirely; nuking every legacy cache here too belt-and-
+  // braces protects users still holding a stale v3 cache from a
+  // previous deploy before the new SW finishes activating.
   caches.keys().then(keys =>
-    keys.forEach(k => { if (k !== 'tabby-pulse-v3') caches.delete(k); })
+    keys.forEach(k => { if (k !== 'tabby-pulse-v4') caches.delete(k); })
   );
 
   let reloading = false;
