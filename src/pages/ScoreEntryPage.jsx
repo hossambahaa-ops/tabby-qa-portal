@@ -552,9 +552,47 @@ function ScoreEntryPage(){
       </div>
     </div>
 
-    {sorted.length === 0 ? (
-      <div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No MTD data for {selMonth}. Check that the Google Sheet sync is running.</p></div></div>
-    ) : (
+    {sorted.length === 0 ? (() => {
+      // Distinguish between "no data synced at all" and "filtered down
+      // to nothing" so the user knows whether to clear filters or
+      // wait for the next sync. Lead/Domain/Team/Specialist counts
+      // are the user's filter signals; tableSearch is the inline one.
+      const hasFilter =
+        (selQA && selQA.length > 0) ||
+        !!selTL ||
+        !!selDomain ||
+        !!selTeam ||
+        (tableSearch && tableSearch.trim().length > 0);
+      const clearAll = () => {
+        setSelQA([]); setSelTL(""); setSelDomain(""); setSelTeam(""); setTableSearch("");
+      };
+      return (
+        <div className="card"><div className="placeholder" style={{padding:"56px 24px",textAlign:"center"}}>
+          {hasFilter ? <>
+            <div style={{fontSize:36,marginBottom:10}}>🔍</div>
+            <h3 style={{fontSize:15,fontWeight:700,color:"var(--tx)",marginBottom:6}}>No matching records</h3>
+            <p style={{color:"var(--tx3)",fontSize:13,maxWidth:340,margin:"0 auto 18px"}}>
+              {selMonth} has data, but nothing matches your current filters
+              {(selQA?.length>0||selTL||selDomain||selTeam||tableSearch?` (${[
+                selQA?.length>0&&`${selQA.length} specialist${selQA.length>1?"s":""}`,
+                selTL&&`lead: ${nameFromEmail(selTL)}`,
+                selDomain&&`domain: ${selDomain}`,
+                selTeam&&`team: ${selTeam}`,
+                tableSearch?.trim()&&`search: "${tableSearch.trim()}"`,
+              ].filter(Boolean).join(" · ")})`:""}
+              . Try clearing one or all of them.
+            </p>
+            <button className="btn btn-primary btn-sm" onClick={clearAll}>Clear all filters</button>
+          </> : <>
+            <div style={{fontSize:36,marginBottom:10}}>📭</div>
+            <h3 style={{fontSize:15,fontWeight:700,color:"var(--tx)",marginBottom:6}}>No data for {selMonth}</h3>
+            <p style={{color:"var(--tx3)",fontSize:13,maxWidth:340,margin:"0 auto"}}>
+              The Google Sheet hasn't synced data for this month yet. Try a different month, or wait for the next hourly sync.
+            </p>
+          </>}
+        </div></div>
+      );
+    })() : (
       <div className="card">
         <div className="card-header">
           <span className="card-title">{selMonth} — {sorted.length} specialists</span>
