@@ -318,7 +318,7 @@ function DashboardPage(){
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Team avg score<HelpTip text={`Average MTD score across your active team for ${selMonth||"the latest month"}. Out of ${maxScore} pts. Green ≥ 80%, amber 50–80%, red < 50%.`}/></div>
+          <div className="stat-label">Team avg score<HelpTip text={`Average MTD score across your active team for ${latestMonth||"the latest month"}. Out of ${maxScore} pts. Green ≥ 80%, amber 50–80%, red < 50%.`}/></div>
           <ProgressRing value={teamAvgScore} max={maxScore} size={56} stroke={5}
             color={scoreColor(teamAvgScore)}
             label={teamAvgScore.toFixed(1)}
@@ -486,7 +486,7 @@ function DashboardPage(){
     {myData&&(isLead||hasRole(profile?.role,"qa_supervisor"))?<>
       <div className="stats-grid">
         <div className="stat-card">
-          <div className="stat-label">My score<HelpTip text={`Your MTD performance score for ${selMonth||"the latest month"} — combined CSAT, DSAT, productivity & coaching. Out of ${maxScore} pts.`}/></div>
+          <div className="stat-label">My score<HelpTip text={`Your MTD performance score for ${latestMonth||"the latest month"} — combined CSAT, DSAT, productivity & coaching. Out of ${maxScore} pts.`}/></div>
           <ProgressRing value={myData?getScore(myData):0} max={maxScore} size={56} stroke={5}
             color={scoreColor(myData?getScore(myData):0)}
             label={myData?getScore(myData).toFixed(1):"0"}
