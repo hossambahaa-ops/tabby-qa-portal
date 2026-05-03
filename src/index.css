@@ -1364,16 +1364,54 @@ label, summary, select {
     padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
   }
 
-  /* On mobile the sidebar slides in on demand — collapse by default */
-  .sidebar:not(.open) {
-    transform: translateX(-100%) !important;
+  /* ── Sidebar: fixed overlay so it never eats layout width ── */
+  /* position:fixed removes it from the flex flow entirely, so          */
+  /* main-content gets full viewport width instead of (vw - 260px).    */
+  .sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    height: 100%;
+    z-index: 55;
+    transform: translateX(-100%);
+    transition: transform .28s var(--ease);
+    /* full-width panel, never collapsed on mobile */
+    width: var(--sidebar-w) !important;
   }
   .sidebar.open {
     transform: translateX(0) !important;
-    box-shadow: 4px 0 32px rgba(0,0,0,.5);
+    box-shadow: 6px 0 40px rgba(0,0,0,.55);
   }
-  /* Restore full width when expanded on mobile */
-  .sidebar.collapsed:not(.open) {
-    transform: translateX(-100%) !important;
+
+  /* Always show page names in the mobile sidebar regardless of
+     the desktop collapsed-state the user may have saved.         */
+  .sidebar .nav-item-label,
+  .sidebar .sidebar-section,
+  .sidebar .sidebar-tag,
+  .sidebar .sidebar-user,
+  .sidebar .sidebar-logout {
+    display: block !important;
   }
+  .sidebar .nav-item {
+    justify-content: flex-start !important;
+    padding: 10px 14px !important;
+  }
+  /* Hide the collapse toggle — pointless on mobile */
+  .sidebar .sidebar-toggle { display: none !important; }
+  .sidebar .sidebar-header {
+    justify-content: flex-start !important;
+    gap: 12px;
+  }
+
+  /* Main content: full viewport width, no horizontal bleed */
+  .main-content {
+    width: 100% !important;
+    max-width: 100vw !important;
+    overflow-x: hidden;
+  }
+  .app-layout { overflow-x: hidden; }
+
+  /* Inner pages: tighter horizontal padding on phones */
+  .page { padding: 16px !important; max-width: 100% !important; }
 }
