@@ -46,6 +46,30 @@ function CoachingViolationsPage() {
     }).filter(Boolean).join(" ");
   };
 
+  // Delete a single violation (admin / super_admin only — gated by DB
+  // policy cv_delete + the UI button visibility below). Wrapped in the
+  // shared confirm dialog so the destructive action follows the same
+  // "Cancel | Delete" convention as everywhere else in the app.
+  // Strict super_admin only — regular admins cannot delete violations.
+  const isSuperAdmin = profile?.role === "super_admin";
+  const deleteViolation = (v) => {
+    confirmAsk(
+      "Delete violation?",
+      `Permanently delete this ${v.violation_type} violation for ${(v.qa_emails || "").split("\n").map(e => nameFromEmail(e)).filter(Boolean).join(", ") || "this QA"}? This cannot be undone.`,
+      async () => {
+        try {
+          await sb.query("coaching_violations", { token, method: "DELETE", filters: `id=eq.${v.id}` });
+          logActivity(token, profile?.email, "violation_deleted", "coaching_violations", v.id, `Type: ${v.violation_type}, QA: ${v.qa_emails}`);
+          dataCache.invalidate();
+          await load();
+          globalToast("success", "Violation deleted");
+        } catch (e) { globalToast("error", safeError(e)); }
+      },
+      "Delete",
+      "var(--red)"
+    );
+  };
+
   const load = useCallback(async () => {
     try {
       const [v, p, r] = await Promise.all([
@@ -238,6 +262,7 @@ function CoachingViolationsPage() {
               <th>Violation</th>
               <th>Date</th>
               <th>Link</th>
+              {isSuperAdmin && <th style={{width:48,textAlign:"center"}}>—</th>}
             </tr></thead>
             <tbody>
               {pendingV.map(v => {
@@ -273,6 +298,11 @@ function CoachingViolationsPage() {
                         }}>Copy</button>
                       </div>
                     </td>
+                    {isSuperAdmin && <td style={{textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+                      <button title="Delete violation" aria-label="Delete violation" onClick={()=>deleteViolation(v)} style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:6,color:"var(--tx3)",lineHeight:0,transition:"background .15s, color .15s"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--red)";e.currentTarget.style.background="var(--red-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                      </button>
+                    </td>}
                   </tr>
                 );
               })}
@@ -295,6 +325,7 @@ function CoachingViolationsPage() {
               <th>Reviewed by</th>
               <th>Notes</th>
               <th>Date</th>
+              {isSuperAdmin && <th style={{width:48,textAlign:"center"}}>—</th>}
             </tr></thead>
             <tbody>
               {reviewedV.map(v => {
@@ -323,6 +354,11 @@ function CoachingViolationsPage() {
                     <td style={{ fontSize: 12, color: "var(--tx2)" }}>
                       {v.reviewed_at ? new Date(v.reviewed_at).toLocaleDateString("en-GB", { month: "short", day: "numeric" }) : "—"}
                     </td>
+                    {isSuperAdmin && <td style={{textAlign:"center"}} onClick={e=>e.stopPropagation()}>
+                      <button title="Delete violation" aria-label="Delete violation" onClick={()=>deleteViolation(v)} style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:6,color:"var(--tx3)",lineHeight:0,transition:"background .15s, color .15s"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--red)";e.currentTarget.style.background="var(--red-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}>
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+                      </button>
+                    </td>}
                   </tr>
                 );
               })}
