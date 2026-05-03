@@ -91,7 +91,7 @@ function DashboardPage(){
 
   return(<div className="page">
     {/* Admin/Supervisor action bar */}
-    {(hasRole(profile?.role,"super_admin")||canAnnounce)&&<div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8}}>
+    {(hasRole(profile?.role,"super_admin")||canAnnounce)&&<div className="dashboard-action-bar" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
       <FreshnessBadge ts={freshness} pulseKey={syncPulse} />
       <div style={{display:"flex",gap:8}}>
       {canAnnounce&&<button className="btn btn-outline btn-sm" onClick={()=>setShowAnnForm(!showAnnForm)} style={{fontSize:12}}>

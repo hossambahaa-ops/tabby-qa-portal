@@ -1442,6 +1442,74 @@ label, summary, select {
 
   /* ── Sidebar mobile footer: sign-out + dark-mode toggle ── */
   .sidebar-mobile-footer { display: flex !important; }
+
+  /* ─────────────────────────────────────────────────────── */
+  /* Dashboard / page content: tame inline grids & flex rows  */
+  /* that were laid out for desktop and overflow on phones.   */
+  /* ─────────────────────────────────────────────────────── */
+
+  /* Any inline 4-column grid → 2 cols on mobile (Needs-your-attention) */
+  [style*="grid-template-columns: repeat(4"],
+  [style*="gridTemplateColumns:repeat(4"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  /* Inline 5-column grid → 3 cols, items shrink to fit (Today's activity) */
+  [style*="grid-template-columns: repeat(5"],
+  [style*="gridTemplateColumns:repeat(5"] {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    row-gap: 14px;
+  }
+  /* Inline 3-column grid → 1 col on phones */
+  [style*="grid-template-columns: repeat(3"],
+  [style*="gridTemplateColumns:repeat(3"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Card header: wrap so right-side toolbars (View toggles, "+ New
+     task" buttons, etc.) drop to a new row instead of overflowing */
+  .card-header {
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .card-header > * { min-width: 0; max-width: 100%; }
+
+  /* Dashboard top action bar: FreshnessBadge + Send announcement +
+     Refresh live — let buttons fall to a second line cleanly */
+  .dashboard-action-bar { flex-wrap: wrap !important; row-gap: 8px; }
+  .dashboard-action-bar > * { min-width: 0; }
+
+  /* Stats grid (CSS Grid auto-fit): keep 2 columns on phones so cards
+     don't shrink to unreadable widths */
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 12px;
+  }
+
+  /* Global filter bar: tighter padding & gap so chips actually fit */
+  .global-filter-bar,
+  div[style*="border-bottom"][style*="var(--bd2)"][style*="flex-wrap"] {
+    padding: 8px 12px !important;
+    gap: 6px !important;
+  }
+
+  /* Welcome banner / hero-card header: let multi-button row wrap */
+  .card > div[style*="justify-content: space-between"][style*="flex-wrap"] {
+    flex-wrap: wrap !important;
+  }
+
+  /* Cards: remove forced inner-padding that bleeds wide on phones */
+  .card { padding: 16px !important; }
+
+  /* Any direct child of .page that uses flex with space-between
+     should wrap — common pattern for "title | actions" rows */
+  .page > div[style*="display: flex"][style*="space-between"] {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  /* Long words/emails inside cards: break instead of pushing overflow */
+  .card, .card * { word-break: break-word; overflow-wrap: anywhere; }
 }
 
 /* ── Sidebar mobile footer — hidden on desktop ── */
