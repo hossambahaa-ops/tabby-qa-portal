@@ -165,12 +165,19 @@ export const dataCache = {
       const stale = Date.now() - entry.ts > this._ttl;
       if (stale) {
         // Return stale data immediately; refresh silently in the background.
-        queryFn().then(data => this.set(key, data)).catch(() => {});
+        // Promise.resolve coerces the result so a non-Promise return from
+        // queryFn (or a sync throw) cannot crash with "reading 'catch' of
+        // undefined" / "reading 'then' of undefined".
+        try {
+          Promise.resolve(queryFn())
+            .then(data => this.set(key, data))
+            .catch(() => {});
+        } catch { /* queryFn threw synchronously — swallow */ }
       }
       return entry.data;
     }
     // Nothing cached — wait for fresh data.
-    const data = await queryFn();
+    const data = await Promise.resolve(queryFn());
     this.set(key, data);
     return data;
   }
