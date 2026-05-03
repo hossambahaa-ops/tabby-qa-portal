@@ -658,8 +658,6 @@ function QAProfilePage() {
         </div>
       </div>
 
-      {/* Evaluation History — on-demand */}
-      {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} />}
       </>}
 
       {/* ── MONTHLY PERFORMANCE TAB ── */}
@@ -757,6 +755,9 @@ function QAProfilePage() {
 
         {/* Expertise — admin-only pilot. CSAT-driven topic mastery, follows the same selected month. Full-width below. */}
         {hasRole(profile?.role, "admin") && <ExpertiseProfileCard qaEmail={selectedQA} month={selMonth || latestMtd?.month} />}
+
+        {/* Evaluation History — moved into Monthly performance review */}
+        {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} />}
       </>}
     </div>
   );
