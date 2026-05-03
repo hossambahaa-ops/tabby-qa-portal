@@ -14,6 +14,7 @@ import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import LeaderboardCompareTable from "../components/leaderboard/LeaderboardCompareTable.jsx";
 import EmptyState from "../components/EmptyState.jsx";
+import Badges from "../components/Badges.jsx";
 
 function LeaderboardPage() {
   const{token,profile,gf,globalToast}=useApp();
@@ -123,6 +124,26 @@ function LeaderboardPage() {
       setLoading(false);
     })();
   }, [token]);
+
+  // Prefetch all earned badges in ONE query so the per-row <Badges>
+  // components can render off props (no N+1 fetches per QA).
+  const [allBadges, setAllBadges] = useState([]);
+  useEffect(() => {
+    if (!token) return;
+    sb.query("qa_badges_v", { select: "qa_email,badge_key,tier,month", filters: "order=month.desc", token })
+      .then(rows => setAllBadges(Array.isArray(rows) ? rows : []))
+      .catch(() => setAllBadges([]));
+  }, [token]);
+  // Group by lowercased email for O(1) lookup
+  const badgesByEmail = React.useMemo(() => {
+    const m = {};
+    for (const b of allBadges) {
+      const e = b.qa_email?.toLowerCase();
+      if (!e) continue;
+      (m[e] = m[e] || []).push(b);
+    }
+    return m;
+  }, [allBadges]);
 
 
   const monthData = data.filter(r => r.month === selMonth);
@@ -523,7 +544,14 @@ function LeaderboardPage() {
                       </button>
                     );})()}
                     <div style={{width:34,height:34,borderRadius:"50%",flexShrink:0,background:"var(--primary-light)",color:"var(--tabby-purple-light,var(--accent-text))",display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,border:"2px solid var(--bd2)"}}>{initialsFromEmail(r.qa_email)}</div>
-                    <div><div style={{fontWeight:600,fontSize:13.5,letterSpacing:"-.2px"}}>{nameFromEmail(r.qa_email)}</div><div style={{fontSize:11,color:"var(--tx3)"}}>{r.qa_email}</div></div>
+                    <div style={{minWidth:0,flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
+                        <span style={{fontWeight:600,fontSize:13.5,letterSpacing:"-.2px"}}>{nameFromEmail(r.qa_email)}</span>
+                        {/* Top 3 medals only — keeps the row compact */}
+                        <Badges qaEmail={r.qa_email} compact max={3} prefetched={badgesByEmail[r.qa_email?.toLowerCase()] || []}/>
+                      </div>
+                      <div style={{fontSize:11,color:"var(--tx3)"}}>{r.qa_email}</div>
+                    </div>
                   </div></td>
                   <td style={{fontSize:13,color:"var(--tx2)"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
                   {kpis.map(k => (

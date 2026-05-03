@@ -11,6 +11,7 @@ import { useFreshness } from "../lib/useFreshness.js";
 import FreshnessBadge from "../components/FreshnessBadge.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import ExpertiseProfileCard from "../components/ExpertiseProfileCard.jsx";
+import Badges from "../components/Badges.jsx";
 import { ATT_MAP } from "../lib/attendance.js";
 
 // Safe render: prevent objects/arrays from crashing React
@@ -276,6 +277,11 @@ function QAProfilePage() {
                   {qa?.manager_email && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--green-bg)",color:"var(--green)",fontWeight:600}}>Lead: {nameFromEmail(qa.manager_email)}</span>}
                   {tenureText && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--bg3)",color:"var(--tx3)",fontWeight:600}} title={`Joined ${new Date(startStr).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}`}>📅 {tenureText} tenure</span>}
                   {todayCode && todayType && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:todayType.bg,color:todayType.color,fontWeight:700,border:`1px solid ${todayType.color}40`}} title={`Today: ${todayType.label}${todayPending?" (pending approval)":""}`}>Today: {todayCode}{todayPending?" ⏳":""}</span>}
+                </div>
+                {/* Earned badges — celebrate=true fires a toast the first
+                    time a QA sees a freshly earned badge on their own profile */}
+                <div style={{marginTop:10}}>
+                  <Badges qaEmail={selectedQA} celebrate={selectedQA?.toLowerCase() === myEmail} />
                 </div>
               </div>
             </div>
