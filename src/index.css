@@ -1264,3 +1264,116 @@ html:not(.dark) .sidebar-logout:hover {
   background: var(--bg2);
   color: var(--tx);
 }
+
+/* ═══════════════════════════════════════════════════════ */
+/* ══ MOBILE OPTIMIZATIONS                              ══ */
+/* ═══════════════════════════════════════════════════════ */
+
+/* ── Batch 1: Quick wins ── */
+
+/* Eliminate 300ms tap delay and visible tap highlight on all interactive els */
+button, a, [role="button"], .nav-item, .btn,
+input[type="button"], input[type="submit"], input[type="reset"],
+label, summary, select {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 768px) {
+  /* iOS / Android: min 44px touch target for every tappable element */
+  .btn, .nav-item, .notif-btn, .tab, .tab-btn, .search-result {
+    min-height: 44px;
+  }
+
+  /* Prevent iOS from zooming in when an input is focused (≥16px rule) */
+  input, select, textarea,
+  .form-input, .input, .select {
+    font-size: max(16px, 1em) !important;
+  }
+
+  /* Give modals full-width treatment and cap height on small screens */
+  [role="dialog"] > div {
+    width: calc(100vw - 32px) !important;
+    margin: 16px !important;
+    max-height: 85vh !important;
+    overflow-y: auto !important;
+    border-radius: var(--radius-lg) !important;
+  }
+
+  /* Responsive tables: horizontal scroll with momentum */
+  .table-wrap, .overflow-x-auto {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Push topbar icon buttons up to 44px */
+  .notif-btn { min-width: 44px; min-height: 44px; }
+}
+
+/* ── Batch 4: Bottom navigation bar ── */
+.mobile-bottom-nav {
+  display: none; /* desktop: hidden */
+}
+
+@media (max-width: 768px) {
+  /* Show bar */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 60px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--sidebar-bg);
+    border-top: 1px solid rgba(255,255,255,.07);
+    box-shadow: 0 -4px 24px rgba(0,0,0,.35);
+    z-index: 60;
+  }
+
+  .mobile-bottom-nav-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    border: none;
+    background: none;
+    color: rgba(255,255,255,.38);
+    font-family: var(--font);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: .1px;
+    cursor: pointer;
+    padding: 0;
+    transition: color .15s var(--ease), transform .15s var(--ease);
+  }
+  .mobile-bottom-nav-item.active {
+    color: var(--tabby-green);
+  }
+  .mobile-bottom-nav-item:active {
+    transform: scale(.88);
+  }
+  html:not(.dark) .mobile-bottom-nav {
+    background: #1E1A28;
+  }
+
+  /* Pad page content so it isn't hidden behind the bar */
+  .main-content > .page-animate {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* On mobile the sidebar slides in on demand — collapse by default */
+  .sidebar:not(.open) {
+    transform: translateX(-100%) !important;
+  }
+  .sidebar.open {
+    transform: translateX(0) !important;
+    box-shadow: 4px 0 32px rgba(0,0,0,.5);
+  }
+  /* Restore full width when expanded on mobile */
+  .sidebar.collapsed:not(.open) {
+    transform: translateX(-100%) !important;
+  }
+}

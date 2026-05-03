@@ -94,6 +94,7 @@ function AppInner(){
   const[feedbackForm,setFeedbackForm]=useState({category:"general",message:"",rating:0});
   const[feedbackSending,setFeedbackSending]=useState(false);
   const[feedbackSent,setFeedbackSent]=useState(false);
+  const[isMobile,setIsMobile]=useState(()=>typeof window!=="undefined"&&window.innerWidth<768);
   const setPage=(p)=>navigate("/"+p);
   // Global runtime error capture → Supabase public.client_errors
   useEffect(() => {
@@ -429,6 +430,9 @@ function AppInner(){
     return unsub;
   },[profile?.email,userRole]);
 
+  // Responsive mobile detection — reactive to orientation changes / resizes
+  useEffect(()=>{const check=()=>setIsMobile(window.innerWidth<768);window.addEventListener("resize",check);return()=>window.removeEventListener("resize",check);},[]);
+
   if(loading)return<div className="loading-fullscreen">
     <TabbyPulseWordmark height={56} uid="tpw-loading" style={{color:"#fff",marginTop:8}}/>
     <p style={{marginTop:6,color:"rgba(255,255,255,.35)",fontSize:12,letterSpacing:"2px",textTransform:"uppercase"}}>QA Performance & Analytics</p>
@@ -459,6 +463,20 @@ function AppInner(){
   });let curSec=null;
   const guardRole=(role,component,fallbackProps)=>hasRole(userRole,role)?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
   const appCtx={token:session?.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast};
+
+  // ── Block QA / senior_qa roles on mobile devices ──
+  // They must use a desktop browser. Leads and admins may use mobile.
+  if(isMobile&&profile&&(userRole==="qa"||userRole==="senior_qa"))return(
+    <div style={{minHeight:"100vh",background:"var(--sidebar-bg)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"32px",textAlign:"center",gap:0}}>
+      <div style={{fontSize:52,marginBottom:12,lineHeight:1}}>🖥️</div>
+      <TabbyPulseWordmark height={38} uid="tpw-desktop-only" style={{color:"#fff",marginBottom:20}}/>
+      <h2 style={{color:"#fff",fontSize:20,fontWeight:700,letterSpacing:"-.3px",marginBottom:8,lineHeight:1.3}}>Desktop Only</h2>
+      <p style={{color:"rgba(255,255,255,.48)",fontSize:14,lineHeight:1.65,maxWidth:270,marginBottom:28}}>Tabby Pulse is optimised for desktop use. Please open it on your laptop or PC.</p>
+      <p style={{color:"rgba(255,255,255,.3)",fontSize:12,marginBottom:20}}>Signed in as&nbsp;<strong style={{color:"rgba(255,255,255,.55)"}}>{profile?.display_name||profile?.email}</strong></p>
+      <button onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{padding:"10px 28px",borderRadius:12,border:"1px solid rgba(255,255,255,.14)",background:"rgba(255,255,255,.07)",color:"rgba(255,255,255,.65)",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",touchAction:"manipulation",WebkitTapHighlightColor:"transparent"}}>Sign out</button>
+    </div>
+  );
+
   return(<AppContext.Provider value={appCtx}><div className="app-layout">
     <div className={`mobile-overlay ${sidebarOpen?"open":""}`} onClick={()=>setSidebarOpen(false)}/>
     <aside className={`sidebar ${sidebarOpen?"open":""} ${sidebarCollapsed?"collapsed":""}`}>
@@ -763,6 +781,21 @@ function AppInner(){
         </div>
       }
     </div>}
+
+    {/* ═══ MOBILE BOTTOM NAV — only visible on mobile (≤768px) via CSS ═══ */}
+    <nav className="mobile-bottom-nav" role="navigation" aria-label="Bottom navigation">
+      {[
+        {key:"dashboard",label:"Home",icon:icons.dashboard},
+        {key:"profile",label:"Profile",icon:icons.hr},
+        {key:"schedule",label:"Schedule",icon:icons.coaching},
+        hasRole(userRole,"admin")?{key:"admin",label:"Admin",icon:icons.settings}:hasRole(userRole,"qa_lead")?{key:"quality",label:"Quality",icon:icons.dam}:{key:"leaderboard",label:"Rank",icon:icons.leaderboard},
+      ].map(item=>(
+        <button key={item.key} className={`mobile-bottom-nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}}>
+          <Icon d={item.icon} size={20}/>
+          <span>{item.label}</span>
+        </button>
+      ))}
+    </nav>
 
     </div>
   </div></AppContext.Provider>);
