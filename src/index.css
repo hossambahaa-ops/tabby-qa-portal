@@ -1508,8 +1508,29 @@ label, summary, select {
     row-gap: 8px;
   }
 
-  /* Long words/emails inside cards: break instead of pushing overflow */
-  .card, .card * { word-break: break-word; overflow-wrap: anywhere; }
+  /* Long words/emails: break only on standalone paragraphs / spans, never
+     inside tables (it shreds names/emails into one character per line) */
+  .card > p, .card > div > p, .card > span,
+  .welcome-banner, .welcome-banner * { overflow-wrap: anywhere; }
+
+  /* Tables inside cards: scroll horizontally instead of squishing.
+     min-width on the table itself ensures cells stay readable; the
+     wrapper handles momentum scroll on iOS. */
+  .card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .card > table,
+  .card .table-wrap > table,
+  table.data-table {
+    min-width: max-content;
+    width: max-content;
+  }
+  /* Reset cell wrapping the desktop CSS may have set */
+  table td, table th {
+    white-space: nowrap;
+    word-break: normal !important;
+    overflow-wrap: normal !important;
+  }
+  /* Visible scroll hint on the right edge of any scrollable card */
+  .card { scroll-snap-type: x proximity; }
 }
 
 /* ── Sidebar mobile footer — hidden on desktop ── */
@@ -1551,3 +1572,61 @@ label, summary, select {
 /* Light mode sidebar footer text */
 html:not(.dark) .sidebar-mobile-btn { color: var(--tx2); }
 html:not(.dark) .sidebar-mobile-btn:hover { background: var(--bg2); color: var(--tx); }
+
+/* User info card at top of mobile sidebar footer */
+.sidebar-mobile-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 12px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+.sidebar-mobile-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.sidebar-mobile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.sidebar-mobile-user-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+.sidebar-mobile-user-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,.92);
+  letter-spacing: -.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sidebar-mobile-user-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.sidebar-mobile-user-meta .role-badge {
+  font-size: 9px;
+  padding: 1px 7px;
+}
+.sidebar-mobile-user-domain {
+  font-size: 10px;
+  color: rgba(255,255,255,.45);
+  font-weight: 500;
+}
+/* Light-mode overrides */
+html:not(.dark) .sidebar-mobile-user { border-bottom-color: var(--bd2); }
+html:not(.dark) .sidebar-mobile-user-name { color: var(--tx); }
+html:not(.dark) .sidebar-mobile-user-domain { color: var(--tx3); }

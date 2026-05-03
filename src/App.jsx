@@ -513,8 +513,23 @@ function AppInner(){
           </div>
         );
       })()}
-      {/* Mobile-only footer: dark mode + sign out (topbar versions hidden on mobile) */}
+      {/* Mobile-only footer: user info + dark mode + sign out
+          (topbar versions are hidden on mobile to save space) */}
       <div className="sidebar-mobile-footer">
+        <div className="sidebar-mobile-user">
+          <div className="sidebar-mobile-avatar">
+            {profile?.avatar_url
+              ? <img src={profile.avatar_url} alt=""/>
+              : <span style={{...avatarStyle(profile?.email),display:"inline-flex",alignItems:"center",justifyContent:"center",width:"100%",height:"100%",borderRadius:"50%",fontSize:13,fontWeight:700}}>{initialsForAvatar(profile?.email)||"U"}</span>}
+          </div>
+          <div className="sidebar-mobile-user-info">
+            <div className="sidebar-mobile-user-name">{safe(profile?.display_name)||"User"}</div>
+            <div className="sidebar-mobile-user-meta">
+              <span className={`role-badge role-${viewAsRole||profile?.role}`}>{safe(ROLE_LABELS[viewAsRole||profile?.role])||"QA"}</span>
+              <span className="sidebar-mobile-user-domain">{safe(profile?.domain)}</span>
+            </div>
+          </div>
+        </div>
         <button className="sidebar-mobile-btn" onClick={()=>setDarkMode(!darkMode)}>
           <Icon d={darkMode?"M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z":"M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"} size={16}/>
           <span>{darkMode?"Light mode":"Dark mode"}</span>
