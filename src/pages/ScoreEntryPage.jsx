@@ -36,6 +36,11 @@ function ScoreEntryPage(){
   const [uploadPreview, setUploadPreview] = useState([]);
   const [uploadFile, setUploadFile] = useState(null);
   const [selectedRows, setSelectedRows] = useState(new Set());
+  // Refresh-live: triggers the mtd-sync edge function on demand and
+  // re-loads the table after it finishes. reloadKey is included in the
+  // data-load useEffect's deps so bumping it forces a fresh fetch.
+  const [refreshing, setRefreshing] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const ctxMenu = useRowContextMenu();
   // Click-to-sort on the By QA table. Default = performance descending,
   // matching the previous static sort. Two-state cycle: desc ↔ asc.
@@ -124,7 +129,7 @@ function ScoreEntryPage(){
       } catch (e) { console.error("MTD Scores:", e); }
       setLoading(false);
     })();
-  }, [token, gf?.domain, gf?.month, gf?.teams]);
+  }, [token, gf?.domain, gf?.month, gf?.teams, reloadKey]);
 
   const nameFromEmail = (email) => {
     if (!email) return "—";
@@ -459,6 +464,36 @@ function ScoreEntryPage(){
           <div className="page-title">MTD Scores</div>
           <div className="page-subtitle">MTD performance data — synced from Metabase hourly</div>
         </div>
+        {/* Refresh live — pulls the latest MTD CSV from Google Sheets via
+            the mtd-sync edge function, then reloads the table. Visible to
+            qa_lead+ only since it triggers a server-side sync. */}
+        {hasRole(profile?.role,"qa_lead")&&<button className="btn btn-outline btn-sm" disabled={refreshing} onClick={async()=>{
+          if (refreshing) return;
+          setRefreshing(true);
+          try {
+            const r = await fetch(`${SUPABASE_URL}/functions/v1/mtd-sync`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
+              body: JSON.stringify({}),
+            });
+            const data = await r.json().catch(() => ({}));
+            if (!r.ok || data?.error) {
+              globalToast("error", `Sync failed — ${data?.error || `HTTP ${r.status}`}`);
+            } else {
+              dataCache?.invalidate?.();
+              setReloadKey(k => k + 1);
+              const upserted = data?.rows_upserted ?? "?";
+              globalToast("success", `Synced ${upserted} row${upserted===1?"":"s"} — refreshing…`);
+            }
+          } catch (e) {
+            globalToast("error", `Sync failed — ${e?.message || "network error"}`);
+          }
+          setRefreshing(false);
+        }} title="Pull the latest MTD data from the Google Sheet" style={{fontSize:12,marginLeft:8,display:"flex",alignItems:"center",gap:6}}>
+          {refreshing
+            ? <><div className="spinner" style={{width:12,height:12,borderWidth:2}}/>Refreshing…</>
+            : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh live</>}
+        </button>}
         {isUploadAllowed&&<button className="btn btn-outline btn-sm" onClick={()=>{resetUpload();setShowUpload(true);loadUploadLogs();}} style={{fontSize:12,marginLeft:8}}>
           <Icon d={icons.upload} size={14}/>Upload data
         </button>}
