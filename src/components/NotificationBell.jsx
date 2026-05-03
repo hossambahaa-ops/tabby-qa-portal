@@ -219,6 +219,70 @@ function NotificationBell({ onNavigate }) {
 
   const visible = items.filter(i => !dismissed.includes(i.id));
   const count = visible.length;
+
+  // ── Digest aggregation ──────────────────────────────────────────
+  // When 4+ notifications of the same type pile up (e.g. 8 pending
+  // attendance approvals after a long weekend), collapse them into a
+  // single roll-up tile to cut the noise. Low-frequency types stay
+  // individual so single events keep their per-item context.
+  const DIGEST_TYPES_TO_GROUP = ["attendance", "violation", "dam", "task", "plan", "error"];
+  const TYPE_LABELS = {
+    attendance: "attendance request",
+    violation: "violation",
+    dam: "DAM flag",
+    task: "open task",
+    plan: "plan ending soon",
+    error: "runtime error",
+  };
+  const TYPE_PAGE = {
+    attendance: { page: "schedule" },
+    violation: { page: "quality", qcTab: "violations" },
+    dam: { page: "quality", qcTab: "dam" },
+    task: { page: "dashboard" },
+    plan: { page: "quality", qcTab: "plans" },
+    error: { page: "admin", adminTab: "errors" },
+  };
+  const visibleByType = visible.reduce((acc, it) => {
+    (acc[it.type] = acc[it.type] || []).push(it); return acc;
+  }, {});
+  const visibleAggregated = (() => {
+    const out = [];
+    const handled = new Set();
+    for (const it of visible) {
+      if (handled.has(it.id)) continue;
+      const group = visibleByType[it.type] || [];
+      if (DIGEST_TYPES_TO_GROUP.includes(it.type) && group.length >= 4) {
+        if (!handled.has("digest-" + it.type)) {
+          const oldest = group[group.length - 1];
+          const newest = group[0];
+          out.push({
+            id: "digest-" + it.type,
+            type: it.type,
+            title: `${group.length} ${TYPE_LABELS[it.type] || it.type}${group.length > 1 ? "s" : ""} pending`,
+            sub: `${(newest?.sub || "").split("·")[0].trim() || "Tap to review"} · oldest ${new Date(oldest.time).toLocaleDateString("en-GB",{month:"short",day:"numeric"})}`,
+            time: newest.time,
+            ...TYPE_PAGE[it.type],
+            __digestIds: group.map(g => g.id), // for bulk-dismiss
+          });
+          handled.add("digest-" + it.type);
+          group.forEach(g => handled.add(g.id));
+        }
+      } else {
+        out.push(it);
+        handled.add(it.id);
+      }
+    }
+    return out;
+  })();
+  const dismissDigest = (item) => {
+    if (item.__digestIds) {
+      const updated = [...new Set([...dismissed, ...item.__digestIds])];
+      setDismissed(updated);
+      localStorage.setItem("notif_dismissed", JSON.stringify(updated));
+    } else {
+      dismiss(item.id);
+    }
+  };
   const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" }, coaching: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, error: { bg: "var(--red-bg)", color: "var(--red)" }, attendance: { bg: "rgba(13,148,136,0.12)", color: "#0D9488" }, feature_release: { bg: "var(--green-bg)", color: "var(--green)" } };
 
   return (
@@ -239,20 +303,21 @@ function NotificationBell({ onNavigate }) {
         {visible.length === 0 && dismissed.length === 0 ? <div style={{ padding: 20, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>No notifications yet</div> :
           <>
             {visible.length === 0 && <div style={{ padding: 12, textAlign: "center", color: "var(--tx3)", fontSize: 12 }}>All caught up!</div>}
-            {visible.slice(0, 5).map(item => {
+            {visibleAggregated.slice(0, 5).map(item => {
               const tc = typeColor[item.type] || {};
-              return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8}}>
-                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); if(item.qcTab) setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:item.qcTab})),100); if(item.adminTab) setTimeout(()=>{const h=window.location.hash||"#/";const [b,q=""]=h.split("?");const p=new URLSearchParams(q);p.set("tab",item.adminTab);window.location.hash=`${b}?${p.toString()}`;},150); setOpen(false); dismiss(item.id); if(item.releaseKey) ackRelease({ token, userEmail: profile?.email, featureKey: item.releaseKey, via: "click" }); }}>
+              const isDigest = !!item.__digestIds;
+              return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8,background: isDigest ? "var(--bg)" : undefined}}>
+                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); if(item.qcTab) setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:item.qcTab})),100); if(item.adminTab) setTimeout(()=>{const h=window.location.hash||"#/";const [b,q=""]=h.split("?");const p=new URLSearchParams(q);p.set("tab",item.adminTab);window.location.hash=`${b}?${p.toString()}`;},150); if(item.type === "attendance" && isDigest) setTimeout(()=>{const h=window.location.hash||"#/";const [b,q=""]=h.split("?");const p=new URLSearchParams(q);p.set("tab","pending");window.location.hash=`${b}?${p.toString()}`;},150); setOpen(false); if(isDigest) dismissDigest(item); else dismiss(item.id); if(item.releaseKey) ackRelease({ token, userEmail: profile?.email, featureKey: item.releaseKey, via: "click" }); }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
-                    <span style={{ fontWeight: 500, fontSize: 12 }}>{safe(item.title)}</span>
+                    <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}{isDigest ? " ·"+item.__digestIds.length : ""}</span>
+                    <span style={{ fontWeight: isDigest ? 700 : 500, fontSize: 12 }}>{safe(item.title)}</span>
                   </div>
                   <div style={{ color: "var(--tx3)", fontSize: 11, marginTop: 2 }}>{safe(item.sub)} · {new Date(item.time).toLocaleDateString("en-GB", { month: "short", day: "numeric" })}</div>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); dismiss(item.id); if(item.releaseKey) ackRelease({ token, userEmail: profile?.email, featureKey: item.releaseKey, via: "dismiss" }); }} title="Dismiss" style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,padding:"2px",lineHeight:1,flexShrink:0,marginTop:2}}>×</button>
+                <button onClick={(e) => { e.stopPropagation(); if(isDigest) dismissDigest(item); else dismiss(item.id); if(item.releaseKey) ackRelease({ token, userEmail: profile?.email, featureKey: item.releaseKey, via: "dismiss" }); }} title={isDigest ? "Dismiss all" : "Dismiss"} style={{background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,padding:"2px",lineHeight:1,flexShrink:0,marginTop:2}}>×</button>
               </div>;
             })}
-            {visible.length > 5 && <div style={{padding:"8px 16px",textAlign:"center"}}><span style={{fontSize:11,color:"var(--accent-text)",cursor:"pointer",fontWeight:600}} onClick={()=>{}}>+{visible.length-5} more</span></div>}
+            {visibleAggregated.length > 5 && <div style={{padding:"8px 16px",textAlign:"center"}}><span style={{fontSize:11,color:"var(--accent-text)",cursor:"pointer",fontWeight:600}} onClick={()=>{}}>+{visibleAggregated.length-5} more</span></div>}
           </>
         }
         {/* Recent history + View All */}
