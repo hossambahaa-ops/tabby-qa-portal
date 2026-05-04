@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import ReactDOM from "react-dom";
 import { hasRole } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError } from "../lib/utils.js";
@@ -35,18 +36,170 @@ function areCellPropsEqual(p, n) {
   );
 }
 
+// CellPicker — rendered into a portal at document.body so it can't be
+// clipped by the table's overflow:auto container and can't visually
+// overlap an adjacent row. Position is computed from the anchor cell's
+// bounding rect, then clamped to the viewport so the picker is always
+// fully visible regardless of which date column the user clicked.
+function CellPicker({ anchorEl, em, dayNum, st, isQA, canApprove, pickerStage, pendingReason, onClose, onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage }) {
+  const PICKER_W = 220;   // a touch wider than before; codes never overlap text now
+  const PICKER_H_EST = 110; // rough height for clamping decisions
+
+  const [pos, setPos] = React.useState(() => computePos(anchorEl));
+  function computePos(el) {
+    if (!el) return { left: 0, top: 0, placement: "below" };
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2;
+    let left = Math.round(cx - PICKER_W / 2);
+    // Clamp horizontally so the picker is never clipped by the viewport edges.
+    const maxLeft = window.innerWidth - PICKER_W - 8;
+    if (left < 8) left = 8;
+    if (left > maxLeft) left = maxLeft;
+    // Default below the cell. If there's no room below, flip above.
+    let top = Math.round(r.bottom + 4);
+    let placement = "below";
+    if (top + PICKER_H_EST > window.innerHeight && r.top - PICKER_H_EST > 8) {
+      top = Math.round(r.top - PICKER_H_EST - 4);
+      placement = "above";
+    }
+    return { left, top, placement };
+  }
+
+  // Reposition on scroll/resize so the picker tracks the cell.
+  React.useEffect(() => {
+    if (!anchorEl) return;
+    const onChange = () => setPos(computePos(anchorEl));
+    window.addEventListener("scroll", onChange, true);
+    window.addEventListener("resize", onChange);
+    return () => {
+      window.removeEventListener("scroll", onChange, true);
+      window.removeEventListener("resize", onChange);
+    };
+  }, [anchorEl]);
+
+  // Outside click → close.
+  const ref = React.useRef(null);
+  React.useEffect(() => {
+    const onDown = (e) => {
+      if (!ref.current) return;
+      if (ref.current.contains(e.target)) return;
+      if (anchorEl && anchorEl.contains(e.target)) return; // clicks on the anchor cell itself toggle close via TD onClick
+      onClose();
+    };
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [anchorEl, onClose]);
+
+  return ReactDOM.createPortal(
+    <div
+      ref={ref}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      style={{
+        position: "fixed",
+        left: pos.left,
+        top: pos.top,
+        width: PICKER_W,
+        zIndex: 1000,
+        background: "var(--bg3)",
+        border: "1px solid var(--bd)",
+        borderRadius: 8,
+        padding: 6,
+        boxShadow: "var(--shadow-lg)",
+        fontFamily: "var(--font)",
+      }}
+    >
+      {canApprove && (
+        <>
+          <button
+            onClick={(e) => { e.stopPropagation(); onApproveAtt(em, dayNum); }}
+            style={{ fontSize: 9, padding: "4px 6px", borderRadius: 4, border: "1px solid var(--green)", cursor: "pointer", background: "var(--green-bg)", color: "var(--green)", fontWeight: 700, fontFamily: "var(--font)", width: "100%", marginBottom: 2 }}
+          >
+            ✓ Approve {st}
+          </button>
+          <div style={{ fontSize: 8, color: "var(--tx3)", width: "100%", padding: "2px 0", textAlign: "center", fontStyle: "italic" }}>
+            Or pick a different code to replace
+          </div>
+        </>
+      )}
+      {pickerStage ? (
+        <div>
+          <div style={{ fontSize: 9, color: "var(--tx3)", marginBottom: 4, fontWeight: 600 }}>
+            Reason for {pickerStage.code} <span style={{ fontWeight: 400 }}>(optional)</span>
+          </div>
+          <input
+            autoFocus
+            type="text"
+            placeholder="e.g. Eid holiday, sick"
+            value={pendingReason}
+            onChange={(e) => setPendingReason(e.target.value)}
+            onKeyDown={(ev) => {
+              if (ev.key === "Enter") { ev.preventDefault(); onSetAtt(em, dayNum, pickerStage.code, pendingReason); }
+              if (ev.key === "Escape") { setPickerStage(null); setPendingReason(""); }
+            }}
+            style={{ width: "100%", fontSize: 10, padding: "4px 6px", borderRadius: 4, border: "1px solid var(--bd)", background: "var(--bg)", color: "var(--tx)", fontFamily: "var(--font)", boxSizing: "border-box", marginBottom: 4 }}
+          />
+          <div style={{ display: "flex", gap: 4 }}>
+            <button
+              onClick={() => onSetAtt(em, dayNum, pickerStage.code, pendingReason)}
+              style={{ flex: 1, fontSize: 9, padding: "4px 0", borderRadius: 4, border: "none", cursor: "pointer", background: "var(--tabby-purple)", color: "#fff", fontWeight: 700, fontFamily: "var(--font)" }}
+            >
+              Send for approval
+            </button>
+            <button
+              onClick={() => { setPickerStage(null); setPendingReason(""); }}
+              style={{ fontSize: 9, padding: "4px 8px", borderRadius: 4, border: "1px solid var(--bd)", cursor: "pointer", background: "var(--bg)", color: "var(--tx2)", fontFamily: "var(--font)" }}
+            >
+              Back
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
+          {PICKER_TYPES.map((t) => {
+            const SK = { P: "p", H: "h", L: "l", AL: "a", "Paid SL": "s", NSNC: "n", EL: "e", UL: "u", ML: "m" }[t.code];
+            const needsReason = isQA && APPROVAL_CODES.has(t.code);
+            return (
+              <button
+                key={t.code}
+                onClick={(e) => { e.stopPropagation(); if (needsReason) { setPickerStage({ code: t.code }); setPendingReason(""); } else { onSetAtt(em, dayNum, t.code); } }}
+                style={{ fontSize: 9, padding: "4px 6px", borderRadius: 3, border: "none", cursor: "pointer", background: t.bg, color: t.color, fontWeight: 700, fontFamily: "var(--font)" }}
+                title={`${t.label}${SK ? ` (${SK})` : ""}`}
+              >
+                {t.code}
+              </button>
+            );
+          })}
+          <div style={{ fontSize: 8, color: "var(--tx3)", width: "100%", textAlign: "center", marginTop: 4, letterSpacing: 0.3 }}>
+            Type a key · ← → ↑ ↓ to nav · Esc to close
+          </div>
+          {st && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onClearAtt(em, dayNum); }}
+              style={{ fontSize: 9, padding: "4px 6px", borderRadius: 3, border: "1px solid var(--red)", cursor: "pointer", background: "var(--red-bg)", color: "var(--red)", fontWeight: 700, fontFamily: "var(--font)", width: "100%", marginTop: 4 }}
+            >
+              ✕ Clear
+            </button>
+          )}
+        </div>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
 const DayCell = React.memo(function DayCell({
   em, dayNum, isWeekend, att, isEditing, canEdit, isLead, isQA, canApprove,
   pickerStage, pendingReason,
   onOpen, onClose, onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
 }) {
+  const tdRef = useRef(null);
   const st = att?.status || null;
   const attType = st ? ATT_MAP[st] : null;
   const isPending = att?.approval_status === "pending";
   const isDenied  = att?.approval_status === "denied";
-  // Attendance Plan info — surfaced ONLY in the title tooltip; we don't
-  // overlay anything on the cell itself so hover/click behavior stays
-  // exactly as before. Lead-side mismatch surfacing lives in the bell.
+  // Attendance Plan info — surfaced ONLY in the title tooltip; no overlay
+  // on the cell itself so hover/click behavior stays clean.
   const planned = att?.planned_code || null;
   const planLabel = planned === "H" ? "Planned: H" : planned === "P" ? "Planned: P" : "";
   const cellTitle = isPending
@@ -55,53 +208,40 @@ const DayCell = React.memo(function DayCell({
     ? `${attType?.label || st} — denied by ${nameFromEmail(att?.denied_by || "")}${att?.denial_reason ? ` · "${att.denial_reason}"` : ""}${planLabel ? ` · ${planLabel}` : ""}`
     : (attType?.label ? `${attType.label}${planLabel ? ` · ${planLabel}` : ""}` : planLabel);
   return (
-    <td style={{textAlign:"center",padding:1,background:isWeekend?"rgba(156,163,175,0.05)":"transparent",position:"relative",cursor:canEdit?"pointer":"default"}}
+    <td
+      ref={tdRef}
+      style={{ textAlign: "center", padding: 1, background: isWeekend ? "rgba(156,163,175,0.05)" : "transparent", cursor: canEdit ? "pointer" : "default" }}
       onClick={() => { if (canEdit) { isEditing ? onClose() : onOpen(); } }}
-      title={cellTitle}>
+      title={cellTitle}
+    >
       {st ? (
-        <span style={{position:"relative",display:"inline-block",minWidth:20,pointerEvents:"none"}}>
-          <span style={{fontSize:9,padding:"2px 3px",borderRadius:3,background:attType?.bg||"var(--bg3)",color:attType?.color||"var(--tx3)",fontWeight:700,display:"inline-block",minWidth:20,opacity:isPending?0.55:isDenied?0.4:1,outline:isPending?`1px dashed ${attType?.color||"var(--tx3)"}`:isDenied?"1px dashed var(--red)":"none"}}>{st}</span>
-          {isPending && <span style={{position:"absolute",top:-4,right:-4,fontSize:8,lineHeight:1,background:"var(--bg3)",border:"1px solid var(--amber)",color:"var(--amber)",borderRadius:6,padding:"1px 2px",fontWeight:700}}>⏳</span>}
-          {isDenied  && <span style={{position:"absolute",top:-4,right:-4,fontSize:8,lineHeight:1,background:"var(--bg3)",border:"1px solid var(--red)",color:"var(--red)",borderRadius:6,padding:"1px 2px",fontWeight:700}}>✗</span>}
+        <span style={{ position: "relative", display: "inline-block", minWidth: 20, pointerEvents: "none" }}>
+          <span style={{ fontSize: 9, padding: "2px 3px", borderRadius: 3, background: attType?.bg || "var(--bg3)", color: attType?.color || "var(--tx3)", fontWeight: 700, display: "inline-block", minWidth: 20, opacity: isPending ? 0.55 : isDenied ? 0.4 : 1, outline: isPending ? `1px dashed ${attType?.color || "var(--tx3)"}` : isDenied ? "1px dashed var(--red)" : "none" }}>{st}</span>
+          {isPending && <span style={{ position: "absolute", top: -4, right: -4, fontSize: 8, lineHeight: 1, background: "var(--bg3)", border: "1px solid var(--amber)", color: "var(--amber)", borderRadius: 6, padding: "1px 2px", fontWeight: 700 }}>⏳</span>}
+          {isDenied && <span style={{ position: "absolute", top: -4, right: -4, fontSize: 8, lineHeight: 1, background: "var(--bg3)", border: "1px solid var(--red)", color: "var(--red)", borderRadius: 6, padding: "1px 2px", fontWeight: 700 }}>✗</span>}
         </span>
       ) : planned ? (
-        // Empty actual cell with a plan set — render the planned letter
-        // in dim text so QAs can see what's expected today without any
-        // overlay/positioning that could disrupt cell hover.
-        <span style={{fontSize:10,color:"var(--tx3)",pointerEvents:"none",fontWeight:600,opacity:.6}}>{planned}</span>
+        <span style={{ fontSize: 10, color: "var(--tx3)", pointerEvents: "none", fontWeight: 600, opacity: 0.6 }}>{planned}</span>
       ) : (
-        <span style={{fontSize:10,color:"var(--bd2)",pointerEvents:"none"}}>·</span>
+        <span style={{ fontSize: 10, color: "var(--bd2)", pointerEvents: "none" }}>·</span>
       )}
       {isEditing && (
-        <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:8,padding:6,boxShadow:"var(--shadow-lg)",width:180}} onClick={e=>e.stopPropagation()}>
-          {canApprove && <>
-            <button onClick={e=>{e.stopPropagation();onApproveAtt(em,dayNum);}} style={{fontSize:9,padding:"4px 6px",borderRadius:4,border:"1px solid var(--green)",cursor:"pointer",background:"var(--green-bg)",color:"var(--green)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginBottom:2}}>✓ Approve {st}</button>
-            <div style={{fontSize:8,color:"var(--tx3)",width:"100%",padding:"2px 0",textAlign:"center",fontStyle:"italic"}}>Or pick a different code to replace</div>
-          </>}
-          {pickerStage ? (
-            <div>
-              <div style={{fontSize:9,color:"var(--tx3)",marginBottom:4,fontWeight:600}}>Reason for {pickerStage.code} <span style={{fontWeight:400}}>(optional)</span></div>
-              <input autoFocus type="text" placeholder="e.g. Eid holiday, sick" value={pendingReason}
-                onChange={e=>setPendingReason(e.target.value)}
-                onKeyDown={ev=>{if(ev.key==="Enter"){ev.preventDefault();onSetAtt(em,dayNum,pickerStage.code,pendingReason);}if(ev.key==="Escape"){setPickerStage(null);setPendingReason("");}}}
-                style={{width:"100%",fontSize:10,padding:"4px 6px",borderRadius:4,border:"1px solid var(--bd)",background:"var(--bg)",color:"var(--tx)",fontFamily:"var(--font)",boxSizing:"border-box",marginBottom:4}}/>
-              <div style={{display:"flex",gap:4}}>
-                <button onClick={()=>onSetAtt(em,dayNum,pickerStage.code,pendingReason)} style={{flex:1,fontSize:9,padding:"4px 0",borderRadius:4,border:"none",cursor:"pointer",background:"var(--tabby-purple)",color:"#fff",fontWeight:700,fontFamily:"var(--font)"}}>Send for approval</button>
-                <button onClick={()=>{setPickerStage(null);setPendingReason("");}} style={{fontSize:9,padding:"4px 8px",borderRadius:4,border:"1px solid var(--bd)",cursor:"pointer",background:"var(--bg)",color:"var(--tx2)",fontFamily:"var(--font)"}}>Back</button>
-              </div>
-            </div>
-          ) : (
-            <div style={{display:"flex",flexWrap:"wrap",gap:2}}>
-              {PICKER_TYPES.map(t => {
-                const SK = {P:"p",H:"h",L:"l",AL:"a","Paid SL":"s",NSNC:"n",EL:"e",UL:"u",ML:"m"}[t.code];
-                const needsReason = isQA && APPROVAL_CODES.has(t.code);
-                return <button key={t.code} onClick={e=>{e.stopPropagation();if(needsReason){setPickerStage({code:t.code});setPendingReason("");}else{onSetAtt(em,dayNum,t.code);}}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"none",cursor:"pointer",background:t.bg,color:t.color,fontWeight:700,fontFamily:"var(--font)"}} title={`${t.label}${SK?` (${SK})`:""}`}>{t.code}</button>;
-              })}
-              <div style={{fontSize:7,color:"var(--tx3)",width:"100%",textAlign:"center",marginTop:2,letterSpacing:.3}}>Type a key · ← → ↑ ↓ to nav · Esc to close</div>
-              {st && <button onClick={e=>{e.stopPropagation();onClearAtt(em,dayNum);}} style={{fontSize:8,padding:"3px 4px",borderRadius:3,border:"1px solid var(--red)",cursor:"pointer",background:"var(--red-bg)",color:"var(--red)",fontWeight:700,fontFamily:"var(--font)",width:"100%",marginTop:2}}>✕ Clear</button>}
-            </div>
-          )}
-        </div>
+        <CellPicker
+          anchorEl={tdRef.current}
+          em={em}
+          dayNum={dayNum}
+          st={st}
+          isQA={isQA}
+          canApprove={canApprove}
+          pickerStage={pickerStage}
+          pendingReason={pendingReason}
+          onClose={onClose}
+          onSetAtt={onSetAtt}
+          onApproveAtt={onApproveAtt}
+          onClearAtt={onClearAtt}
+          setPendingReason={setPendingReason}
+          setPickerStage={setPickerStage}
+        />
       )}
     </td>
   );
