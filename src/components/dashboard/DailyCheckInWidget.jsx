@@ -54,6 +54,7 @@ export default function DailyCheckInWidget() {
       // time check-in inserts. On upserts that hit an existing row,
       // merge-duplicates preserves the original.
       const body = { email: myEmail, date: today, status: code, created_by: myEmail };
+      // Note: code is "H" or "P" — same letters used everywhere in the UI
       const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
         method: "POST",
         headers: {
@@ -65,7 +66,7 @@ export default function DailyCheckInWidget() {
         body: JSON.stringify(body),
       });
       if (!resp.ok) throw new Error(await resp.text());
-      globalToast("success", `Checked in as ${code === "H" ? "🏠 Home" : "🏢 Office"}`);
+      globalToast("success", `Checked in as ${code} (${code === "H" ? "Home" : "Office"})`);
       await load();
     } catch (e) {
       globalToast("error", safeError(e));
@@ -109,14 +110,14 @@ export default function DailyCheckInWidget() {
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--tx)", marginBottom: 2 }}>
             {checkedIn
-              ? `Checked in: ${actual === "H" ? "🏠 Home" : "🏢 Office"}`
-              : "Where are you working today?"}
+              ? `Checked in: ${actual} — ${actual === "H" ? "Home" : "Office"}`
+              : "Check in for today"}
           </div>
           <div style={{ fontSize: 11, color: "var(--tx3)" }}>
             {planned ? (
               <>
                 Planned by your lead: <strong style={{ color: planned === "H" ? "var(--blue)" : "var(--green)" }}>
-                  {planned === "H" ? "🏠 Home" : "🏢 Office"}
+                  {planned} — {planned === "H" ? "Home" : "Office"}
                 </strong>
               </>
             ) : (
@@ -135,17 +136,19 @@ export default function DailyCheckInWidget() {
               className="btn btn-outline btn-sm"
               onClick={() => checkIn("H")}
               disabled={saving}
-              style={{ minWidth: 96, fontSize: 12 }}
+              style={{ minWidth: 64, fontSize: 13, fontWeight: 700, color: "var(--blue)" }}
+              title="H — Work from Home"
             >
-              🏠 Home
+              H
             </button>
             <button
               className="btn btn-outline btn-sm"
               onClick={() => checkIn("P")}
               disabled={saving}
-              style={{ minWidth: 96, fontSize: 12 }}
+              style={{ minWidth: 64, fontSize: 13, fontWeight: 700, color: "var(--green)" }}
+              title="P — Office"
             >
-              🏢 Office
+              P
             </button>
           </div>
         ) : (
@@ -156,7 +159,7 @@ export default function DailyCheckInWidget() {
             style={{ fontSize: 11 }}
             title="Made a mistake? Click to switch."
           >
-            Switch to {actual === "H" ? "🏢 Office" : "🏠 Home"}
+            Switch to {actual === "H" ? "P (Office)" : "H (Home)"}
           </button>
         )}
       </div>

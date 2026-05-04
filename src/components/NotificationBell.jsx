@@ -258,7 +258,7 @@ function NotificationBell({ onNavigate }) {
                 id: "att-mis-" + r.id,
                 type: "attendance_mismatch",
                 title: `⚠ Attendance mismatch on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
-                sub: `Planned: ${r.planned_code === "H" ? "🏠 Home" : "🏢 Office"} · Checked in: ${r.status === "H" ? "🏠 Home" : "🏢 Office"}`,
+                sub: `Planned: ${r.planned_code} · Checked in: ${r.status}`,
                 time: r.date + "T18:00:00Z",
                 page: "schedule",
               });
@@ -267,7 +267,7 @@ function NotificationBell({ onNavigate }) {
                 id: "att-miss-" + r.id,
                 type: "attendance_missing",
                 title: `⏰ Missing check-in for ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
-                sub: `Planned: ${r.planned_code === "H" ? "🏠 Home" : "🏢 Office"} — please check in`,
+                sub: `Planned: ${r.planned_code} — please check in`,
                 time: r.date + "T19:00:00Z",
                 page: "dashboard",
               });
@@ -300,7 +300,7 @@ function NotificationBell({ onNavigate }) {
                     id: "tatt-mis-" + r.id,
                     type: "attendance_mismatch",
                     title: `⚠ ${nameFromEmail(em)} — mismatch on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
-                    sub: `Planned: ${r.planned_code === "H" ? "🏠" : "🏢"} · Got: ${r.status === "H" ? "🏠" : "🏢"}${r.justification ? ` · "${r.justification.slice(0,40)}"` : ""}`,
+                    sub: `Planned: ${r.planned_code} · Got: ${r.status}${r.justification ? ` · "${r.justification.slice(0,40)}"` : ""}`,
                     time: r.date + "T18:00:00Z",
                     page: "schedule",
                   });
@@ -309,7 +309,7 @@ function NotificationBell({ onNavigate }) {
                     id: "tatt-miss-" + r.id,
                     type: "attendance_missing",
                     title: `⏰ ${nameFromEmail(em)} — missing check-in on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
-                    sub: `Planned: ${r.planned_code === "H" ? "🏠 Home" : "🏢 Office"}`,
+                    sub: `Planned: ${r.planned_code}`,
                     time: r.date + "T19:00:00Z",
                     page: "schedule",
                   });

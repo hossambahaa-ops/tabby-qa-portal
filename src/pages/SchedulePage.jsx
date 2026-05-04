@@ -44,35 +44,18 @@ const DayCell = React.memo(function DayCell({
   const attType = st ? ATT_MAP[st] : null;
   const isPending = att?.approval_status === "pending";
   const isDenied  = att?.approval_status === "denied";
-  // Attendance Plan layer — derived flags. Plan badge shows for any
-  // day that has a planned_code; mismatch/missing-check-in adds an
-  // amber outline so the cell calls itself out without extra clicks.
+  // Attendance Plan info — surfaced ONLY in the title tooltip; we don't
+  // overlay anything on the cell itself so hover/click behavior stays
+  // exactly as before. Lead-side mismatch surfacing lives in the bell.
   const planned = att?.planned_code || null;
-  const planApproved = !!att?.mismatch_approved;
-  const isPlanMismatch = !!planned && (st === "H" || st === "P") && st !== planned && !planApproved;
-  // Missing-check-in is computed from clock time at render — comparator
-  // on att alone won't pick this up across renders, but cells re-render
-  // when the parent re-fetches every few minutes, which is fine for v1.
-  let isPlanMissing = false;
-  if (planned && !st && att?.date && !planApproved) {
-    const cutoff = new Date(`${att.date}T16:00:00Z`); // 7 PM Riyadh = 16:00 UTC
-    isPlanMissing = Date.now() >= cutoff.getTime();
-  }
-  const planFlag = isPlanMismatch || isPlanMissing;
-  const planBadge = planned === "H" ? "🏠" : planned === "P" ? "🏢" : "";
-  const planBg = planned === "H" ? "rgba(59,130,246,.15)" : planned === "P" ? "rgba(34,197,94,.15)" : null;
-  const planLabel = planned === "H" ? "Planned: Home" : planned === "P" ? "Planned: Office" : "";
+  const planLabel = planned === "H" ? "Planned: H" : planned === "P" ? "Planned: P" : "";
   const cellTitle = isPending
     ? `${attType?.label || st} — pending lead approval${att?.requested_by ? ` (by ${nameFromEmail(att.requested_by)})` : ""}${att?.request_note ? ` · "${att.request_note}"` : ""}${planLabel ? ` · ${planLabel}` : ""}`
     : isDenied
     ? `${attType?.label || st} — denied by ${nameFromEmail(att?.denied_by || "")}${att?.denial_reason ? ` · "${att.denial_reason}"` : ""}${planLabel ? ` · ${planLabel}` : ""}`
-    : isPlanMismatch
-    ? `${attType?.label || st} — ⚠ doesn't match plan (${planned === "H" ? "Home" : "Office"})${att?.justification ? ` · "${att.justification}"` : ""}`
-    : isPlanMissing
-    ? `⏰ Missing check-in — planned ${planned === "H" ? "Home" : "Office"}`
     : (attType?.label ? `${attType.label}${planLabel ? ` · ${planLabel}` : ""}` : planLabel);
   return (
-    <td style={{textAlign:"center",padding:1,background:planFlag ? "rgba(245,158,11,.12)" : isWeekend?"rgba(156,163,175,0.05)": planBg || "transparent",position:"relative",cursor:canEdit?"pointer":"default",outline: planFlag ? "1px solid var(--amber)" : "none", outlineOffset: planFlag ? "-1px" : 0}}
+    <td style={{textAlign:"center",padding:1,background:isWeekend?"rgba(156,163,175,0.05)":"transparent",position:"relative",cursor:canEdit?"pointer":"default"}}
       onClick={() => { if (canEdit) { isEditing ? onClose() : onOpen(); } }}
       title={cellTitle}>
       {st ? (
@@ -81,18 +64,13 @@ const DayCell = React.memo(function DayCell({
           {isPending && <span style={{position:"absolute",top:-4,right:-4,fontSize:8,lineHeight:1,background:"var(--bg3)",border:"1px solid var(--amber)",color:"var(--amber)",borderRadius:6,padding:"1px 2px",fontWeight:700}}>⏳</span>}
           {isDenied  && <span style={{position:"absolute",top:-4,right:-4,fontSize:8,lineHeight:1,background:"var(--bg3)",border:"1px solid var(--red)",color:"var(--red)",borderRadius:6,padding:"1px 2px",fontWeight:700}}>✗</span>}
         </span>
+      ) : planned ? (
+        // Empty actual cell with a plan set — render the planned letter
+        // in dim text so QAs can see what's expected today without any
+        // overlay/positioning that could disrupt cell hover.
+        <span style={{fontSize:10,color:"var(--tx3)",pointerEvents:"none",fontWeight:600,opacity:.6}}>{planned}</span>
       ) : (
         <span style={{fontSize:10,color:"var(--bd2)",pointerEvents:"none"}}>·</span>
-      )}
-      {/* Plan badge — small icon in top-right corner showing planned location.
-          Hidden when the actual code matches the plan (no point in showing
-          both — the cell already conveys it). */}
-      {planBadge && (st !== planned) && (
-        <span style={{position:"absolute",top:1,right:1,fontSize:8,lineHeight:1,opacity:.75,pointerEvents:"none"}}>{planBadge}</span>
-      )}
-      {/* Mismatch indicator — overrides the plan icon when present */}
-      {planFlag && (
-        <span style={{position:"absolute",top:1,right:1,fontSize:8,lineHeight:1,color:"var(--amber)",pointerEvents:"none",fontWeight:700}}>{isPlanMissing ? "⏰" : "⚠"}</span>
       )}
       {isEditing && (
         <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:8,padding:6,boxShadow:"var(--shadow-lg)",width:180}} onClick={e=>e.stopPropagation()}>

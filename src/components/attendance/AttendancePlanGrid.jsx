@@ -306,23 +306,23 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
         </span>
       </div>
 
-      {/* Bulk fill */}
+      {/* Bulk set — apply H/P (or clear) to a date range across every visible QA. */}
       <div
         className="card"
-        style={{ padding: 10, marginBottom: 12, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}
+        style={{ padding: 12, marginBottom: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderLeft: "3px solid var(--tabby-purple)" }}
       >
-        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".4px" }}>
-          Bulk fill
+        <span style={{ fontSize: 12, fontWeight: 800, color: "var(--tx)", textTransform: "uppercase", letterSpacing: ".5px" }}>
+          📋 Bulk set
         </span>
         <select
           value={bulkValue}
           onChange={(e) => setBulkValue(e.target.value)}
           className="input"
-          style={{ fontSize: 12, padding: "4px 8px", maxWidth: 140 }}
+          style={{ fontSize: 12, padding: "5px 8px", maxWidth: 160, fontWeight: 600 }}
         >
           <option value="">Pick value…</option>
-          <option value="H">🏠 Home</option>
-          <option value="P">🏢 Office</option>
+          <option value="H">H — Work from Home</option>
+          <option value="P">P — Office</option>
           <option value="CLEAR">Clear plan</option>
         </select>
         <input
@@ -331,7 +331,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
           value={bulkFrom}
           onChange={(e) => setBulkFrom(e.target.value)}
           min={PLAN_FEATURE_START}
-          style={{ fontSize: 12, padding: "4px 8px" }}
+          style={{ fontSize: 12, padding: "5px 8px" }}
         />
         <span style={{ fontSize: 11, color: "var(--tx3)" }}>to</span>
         <input
@@ -340,13 +340,18 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
           value={bulkTo}
           onChange={(e) => setBulkTo(e.target.value)}
           min={PLAN_FEATURE_START}
-          style={{ fontSize: 12, padding: "4px 8px" }}
+          style={{ fontSize: 12, padding: "5px 8px" }}
         />
-        <button className="btn btn-outline btn-sm" onClick={applyBulk} disabled={!bulkValue || !bulkFrom || !bulkTo}>
-          Queue {visibleQAs.length} QA{visibleQAs.length !== 1 ? "s" : ""}
+        <button
+          className="btn btn-primary btn-sm"
+          onClick={applyBulk}
+          disabled={!bulkValue || !bulkFrom || !bulkTo}
+          style={{ fontSize: 12, fontWeight: 700 }}
+        >
+          Apply to {visibleQAs.length} QA{visibleQAs.length !== 1 ? "s" : ""}
         </button>
-        <span style={{ fontSize: 10, color: "var(--tx3)", marginLeft: 8 }}>
-          Workdays only — past dates skipped.
+        <span style={{ fontSize: 10, color: "var(--tx3)", marginLeft: "auto" }}>
+          Workdays + weekends in range · past days skipped · queues changes (Save below to commit)
         </span>
       </div>
 
@@ -441,12 +446,15 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                     const isPending = planned !== original;
                     let bg = "transparent";
                     let txt = "";
+                    let txtColor = "var(--tx2)";
                     if (planned === "H") {
                       bg = "rgba(59,130,246,.18)";
-                      txt = "🏠";
+                      txt = "H";
+                      txtColor = "#3B82F6";
                     } else if (planned === "P") {
                       bg = "rgba(34,197,94,.18)";
-                      txt = "🏢";
+                      txt = "P";
+                      txtColor = "#16A34A";
                     }
                     // Weekend gets a subtler background only when nothing
                     // is planned — once a plan is set the H/P color wins.
@@ -459,10 +467,10 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                           !editable
                             ? "Past day — read-only"
                             : planned === "H"
-                              ? `🏠 Home${d.isWeekend ? " (weekend)" : ""} — click for Office`
+                              ? `H — Work from Home${d.isWeekend ? " (weekend)" : ""}. Click for P (Office).`
                               : planned === "P"
-                                ? `🏢 Office${d.isWeekend ? " (weekend)" : ""} — click to clear`
-                                : `Click to set 🏠 Home${d.isWeekend ? " (weekend day)" : ""}`
+                                ? `P — Office${d.isWeekend ? " (weekend)" : ""}. Click to clear.`
+                                : `Click to set H (Home)${d.isWeekend ? " (weekend day)" : ""}`
                         }
                         style={{
                           textAlign: "center",
@@ -472,7 +480,9 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                           cursor: editable ? "pointer" : "default",
                           opacity: editable ? 1 : 0.55,
                           border: isPending ? "2px dashed var(--amber)" : "1px solid var(--bd2)",
-                          fontSize: 14,
+                          fontSize: 13,
+                          fontWeight: 700,
+                          color: txtColor,
                           userSelect: "none",
                         }}
                       >
