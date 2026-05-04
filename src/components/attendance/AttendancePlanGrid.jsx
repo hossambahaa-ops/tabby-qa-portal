@@ -455,11 +455,18 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                           background: bg,
                           cursor: editable ? "pointer" : "default",
                           opacity: editable ? 1 : 0.55,
-                          border: isPending ? "2px dashed var(--amber)" : "1px solid var(--bd2)",
+                          // Always 1px solid border so the cell box-size
+                          // never changes when toggling pending state. The
+                          // amber dashed pending hint is layered as an
+                          // outline (zero layout cost) instead.
+                          border: "1px solid var(--bd2)",
+                          outline: isPending ? "2px dashed var(--amber)" : "none",
+                          outlineOffset: -2,
                           fontSize: 13,
                           fontWeight: 700,
                           color: txtColor,
                           userSelect: "none",
+                          position: "relative",
                         }}
                       >
                         {txt}
