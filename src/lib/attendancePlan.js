@@ -13,20 +13,30 @@ export const PLAN_FEATURE_START = "2026-05-01";
 export const CHECKIN_CUTOFF_HOUR_RIYADH = 19;
 const CHECKIN_CUTOFF_HOUR_UTC = CHECKIN_CUTOFF_HOUR_RIYADH - 3; // 16
 
-// True iff the row's planned vs. actual codes are both H/P and disagree,
-// AND the lead hasn't approved the mismatch.
+// True iff plan and actual disagree in a way that's worth flagging.
+//   plan H/P + actual is the OTHER of H/P → mismatch (worked the wrong location)
+//   plan OFF + actual is H or P            → mismatch (worked when planned off)
+//   plan H/P + actual is OFF/leave/holiday → no flag (legit absence)
+//   plan OFF + actual is OFF/leave/holiday → no flag (consistent)
+// A null actual is "not checked in yet" and handled by isMissingCheckIn.
 export function isMismatch(row) {
   if (!row || row.mismatch_approved) return false;
   const planned = row.planned_code;
   const actual = row.status;
   if (!planned || !actual) return false;
-  if (planned !== "H" && planned !== "P") return false;
-  if (actual !== "H" && actual !== "P") return false;
-  return planned !== actual;
+  if (planned === "H" || planned === "P") {
+    if (actual !== "H" && actual !== "P") return false;
+    return planned !== actual;
+  }
+  if (planned === "OFF") {
+    return actual === "H" || actual === "P";
+  }
+  return false;
 }
 
-// True iff the row has a plan, no actual code yet, and we are past
-// 7 PM Riyadh on the row's date.
+// True iff the row has a plan that EXPECTS a check-in (H or P), no
+// actual code yet, and we are past 7 PM Riyadh. OFF days never trigger
+// a missing-check-in flag — the QA wasn't supposed to work.
 export function isMissingCheckIn(row, now = new Date()) {
   if (!row || row.mismatch_approved) return false;
   const planned = row.planned_code;

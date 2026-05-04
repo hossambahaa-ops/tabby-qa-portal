@@ -132,14 +132,15 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
     return attMap[key]?.planned_code || null;
   };
 
-  // Click handler: empty → H → P → empty
+  // Click handler: empty → H → P → OFF → empty
   const cycleCell = (email, date) => {
     if (!isPlanEditableDate(date)) return;
     const current = cellPlan(email, date);
     let next;
     if (current === null || current === undefined) next = "H";
     else if (current === "H") next = "P";
-    else next = null;
+    else if (current === "P") next = "OFF";
+    else next = null; // OFF → clear
     setPendingChanges((prev) => ({ ...prev, [`${email}__${date}`]: next }));
   };
 
@@ -431,6 +432,10 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                       bg = "rgba(34,197,94,.18)";
                       txt = "P";
                       txtColor = "#16A34A";
+                    } else if (planned === "OFF") {
+                      bg = "rgba(156,163,175,.20)";
+                      txt = "OFF";
+                      txtColor = "var(--tx3)";
                     }
                     // Weekend gets a subtler background only when nothing
                     // is planned — once a plan is set the H/P color wins.
@@ -445,8 +450,10 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                             : planned === "H"
                               ? `H — Work from Home${d.isWeekend ? " (weekend)" : ""}. Click for P (Office).`
                               : planned === "P"
-                                ? `P — Office${d.isWeekend ? " (weekend)" : ""}. Click to clear.`
-                                : `Click to set H (Home)${d.isWeekend ? " (weekend day)" : ""}`
+                                ? `P — Office${d.isWeekend ? " (weekend)" : ""}. Click for OFF (planned off-day).`
+                                : planned === "OFF"
+                                  ? `OFF — Planned off-day${d.isWeekend ? " (weekend)" : ""}. Click to clear.`
+                                  : `Click to set H (Home)${d.isWeekend ? " (weekend day)" : ""}`
                         }
                         style={{
                           textAlign: "center",
@@ -462,11 +469,12 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                           border: "1px solid var(--bd2)",
                           outline: isPending ? "2px dashed var(--amber)" : "none",
                           outlineOffset: -2,
-                          fontSize: 13,
+                          fontSize: planned === "OFF" ? 11 : 13,
                           fontWeight: 700,
                           color: txtColor,
                           userSelect: "none",
                           position: "relative",
+                          letterSpacing: planned === "OFF" ? ".3px" : 0,
                         }}
                       >
                         {txt}

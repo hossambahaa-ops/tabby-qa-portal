@@ -355,10 +355,10 @@ function CalendarDayCell({
               fontWeight: 700,
               padding: "1px 5px",
               borderRadius: 3,
-              background: planned === "H" ? "rgba(59,130,246,.18)" : "rgba(34,197,94,.18)",
-              color: planned === "H" ? "#3B82F6" : "#16A34A",
+              background: planned === "H" ? "rgba(59,130,246,.18)" : planned === "P" ? "rgba(34,197,94,.18)" : "rgba(156,163,175,.20)",
+              color: planned === "H" ? "#3B82F6" : planned === "P" ? "#16A34A" : "var(--tx3)",
             }}
-            title={planned === "H" ? "Planned: Home" : "Planned: Office"}
+            title={planned === "H" ? "Planned: Home" : planned === "P" ? "Planned: Office" : "Planned: OFF (no work)"}
           >
             {planned}
           </span>
@@ -386,7 +386,7 @@ function CalendarDayCell({
       )}
       {!st && planned && (
         <div style={{ fontSize: 10, color: "var(--tx3)", fontStyle: "italic" }}>
-          {planned === "H" ? "Home" : "Office"}
+          {planned === "H" ? "Home" : planned === "P" ? "Office" : "Day off"}
         </div>
       )}
       {isEditing && (

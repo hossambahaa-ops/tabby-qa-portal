@@ -131,7 +131,7 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
     setDays(new Set([0, 1, 2, 3, 4]));
     setSelectedWeeks(new Set());
   };
-  const presetClearWeekend = () => {
+  const presetOffWeekend = () => {
     setValue("OFF");
     setDays(new Set([5, 6]));
     setSelectedWeeks(new Set());
@@ -152,13 +152,17 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
     }
     return all;
   };
+
+  // Map the modal's chosen value to a planned_code DB value.
+  // "OFF" is a real planned code now (DB v17). "CLEAR" sets it to null.
+  const valueToCode = (v) => (v === "CLEAR" ? null : v); // 'H', 'P', 'OFF', or null
   const dateCount = computeDates().length;
 
   const apply = () => {
     const dates = computeDates();
     if (dates.length === 0 || targetEmails.length === 0) return;
     onApply?.({
-      value: value === "OFF" ? null : value,
+      value: valueToCode(value), // 'H' | 'P' | 'OFF' | null
       dates,
       qaEmails: targetEmails,
     });
@@ -226,9 +230,9 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
           <button
             className="btn btn-sm"
             style={{ fontSize: 11, background: "rgba(156,163,175,0.1)", color: "var(--tx2)", border: "1px solid var(--bd)", fontWeight: 600 }}
-            onClick={presetClearWeekend}
+            onClick={presetOffWeekend}
           >
-            Clear plan for Fri–Sat
+            Set OFF for Fri–Sat
           </button>
         </div>
 
@@ -263,7 +267,8 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
             {[
               { code: "H", label: "H — Work from Home", color: "#3B82F6", bg: "rgba(59,130,246,.15)" },
               { code: "P", label: "P — Office", color: "#16A34A", bg: "rgba(34,197,94,.15)" },
-              { code: "OFF", label: "Off — Clear plan", color: "var(--tx2)", bg: "rgba(156,163,175,.1)" },
+              { code: "OFF", label: "OFF — Planned off-day", color: "var(--tx2)", bg: "rgba(156,163,175,.18)" },
+              { code: "CLEAR", label: "Clear — No plan set", color: "var(--tx3)", bg: "transparent" },
             ].map((opt) => {
               const active = value === opt.code;
               return (
@@ -446,7 +451,7 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
               Will queue <strong style={{ color: "var(--tx)" }}>{totalCells.toLocaleString()}</strong> cell change{totalCells !== 1 ? "s" : ""}{" "}
               ({dateCount} day{dateCount !== 1 ? "s" : ""} × {targetEmails.length} QA{targetEmails.length !== 1 ? "s" : ""}) — value:{" "}
               <strong style={{ color: value === "H" ? "var(--blue)" : value === "P" ? "var(--green)" : "var(--tx3)" }}>
-                {value === "OFF" ? "Off (clear)" : value}
+                {value === "CLEAR" ? "Clear (no plan)" : value}
               </strong>. Click Apply to stage. Save (in the grid) commits to the database.
             </>
           ) : (

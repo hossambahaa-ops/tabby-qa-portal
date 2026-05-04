@@ -90,11 +90,20 @@ export default function DailyCheckInWidget() {
   const actual = row?.status;
   const checkedIn = actual === "H" || actual === "P";
   const isLeave = actual && !checkedIn; // any non-H/P actual = leave/holiday/etc
-  const mismatch = planned && checkedIn && planned !== actual && !row?.mismatch_approved;
+  // Mismatch logic mirrors lib/attendancePlan.js: H/P plan + opposite check-in,
+  // OR OFF plan + any H/P check-in (worked when planned off).
+  const mismatch = !row?.mismatch_approved && (
+    (planned === "H" || planned === "P") && checkedIn && planned !== actual
+    || planned === "OFF" && checkedIn
+  );
 
   // If the QA has a leave code already (AL, SL, PH, etc.), don't prompt
   // for a check-in — this is "off today."
   if (isLeave) return null;
+  // Planned OFF AND no actual yet → show a quiet "you're off today" tile,
+  // not the check-in buttons. They can still tap a button to override
+  // (e.g. they came in to handle something).
+  const plannedOff = planned === "OFF" && !checkedIn;
 
   return (
     <div
@@ -111,10 +120,14 @@ export default function DailyCheckInWidget() {
           <div style={{ fontSize: 13, fontWeight: 700, color: "var(--tx)", marginBottom: 2 }}>
             {checkedIn
               ? `Checked in: ${actual} — ${actual === "H" ? "Home" : "Office"}`
-              : "Check in for today"}
+              : plannedOff
+                ? "You're planned off today"
+                : "Check in for today"}
           </div>
           <div style={{ fontSize: 11, color: "var(--tx3)" }}>
-            {planned ? (
+            {planned === "OFF" ? (
+              <>Planned by your lead: <strong style={{ color: "var(--tx2)" }}>OFF — Day off</strong></>
+            ) : planned ? (
               <>
                 Planned by your lead: <strong style={{ color: planned === "H" ? "var(--blue)" : "var(--green)" }}>
                   {planned} — {planned === "H" ? "Home" : "Office"}
