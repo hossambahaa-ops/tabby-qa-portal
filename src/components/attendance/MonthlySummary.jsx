@@ -1,4 +1,5 @@
 import React from "react";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 
 const nameFromEmail = (email) => {
   if (!email) return "—";
@@ -13,12 +14,19 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
   const monthLabel = new Date(year, month - 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
 
   const isApproved = (a) => !a.approval_status || a.approval_status === "approved";
+  // Only count days that have actually occurred. Future-dated rows can
+  // carry a status that came from the plan auto-sync (lead saved a plan
+  // with H/P/OFF, the system mirrored it into status for visibility on
+  // the calendar) — but those aren't real check-ins yet, so they
+  // shouldn't inflate the monthly counts. Cutoff is today's Riyadh date.
+  const todayStr = riyadhTodayStr();
+  const isOnOrBeforeToday = (a) => a.date && a.date <= todayStr;
 
   const summaryRows = [...visibleQAs]
     .sort((a, b) => (a.email || "").localeCompare(b.email || ""))
     .map(qa => {
       const em = qa.email?.toLowerCase();
-      const qaAtt = attendance.filter(a => a.email?.toLowerCase() === em && isApproved(a));
+      const qaAtt = attendance.filter(a => a.email?.toLowerCase() === em && isApproved(a) && isOnOrBeforeToday(a));
       const count = (...codes) => qaAtt.filter(a => codes.includes(a.status)).length;
       const otHours = qaAtt.filter(a => a.status === "OT").reduce((s, a) => s + (parseFloat(a.ot_hours) || 0), 0);
       return {
@@ -75,7 +83,7 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
         <div>
           <div style={{ fontSize: 14, fontWeight: 700, color: "var(--tx)" }}>Monthly Summary — {monthLabel}</div>
-          <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 2 }}>Approved records only · WD = P + H + PH + CDO · Trans = P only</div>
+          <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 2 }}>Approved records only · Days through today only · WD = P + H + PH + CDO · Trans = P only</div>
         </div>
         <button
           className="btn btn-outline btn-sm"
