@@ -196,7 +196,11 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
     try {
       // Build rows to upsert. We need email+date as PK and either set
       // planned_code to the new value or null. For null we do PATCH on
-      // any existing row; for non-null we POST upsert.
+      // any existing row; for non-null we POST upsert. created_by is
+      // NOT NULL on the table, so we must include it on inserts — for
+      // upserts that hit an existing row, the merge-duplicates
+      // resolution preserves the original created_by anyway.
+      const creator = profile?.email || myEmail;
       const rows = [];
       const clears = [];
       Object.entries(pendingChanges).forEach(([key, value]) => {
@@ -207,7 +211,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
         if (value === null) {
           if (existing) clears.push({ id: existing.id });
         } else {
-          rows.push({ email, date, planned_code: value });
+          rows.push({ email, date, planned_code: value, created_by: creator });
         }
       });
 

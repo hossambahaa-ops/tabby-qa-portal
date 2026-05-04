@@ -50,7 +50,10 @@ export default function DailyCheckInWidget() {
     if (saving) return;
     setSaving(true);
     try {
-      const body = { email: myEmail, date: today, status: code };
+      // created_by is NOT NULL on qa_attendance, so include it for first-
+      // time check-in inserts. On upserts that hit an existing row,
+      // merge-duplicates preserves the original.
+      const body = { email: myEmail, date: today, status: code, created_by: myEmail };
       const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
         method: "POST",
         headers: {
