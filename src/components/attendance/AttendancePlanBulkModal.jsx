@@ -14,6 +14,18 @@ const DOW = [
   { idx: 6, label: "Sat", full: "Saturday" },
 ];
 
+// Format a Date object as a local YYYY-MM-DD string. Uses local
+// components — never toISOString() — because for users east of UTC
+// (Riyadh = UTC+3), a local-midnight Date converts to the PREVIOUS
+// day in UTC and silently shifts the date by one (e.g. May 31 00:00
+// Riyadh → "2026-05-30" via toISOString).
+function fmtLocalYMD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 // Generate the weeks (Sun→Sat) that overlap with [from, to]. Each entry
 // is { start, end, label, dates: [...] } where dates only contain those
 // inside the original range.
@@ -32,7 +44,7 @@ function getWeeksInRange(fromStr, toStr) {
       const day = new Date(cur);
       day.setDate(day.getDate() + d);
       if (day >= from && day <= to) {
-        dates.push(day.toISOString().split("T")[0]);
+        dates.push(fmtLocalYMD(day));
       }
     }
     if (dates.length > 0) {
