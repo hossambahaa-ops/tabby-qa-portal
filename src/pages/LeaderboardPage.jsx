@@ -156,10 +156,13 @@ function LeaderboardPage() {
   const isSuperAdmin = profile?.role === "super_admin";
   const beltMonth = React.useMemo(() => {
     const candidate = getLastCompletedMonth();
-    // Fall back to the latest month with actual data if the literal previous
-    // calendar month has no rows yet (e.g. new-month sync hasn't run).
     if (months.includes(candidate)) return candidate;
-    return months.find(m => m && m < candidate) || months[0] || "";
+    // Fallback: most recent month with data that is STRICTLY older than the
+    // current calendar month — never the in-flight current month, even if
+    // the previous month's data hasn't synced yet. Belts only count for
+    // closed months.
+    const currentCal = getCurrentCalendarMonth();
+    return months.find(m => m && m < currentCal) || "";
   }, [months]);
   const titleHolders = React.useMemo(() => {
     if (!isSuperAdmin || !beltMonth) return null;
@@ -284,7 +287,9 @@ function LeaderboardPage() {
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
             <span style={{fontSize:16,fontWeight:800,letterSpacing:"-.3px"}}>🏆 Reigning belts</span>
             <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",background:"#F59E0B",color:"#fff",borderRadius:10,letterSpacing:".5px"}}>SUPER ADMIN PREVIEW</span>
-            <span style={{fontSize:12,color:"var(--tx3)"}}>· awarded for <strong style={{color:"var(--tx2)"}}>{formatMonthLabel(beltMonth)}</strong> · next transfer at end of <strong style={{color:"var(--tx2)"}}>{formatMonthLabel(getCurrentCalendarMonth())}</strong></span>
+          </div>
+          <div style={{fontSize:12,color:"var(--tx2)",marginBottom:14,lineHeight:1.5}}>
+            Champions of <strong style={{color:"var(--tx)"}}>{formatMonthLabel(beltMonth)}</strong>. At the end of <strong style={{color:"var(--tx)"}}>{formatMonthLabel(getCurrentCalendarMonth())}</strong> the belts are recalculated — a new champion is crowned, or the current one defends the title.
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
             {TITLE_KEYS.map(k=>{
