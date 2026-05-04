@@ -5,6 +5,7 @@ import { nameFromEmail, safeError, emailsMatchLoose } from "../../lib/utils.js";
 import { hasRole } from "../../lib/constants.js";
 import { isPlanEditableDate, PLAN_FEATURE_START } from "../../lib/attendancePlan.js";
 import SearchableSelect from "../SearchableSelect.jsx";
+import AttendancePlanBulkModal from "./AttendancePlanBulkModal.jsx";
 
 /**
  * <AttendancePlanGrid attendance={...} qaList={...} roster={...} selMonth="2026-05" onSaved={...} />
@@ -32,10 +33,8 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
   const [pendingChanges, setPendingChanges] = useState({});
   const [saving, setSaving] = useState(false);
 
-  // Bulk-fill UI state
-  const [bulkValue, setBulkValue] = useState(""); // 'H' / 'P' / 'CLEAR'
-  const [bulkFrom, setBulkFrom] = useState("");
-  const [bulkTo, setBulkTo] = useState("");
+  // Bulk modal state — opens via the 📋 Bulk set button.
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   // Build month days
   const days = useMemo(() => {
@@ -144,30 +143,29 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
     setPendingChanges((prev) => ({ ...prev, [`${email}__${date}`]: next }));
   };
 
-  // Bulk-fill: apply value to all editable workdays in [from..to] for visible QAs
-  const applyBulk = () => {
-    if (!bulkValue || !bulkFrom || !bulkTo) return;
-    if (bulkFrom > bulkTo) {
-      globalToast("error", "Bulk: 'From' date must be before 'To'");
-      return;
-    }
-    const value = bulkValue === "CLEAR" ? null : bulkValue;
+  // Modal-driven bulk apply. Receives a fully-resolved set of dates and
+  // QA emails from the modal — we just iterate and stage into pendingChanges.
+  const applyBulkFromModal = ({ value, dates, qaEmails }) => {
+    if (!Array.isArray(dates) || !Array.isArray(qaEmails)) return;
     const next = { ...pendingChanges };
     let count = 0;
-    visibleQAs.forEach((qa) => {
-      const em = qa.email?.toLowerCase();
+    qaEmails.forEach((em) => {
       if (!em) return;
-      days.forEach((d) => {
-        // Weekends are included — Fri/Sat can be working days for some
-        // teams. The date range is the lead's choice.
-        if (d.date < bulkFrom || d.date > bulkTo) return;
-        if (!isPlanEditableDate(d.date)) return;
-        next[`${em}__${d.date}`] = value;
+      dates.forEach((d) => {
+        if (!isPlanEditableDate(d)) return;
+        next[`${em}__${d}`] = value; // null = clear plan
         count++;
       });
     });
     setPendingChanges(next);
-    globalToast("success", `Queued ${count} cell${count !== 1 ? "s" : ""} — click Save to commit.`);
+    if (count > 0) {
+      globalToast(
+        "success",
+        `Queued ${count.toLocaleString()} cell${count !== 1 ? "s" : ""} — click Save to commit.`,
+      );
+    } else {
+      globalToast("info", "Nothing to queue (all targeted cells were past or unchanged).");
+    }
   };
 
   const pendingCount = Object.keys(pendingChanges).filter((k) => {
@@ -306,7 +304,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
         </span>
       </div>
 
-      {/* Bulk set — apply H/P (or clear) to a date range across every visible QA. */}
+      {/* Bulk set — opens the modal for H/P/Off across selected days/weeks/QAs. */}
       <div
         className="card"
         style={{ padding: 12, marginBottom: 12, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", borderLeft: "3px solid var(--tabby-purple)" }}
@@ -314,46 +312,24 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
         <span style={{ fontSize: 12, fontWeight: 800, color: "var(--tx)", textTransform: "uppercase", letterSpacing: ".5px" }}>
           📋 Bulk set
         </span>
-        <select
-          value={bulkValue}
-          onChange={(e) => setBulkValue(e.target.value)}
-          className="input"
-          style={{ fontSize: 12, padding: "5px 8px", maxWidth: 160, fontWeight: 600 }}
-        >
-          <option value="">Pick value…</option>
-          <option value="H">H — Work from Home</option>
-          <option value="P">P — Office</option>
-          <option value="CLEAR">Clear plan</option>
-        </select>
-        <input
-          type="date"
-          className="input"
-          value={bulkFrom}
-          onChange={(e) => setBulkFrom(e.target.value)}
-          min={PLAN_FEATURE_START}
-          style={{ fontSize: 12, padding: "5px 8px" }}
-        />
-        <span style={{ fontSize: 11, color: "var(--tx3)" }}>to</span>
-        <input
-          type="date"
-          className="input"
-          value={bulkTo}
-          onChange={(e) => setBulkTo(e.target.value)}
-          min={PLAN_FEATURE_START}
-          style={{ fontSize: 12, padding: "5px 8px" }}
-        />
+        <span style={{ fontSize: 11, color: "var(--tx3)", flex: 1 }}>
+          Apply H, P, or Off to any date range — pick specific weekdays (e.g. Sun + Tue) and/or specific weeks within the range.
+        </span>
         <button
           className="btn btn-primary btn-sm"
-          onClick={applyBulk}
-          disabled={!bulkValue || !bulkFrom || !bulkTo}
-          style={{ fontSize: 12, fontWeight: 700 }}
+          onClick={() => setBulkOpen(true)}
+          style={{ fontSize: 12, fontWeight: 700, minWidth: 140 }}
         >
-          Apply to {visibleQAs.length} QA{visibleQAs.length !== 1 ? "s" : ""}
+          Open bulk set
         </button>
-        <span style={{ fontSize: 10, color: "var(--tx3)", marginLeft: "auto" }}>
-          Workdays + weekends in range · past days skipped · queues changes (Save below to commit)
-        </span>
       </div>
+
+      <AttendancePlanBulkModal
+        open={bulkOpen}
+        onClose={() => setBulkOpen(false)}
+        visibleQAs={visibleQAs}
+        onApply={applyBulkFromModal}
+      />
 
       {/* Save bar — sticky for visibility */}
       <div
