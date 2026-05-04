@@ -47,11 +47,14 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
     const t = to || dateTo;
     try {
       const rows = await sb.query("daily_scores", {
-        select: "qa_email,date,sbs,non_sbs,coaching_sessions,side_task_minutes,occupancy_pct",
+        // Pull both possible email columns — different syncs write to
+        // different ones, so selecting only qa_email silently misses
+        // QAs whose row landed under `email`.
+        select: "qa_email,email,date,sbs,non_sbs,coaching_sessions,side_task_minutes,occupancy_pct",
         filters: `date=gte.${f}&date=lte.${t}&order=date.desc`,
         token,
       });
-      const filtered = (rows || []).filter(r => matchQA(r.qa_email));
+      const filtered = (rows || []).filter(r => matchQA(r.qa_email) || matchQA(r.email));
       setData(filtered.sort((a, b) => a.date.localeCompare(b.date)));
     } catch (e) {
       console.error("EvalHistory:", e);

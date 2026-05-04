@@ -18,6 +18,24 @@ export const initialsFromEmail = (email) => {
   return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
 };
 
+/**
+ * Cross-domain, case-insensitive email match. QAs can have both
+ * @tabby.ai and @tabby.sa variants, and historical writes are
+ * inconsistent — exact-equality matching silently misses data when
+ * the row's domain differs from the user's. Compares the local part
+ * (everything before @) so both variants resolve to the same person.
+ *
+ *   emailsMatchLoose("Asmaa.Mohamed@tabby.sa", "asmaa.mohamed@tabby.ai") → true
+ *   emailsMatchLoose("a@x.com", "b@x.com") → false
+ */
+export const emailsMatchLoose = (a, b) => {
+  if (!a || !b) return false;
+  const al = String(a).toLowerCase();
+  const bl = String(b).toLowerCase();
+  if (al === bl) return true;
+  return al.split("@")[0] === bl.split("@")[0];
+};
+
 // csat_pct comes in two shapes depending on which sync wrote it:
 //   - new mtd-sync edge function:  "100.00%" / "75.00%"  (already a percent)
 //   - legacy Apps-Script writes:    "0.875"               (fraction, ×100 to get %)

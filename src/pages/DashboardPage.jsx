@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import { hasRole, ROLE_LABELS, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
-import { nameFromEmail, safeError, logActivity, csatPctValue, csatColor } from "../lib/utils.js";
+import { nameFromEmail, safeError, logActivity, csatPctValue, csatColor, emailsMatchLoose } from "../lib/utils.js";
 import { parseRawD, KPI_SLABS_D, calcSlabD, getScore, MAX_SCORE, scoreColor, scoreBg } from "../lib/dashboardScore.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { useDashboardData } from "../lib/useDashboardData.jsx";
@@ -53,11 +53,15 @@ function DashboardPage(){
   const previous=prevMonth?mtd.filter(r=>r.month===prevMonth):[];
 
   const myEmail=profile?.email?.toLowerCase();
-  const myData=current.find(r=>r.qa_email?.toLowerCase()===myEmail);
-  const myPrevData=previous.find(r=>r.qa_email?.toLowerCase()===myEmail);
+  // Cross-domain tolerant: a QA logged in as @tabby.ai whose MTD row
+  // was written under @tabby.sa (or vice versa) used to see no
+  // personal data on the dashboard. emailsMatchLoose strips the local
+  // part so both variants resolve to the same person.
+  const myData=current.find(r=>emailsMatchLoose(r.qa_email,myEmail));
+  const myPrevData=previous.find(r=>emailsMatchLoose(r.qa_email,myEmail));
 
   const ranked=[...current].sort((a,b)=>getScore(b)-getScore(a));
-  const myRank=ranked.findIndex(r=>r.qa_email?.toLowerCase()===myEmail)+1;
+  const myRank=ranked.findIndex(r=>emailsMatchLoose(r.qa_email,myEmail))+1;
 
   const myRoster=roster.find(r=>r.email.toLowerCase()===myEmail);
 
@@ -81,7 +85,7 @@ function DashboardPage(){
   const teamTrend=teamPrevious.length?(teamAvgScore-teamAvgScorePrev).toFixed(1):null;
   const teamDsat=teamCurrent.reduce((a,r)=>a+(r.dsat||0),0);
 
-  const myHistory=months.slice(0,6).reverse().map(m=>{const row=mtd.find(r=>r.month===m&&r.qa_email?.toLowerCase()===myEmail);return{month:m,score:row?getScore(row):null};}).filter(d=>d.score!==null);
+  const myHistory=months.slice(0,6).reverse().map(m=>{const row=mtd.find(r=>r.month===m&&emailsMatchLoose(r.qa_email,myEmail));return{month:m,score:row?getScore(row):null};}).filter(d=>d.score!==null);
 
   const nav=(page)=>window.dispatchEvent(new CustomEvent("navigate",{detail:page}));
 
