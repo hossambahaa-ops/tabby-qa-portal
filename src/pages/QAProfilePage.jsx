@@ -338,7 +338,11 @@ function QAProfilePage() {
       {/* KPI cards row */}
       {/* ── Today's KPI cards ── */}
       {(()=>{
-        const d = dailyScores.find(x => matchQA(x.qa_email));
+        // daily_scores rows may carry the email under either `qa_email` or
+        // `email` depending on which sync wrote the row — match against
+        // both. Without the fallback, QAs whose row was written under
+        // `email` show 0 on the profile while the dashboard works fine.
+        const d = dailyScores.find(x => matchQA(x.qa_email) || matchQA(x.email));
         const sbs = parseFloat(d?.sbs_count || d?.sbs || 0);
         const nonSbs = parseFloat(d?.non_sbs_count || d?.non_sbs || 0);
         const totalEvals = sbs + nonSbs;
@@ -632,7 +636,10 @@ function QAProfilePage() {
                     const assignee = (t.assigned_to||t.created_by||"").toLowerCase();
                     const local = assignee.split("@")[0];
                     const ds = dailyScores.find(d => {
-                      const em = d.qa_email?.toLowerCase();
+                      // Same dual-field tolerance as the today's-KPI lookup
+                      // above — daily_scores can carry the email under either
+                      // qa_email or email depending on which sync wrote it.
+                      const em = (d.qa_email || d.email)?.toLowerCase();
                       return em === assignee || em?.split("@")[0] === local;
                     });
                     const actual = ds ? (parseFloat(ds[t.target_metric]) || 0) : 0;

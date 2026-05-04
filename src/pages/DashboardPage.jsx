@@ -356,7 +356,10 @@ function DashboardPage(){
         <div className="card-header"><span className="card-title">Today's activity</span><span style={{fontSize:11,color:"var(--tx3)"}}>{dailyScores.length} active · {new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</span></div>
         <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,padding:"12px 16px"}}>
           {(()=>{
-            const teamDs=dailyScores.filter(d=>allTeamEmails.includes(d.qa_email?.toLowerCase()));
+            // qa_email or email — sync can write either column. Without
+            // the fallback, team aggregates silently miss QAs whose row
+            // landed in the `email` column.
+            const teamDs=dailyScores.filter(d=>allTeamEmails.includes((d.qa_email||d.email)?.toLowerCase()));
             const totSbs=teamDs.reduce((a,d)=>a+(d.sbs||0),0);
             const totNon=teamDs.reduce((a,d)=>a+(d.non_sbs||0),0);
             const totCoach=teamDs.reduce((a,d)=>a+(d.coaching_sessions||0),0);

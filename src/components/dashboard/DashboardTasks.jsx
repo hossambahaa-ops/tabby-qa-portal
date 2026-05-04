@@ -77,7 +77,8 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
         const assignee=(task.assigned_to||task.created_by||"").toLowerCase();
         const local=assignee.split("@")[0];
         const ds=dailyScores.find(d=>{
-          const em=d.qa_email?.toLowerCase();
+          // qa_email or email — sync can write either column.
+          const em=(d.qa_email||d.email)?.toLowerCase();
           return em===assignee||em?.split("@")[0]===local;
         });
         if(!ds)continue;

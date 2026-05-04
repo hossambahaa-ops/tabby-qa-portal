@@ -29,10 +29,13 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
       .then(t => setTeamTargets(Array.isArray(t) ? t : []));
   }, [token]);
 
-  // Daily score for today
+  // Daily score for today. daily_scores rows may carry the email under
+  // either `qa_email` or `email` depending on which sync wrote the row —
+  // match against both so QAs aren't silently missed.
   const d = dailyScores.find(x => {
-    if (!x.qa_email || !myEmail) return false;
-    const a = x.qa_email.toLowerCase(), b = myEmail.toLowerCase();
+    const xe = x.qa_email || x.email;
+    if (!xe || !myEmail) return false;
+    const a = xe.toLowerCase(), b = myEmail.toLowerCase();
     return a === b || a.split("@")[0] === b.split("@")[0];
   });
   const sbs = parseFloat(d?.sbs_count || d?.sbs || 0);
