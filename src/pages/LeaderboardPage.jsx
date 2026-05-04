@@ -15,7 +15,8 @@ import { useUrlState } from "../lib/useUrlState.jsx";
 import LeaderboardCompareTable from "../components/leaderboard/LeaderboardCompareTable.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import Badges from "../components/Badges.jsx";
-import TitleBelt from "../components/TitleBelt.jsx";
+import TitleBelt, { BeltHoverCard } from "../components/TitleBelt.jsx";
+import Tooltip from "../components/Tooltip.jsx";
 import { computeTitleHolders, holdersByEmail, TITLE_CATALOG, TITLE_KEYS, getLastCompletedMonth } from "../lib/titles.js";
 
 function LeaderboardPage() {
@@ -290,20 +291,22 @@ function LeaderboardPage() {
               const cat = TITLE_CATALOG[k];
               const h = titleHolders[k];
               return (
-                <div key={k} style={{padding:"10px 12px",background:"var(--bg)",borderRadius:8,border:`1px solid ${cat.color}55`,display:"flex",alignItems:"center",gap:10}}>
-                  <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${cat.color}33,${cat.color}11)`,border:`1.5px solid ${cat.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,boxShadow:`0 0 0 2px ${cat.color}1f`}}>{cat.emoji}</div>
-                  <div style={{minWidth:0,flex:1}}>
-                    <div style={{fontSize:11,fontWeight:800,color:cat.color,textTransform:"uppercase",letterSpacing:".4px"}}>{cat.label}</div>
-                    {h ? (
-                      <>
-                        <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameFromEmail(h.qa_email)}</div>
-                        <div style={{fontSize:11,color:"var(--tx3)"}}>{cat.metricLabel}: {h.display}</div>
-                      </>
-                    ) : (
-                      <div style={{fontSize:12,color:"var(--tx3)",fontStyle:"italic"}}>Unclaimed this month</div>
-                    )}
+                <Tooltip key={k} content={<BeltHoverCard cat={cat} holder={h} preview/>} maxWidth={300} padding="10px 12px" wrapperStyle={{display:"flex",width:"100%"}}>
+                  <div style={{padding:"10px 12px",background:"var(--bg)",borderRadius:8,border:`1px solid ${cat.color}55`,display:"flex",alignItems:"center",gap:10,cursor:"help",width:"100%"}}>
+                    <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${cat.color}33,${cat.color}11)`,border:`1.5px solid ${cat.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,boxShadow:`0 0 0 2px ${cat.color}1f`}}>{cat.emoji}</div>
+                    <div style={{minWidth:0,flex:1}}>
+                      <div style={{fontSize:11,fontWeight:800,color:cat.color,textTransform:"uppercase",letterSpacing:".4px"}}>{cat.label}</div>
+                      {h ? (
+                        <>
+                          <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameFromEmail(h.qa_email)}</div>
+                          <div style={{fontSize:11,color:"var(--tx3)"}}>{cat.metricLabel}: {h.display}</div>
+                        </>
+                      ) : (
+                        <div style={{fontSize:12,color:"var(--tx3)",fontStyle:"italic"}}>Unclaimed this month</div>
+                      )}
+                    </div>
                   </div>
-                </div>
+                </Tooltip>
               );
             })}
           </div>

@@ -8,7 +8,7 @@ import ReactDOM from "react-dom";
  * via a portal so it's never clipped by overflow:hidden parents. Multi-line
  * content (\n) is preserved. ~250 ms hover delay so it doesn't feel jumpy.
  */
-export default function Tooltip({ content, placement = "top", children, delay = 250 }) {
+export default function Tooltip({ content, placement = "top", children, delay = 250, maxWidth = 240, padding = "6px 10px", wrapperStyle }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const wrapRef = useRef(null);
@@ -57,7 +57,7 @@ export default function Tooltip({ content, placement = "top", children, delay = 
         onMouseLeave={hide}
         onFocus={show}
         onBlur={hide}
-        style={{ display: "inline-flex" }}
+        style={{ display: "inline-flex", ...wrapperStyle }}
       >
         {children}
       </span>
@@ -75,11 +75,11 @@ export default function Tooltip({ content, placement = "top", children, delay = 
             color: "#fff",
             fontSize: 11,
             lineHeight: 1.5,
-            padding: "6px 10px",
+            padding,
             borderRadius: 8,
             boxShadow: "0 6px 20px rgba(0,0,0,.25)",
             whiteSpace: "pre-line",
-            maxWidth: 240,
+            maxWidth,
             pointerEvents: "none",
             zIndex: 10000,
             animation: "fadeIn .15s var(--ease)",
