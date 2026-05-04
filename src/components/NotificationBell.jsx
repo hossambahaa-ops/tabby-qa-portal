@@ -10,7 +10,8 @@ import { listViolations } from "../api/violations.js";
 import { listEscalations } from "../api/escalations.js";
 import { listRoster } from "../api/roster.js";
 import { fetchUnreadReleases, ackRelease } from "../lib/featureReleases.js";
-import { isMismatch, isMissingCheckIn, PLAN_FEATURE_START, seenPlanKey, isPlanUnseen } from "../lib/attendancePlan.js";
+import { isMismatch, isMissingCheckIn, isAutoNsnc, PLAN_FEATURE_START, seenPlanKey, isPlanUnseen } from "../lib/attendancePlan.js";
+import { listProfiles } from "../api/profiles.js";
 import { emailsMatchLoose, nameFromEmail } from "../lib/utils.js";
 
 const safe=(v)=>{if(v==null)return"";if(typeof v==="object")return JSON.stringify(v);return String(v);};
@@ -221,14 +222,32 @@ function NotificationBell({ onNavigate }) {
             const cap = d.toISOString().split("T")[0];
             return cap > PLAN_FEATURE_START ? cap : PLAN_FEATURE_START;
           })();
+          // Build a Set of QA emails (role qa or senior_qa). All attendance
+          // flags are filtered by this set so leads/admins/managers don't
+          // generate or see flags about their own non-QA records.
+          const qaProfiles = await listProfiles({ token, select: "email,role", cacheKey: "profiles_slim_for_bell" }).catch(() => []);
+          const qaEmailSet = new Set();
+          (qaProfiles || []).forEach(p => {
+            if (p.role === "qa" || p.role === "senior_qa") {
+              const e = p.email?.toLowerCase();
+              if (e) qaEmailSet.add(e);
+            }
+          });
+          const isQaEmail = (em) => qaEmailSet.has((em || "").toLowerCase());
+
           const local = myEmail.split("@")[0];
           const myAttFilters = `date=gte.${sinceDate}&or=(email.ilike.${local}@%,email.eq.${profile?.email})&order=date.desc&limit=60`;
           const myAttRows = await sb.query("qa_attendance", {
-            select: "id,email,date,status,planned_code,justification,mismatch_approved,plan_updated_at",
+            select: "id,email,date,status,planned_code,justification,mismatch_approved,plan_updated_at,auto_nsnc",
             filters: myAttFilters,
             token,
           }).catch(() => []);
-          const mineFiltered = (myAttRows || []).filter(r => emailsMatchLoose(r.email, myEmail));
+          // Self-flags only fire if the viewer themselves is a QA. For
+          // leads/admins/managers (who shouldn't have plans on their own
+          // attendance row), skip the self block entirely.
+          const mineFiltered = isQaEmail(myEmail)
+            ? (myAttRows || []).filter(r => emailsMatchLoose(r.email, myEmail))
+            : [];
 
           // "Plan updated" notification — pings the QA when a lead publishes
           // any new/changed planned_code values for them. Suppressed once
@@ -251,7 +270,8 @@ function NotificationBell({ onNavigate }) {
             });
           }
 
-          // Mine: mismatches + missing check-ins
+          // Mine: mismatches + missing check-ins + auto-NSNC. Already
+          // gated to QAs above (mineFiltered is empty for non-QA viewers).
           mineFiltered.forEach(r => {
             if (isMismatch(r)) {
               all.push({
@@ -260,6 +280,15 @@ function NotificationBell({ onNavigate }) {
                 title: `⚠ Attendance mismatch on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
                 sub: `Planned: ${r.planned_code} · Checked in: ${r.status}`,
                 time: r.date + "T18:00:00Z",
+                page: "schedule",
+              });
+            } else if (isAutoNsnc(r)) {
+              all.push({
+                id: "att-nsnc-" + r.id,
+                type: "attendance_auto_nsnc",
+                title: `🚨 Auto-marked NSNC on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
+                sub: `Planned ${r.planned_code} but no check-in by 7 PM Riyadh — your lead can adjust if needed.`,
+                time: r.date + "T19:00:00Z",
                 page: "schedule",
               });
             } else if (isMissingCheckIn(r)) {
@@ -288,13 +317,17 @@ function NotificationBell({ onNavigate }) {
             if (leadTeamEmails && leadTeamEmails.size > 0) {
               const teamEmailList = [...leadTeamEmails].slice(0, 50).map(e => `email.eq.${e}`).join(",");
               const teamAtt = await sb.query("qa_attendance", {
-                select: "id,email,date,status,planned_code,justification,mismatch_approved",
+                select: "id,email,date,status,planned_code,justification,mismatch_approved,auto_nsnc",
                 filters: `date=gte.${sinceDate}&or=(${teamEmailList})&order=date.desc&limit=200`,
                 token,
               }).catch(() => []);
               (teamAtt || []).forEach(r => {
                 const em = r.email?.toLowerCase();
                 if (!leadTeamEmails.has(em)) return;
+                // Plans only apply to QAs. Even if a non-QA somehow has
+                // a planned_code on their row, their team-level flags
+                // are out of scope here.
+                if (!isQaEmail(em)) return;
                 if (isMismatch(r)) {
                   all.push({
                     id: "tatt-mis-" + r.id,
@@ -302,6 +335,15 @@ function NotificationBell({ onNavigate }) {
                     title: `⚠ ${nameFromEmail(em)} — mismatch on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
                     sub: `Planned: ${r.planned_code} · Got: ${r.status}${r.justification ? ` · "${r.justification.slice(0,40)}"` : ""}`,
                     time: r.date + "T18:00:00Z",
+                    page: "schedule",
+                  });
+                } else if (isAutoNsnc(r)) {
+                  all.push({
+                    id: "tatt-nsnc-" + r.id,
+                    type: "attendance_auto_nsnc",
+                    title: `🚨 ${nameFromEmail(em)} — auto-NSNC on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
+                    sub: `Planned ${r.planned_code} but never checked in by 7 PM. Click to adjust.`,
+                    time: r.date + "T19:00:00Z",
                     page: "schedule",
                   });
                 } else if (isMissingCheckIn(r)) {

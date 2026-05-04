@@ -54,6 +54,18 @@ export function hasAnyFlag(row, now = new Date()) {
   return isMismatch(row) || isMissingCheckIn(row, now);
 }
 
+// True iff the row was auto-converted to NSNC by the 7 PM cron and the
+// lead hasn't reviewed/changed it yet. Surfaces in the bell so the
+// lead can adjust if the QA has a legitimate reason.
+export function isAutoNsnc(row) {
+  if (!row || !row.auto_nsnc) return false;
+  // If the lead later changed status to something else, the auto_nsnc
+  // flag is still true historically — but the current status no longer
+  // reflects an "auto-set" state. Only show the bell entry while the
+  // status is still NSNC.
+  return row.status === "NSNC";
+}
+
 // Today's date as it would be in Riyadh. Used by the dashboard check-in
 // widget so QAs in other timezones still see "today" in Riyadh terms.
 export function riyadhTodayStr(now = new Date()) {
