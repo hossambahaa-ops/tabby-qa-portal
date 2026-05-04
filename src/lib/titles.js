@@ -42,6 +42,32 @@ export function getLastCompletedMonth(now = new Date()) {
   return `${py}-${pm}`;
 }
 
+/**
+ * getCurrentCalendarMonth() → "YYYY-MM"
+ *
+ * The month the wall clock is in. This is the "transfer happens at the end
+ * of THIS month" month — distinct from the leaderboard's selected-view
+ * month. On 2026-05-04, returns "2026-05".
+ */
+export function getCurrentCalendarMonth(now = new Date()) {
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+/**
+ * formatMonthLabel("2026-04") → "April 2026"
+ *
+ * Human-readable month name for tooltips/headers. Returns "" for empty
+ * input so callers can use it without conditional checks.
+ */
+export function formatMonthLabel(yyyymm) {
+  if (!yyyymm) return "";
+  const [y, m] = yyyymm.split("-").map((s) => parseInt(s, 10));
+  if (!y || !m) return yyyymm;
+  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+}
+
 export const TITLE_CATALOG = {
   pulse_sovereign: {
     label: "Pulse Sovereign",

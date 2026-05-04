@@ -17,7 +17,7 @@ import EmptyState from "../components/EmptyState.jsx";
 import Badges from "../components/Badges.jsx";
 import TitleBelt, { BeltHoverCard } from "../components/TitleBelt.jsx";
 import Tooltip from "../components/Tooltip.jsx";
-import { computeTitleHolders, holdersByEmail, TITLE_CATALOG, TITLE_KEYS, getLastCompletedMonth } from "../lib/titles.js";
+import { computeTitleHolders, holdersByEmail, TITLE_CATALOG, TITLE_KEYS, getLastCompletedMonth, getCurrentCalendarMonth, formatMonthLabel } from "../lib/titles.js";
 
 function LeaderboardPage() {
   const{token,profile,gf,globalToast}=useApp();
@@ -284,7 +284,7 @@ function LeaderboardPage() {
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
             <span style={{fontSize:16,fontWeight:800,letterSpacing:"-.3px"}}>🏆 Reigning belts</span>
             <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",background:"#F59E0B",color:"#fff",borderRadius:10,letterSpacing:".5px"}}>SUPER ADMIN PREVIEW</span>
-            <span style={{fontSize:12,color:"var(--tx3)"}}>· awarded for {beltMonth} · transfer at end of {selMonth || "current month"}</span>
+            <span style={{fontSize:12,color:"var(--tx3)"}}>· awarded for <strong style={{color:"var(--tx2)"}}>{formatMonthLabel(beltMonth)}</strong> · next transfer at end of <strong style={{color:"var(--tx2)"}}>{formatMonthLabel(getCurrentCalendarMonth())}</strong></span>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
             {TITLE_KEYS.map(k=>{
