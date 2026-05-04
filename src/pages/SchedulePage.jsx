@@ -747,7 +747,21 @@ function SchedulePage() {
     try {
       if (existing) {
         if (status === existing.status && (existing.approval_status || null) === approval_status) { setEditCell(null); setPendingReason(""); return; }
-        await sb.query("qa_attendance", {token, method:"PATCH", body:{status, approval_status, requested_by, approved_by, approved_at, request_note: note, updated_at:new Date().toISOString()}, filters:`id=eq.${existing.id}`});
+        const body = { status, approval_status, requested_by, approved_by, approved_at, request_note: note, updated_at: new Date().toISOString() };
+        // Optimistic-row IDs from a prior insert use a "new-" timestamp
+        // placeholder which Postgres rejects as an invalid UUID. Same
+        // fallback pattern as approveAtt / denyAtt / clearAtt: filter
+        // by (email, date) instead of id when we don't have a real UUID.
+        if (existing.id && !String(existing.id).startsWith("new")) {
+          await sb.query("qa_attendance", { token, method: "PATCH", body, filters: `id=eq.${existing.id}` });
+        } else {
+          const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(email.toLowerCase())}&date=eq.${dateStr}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
+            body: JSON.stringify(body),
+          });
+          if (!resp.ok) throw new Error(await resp.text());
+        }
       } else {
         const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
           method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
