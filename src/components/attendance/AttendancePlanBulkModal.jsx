@@ -95,6 +95,14 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
     });
   }, [from, to]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ALL hooks must run on every render regardless of `open` to keep the
+  // hook order stable across mounts (React error #310 otherwise).
+  // Targets — list of QA emails the modal will apply to.
+  const targetEmails = useMemo(() => {
+    if (scope === "specific") return specificEmail ? [specificEmail.toLowerCase()] : [];
+    return (visibleQAs || []).map((q) => q.email?.toLowerCase()).filter(Boolean);
+  }, [scope, specificEmail, visibleQAs]);
+
   if (!open) return null;
 
   const toggleDay = (idx) => {
@@ -145,12 +153,6 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
     return all;
   };
   const dateCount = computeDates().length;
-
-  // Targets — list of QA emails the modal will apply to.
-  const targetEmails = useMemo(() => {
-    if (scope === "specific") return specificEmail ? [specificEmail.toLowerCase()] : [];
-    return (visibleQAs || []).map((q) => q.email?.toLowerCase()).filter(Boolean);
-  }, [scope, specificEmail, visibleQAs]);
 
   const apply = () => {
     const dates = computeDates();
