@@ -495,6 +495,8 @@ function SchedulePage() {
   const [bulkPerson, setBulkPerson] = useState("");
   const [bulkDayFilter, setBulkDayFilter] = useState("all");
   const [selectedQAs, setSelectedQAs] = useState(new Set());
+  // Calendar-tab-only: filter by QA Lead. Empty = show all.
+  const [selectedLeadFilter, setSelectedLeadFilter] = useUrlState("lead", "");
   const [editCell, setEditCell] = useState(null);
   const [pendingReason, setPendingReason] = useState(""); // reason input in cell picker
   const [pickerStage, setPickerStage] = useState(null); // null | { code } — sub-stage inside open cell picker
@@ -686,6 +688,17 @@ function SchedulePage() {
     if (isQA) return allQAs.filter(r => r.email?.toLowerCase() === myEmail);
     if (isLead && !hasRole(profile?.role, "qa_supervisor")) {
       return allQAs.filter(r => r.manager_email?.toLowerCase() === myEmail);
+    }
+    // For supervisors / admins viewing the calendar tab, allow narrowing
+    // by a specific QA Lead (selectedLeadFilter, set via the dropdown
+    // added on the page header). Empty string = show everyone.
+    if (selectedLeadFilter) {
+      const sel = selectedLeadFilter.toLowerCase();
+      const selLocal = sel.split("@")[0];
+      return allQAs.filter(r => {
+        const mgr = (r.manager_email || "").toLowerCase();
+        return mgr === sel || mgr.split("@")[0] === selLocal;
+      });
     }
     return allQAs;
   })();
@@ -1177,6 +1190,31 @@ function SchedulePage() {
               📊 Send attendance digest
             </button>
           )}
+
+          {/* QA Lead filter — calendar tab, supervisors / admins only.
+              QAs and individual leads see only their own scope so the
+              filter would do nothing for them. */}
+          {activeTab === "calendar" && hasRole(profile?.role, "qa_supervisor") && (() => {
+            // Build the lead options from the current roster's manager_email
+            // values intersected with the qa_lead profile set.
+            const leadEmails = [...new Set(
+              roster.map(r => r.manager_email?.toLowerCase()).filter(Boolean).filter(em => qaLeadSet.has(em) || qaLeadSet.has(em.split("@")[0])),
+            )].sort();
+            return (
+              <select
+                value={selectedLeadFilter}
+                onChange={(e) => setSelectedLeadFilter(e.target.value)}
+                className="form-input"
+                style={{ width: 180, fontSize: 12 }}
+                title="Filter the calendar grid by QA Lead"
+              >
+                <option value="">All QA Leads ({leadEmails.length})</option>
+                {leadEmails.map(em => (
+                  <option key={em} value={em}>{_nameFromEmail(em)}</option>
+                ))}
+              </select>
+            );
+          })()}
 
           {/* Calendar-only controls */}
           {activeTab === "calendar" && <>

@@ -3,7 +3,7 @@ import { sb, SUPABASE_URL, SUPABASE_ANON } from "../../lib/supabase.js";
 import { useApp } from "../../lib/AppContext.jsx";
 import { nameFromEmail, safeError, emailsMatchLoose } from "../../lib/utils.js";
 import { hasRole } from "../../lib/constants.js";
-import { isPlanEditableDate, PLAN_FEATURE_START } from "../../lib/attendancePlan.js";
+import { isPlanEditableDate, PLAN_FEATURE_START, riyadhTodayStr } from "../../lib/attendancePlan.js";
 import SearchableSelect from "../SearchableSelect.jsx";
 import AttendancePlanBulkModal from "./AttendancePlanBulkModal.jsx";
 
@@ -199,7 +199,16 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
       // NOT NULL on the table, so we must include it on inserts — for
       // upserts that hit an existing row, the merge-duplicates
       // resolution preserves the original created_by anyway.
+      //
+      // Auto-sync: when the plan is set for a FUTURE date (strictly
+      // after today in Riyadh), also stamp `status` to match the new
+      // planned_code. This keeps the calendar tab consistent with the
+      // plan for days that haven't happened yet — without that,
+      // pre-existing default-Present statuses would obscure the plan.
+      // Past dates are NEVER touched (preserve historical record), and
+      // today is left alone so the QA's check-in widget still owns it.
       const creator = profile?.email || myEmail;
+      const todayStr = riyadhTodayStr();
       const rows = [];
       const clears = [];
       Object.entries(pendingChanges).forEach(([key, value]) => {
@@ -210,7 +219,9 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
         if (value === null) {
           if (existing) clears.push({ id: existing.id });
         } else {
-          rows.push({ email, date, planned_code: value, created_by: creator });
+          const row = { email, date, planned_code: value, created_by: creator };
+          if (date > todayStr) row.status = value; // sync actual to plan for future dates
+          rows.push(row);
         }
       });
 
