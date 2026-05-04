@@ -61,7 +61,7 @@ const NAV_ITEMS=[
   {key:"csat",label:"CSAT",icon:icons.leaderboard},
   {key:"expertise",label:"Expertise",icon:icons.leaderboard,minRole:"admin"},
   {key:"targets",label:"Targets",icon:icons.scores,minRole:"qa_lead"},
-  {key:"schedule",label:"Schedule",icon:icons.coaching,section:"Management"},
+  {key:"schedule",label:"Attendance",icon:icons.coaching,section:"Management"},
   {key:"quality",label:"Quality Control",icon:icons.dam,minRole:"qa_lead"},
   {key:"escalations",label:"Escalations",icon:icons.escalation},
   {key:"hr",label:"HR cases",icon:icons.hr,minRole:"qa_supervisor"},
@@ -823,7 +823,7 @@ function AppInner(){
       {[
         {key:"dashboard",label:"Home",icon:icons.dashboard},
         {key:"profile",label:"Profile",icon:icons.hr},
-        {key:"schedule",label:"Schedule",icon:icons.coaching},
+        {key:"schedule",label:"Attendance",icon:icons.coaching},
         hasRole(userRole,"admin")?{key:"admin",label:"Admin",icon:icons.settings}:hasRole(userRole,"qa_lead")?{key:"quality",label:"Quality",icon:icons.dam}:{key:"leaderboard",label:"Rank",icon:icons.leaderboard},
       ].map(item=>(
         <button key={item.key} className={`mobile-bottom-nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}}>
