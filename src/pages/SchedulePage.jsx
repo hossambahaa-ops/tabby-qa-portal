@@ -188,6 +188,229 @@ function CellPicker({ anchorEl, em, dayNum, st, isQA, canApprove, pickerStage, p
   );
 }
 
+// MyMonthCalendar — Google-Calendar-style 7-column month grid for the
+// QA's own attendance. Replaces the wide table on the Calendar tab when
+// the viewer is a QA (they only have one row anyway, so the grid is
+// overkill). Reuses CellPicker for the same click-to-edit flow.
+function MyMonthCalendar({
+  selMonth, myEmail, attendance, monthIsLocked, isLead, isQA,
+  editCell, setEditCell, pickerStage, pendingReason,
+  onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
+}) {
+  const [year, monthNum] = selMonth.split("-").map(Number);
+  const firstDow = new Date(year, monthNum - 1, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(year, monthNum, 0).getDate();
+
+  // Build the cell list as one flat array, then split into weeks.
+  const cells = [];
+  for (let i = 0; i < firstDow; i++) cells.push(null); // pad before day 1
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null); // pad to complete the last row
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+
+  const myAtt = (dayNum) => {
+    if (!dayNum) return null;
+    const dateStr = `${selMonth}-${String(dayNum).padStart(2, "0")}`;
+    return attendance.find(
+      (a) => a.email?.toLowerCase() === myEmail && a.date === dateStr,
+    ) || null;
+  };
+
+  const todayDateStr = new Date().toISOString().split("T")[0];
+
+  const monthLabel = new Date(year, monthNum - 1, 1).toLocaleDateString(
+    "en-US",
+    { month: "long", year: "numeric" },
+  );
+
+  const dayLabels = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  return (
+    <div className="card" style={{ padding: 14 }}>
+      <div style={{ fontSize: 15, fontWeight: 800, color: "var(--tx)", marginBottom: 10, letterSpacing: "-.2px" }}>
+        {monthLabel}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))", gap: 4 }}>
+        {dayLabels.map((d, i) => (
+          <div
+            key={d}
+            style={{
+              textAlign: "center",
+              fontSize: 10,
+              fontWeight: 700,
+              color: i === 5 || i === 6 ? "var(--tx3)" : "var(--tx2)",
+              textTransform: "uppercase",
+              letterSpacing: ".4px",
+              paddingBottom: 6,
+            }}
+          >
+            {d}
+          </div>
+        ))}
+        {weeks.map((week, wi) =>
+          week.map((day, di) => {
+            const isWeekend = di === 5 || di === 6;
+            if (day === null) {
+              return (
+                <div
+                  key={`${wi}-${di}`}
+                  style={{
+                    minHeight: 78,
+                    background: "transparent",
+                    border: "1px solid transparent",
+                    borderRadius: 8,
+                  }}
+                />
+              );
+            }
+            const dateStr = `${selMonth}-${String(day).padStart(2, "0")}`;
+            const att = myAtt(day);
+            const st = att?.status || null;
+            const planned = att?.planned_code || null;
+            const attType = st ? ATT_MAP[st] : null;
+            const isPending = att?.approval_status === "pending";
+            const isDenied = att?.approval_status === "denied";
+            const cellKey = `${myEmail}-${day}`;
+            const isEditing = editCell === cellKey;
+            const canEdit = !monthIsLocked;
+            const isToday = dateStr === todayDateStr;
+            return (
+              <CalendarDayCell
+                key={`${wi}-${di}`}
+                day={day}
+                dateStr={dateStr}
+                att={att}
+                st={st}
+                planned={planned}
+                attType={attType}
+                isPending={isPending}
+                isDenied={isDenied}
+                isWeekend={isWeekend}
+                isToday={isToday}
+                isEditing={isEditing}
+                canEdit={canEdit}
+                onOpen={() => setEditCell(cellKey)}
+                onClose={() => { setEditCell(null); setPendingReason(""); }}
+                em={myEmail}
+                dayNum={day}
+                isQA={isQA}
+                canApprove={false}
+                pickerStage={isEditing ? pickerStage : null}
+                pendingReason={isEditing ? pendingReason : ""}
+                onSetAtt={onSetAtt}
+                onApproveAtt={onApproveAtt}
+                onClearAtt={onClearAtt}
+                setPendingReason={setPendingReason}
+                setPickerStage={setPickerStage}
+              />
+            );
+          }),
+        )}
+      </div>
+      <div style={{ marginTop: 12, fontSize: 11, color: "var(--tx3)", fontStyle: "italic" }}>
+        Click any day to set an attendance code. Today's date is highlighted.
+      </div>
+    </div>
+  );
+}
+
+// One day-square inside MyMonthCalendar. Anchors CellPicker via a div ref.
+function CalendarDayCell({
+  day, dateStr, att, st, planned, attType, isPending, isDenied,
+  isWeekend, isToday, isEditing, canEdit, onOpen, onClose,
+  em, dayNum, isQA, canApprove, pickerStage, pendingReason,
+  onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
+}) {
+  const ref = useRef(null);
+  return (
+    <div
+      ref={ref}
+      onClick={() => { if (canEdit) { isEditing ? onClose() : onOpen(); } }}
+      title={attType?.label || (planned ? `Planned: ${planned}` : "Click to set attendance")}
+      style={{
+        minHeight: 78,
+        padding: 6,
+        background: isToday ? "rgba(106,44,121,.10)" : isWeekend ? "rgba(156,163,175,0.05)" : "var(--bg)",
+        border: `1px solid ${isToday ? "var(--tabby-purple)" : "var(--bd2)"}`,
+        borderRadius: 8,
+        cursor: canEdit ? "pointer" : "default",
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        gap: 4,
+        transition: "background .12s ease, border-color .12s ease",
+      }}
+      onMouseEnter={(e) => { if (canEdit) e.currentTarget.style.borderColor = isToday ? "var(--tabby-purple)" : "var(--tabby-purple)"; }}
+      onMouseLeave={(e) => { e.currentTarget.style.borderColor = isToday ? "var(--tabby-purple)" : "var(--bd2)"; }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: isToday ? "var(--tabby-purple)" : isWeekend ? "var(--tx3)" : "var(--tx)" }}>
+          {day}
+        </span>
+        {planned && (
+          <span
+            style={{
+              fontSize: 9,
+              fontWeight: 700,
+              padding: "1px 5px",
+              borderRadius: 3,
+              background: planned === "H" ? "rgba(59,130,246,.18)" : "rgba(34,197,94,.18)",
+              color: planned === "H" ? "#3B82F6" : "#16A34A",
+            }}
+            title={planned === "H" ? "Planned: Home" : "Planned: Office"}
+          >
+            {planned}
+          </span>
+        )}
+      </div>
+      {st && attType && (
+        <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+          <span
+            style={{
+              fontSize: 10,
+              padding: "2px 6px",
+              borderRadius: 4,
+              background: attType.bg,
+              color: attType.color,
+              fontWeight: 700,
+              opacity: isPending ? 0.55 : isDenied ? 0.4 : 1,
+              outline: isPending ? `1px dashed ${attType.color}` : isDenied ? "1px dashed var(--red)" : "none",
+            }}
+          >
+            {st}
+          </span>
+          {isPending && <span style={{ fontSize: 10, color: "var(--amber)" }} title="Pending lead approval">⏳</span>}
+          {isDenied && <span style={{ fontSize: 10, color: "var(--red)" }} title="Denied">✗</span>}
+        </div>
+      )}
+      {!st && planned && (
+        <div style={{ fontSize: 10, color: "var(--tx3)", fontStyle: "italic" }}>
+          {planned === "H" ? "Home" : "Office"}
+        </div>
+      )}
+      {isEditing && (
+        <CellPicker
+          anchorEl={ref.current}
+          em={em}
+          dayNum={dayNum}
+          st={st}
+          isQA={isQA}
+          canApprove={canApprove}
+          pickerStage={pickerStage}
+          pendingReason={pendingReason}
+          onClose={onClose}
+          onSetAtt={onSetAtt}
+          onApproveAtt={onApproveAtt}
+          onClearAtt={onClearAtt}
+          setPendingReason={setPendingReason}
+          setPickerStage={setPickerStage}
+        />
+      )}
+    </div>
+  );
+}
+
 const DayCell = React.memo(function DayCell({
   em, dayNum, isWeekend, att, isEditing, canEdit, isLead, isQA, canApprove,
   pickerStage, pendingReason,
@@ -1090,7 +1313,31 @@ function SchedulePage() {
           <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setSelectedQAs(new Set())}>Clear</button>
         </div>}
 
-        {/* Calendar grid */}
+        {/* QA-only calendar view — Google-Calendar-style month grid for
+            their own days. Replaces the wide table for QAs since they
+            only see their own row in it anyway. */}
+        {isQA && !isLead && (
+          <MyMonthCalendar
+            selMonth={selMonth}
+            myEmail={myEmail}
+            attendance={attendance}
+            monthIsLocked={monthIsLocked}
+            isLead={isLead}
+            isQA={isQA}
+            editCell={editCell}
+            setEditCell={setEditCell}
+            pickerStage={pickerStage}
+            pendingReason={pendingReason}
+            onSetAtt={(em, dayNum, code, note) => setAtt(em, dayNum, code, note)}
+            onApproveAtt={(em, dayNum) => approveAtt(em, dayNum)}
+            onClearAtt={(em, dayNum) => clearAtt(em, dayNum)}
+            setPendingReason={setPendingReason}
+            setPickerStage={setPickerStage}
+          />
+        )}
+
+        {/* Calendar grid (leads / supervisors / admins) */}
+        {!(isQA && !isLead) && (<>
         <div className="card" style={{overflow:"auto"}}>
           <table style={{fontSize:11,whiteSpace:"nowrap",minWidth:800}}>
             <thead>
@@ -1172,6 +1419,7 @@ function SchedulePage() {
             </tbody>
           </table>
         </div>
+        </>)}
 
         <AttendanceCsvUpload open={csvUpload} onClose={() => setCsvUpload(false)} csvFile={csvFile} setCsvFile={setCsvFile} csvPreview={csvPreview} setCsvPreview={setCsvPreview} csvUploading={csvUploading} selMonth={selMonth} parseCsvUpload={parseCsvUpload} executeCsvUpload={executeCsvUpload} downloadCsvTemplate={downloadCsvTemplate}/>
         <AttendanceOtModal open={otModal} onClose={() => setOtModal(false)} isQA={isQA} visibleQAs={visibleQAs} otFrom={otFrom} setOtFrom={setOtFrom} otTo={otTo} setOtTo={setOtTo} otHoursPerDay={otHoursPerDay} setOtHoursPerDay={setOtHoursPerDay} otTarget={otTarget} setOtTarget={setOtTarget} otNote={otNote} setOtNote={setOtNote} applyOtRequest={applyOtRequest}/>
