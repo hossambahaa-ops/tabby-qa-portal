@@ -17,7 +17,7 @@ import EmptyState from "../components/EmptyState.jsx";
 import Badges from "../components/Badges.jsx";
 import TitleBelt, { BeltHoverCard } from "../components/TitleBelt.jsx";
 import Tooltip from "../components/Tooltip.jsx";
-import { computeTitleHolders, holdersByEmail, TITLE_CATALOG, TITLE_KEYS, getLastCompletedMonth, getCurrentCalendarMonth, formatMonthLabel } from "../lib/titles.js";
+import { computeTitleHolders, holdersByEmail, TITLE_CATALOG, TITLE_KEYS, getLastCompletedMonth, getCurrentCalendarMonth, formatMonthLabel, monthBefore } from "../lib/titles.js";
 
 function LeaderboardPage() {
   const{token,profile,gf,globalToast}=useApp();
@@ -155,14 +155,14 @@ function LeaderboardPage() {
   // through May; May's data only awards belts on June 1st.
   const isSuperAdmin = profile?.role === "super_admin";
   const beltMonth = React.useMemo(() => {
-    const candidate = getLastCompletedMonth();
+    const candidate = getLastCompletedMonth(); // "Apr-2026"
     if (months.includes(candidate)) return candidate;
     // Fallback: most recent month with data that is STRICTLY older than the
     // current calendar month — never the in-flight current month, even if
-    // the previous month's data hasn't synced yet. Belts only count for
-    // closed months.
+    // the previous month's data hasn't synced yet. `months` arrives already
+    // sorted descending, so the first match is the latest closed month.
     const currentCal = getCurrentCalendarMonth();
-    return months.find(m => m && m < currentCal) || "";
+    return months.find(m => monthBefore(m, currentCal)) || "";
   }, [months]);
   const titleHolders = React.useMemo(() => {
     if (!isSuperAdmin || !beltMonth) return null;

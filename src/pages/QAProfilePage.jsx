@@ -13,7 +13,7 @@ import EmptyState from "../components/EmptyState.jsx";
 import ExpertiseProfileCard from "../components/ExpertiseProfileCard.jsx";
 import Badges from "../components/Badges.jsx";
 import TitleBelt from "../components/TitleBelt.jsx";
-import { computeTitleHolders, holdersByEmail, getLastCompletedMonth } from "../lib/titles.js";
+import { computeTitleHolders, holdersByEmail, getLastCompletedMonth, getCurrentCalendarMonth, monthBefore } from "../lib/titles.js";
 import { ATT_MAP } from "../lib/attendance.js";
 
 // Safe render: prevent objects/arrays from crashing React
@@ -291,11 +291,12 @@ function QAProfilePage() {
                     month closes. Falls back to the latest month with data
                     if the literal previous calendar month has no rows. */}
                 {profile?.role === "super_admin" && (() => {
-                  const allMonths = [...new Set((mtd || []).map(r => r.month).filter(Boolean))].sort().reverse();
-                  const candidate = getLastCompletedMonth();
+                  const candidate = getLastCompletedMonth(); // "Apr-2026"
+                  const allMonths = [...new Set((mtd || []).map(r => r.month).filter(Boolean))];
+                  const currentCal = getCurrentCalendarMonth();
                   const beltMonth = allMonths.includes(candidate)
                     ? candidate
-                    : allMonths.find(m => m && m < candidate) || null;
+                    : allMonths.find(m => monthBefore(m, currentCal)) || null;
                   if (!beltMonth) return null;
                   const holders = computeTitleHolders(mtd || [], beltMonth);
                   const map = holdersByEmail(holders);

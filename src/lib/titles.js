@@ -8,6 +8,30 @@
 
 import { csatPctValue } from "./utils.js";
 import { getTotalScore, KPI_SLABS } from "./leaderboardScore.js";
+import { MONTH_IDX, sortMonthsDesc } from "./constants.js";
+
+// MTD rows use month strings like "Apr-2026" / "May-2026" (Mon-YYYY),
+// NOT ISO "YYYY-MM". All title helpers below operate on that format.
+
+const MONTH_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+// Parse "Apr-2026" → Date(2026, 3, 1). Returns null on bad input.
+function parseMonth(monStr) {
+  if (!monStr) return null;
+  const [mon, year] = String(monStr).split("-");
+  const idx = MONTH_IDX[mon];
+  const y = parseInt(year, 10);
+  if (idx == null || !y) return null;
+  return new Date(y, idx, 1);
+}
+
+// True iff month a is chronologically before month b (both Mon-YYYY).
+// Exported so consumers can compare months without re-parsing.
+export function monthBefore(a, b) {
+  const da = parseMonth(a), db = parseMonth(b);
+  if (!da || !db) return false;
+  return da.getTime() < db.getTime();
+}
 
 // Max possible total leaderboard score = sum of KPI weights (55 today).
 // Belts that compare "performance" use this scale, NOT raw final_performance,
@@ -24,48 +48,40 @@ const ON_TARGET_SCORE = MAX_LB_SCORE * ON_TARGET_FRAC;
 const MIN_CSAT_SURVEYS = 10;
 
 /**
- * getLastCompletedMonth() → "YYYY-MM"
+ * getLastCompletedMonth() → "Apr-2026"
  *
  * Belts only change hands at the end of a month. While the current calendar
  * month is in flight, the active belt holder remains the previous month's
  * champion — matches how real championship belts work (you keep the belt
  * until you actually lose a title fight).
  *
- * On 2026-05-04, returns "2026-04".
+ * On 2026-05-04, returns "Apr-2026" — same Mon-YYYY format MTD rows use.
  */
 export function getLastCompletedMonth(now = new Date()) {
-  const y = now.getFullYear();
-  const m = now.getMonth(); // 0-indexed; subtracting 1 wraps via Date math
-  const prev = new Date(y, m - 1, 1);
-  const py = prev.getFullYear();
-  const pm = String(prev.getMonth() + 1).padStart(2, "0");
-  return `${py}-${pm}`;
+  const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  return `${MONTH_NAMES[prev.getMonth()]}-${prev.getFullYear()}`;
 }
 
 /**
- * getCurrentCalendarMonth() → "YYYY-MM"
+ * getCurrentCalendarMonth() → "May-2026"
  *
- * The month the wall clock is in. This is the "transfer happens at the end
- * of THIS month" month — distinct from the leaderboard's selected-view
- * month. On 2026-05-04, returns "2026-05".
+ * The month the wall clock is in. This is the "belts recalculate at end of
+ * THIS month" month — distinct from the leaderboard's selected-view month.
  */
 export function getCurrentCalendarMonth(now = new Date()) {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
+  return `${MONTH_NAMES[now.getMonth()]}-${now.getFullYear()}`;
 }
 
 /**
- * formatMonthLabel("2026-04") → "April 2026"
+ * formatMonthLabel("Apr-2026") → "April 2026"
  *
  * Human-readable month name for tooltips/headers. Returns "" for empty
  * input so callers can use it without conditional checks.
  */
-export function formatMonthLabel(yyyymm) {
-  if (!yyyymm) return "";
-  const [y, m] = yyyymm.split("-").map((s) => parseInt(s, 10));
-  if (!y || !m) return yyyymm;
-  return new Date(y, m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
+export function formatMonthLabel(monStr) {
+  const d = parseMonth(monStr);
+  if (!d) return monStr || "";
+  return d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
 export const TITLE_CATALOG = {
@@ -126,9 +142,9 @@ const num = (v) => {
   return isNaN(n) ? null : n;
 };
 
-// Sort months YYYY-MM strings descending (latest first). Falls back to
-// string compare which is safe for ISO YYYY-MM.
-const monthsDesc = (months) => [...months].sort((a, b) => (b > a ? 1 : -1));
+// Sort Mon-YYYY month strings descending (latest first). Delegates to
+// the project-wide sortMonthsDesc so behavior matches month dropdowns.
+const monthsDesc = (months) => sortMonthsDesc(months);
 
 // Walk months ending at `endMonth` going backward, return count of
 // consecutive months where the QA's leaderboard total score was at or
@@ -233,8 +249,11 @@ export function computeTitleHolders(allRows, selectedMonth) {
     const currScore = getTotalScore(curr);
     if (!isFinite(currScore) || currScore <= 0) return;
     const allOwn = Object.values(byQa[e].rowsByMonth)
-      .filter((r) => r.month && r.month < selectedMonth)
-      .sort((a, b) => (b.month > a.month ? 1 : -1));
+      .filter((r) => r.month && monthBefore(r.month, selectedMonth))
+      .sort((a, b) => {
+        const da = parseMonth(a.month), db = parseMonth(b.month);
+        return (db?.getTime() || 0) - (da?.getTime() || 0);
+      });
     const prev = allOwn[0];
     if (!prev) return;
     const prevScore = getTotalScore(prev);
