@@ -19,8 +19,15 @@ const CHECKIN_CUTOFF_HOUR_UTC = CHECKIN_CUTOFF_HOUR_RIYADH - 3; // 16
 //   plan H/P + actual is OFF/leave/holiday → no flag (legit absence)
 //   plan OFF + actual is OFF/leave/holiday → no flag (consistent)
 // A null actual is "not checked in yet" and handled by isMissingCheckIn.
-export function isMismatch(row) {
+//
+// IMPORTANT: only fires for dates that have already happened (today
+// or earlier in Riyadh). Leads sometimes pre-fill future days with a
+// default status before the QA actually attends — those provisional
+// rows shouldn't surface as bell flags until the day arrives and the
+// "mismatch" is real.
+export function isMismatch(row, now = new Date()) {
   if (!row || row.mismatch_approved) return false;
+  if (!row.date || row.date > riyadhTodayStr(now)) return false;
   const planned = row.planned_code;
   const actual = row.status;
   if (!planned || !actual) return false;
