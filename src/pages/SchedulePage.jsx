@@ -794,6 +794,35 @@ function SchedulePage() {
           {/* Month picker — always visible */}
           <input type="month" className="form-input" style={{width:160,fontSize:12}} value={selMonth} onChange={e=>setSelMonth(e.target.value)}/>
 
+          {/* Manual digest trigger — admin/sv/manager only. Same idempotency
+              guard as the daily 11:00 UTC cron, so spamming this is safe. */}
+          {(hasRole(profile?.role,"admin")||hasRole(profile?.role,"qa_supervisor")||profile?.role==="manager") && (
+            <button
+              className="btn btn-outline btn-sm"
+              style={{fontSize:11}}
+              onClick={async()=>{
+                try{
+                  const r=await fetch(`${SUPABASE_URL}/functions/v1/attendance-digest`,{
+                    method:"POST",
+                    headers:{"Content-Type":"application/json",apikey:SUPABASE_ANON,Authorization:`Bearer ${token}`,"X-Trigger":"manual"},
+                    body:JSON.stringify({}),
+                  });
+                  const data=await r.json().catch(()=>({}));
+                  if(r.ok&&data.success){
+                    globalToast("success",`Attendance digest sent — ${data.overall?.planned||0} planned, ${data.overall?.accuracy||0}% match`);
+                  }else if(data.skipped){
+                    globalToast("success",data.reason || "No planned QAs today");
+                  }else{
+                    globalToast("error",data.error||"Send failed");
+                  }
+                }catch(e){globalToast("error",safeError(e));}
+              }}
+              title="Send the attendance digest now (also runs automatically at 2 PM Riyadh)"
+            >
+              📊 Send attendance digest
+            </button>
+          )}
+
           {/* Calendar-only controls */}
           {activeTab === "calendar" && <>
             <div style={{display:"flex",gap:2}}>
