@@ -73,11 +73,14 @@ export default function DailyCheckInWidget() {
   // Hide before feature start
   if (today < PLAN_FEATURE_START) return null;
 
-  // Hide on weekends (Friday/Saturday Saudi week)
-  const dow = new Date(today + "T00:00:00").getDay();
-  if (dow === 5 || dow === 6) return null;
-
   if (loading) return null;
+
+  // On weekends (Fri/Sat in Saudi week), only show the widget if the
+  // QA has a plan or has already checked in — some teams work weekends,
+  // but for QAs with no plan and no check-in, the widget would be noise.
+  const dow = new Date(today + "T00:00:00").getDay();
+  const isWeekend = dow === 5 || dow === 6;
+  if (isWeekend && !row?.planned_code && !row?.status) return null;
 
   const planned = row?.planned_code;
   const actual = row?.status;

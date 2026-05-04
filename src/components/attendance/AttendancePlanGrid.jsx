@@ -50,6 +50,8 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
       out.push({
         date: dateStr,
         day: d,
+        // Friday/Saturday are styled as weekends but still editable —
+        // some teams (especially tabby.ai) work weekends.
         isWeekend: wd === 5 || wd === 6,
         weekdayShort: dt.toLocaleDateString("en-US", { weekday: "short" }),
       });
@@ -156,7 +158,8 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
       const em = qa.email?.toLowerCase();
       if (!em) return;
       days.forEach((d) => {
-        if (d.isWeekend) return;
+        // Weekends are included — Fri/Sat can be working days for some
+        // teams. The date range is the lead's choice.
         if (d.date < bulkFrom || d.date > bulkTo) return;
         if (!isPlanEditableDate(d.date)) return;
         next[`${em}__${d.date}`] = value;
@@ -426,7 +429,9 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                     <div style={{ fontSize: 10, color: "var(--tx3)" }}>{em}</div>
                   </td>
                   {days.map((d) => {
-                    const editable = !d.isWeekend && isPlanEditableDate(d.date);
+                    // Fri/Sat are styled lighter but still editable —
+                    // some QAs work weekends.
+                    const editable = isPlanEditableDate(d.date);
                     const planned = cellPlan(em, d.date);
                     const original = attMap[`${em}__${d.date}`]?.planned_code || null;
                     const isPending = planned !== original;
@@ -439,21 +444,21 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                       bg = "rgba(34,197,94,.18)";
                       txt = "🏢";
                     }
-                    if (d.isWeekend) bg = "var(--bg3)";
+                    // Weekend gets a subtler background only when nothing
+                    // is planned — once a plan is set the H/P color wins.
+                    if (d.isWeekend && !planned) bg = "var(--bg3)";
                     return (
                       <td
                         key={d.date}
                         onClick={() => editable && cycleCell(em, d.date)}
                         title={
-                          d.isWeekend
-                            ? "Weekend"
-                            : !editable
-                              ? "Past day — read-only"
-                              : planned === "H"
-                                ? "🏠 Home (click for Office)"
-                                : planned === "P"
-                                  ? "🏢 Office (click to clear)"
-                                  : "Click to set 🏠 Home"
+                          !editable
+                            ? "Past day — read-only"
+                            : planned === "H"
+                              ? `🏠 Home${d.isWeekend ? " (weekend)" : ""} — click for Office`
+                              : planned === "P"
+                                ? `🏢 Office${d.isWeekend ? " (weekend)" : ""} — click to clear`
+                                : `Click to set 🏠 Home${d.isWeekend ? " (weekend day)" : ""}`
                         }
                         style={{
                           textAlign: "center",
