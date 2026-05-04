@@ -15,6 +15,8 @@ import { useUrlState } from "../lib/useUrlState.jsx";
 import LeaderboardCompareTable from "../components/leaderboard/LeaderboardCompareTable.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import Badges from "../components/Badges.jsx";
+import TitleBelt from "../components/TitleBelt.jsx";
+import { computeTitleHolders, holdersByEmail, TITLE_CATALOG, TITLE_KEYS } from "../lib/titles.js";
 
 function LeaderboardPage() {
   const{token,profile,gf,globalToast}=useApp();
@@ -145,6 +147,16 @@ function LeaderboardPage() {
     return m;
   }, [allBadges]);
 
+  // Belt titles (preview — Super Admin only). Computed entirely from the
+  // already-loaded MTD rows; no extra fetch. Skip the work for non-admins
+  // so we don't pay the cost on every render for the rest of the team.
+  const isSuperAdmin = profile?.role === "super_admin";
+  const titleHolders = React.useMemo(() => {
+    if (!isSuperAdmin || !selMonth) return null;
+    return computeTitleHolders(data, selMonth);
+  }, [isSuperAdmin, data, selMonth]);
+  const beltsByEmail = React.useMemo(() => holdersByEmail(titleHolders), [titleHolders]);
+
 
   const monthData = data.filter(r => r.month === selMonth);
   const rosterMap = {};
@@ -252,6 +264,45 @@ function LeaderboardPage() {
           <div className="stat-value" style={{color:totalDsat>0?"var(--red)":"var(--tx)"}}>{totalDsat}</div>
         </div>
       </div>}
+
+      {/* Belts of the month — Super Admin preview only. Showcases the
+          five championship titles for the selected month. Each belt
+          can only be held by one QA at a time. Once validated this
+          panel will be visible to everyone (gate lives on isSuperAdmin). */}
+      {isSuperAdmin && titleHolders && view==="individual" && (
+        <div className="card" style={{marginBottom:20,padding:16,borderLeft:"4px solid #F59E0B",background:"linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%)"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+            <span style={{fontSize:16,fontWeight:800,letterSpacing:"-.3px"}}>🏆 Belts of the month</span>
+            <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",background:"#F59E0B",color:"#fff",borderRadius:10,letterSpacing:".5px"}}>SUPER ADMIN PREVIEW</span>
+            <span style={{fontSize:12,color:"var(--tx3)"}}>· {selMonth}</span>
+          </div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
+            {TITLE_KEYS.map(k=>{
+              const cat = TITLE_CATALOG[k];
+              const h = titleHolders[k];
+              return (
+                <div key={k} style={{padding:"10px 12px",background:"var(--bg)",borderRadius:8,border:`1px solid ${cat.color}55`,display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${cat.color}33,${cat.color}11)`,border:`1.5px solid ${cat.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,boxShadow:`0 0 0 2px ${cat.color}1f`}}>{cat.emoji}</div>
+                  <div style={{minWidth:0,flex:1}}>
+                    <div style={{fontSize:11,fontWeight:800,color:cat.color,textTransform:"uppercase",letterSpacing:".4px"}}>{cat.label}</div>
+                    {h ? (
+                      <>
+                        <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameFromEmail(h.qa_email)}</div>
+                        <div style={{fontSize:11,color:"var(--tx3)"}}>{cat.metricLabel}: {h.display}</div>
+                      </>
+                    ) : (
+                      <div style={{fontSize:12,color:"var(--tx3)",fontStyle:"italic"}}>Unclaimed this month</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{marginTop:10,fontSize:11,color:"var(--tx3)",fontStyle:"italic"}}>
+            Hover any belt for the criteria. Belts change hands every month — defend yours.
+          </div>
+        </div>
+      )}
 
       {view==="individual" && (()=>{
         const myEmailInd = profile?.email?.toLowerCase();
@@ -547,6 +598,11 @@ function LeaderboardPage() {
                     <div style={{minWidth:0,flex:1}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                         <span style={{fontWeight:600,fontSize:13.5,letterSpacing:"-.2px"}}>{nameFromEmail(r.qa_email)}</span>
+                        {/* Belt titles — Super Admin preview only. Champion-tier
+                            indicators rendered before badges so they pop first. */}
+                        {isSuperAdmin && beltsByEmail[r.qa_email?.toLowerCase()]?.length > 0 && (
+                          <TitleBelt holders={beltsByEmail[r.qa_email?.toLowerCase()]} compact preview/>
+                        )}
                         {/* Top 3 medals only — keeps the row compact */}
                         <Badges qaEmail={r.qa_email} compact max={3} prefetched={badgesByEmail[r.qa_email?.toLowerCase()] || []}/>
                       </div>

@@ -12,6 +12,8 @@ import FreshnessBadge from "../components/FreshnessBadge.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import ExpertiseProfileCard from "../components/ExpertiseProfileCard.jsx";
 import Badges from "../components/Badges.jsx";
+import TitleBelt from "../components/TitleBelt.jsx";
+import { computeTitleHolders, holdersByEmail } from "../lib/titles.js";
 import { ATT_MAP } from "../lib/attendance.js";
 
 // Safe render: prevent objects/arrays from crashing React
@@ -283,6 +285,24 @@ function QAProfilePage() {
                 <div style={{marginTop:10}}>
                   <Badges qaEmail={selectedQA} celebrate={selectedQA?.toLowerCase() === myEmail} />
                 </div>
+                {/* Belt titles — Super Admin preview only. Computes the
+                    five championship belts against the QA's latest month
+                    of MTD data and shows any this QA currently holds. */}
+                {profile?.role === "super_admin" && (() => {
+                  const myMonths = (mtd || []).filter(r => r.qa_email?.toLowerCase() === selectedQA?.toLowerCase()).map(r => r.month).filter(Boolean).sort().reverse();
+                  const latestMonth = myMonths[0];
+                  if (!latestMonth) return null;
+                  const holders = computeTitleHolders(mtd || [], latestMonth);
+                  const map = holdersByEmail(holders);
+                  const mine = map[selectedQA?.toLowerCase()];
+                  if (!mine || mine.length === 0) return null;
+                  return (
+                    <div style={{marginTop:10,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                      <span style={{fontSize:10,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".4px"}}>Belts ({latestMonth})</span>
+                      <TitleBelt holders={mine} preview/>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>
