@@ -285,12 +285,11 @@ function QAProfilePage() {
                 <div style={{marginTop:10}}>
                   <Badges qaEmail={selectedQA} celebrate={selectedQA?.toLowerCase() === myEmail} />
                 </div>
-                {/* Belt titles — Super Admin preview only. Belts are
-                    held against the LAST COMPLETED month, never the in-
-                    flight current month — they only change hands when a
-                    month closes. Falls back to the latest month with data
-                    if the literal previous calendar month has no rows. */}
-                {profile?.role === "super_admin" && (() => {
+                {/* Belt titles — visible to everyone. Belts are held
+                    against the LAST COMPLETED month and only change hands
+                    when a month closes. Falls back to the latest month
+                    with data if the previous calendar month has no rows. */}
+                {(() => {
                   const candidate = getLastCompletedMonth(); // "Apr-2026"
                   const allMonths = [...new Set((mtd || []).map(r => r.month).filter(Boolean))];
                   const currentCal = getCurrentCalendarMonth();
@@ -305,7 +304,7 @@ function QAProfilePage() {
                   return (
                     <div style={{marginTop:10,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
                       <span style={{fontSize:10,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".4px"}}>Reigning belts ({beltMonth})</span>
-                      <TitleBelt holders={mine} preview/>
+                      <TitleBelt holders={mine}/>
                     </div>
                   );
                 })()}

@@ -148,12 +148,11 @@ function LeaderboardPage() {
     return m;
   }, [allBadges]);
 
-  // Belt titles (preview — Super Admin only). Belts only change hands at
-  // the end of a month, so we always compute against the previous fully-
-  // completed month — NOT the user's selected leaderboard month and NOT
-  // the in-flight current month. April's champion keeps the belt all
-  // through May; May's data only awards belts on June 1st.
-  const isSuperAdmin = profile?.role === "super_admin";
+  // Belt titles. Belts only change hands at the end of a month, so we
+  // always compute against the previous fully-completed month — NOT the
+  // user's selected leaderboard month and NOT the in-flight current month.
+  // April's champion keeps the belt all through May; May's data only
+  // awards belts on June 1st.
   const beltMonth = React.useMemo(() => {
     const candidate = getLastCompletedMonth(); // "Apr-2026"
     if (months.includes(candidate)) return candidate;
@@ -165,9 +164,9 @@ function LeaderboardPage() {
     return months.find(m => monthBefore(m, currentCal)) || "";
   }, [months]);
   const titleHolders = React.useMemo(() => {
-    if (!isSuperAdmin || !beltMonth) return null;
+    if (!beltMonth) return null;
     return computeTitleHolders(data, beltMonth);
-  }, [isSuperAdmin, data, beltMonth]);
+  }, [data, beltMonth]);
   const beltsByEmail = React.useMemo(() => holdersByEmail(titleHolders), [titleHolders]);
 
 
@@ -278,15 +277,14 @@ function LeaderboardPage() {
         </div>
       </div>}
 
-      {/* Belts of the month — Super Admin preview only. Showcases the
-          five championship titles for the selected month. Each belt
-          can only be held by one QA at a time. Once validated this
-          panel will be visible to everyone (gate lives on isSuperAdmin). */}
-      {isSuperAdmin && titleHolders && view==="individual" && (
+      {/* Reigning belts panel — visible to everyone. Showcases the
+          five championship titles for the last completed month. Each
+          belt can only be held by one QA at a time and changes hands
+          when the next month closes. */}
+      {titleHolders && view==="individual" && (
         <div className="card" style={{marginBottom:20,padding:16,borderLeft:"4px solid #F59E0B",background:"linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%)"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
             <span style={{fontSize:16,fontWeight:800,letterSpacing:"-.3px"}}>🏆 Reigning belts</span>
-            <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",background:"#F59E0B",color:"#fff",borderRadius:10,letterSpacing:".5px"}}>SUPER ADMIN PREVIEW</span>
           </div>
           <div style={{fontSize:12,color:"var(--tx2)",marginBottom:14,lineHeight:1.5}}>
             Champions of <strong style={{color:"var(--tx)"}}>{formatMonthLabel(beltMonth)}</strong>. At the end of <strong style={{color:"var(--tx)"}}>{formatMonthLabel(getCurrentCalendarMonth())}</strong> the belts are recalculated — a new champion is crowned, or the current one defends the title.
@@ -296,7 +294,7 @@ function LeaderboardPage() {
               const cat = TITLE_CATALOG[k];
               const h = titleHolders[k];
               return (
-                <Tooltip key={k} content={<BeltHoverCard cat={cat} holder={h} preview/>} maxWidth={300} padding="10px 12px" wrapperStyle={{display:"flex",width:"100%"}}>
+                <Tooltip key={k} content={<BeltHoverCard cat={cat} holder={h}/>} maxWidth={300} padding="10px 12px" wrapperStyle={{display:"flex",width:"100%"}}>
                   <div style={{padding:"10px 12px",background:"var(--bg)",borderRadius:8,border:`1px solid ${cat.color}55`,display:"flex",alignItems:"center",gap:10,cursor:"help",width:"100%"}}>
                     <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${cat.color}33,${cat.color}11)`,border:`1.5px solid ${cat.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,boxShadow:`0 0 0 2px ${cat.color}1f`}}>{cat.emoji}</div>
                     <div style={{minWidth:0,flex:1}}>
@@ -615,10 +613,10 @@ function LeaderboardPage() {
                     <div style={{minWidth:0,flex:1}}>
                       <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap"}}>
                         <span style={{fontWeight:600,fontSize:13.5,letterSpacing:"-.2px"}}>{nameFromEmail(r.qa_email)}</span>
-                        {/* Belt titles — Super Admin preview only. Champion-tier
-                            indicators rendered before badges so they pop first. */}
-                        {isSuperAdmin && beltsByEmail[r.qa_email?.toLowerCase()]?.length > 0 && (
-                          <TitleBelt holders={beltsByEmail[r.qa_email?.toLowerCase()]} compact preview/>
+                        {/* Champion belts — visible to everyone. Rendered
+                            before badges so they pop first. */}
+                        {beltsByEmail[r.qa_email?.toLowerCase()]?.length > 0 && (
+                          <TitleBelt holders={beltsByEmail[r.qa_email?.toLowerCase()]} compact/>
                         )}
                         {/* Top 3 medals only — keeps the row compact */}
                         <Badges qaEmail={r.qa_email} compact max={3} prefetched={badgesByEmail[r.qa_email?.toLowerCase()] || []}/>

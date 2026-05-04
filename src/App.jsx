@@ -13,6 +13,8 @@ import { listMtd } from "./api/mtd.js";
 import { Icon, icons, GoogleLogo } from "./components/Icons.jsx";
 import GlobalFilterBar from "./components/GlobalFilterBar.jsx";
 import NotificationBell from "./components/NotificationBell.jsx";
+import MyBeltIndicator from "./components/MyBeltIndicator.jsx";
+import BeltAnnouncementModal from "./components/BeltAnnouncementModal.jsx";
 import GlobalSearch from "./components/GlobalSearch.jsx";
 import OnboardingTour from "./components/OnboardingTour.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
@@ -558,6 +560,8 @@ function AppInner(){
         </button>
         {/* Notifications */}
         <NotificationBell onNavigate={setPage}/>
+        {/* Championship belts indicator — only renders if the user holds at least one */}
+        <MyBeltIndicator onClick={()=>setPage("leaderboard")}/>
         {/* Density toggle — cycles cozy → comfortable → compact → cozy */}
         <button className="notif-btn topbar-dm-toggle" onClick={()=>{const next={cozy:"comfortable",comfortable:"compact",compact:"cozy"}[density]||"comfortable";setDensity(next);}} title={`Density: ${density} (click to change)`} aria-label={`Toggle density (${density})`}>
           <Icon d={density==="compact"?"M3 6h18M3 10h18M3 14h18M3 18h18":density==="cozy"?"M3 6h18M3 18h18":"M3 6h18M3 12h18M3 18h18"} size={18}/>
@@ -629,6 +633,9 @@ function AppInner(){
     {/* Search overlay */}
     {showSearch&&<GlobalSearch onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
     {showTour&&<OnboardingTour onDismiss={dismissTour} role={profile?.role}/>}
+    {/* First-of-month championship belts splash. Self-contained: fetches its
+        own data, decides whether to show, marks itself "seen" on dismiss. */}
+    <BeltAnnouncementModal/>
     <div className="page-animate"><Suspense fallback={<div style={{display:"flex",justifyContent:"center",alignItems:"center",minHeight:200}}><div className="pulse-loader"/></div>}><Routes>
       <Route path="/dashboard" element={<DashboardPage/>}/>
       <Route path="/scores" element={<ScoreEntryPage/>}/>
