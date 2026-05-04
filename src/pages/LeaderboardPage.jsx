@@ -16,7 +16,7 @@ import LeaderboardCompareTable from "../components/leaderboard/LeaderboardCompar
 import EmptyState from "../components/EmptyState.jsx";
 import Badges from "../components/Badges.jsx";
 import TitleBelt from "../components/TitleBelt.jsx";
-import { computeTitleHolders, holdersByEmail, TITLE_CATALOG, TITLE_KEYS } from "../lib/titles.js";
+import { computeTitleHolders, holdersByEmail, TITLE_CATALOG, TITLE_KEYS, getLastCompletedMonth } from "../lib/titles.js";
 
 function LeaderboardPage() {
   const{token,profile,gf,globalToast}=useApp();
@@ -147,14 +147,23 @@ function LeaderboardPage() {
     return m;
   }, [allBadges]);
 
-  // Belt titles (preview — Super Admin only). Computed entirely from the
-  // already-loaded MTD rows; no extra fetch. Skip the work for non-admins
-  // so we don't pay the cost on every render for the rest of the team.
+  // Belt titles (preview — Super Admin only). Belts only change hands at
+  // the end of a month, so we always compute against the previous fully-
+  // completed month — NOT the user's selected leaderboard month and NOT
+  // the in-flight current month. April's champion keeps the belt all
+  // through May; May's data only awards belts on June 1st.
   const isSuperAdmin = profile?.role === "super_admin";
+  const beltMonth = React.useMemo(() => {
+    const candidate = getLastCompletedMonth();
+    // Fall back to the latest month with actual data if the literal previous
+    // calendar month has no rows yet (e.g. new-month sync hasn't run).
+    if (months.includes(candidate)) return candidate;
+    return months.find(m => m && m < candidate) || months[0] || "";
+  }, [months]);
   const titleHolders = React.useMemo(() => {
-    if (!isSuperAdmin || !selMonth) return null;
-    return computeTitleHolders(data, selMonth);
-  }, [isSuperAdmin, data, selMonth]);
+    if (!isSuperAdmin || !beltMonth) return null;
+    return computeTitleHolders(data, beltMonth);
+  }, [isSuperAdmin, data, beltMonth]);
   const beltsByEmail = React.useMemo(() => holdersByEmail(titleHolders), [titleHolders]);
 
 
@@ -272,9 +281,9 @@ function LeaderboardPage() {
       {isSuperAdmin && titleHolders && view==="individual" && (
         <div className="card" style={{marginBottom:20,padding:16,borderLeft:"4px solid #F59E0B",background:"linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%)"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-            <span style={{fontSize:16,fontWeight:800,letterSpacing:"-.3px"}}>🏆 Belts of the month</span>
+            <span style={{fontSize:16,fontWeight:800,letterSpacing:"-.3px"}}>🏆 Reigning belts</span>
             <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",background:"#F59E0B",color:"#fff",borderRadius:10,letterSpacing:".5px"}}>SUPER ADMIN PREVIEW</span>
-            <span style={{fontSize:12,color:"var(--tx3)"}}>· {selMonth}</span>
+            <span style={{fontSize:12,color:"var(--tx3)"}}>· awarded for {beltMonth} · transfer at end of {selMonth || "current month"}</span>
           </div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
             {TITLE_KEYS.map(k=>{
@@ -299,7 +308,7 @@ function LeaderboardPage() {
             })}
           </div>
           <div style={{marginTop:10,fontSize:11,color:"var(--tx3)",fontStyle:"italic"}}>
-            Hover any belt for the criteria. Belts change hands every month — defend yours.
+            Hover any belt for the criteria. Belts only change hands when a month closes — the current holder keeps the title until then.
           </div>
         </div>
       )}

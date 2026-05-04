@@ -7,13 +7,40 @@
 // to everyone.
 
 import { csatPctValue } from "./utils.js";
+import { getTotalScore, KPI_SLABS } from "./leaderboardScore.js";
 
-// Threshold considered "on target" for the Ironpulse streak.
-// Matches the `on_target` badge semantics (≥ this final_performance).
-const ON_TARGET_PCT = 75;
+// Max possible total leaderboard score = sum of KPI weights (55 today).
+// Belts that compare "performance" use this scale, NOT raw final_performance,
+// so the result agrees with the leaderboard's own #1 ranking.
+const MAX_LB_SCORE = Object.values(KPI_SLABS).reduce((s, k) => s + k.weight, 0);
+
+// "On target" for the Ironpulse streak — at this fraction of MAX_LB_SCORE
+// or higher counts as a winning month. ~70% of max is roughly equivalent
+// to "Slab 2 across the board" (i.e. consistently hitting target).
+const ON_TARGET_FRAC = 0.70;
+const ON_TARGET_SCORE = MAX_LB_SCORE * ON_TARGET_FRAC;
 
 // Heartwarden requires a meaningful sample, not 1 perfect survey.
 const MIN_CSAT_SURVEYS = 10;
+
+/**
+ * getLastCompletedMonth() → "YYYY-MM"
+ *
+ * Belts only change hands at the end of a month. While the current calendar
+ * month is in flight, the active belt holder remains the previous month's
+ * champion — matches how real championship belts work (you keep the belt
+ * until you actually lose a title fight).
+ *
+ * On 2026-05-04, returns "2026-04".
+ */
+export function getLastCompletedMonth(now = new Date()) {
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-indexed; subtracting 1 wraps via Date math
+  const prev = new Date(y, m - 1, 1);
+  const py = prev.getFullYear();
+  const pm = String(prev.getMonth() + 1).padStart(2, "0");
+  return `${py}-${pm}`;
+}
 
 export const TITLE_CATALOG = {
   pulse_sovereign: {
@@ -22,7 +49,7 @@ export const TITLE_CATALOG = {
     color: "#F59E0B",
     rank: 1,
     desc: "Undisputed #1 on the leaderboard. They set the rhythm for the team.",
-    metricLabel: "Final performance",
+    metricLabel: "Total score",
   },
   heartwarden: {
     label: "Heartwarden",
@@ -45,7 +72,7 @@ export const TITLE_CATALOG = {
     emoji: "🛡️", // 🛡️
     color: "#06B6D4",
     rank: 4,
-    desc: `Longest active on-target streak (consecutive months at ≥${ON_TARGET_PCT}% final performance). Never falters, never flatlines.`,
+    desc: `Longest active on-target streak (consecutive months scoring ≥${ON_TARGET_SCORE.toFixed(0)} of ${MAX_LB_SCORE}). Never falters, never flatlines.`,
     metricLabel: "Streak",
   },
   risen_phoenix: {
@@ -53,7 +80,7 @@ export const TITLE_CATALOG = {
     emoji: "🔥", // 🔥
     color: "#EC4899",
     rank: 5,
-    desc: "Biggest month-over-month performance climb. Rises from the flatline.",
+    desc: "Biggest month-over-month leaderboard climb. Rises from the flatline.",
     metricLabel: "Δ vs last month",
   },
 };
@@ -73,19 +100,14 @@ const num = (v) => {
   return isNaN(n) ? null : n;
 };
 
-// Parse a final_performance value, normalizing fractional 0–1 to 0–100.
-const perfPct = (v) => {
-  const n = num(v);
-  if (n === null) return null;
-  return n <= 1 ? n * 100 : n;
-};
-
 // Sort months YYYY-MM strings descending (latest first). Falls back to
 // string compare which is safe for ISO YYYY-MM.
 const monthsDesc = (months) => [...months].sort((a, b) => (b > a ? 1 : -1));
 
 // Walk months ending at `endMonth` going backward, return count of
-// consecutive months where the QA was at or above ON_TARGET_PCT.
+// consecutive months where the QA's leaderboard total score was at or
+// above ON_TARGET_SCORE. Uses getTotalScore so the threshold matches
+// the same metric the leaderboard ranks by.
 const onTargetStreak = (rowsByMonth, endMonth, allMonthsDesc) => {
   const startIdx = allMonthsDesc.indexOf(endMonth);
   if (startIdx < 0) return 0;
@@ -94,8 +116,8 @@ const onTargetStreak = (rowsByMonth, endMonth, allMonthsDesc) => {
     const m = allMonthsDesc[i];
     const row = rowsByMonth[m];
     if (!row) break;
-    const p = perfPct(row.final_performance);
-    if (p === null || p < ON_TARGET_PCT) break;
+    const score = getTotalScore(row);
+    if (!isFinite(score) || score < ON_TARGET_SCORE) break;
     streak++;
   }
   return streak;
@@ -121,14 +143,16 @@ export function computeTitleHolders(allRows, selectedMonth) {
   const monthRows = allRows.filter((r) => r.month === selectedMonth);
   const result = { pulse_sovereign: null, heartwarden: null, pulseforge: null, ironpulse: null, risen_phoenix: null };
 
-  // 👑 Pulse Sovereign — highest final_performance this month.
+  // 👑 Pulse Sovereign — leaderboard #1 by total slab-based score.
+  // Uses getTotalScore (same function the leaderboard sorts by) so the
+  // belt holder always matches the visible #1 row, not raw final_performance.
   let topPerf = null;
   monthRows.forEach((r) => {
-    const p = perfPct(r.final_performance);
-    if (p === null) return;
-    if (!topPerf || p > topPerf.value) topPerf = { qa_email: r.qa_email, value: p };
+    const s = getTotalScore(r);
+    if (!isFinite(s) || s <= 0) return;
+    if (!topPerf || s > topPerf.value) topPerf = { qa_email: r.qa_email, value: s };
   });
-  if (topPerf) result.pulse_sovereign = { ...topPerf, display: topPerf.value.toFixed(1) + "%" };
+  if (topPerf) result.pulse_sovereign = { ...topPerf, display: topPerf.value.toFixed(1) + " / " + MAX_LB_SCORE };
 
   // 💞 Heartwarden — highest CSAT % with min surveys.
   let topCsat = null;
@@ -172,23 +196,24 @@ export function computeTitleHolders(allRows, selectedMonth) {
   });
   if (topStreak) result.ironpulse = { ...topStreak, display: topStreak.value + " month streak" };
 
-  // 🔥 Risen Phoenix — biggest improvement vs previous available month for that QA.
-  // "Previous month" is the QA's most recent prior row, not necessarily the
-  // calendar month immediately before — handles gaps (vacation, leave).
+  // 🔥 Risen Phoenix — biggest leaderboard-score climb vs previous month.
+  // "Previous month" is the QA's most recent prior row (handles gaps for
+  // leave / vacation). Uses getTotalScore so the delta is on the same
+  // scale the rest of the app talks in.
   let topPhoenix = null;
   monthRows.forEach((curr) => {
     const e = curr.qa_email?.toLowerCase();
     if (!e || !byQa[e]) return;
-    const currPerf = perfPct(curr.final_performance);
-    if (currPerf === null) return;
+    const currScore = getTotalScore(curr);
+    if (!isFinite(currScore) || currScore <= 0) return;
     const allOwn = Object.values(byQa[e].rowsByMonth)
       .filter((r) => r.month && r.month < selectedMonth)
       .sort((a, b) => (b.month > a.month ? 1 : -1));
     const prev = allOwn[0];
     if (!prev) return;
-    const prevPerf = perfPct(prev.final_performance);
-    if (prevPerf === null) return;
-    const delta = currPerf - prevPerf;
+    const prevScore = getTotalScore(prev);
+    if (!isFinite(prevScore)) return;
+    const delta = currScore - prevScore;
     if (delta < 5) return; // don't crown someone for noise
     if (!topPhoenix || delta > topPhoenix.value) topPhoenix = { qa_email: curr.qa_email, value: delta };
   });
