@@ -10,6 +10,8 @@ import { listViolations } from "../api/violations.js";
 import { listEscalations } from "../api/escalations.js";
 import { listRoster } from "../api/roster.js";
 import { fetchUnreadReleases, ackRelease } from "../lib/featureReleases.js";
+import { isMismatch, isMissingCheckIn, PLAN_FEATURE_START, seenPlanKey, isPlanUnseen } from "../lib/attendancePlan.js";
+import { emailsMatchLoose, nameFromEmail } from "../lib/utils.js";
 
 const safe=(v)=>{if(v==null)return"";if(typeof v==="object")return JSON.stringify(v);return String(v);};
 
@@ -31,6 +33,13 @@ function NotificationBell({ onNavigate }) {
     const updated = [...dismissed, id];
     setDismissed(updated);
     localStorage.setItem("notif_dismissed", JSON.stringify(updated));
+    // Special case: dismissing a plan-updated entry also writes the
+    // plan_updated_at timestamp to the seenPlanKey marker so the same
+    // batch never reappears when the bell reloads.
+    if (id?.startsWith("plan-updated-")) {
+      const ts = id.slice("plan-updated-".length);
+      try { localStorage.setItem(seenPlanKey(profile?.email), ts); } catch {}
+    }
   };
 
   const dismissAll = () => {
@@ -201,6 +210,114 @@ function NotificationBell({ onNavigate }) {
             });
           }
         } catch (e) { console.error("Feature releases:", e); }
+
+        // ── Attendance plan notifications: plan published, mismatch, missing check-in ──
+        // Self-contained block: pulls last 14 days of qa_attendance for the
+        // user (and the lead's team), then derives flags client-side via
+        // attendancePlan helpers — no event log table needed.
+        try {
+          const sinceDate = (() => {
+            const d = new Date(); d.setDate(d.getDate() - 14);
+            const cap = d.toISOString().split("T")[0];
+            return cap > PLAN_FEATURE_START ? cap : PLAN_FEATURE_START;
+          })();
+          const local = myEmail.split("@")[0];
+          const myAttFilters = `date=gte.${sinceDate}&or=(email.ilike.${local}@%,email.eq.${profile?.email})&order=date.desc&limit=60`;
+          const myAttRows = await sb.query("qa_attendance", {
+            select: "id,email,date,status,planned_code,justification,mismatch_approved,plan_updated_at",
+            filters: myAttFilters,
+            token,
+          }).catch(() => []);
+          const mineFiltered = (myAttRows || []).filter(r => emailsMatchLoose(r.email, myEmail));
+
+          // "Plan updated" notification — pings the QA when a lead publishes
+          // any new/changed planned_code values for them. Suppressed once
+          // the user dismisses the bell entry (via the existing dismissed list).
+          let lastSeen = "";
+          try { lastSeen = localStorage.getItem(seenPlanKey(myEmail)) || ""; } catch {}
+          const newPlanRows = mineFiltered.filter(r => r.planned_code && isPlanUnseen(r, lastSeen));
+          if (newPlanRows.length > 0) {
+            const latest = newPlanRows.reduce((a, b) => new Date(b.plan_updated_at) > new Date(a.plan_updated_at) ? b : a);
+            const days = newPlanRows.length;
+            all.push({
+              id: "plan-updated-" + latest.plan_updated_at,
+              type: "attendance_plan",
+              title: `📅 Your attendance plan was updated`,
+              sub: days === 1
+                ? `1 day planned (${new Date(latest.date + "T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})})`
+                : `${days} days planned — view your schedule`,
+              time: latest.plan_updated_at,
+              page: "schedule",
+            });
+          }
+
+          // Mine: mismatches + missing check-ins
+          mineFiltered.forEach(r => {
+            if (isMismatch(r)) {
+              all.push({
+                id: "att-mis-" + r.id,
+                type: "attendance_mismatch",
+                title: `⚠ Attendance mismatch on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
+                sub: `Planned: ${r.planned_code === "H" ? "🏠 Home" : "🏢 Office"} · Checked in: ${r.status === "H" ? "🏠 Home" : "🏢 Office"}`,
+                time: r.date + "T18:00:00Z",
+                page: "schedule",
+              });
+            } else if (isMissingCheckIn(r)) {
+              all.push({
+                id: "att-miss-" + r.id,
+                type: "attendance_missing",
+                title: `⏰ Missing check-in for ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
+                sub: `Planned: ${r.planned_code === "H" ? "🏠 Home" : "🏢 Office"} — please check in`,
+                time: r.date + "T19:00:00Z",
+                page: "dashboard",
+              });
+            }
+          });
+
+          // Lead: same flags for their team. Reuses teamEmails from the
+          // attendance-approval block above when available; otherwise
+          // fetches the lead's direct reports.
+          if (isLead) {
+            let leadTeamEmails = teamEmails;
+            if (!leadTeamEmails) {
+              try {
+                const team = await listRoster({ token, select: "email,manager_email", filters: `manager_email=eq.${myEmail}` });
+                leadTeamEmails = new Set((Array.isArray(team) ? team : []).map(r => r.email?.toLowerCase()).filter(Boolean));
+              } catch { leadTeamEmails = new Set(); }
+            }
+            if (leadTeamEmails && leadTeamEmails.size > 0) {
+              const teamEmailList = [...leadTeamEmails].slice(0, 50).map(e => `email.eq.${e}`).join(",");
+              const teamAtt = await sb.query("qa_attendance", {
+                select: "id,email,date,status,planned_code,justification,mismatch_approved",
+                filters: `date=gte.${sinceDate}&or=(${teamEmailList})&order=date.desc&limit=200`,
+                token,
+              }).catch(() => []);
+              (teamAtt || []).forEach(r => {
+                const em = r.email?.toLowerCase();
+                if (!leadTeamEmails.has(em)) return;
+                if (isMismatch(r)) {
+                  all.push({
+                    id: "tatt-mis-" + r.id,
+                    type: "attendance_mismatch",
+                    title: `⚠ ${nameFromEmail(em)} — mismatch on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
+                    sub: `Planned: ${r.planned_code === "H" ? "🏠" : "🏢"} · Got: ${r.status === "H" ? "🏠" : "🏢"}${r.justification ? ` · "${r.justification.slice(0,40)}"` : ""}`,
+                    time: r.date + "T18:00:00Z",
+                    page: "schedule",
+                  });
+                } else if (isMissingCheckIn(r)) {
+                  all.push({
+                    id: "tatt-miss-" + r.id,
+                    type: "attendance_missing",
+                    title: `⏰ ${nameFromEmail(em)} — missing check-in on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
+                    sub: `Planned: ${r.planned_code === "H" ? "🏠 Home" : "🏢 Office"}`,
+                    time: r.date + "T19:00:00Z",
+                    page: "schedule",
+                  });
+                }
+              });
+            }
+          }
+        } catch (e) { console.error("Attendance plan notifications:", e); }
 
         all.sort((a, b) => new Date(b.time) - new Date(a.time));
         setItems(all);

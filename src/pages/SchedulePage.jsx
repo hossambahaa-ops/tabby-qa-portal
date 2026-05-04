@@ -16,6 +16,7 @@ import AttendanceOtModal from "../components/attendance/AttendanceOtModal.jsx";
 import PendingApprovals from "../components/attendance/PendingApprovals.jsx";
 import LeaveBalances from "../components/attendance/LeaveBalances.jsx";
 import MonthlySummary from "../components/attendance/MonthlySummary.jsx";
+import AttendancePlanGrid from "../components/attendance/AttendancePlanGrid.jsx";
 
 // ── Memoized calendar day cell ────────────────────────────────────────────────
 // Custom comparator: skip re-render unless attendance data, editing state,
@@ -43,13 +44,35 @@ const DayCell = React.memo(function DayCell({
   const attType = st ? ATT_MAP[st] : null;
   const isPending = att?.approval_status === "pending";
   const isDenied  = att?.approval_status === "denied";
+  // Attendance Plan layer — derived flags. Plan badge shows for any
+  // day that has a planned_code; mismatch/missing-check-in adds an
+  // amber outline so the cell calls itself out without extra clicks.
+  const planned = att?.planned_code || null;
+  const planApproved = !!att?.mismatch_approved;
+  const isPlanMismatch = !!planned && (st === "H" || st === "P") && st !== planned && !planApproved;
+  // Missing-check-in is computed from clock time at render — comparator
+  // on att alone won't pick this up across renders, but cells re-render
+  // when the parent re-fetches every few minutes, which is fine for v1.
+  let isPlanMissing = false;
+  if (planned && !st && att?.date && !planApproved) {
+    const cutoff = new Date(`${att.date}T16:00:00Z`); // 7 PM Riyadh = 16:00 UTC
+    isPlanMissing = Date.now() >= cutoff.getTime();
+  }
+  const planFlag = isPlanMismatch || isPlanMissing;
+  const planBadge = planned === "H" ? "🏠" : planned === "P" ? "🏢" : "";
+  const planBg = planned === "H" ? "rgba(59,130,246,.15)" : planned === "P" ? "rgba(34,197,94,.15)" : null;
+  const planLabel = planned === "H" ? "Planned: Home" : planned === "P" ? "Planned: Office" : "";
   const cellTitle = isPending
-    ? `${attType?.label || st} — pending lead approval${att?.requested_by ? ` (by ${nameFromEmail(att.requested_by)})` : ""}${att?.request_note ? ` · "${att.request_note}"` : ""}`
+    ? `${attType?.label || st} — pending lead approval${att?.requested_by ? ` (by ${nameFromEmail(att.requested_by)})` : ""}${att?.request_note ? ` · "${att.request_note}"` : ""}${planLabel ? ` · ${planLabel}` : ""}`
     : isDenied
-    ? `${attType?.label || st} — denied by ${nameFromEmail(att?.denied_by || "")}${att?.denial_reason ? ` · "${att.denial_reason}"` : ""}`
-    : (attType?.label || "");
+    ? `${attType?.label || st} — denied by ${nameFromEmail(att?.denied_by || "")}${att?.denial_reason ? ` · "${att.denial_reason}"` : ""}${planLabel ? ` · ${planLabel}` : ""}`
+    : isPlanMismatch
+    ? `${attType?.label || st} — ⚠ doesn't match plan (${planned === "H" ? "Home" : "Office"})${att?.justification ? ` · "${att.justification}"` : ""}`
+    : isPlanMissing
+    ? `⏰ Missing check-in — planned ${planned === "H" ? "Home" : "Office"}`
+    : (attType?.label ? `${attType.label}${planLabel ? ` · ${planLabel}` : ""}` : planLabel);
   return (
-    <td style={{textAlign:"center",padding:1,background:isWeekend?"rgba(156,163,175,0.05)":"transparent",position:"relative",cursor:canEdit?"pointer":"default"}}
+    <td style={{textAlign:"center",padding:1,background:planFlag ? "rgba(245,158,11,.12)" : isWeekend?"rgba(156,163,175,0.05)": planBg || "transparent",position:"relative",cursor:canEdit?"pointer":"default",outline: planFlag ? "1px solid var(--amber)" : "none", outlineOffset: planFlag ? "-1px" : 0}}
       onClick={() => { if (canEdit) { isEditing ? onClose() : onOpen(); } }}
       title={cellTitle}>
       {st ? (
@@ -60,6 +83,16 @@ const DayCell = React.memo(function DayCell({
         </span>
       ) : (
         <span style={{fontSize:10,color:"var(--bd2)",pointerEvents:"none"}}>·</span>
+      )}
+      {/* Plan badge — small icon in top-right corner showing planned location.
+          Hidden when the actual code matches the plan (no point in showing
+          both — the cell already conveys it). */}
+      {planBadge && (st !== planned) && (
+        <span style={{position:"absolute",top:1,right:1,fontSize:8,lineHeight:1,opacity:.75,pointerEvents:"none"}}>{planBadge}</span>
+      )}
+      {/* Mismatch indicator — overrides the plan icon when present */}
+      {planFlag && (
+        <span style={{position:"absolute",top:1,right:1,fontSize:8,lineHeight:1,color:"var(--amber)",pointerEvents:"none",fontWeight:700}}>{isPlanMissing ? "⏰" : "⚠"}</span>
       )}
       {isEditing && (
         <div style={{position:"absolute",top:"100%",left:"50%",transform:"translateX(-50%)",zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:8,padding:6,boxShadow:"var(--shadow-lg)",width:180}} onClick={e=>e.stopPropagation()}>
@@ -150,7 +183,7 @@ function SchedulePage() {
       const mid = Math.ceil(dim / 2);
       const fmtD = (d) => `${selMonth}-${String(d).padStart(2,"0")}`;
       const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
-      const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at,ot_hours,request_note,denial_reason,denied_by,denied_at`;
+      const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at,ot_hours,request_note,denial_reason,denied_by,denied_at,planned_code,justification,mismatch_approved,plan_updated_at`;
       const [r, a1, a2] = await Promise.all([
         listRoster({ token, select: "email,display_name,manager_email,queue,country" }),
         fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(mid)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
@@ -743,6 +776,8 @@ function SchedulePage() {
     }).length : 0 },
     { key: "balances", label: "Balances", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" },
     ...(isQA ? [] : [{ key: "summary",  label: "Monthly summary", icon: "M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" }]),
+    // Plan editor — leads and above only
+    ...(isLead ? [{ key: "plan", label: "Attendance Plan", icon: "M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2H7a2 2 0 00-2 2v2m4-7h6" }] : []),
   ];
 
   return (
@@ -1036,6 +1071,16 @@ function SchedulePage() {
           selMonth={selMonth}
           token={token}
           profile={profile}
+        />
+      )}
+      {activeTab === "plan" && isLead && (
+        <AttendancePlanGrid
+          attendance={attendance}
+          qaList={visibleQAs}
+          roster={roster}
+          selMonth={selMonth}
+          monthIsLocked={monthIsLocked}
+          onSaved={loadData}
         />
       )}
     </div>

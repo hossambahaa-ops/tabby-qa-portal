@@ -22,6 +22,7 @@ import TeamHealth from "../components/dashboard/TeamHealth.jsx";
 import TeamChampions from "../components/dashboard/TeamChampions.jsx";
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
 import QASelfServiceDashboard from "../components/dashboard/QASelfServiceDashboard.jsx";
+import DailyCheckInWidget from "../components/dashboard/DailyCheckInWidget.jsx";
 import AttendanceQuickSet from "../components/dashboard/AttendanceQuickSet.jsx";
 
 function DashboardPage(){
@@ -482,6 +483,9 @@ function DashboardPage(){
         </tbody></table></div>
       </div>}
     </>}
+
+    {/* Daily check-in widget — visible to everyone with a planned day. Self-hides on weekends/leave/pre-May. */}
+    <DailyCheckInWidget/>
 
     {/* QA Self-Service Dashboard for QA/Senior QA roles */}
     {!isLead&&!hasRole(profile?.role,"qa_supervisor")&&<QASelfServiceDashboard dailyScores={dailyScores} myData={myData} myEmail={myEmail} roster={roster} ranked={ranked} myRank={myRank} maxScore={maxScore} getScore={getScore} latestMonth={latestMonth}/>}
