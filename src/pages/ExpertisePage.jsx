@@ -4,7 +4,7 @@ import { nameFromEmail } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { useApp } from "../lib/AppContext.jsx";
-import { fetchExpertise, fetchExpertiseMonths, fetchExpertiseConfig, saveExpertiseThreshold, recomputeExpertise, fetchCombinedExpertise, fetchCombinedExpertiseMonths, fetchCombinedPopulationCounts, recomputeCombinedExpertise, renderStars, starColor, starLabel, productOf, productColor } from "../lib/expertise.js";
+import { fetchExpertise, fetchExpertiseMonths, fetchExpertiseConfig, saveExpertiseThreshold, recomputeExpertise, fetchCombinedExpertise, fetchCombinedExpertiseMonths, fetchCombinedPopulationCounts, recomputeCombinedExpertise, fetchCombinedThreshold, saveCombinedThreshold, renderStars, starColor, starLabel, productOf, productColor } from "../lib/expertise.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 
@@ -77,6 +77,10 @@ export default function ExpertisePage() {
   const [combinedRows, setCombinedRows] = useState([]);
   const [combinedPopulation, setCombinedPopulation] = useState({ qaCount: 0, agentCount: 0 });
   const [recomputingCombined, setRecomputingCombined] = useState(false);
+  // Combined view's own threshold — independent from the QA threshold.
+  const [activeCombinedThreshold, setActiveCombinedThreshold] = useState(5);
+  const [pendingCombinedThreshold, setPendingCombinedThreshold] = useState(5);
+  const [combinedThresholdMeta, setCombinedThresholdMeta] = useState({ updated_at: null, updated_by: null });
 
   // Initial month + dropdowns + threshold config
   useEffect(() => {
@@ -84,11 +88,12 @@ export default function ExpertisePage() {
     let cancelled = false;
     (async () => {
       try {
-        const [ms, r, ps, cfg] = await Promise.all([
+        const [ms, r, ps, cfg, ccfg] = await Promise.all([
           fetchExpertiseMonths({ token }),
           listRoster({ token, select: "email,queue,manager_email" }).catch(() => []),
           listProfiles({ token, select: "email,role" }).catch(() => []),
           fetchExpertiseConfig({ token }),
+          fetchCombinedThreshold({ token }),
         ]);
         if (cancelled) return;
         const sorted = sortMonthsDesc(ms);
@@ -99,6 +104,10 @@ export default function ExpertisePage() {
         setActiveThreshold(t);
         setPendingThreshold(t);
         setThresholdMeta({ updated_at: cfg?.updated_at, updated_by: cfg?.updated_by });
+        const ct = Number(ccfg?.combined_min_surveys) || 5;
+        setActiveCombinedThreshold(ct);
+        setPendingCombinedThreshold(ct);
+        setCombinedThresholdMeta({ updated_at: ccfg?.updated_at, updated_by: ccfg?.updated_by });
         const initial = (gf?.month && sorted.includes(gf.month)) ? gf.month : sorted[0] || "";
         setSelMonth(initial);
       } catch (e) { console.error("Expertise initial:", e); }
@@ -167,14 +176,14 @@ export default function ExpertisePage() {
     (async () => {
       const [data, pop] = await Promise.all([
         fetchCombinedExpertise({ token, month: selMonth }),
-        fetchCombinedPopulationCounts({ token, month: selMonth }),
+        fetchCombinedPopulationCounts({ token, month: selMonth, threshold: activeCombinedThreshold }),
       ]);
       if (cancelled) return;
       setCombinedRows(Array.isArray(data) ? data : []);
       setCombinedPopulation(pop || { qaCount: 0, agentCount: 0 });
     })();
     return () => { cancelled = true; };
-  }, [token, selMonth, isAdmin, view]);
+  }, [token, selMonth, isAdmin, view, activeCombinedThreshold]);
 
   // Recompute combined view (admin-only). Mirrors handleRecompute.
   const handleRecomputeCombined = async () => {
@@ -183,7 +192,7 @@ export default function ExpertisePage() {
       const res = await recomputeCombinedExpertise({ token, month: null });
       const [data, pop] = await Promise.all([
         fetchCombinedExpertise({ token, month: selMonth }),
-        fetchCombinedPopulationCounts({ token, month: selMonth }),
+        fetchCombinedPopulationCounts({ token, month: selMonth, threshold: activeCombinedThreshold }),
       ]);
       setCombinedRows(Array.isArray(data) ? data : []);
       setCombinedPopulation(pop || { qaCount: 0, agentCount: 0 });
@@ -191,6 +200,32 @@ export default function ExpertisePage() {
     } catch (e) {
       console.error("recompute combined:", e);
       globalToast?.("error", `Couldn't recompute combined: ${e?.message || "server error"}`);
+    }
+    setRecomputingCombined(false);
+  };
+
+  // Persist a new combined threshold + recompute every month with it.
+  // Mirrors applyThreshold but writes to combined_min_surveys.
+  const applyCombinedThreshold = async () => {
+    const v = Math.max(1, Math.min(200, Math.round(Number(pendingCombinedThreshold) || 1)));
+    if (v === activeCombinedThreshold) return;
+    setRecomputingCombined(true);
+    try {
+      const res = await saveCombinedThreshold({ token, minSurveys: v, actorEmail: profile?.email });
+      setActiveCombinedThreshold(v);
+      setCombinedThresholdMeta({ updated_at: new Date().toISOString(), updated_by: profile?.email });
+      const [data, pop] = await Promise.all([
+        fetchCombinedExpertise({ token, month: selMonth }),
+        fetchCombinedPopulationCounts({ token, month: selMonth, threshold: v }),
+      ]);
+      setCombinedRows(Array.isArray(data) ? data : []);
+      setCombinedPopulation(pop || { qaCount: 0, agentCount: 0 });
+      const upserted = res?.rows_upserted ?? "?";
+      globalToast?.("success", `Combined threshold set to ${v} surveys · ${upserted} rows recomputed`);
+    } catch (e) {
+      console.error("combined threshold update:", e);
+      globalToast?.("error", `Couldn't update combined threshold: ${e?.message || "permission denied or server error"}`);
+      setPendingCombinedThreshold(activeCombinedThreshold);
     }
     setRecomputingCombined(false);
   };
@@ -393,33 +428,24 @@ export default function ExpertisePage() {
         </div>
       )}
 
-      {/* Combined-view header — population counts + recompute button. */}
+      {/* Combined-view header — population counts only. The Recompute
+          combined button lives in the threshold card below alongside
+          the threshold input, mirroring the QA-tab layout. */}
       {isAdmin && view === "combined" && (
         <div className="card" style={{ padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", borderLeft: "3px solid var(--tabby-purple)" }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Pool</span>
           <span style={{ fontSize: 13, fontWeight: 600 }}>
             <strong>{combinedPopulation.qaCount}</strong> QAs + <strong>{combinedPopulation.agentCount}</strong> Agents = <strong>{combinedPopulation.qaCount + combinedPopulation.agentCount}</strong> scorers
           </span>
-          <span style={{ fontSize: 11, color: "var(--tx3)" }}>· 5+ surveys per topic · {selMonth}</span>
-          <button
-            className="btn btn-outline btn-sm"
-            onClick={handleRecomputeCombined}
-            disabled={recomputingCombined}
-            title="Re-run the combined expertise calculation against the merged pool"
-            style={{ fontSize: 11, marginLeft: "auto" }}
-          >
-            {recomputingCombined ? "Recomputing…" : "↻ Recompute combined"}
-          </button>
+          <span style={{ fontSize: 11, color: "var(--tx3)" }}>· {activeCombinedThreshold}+ surveys per topic · {selMonth}</span>
         </div>
       )}
 
-      {/* Admin threshold control + manual recompute. Whole page is admin-
-          only at the route level, so no extra role gate needed here.
-          Hidden in Combined view: that view uses a hardcoded 5-survey
-          threshold, and its own Recompute combined button lives in the
-          header card above — keeping this card visible would make the
-          "Recompute now" button look like it applies to combined data
-          when it doesn't. */}
+      {/* Admin threshold control + manual recompute. Whole page is
+          admin-only at the route level, so no extra role gate needed.
+          Each view has its own threshold (qa_expertise_config.min_surveys
+          for QA, .combined_min_surveys for Combined) so they can be
+          tuned independently. */}
       {view !== "combined" && (
       <div className="card" style={{ padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Threshold</span>
@@ -469,6 +495,59 @@ export default function ExpertisePage() {
           </span>
         )}
       </div>
+      )}
+
+      {/* Parallel threshold control for the Combined view. Independent
+          from the QA threshold above so admins can tune them separately. */}
+      {view === "combined" && (
+        <div className="card" style={{ padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Combined threshold</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input
+              type="number" min={1} max={200}
+              value={pendingCombinedThreshold}
+              onChange={e => setPendingCombinedThreshold(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") applyCombinedThreshold(); }}
+              disabled={recomputingCombined}
+              className="form-input"
+              style={{ width: 64, fontSize: 12, padding: "5px 8px", textAlign: "center", fontVariantNumeric: "tabular-nums" }}
+            />
+            <span style={{ fontSize: 11, color: "var(--tx3)" }}>min surveys per topic</span>
+          </div>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={applyCombinedThreshold}
+            disabled={recomputingCombined || Number(pendingCombinedThreshold) === activeCombinedThreshold}
+            style={{ fontSize: 11 }}
+          >
+            {recomputingCombined ? "Recomputing…" : Number(pendingCombinedThreshold) !== activeCombinedThreshold ? `Apply ${pendingCombinedThreshold}` : `Active: ${activeCombinedThreshold}`}
+          </button>
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={handleRecomputeCombined}
+            disabled={recomputingCombined}
+            title="Re-run the combined expertise calculation against the current threshold"
+            style={{ fontSize: 11 }}
+          >
+            ↻ Recompute combined
+          </button>
+          {[3, 5, 8, 12, 20].map(v => (
+            <button
+              key={v}
+              onClick={() => setPendingCombinedThreshold(v)}
+              disabled={recomputingCombined}
+              className={`pill${v === activeCombinedThreshold ? " pill-tone-purple" : ""}`}
+              style={{ cursor: "pointer", fontSize: 11 }}
+            >
+              {v}
+            </button>
+          ))}
+          {combinedThresholdMeta.updated_at && (
+            <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--tx3)" }}>
+              Last changed {new Date(combinedThresholdMeta.updated_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}{combinedThresholdMeta.updated_by ? ` by ${combinedThresholdMeta.updated_by.split("@")[0]}` : ""}
+            </span>
+          )}
+        </div>
       )}
 
       {/* Filters + star summary */}

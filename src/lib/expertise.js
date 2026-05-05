@@ -119,13 +119,13 @@ export const fetchCombinedExpertiseMonths = async ({ token }) => {
   return [...new Set((rows || []).map(r => r.month).filter(Boolean))];
 };
 
-// Population counts for a given month — used by the Combined tab header
-// to show "N QAs + M Agents = N+M scorers". Reads csat_by_topic +
-// agents_csat with the hardcoded 5-survey threshold so the numbers
-// match what's actually in the ranking pool.
-export const fetchCombinedPopulationCounts = async ({ token, month }) => {
+// Population counts for a given month — used by the Combined tab
+// header to show "N QAs + M Agents = N+M scorers". Threshold defaults
+// to 5 but can be overridden so the numbers track whatever the admin
+// has set on the Combined view.
+export const fetchCombinedPopulationCounts = async ({ token, month, threshold = 5 }) => {
   if (!month) return { qaCount: 0, agentCount: 0 };
-  const f = `month=eq.${encodeURIComponent(month)}&surveys_count=gte.5`;
+  const f = `month=eq.${encodeURIComponent(month)}&surveys_count=gte.${threshold}`;
   const sel = "qa_email";
   const [qa, ag] = await Promise.all([
     sb.query("csat_by_topic", { select: sel, filters: f, token }).catch(() => []),
@@ -136,7 +136,33 @@ export const fetchCombinedPopulationCounts = async ({ token, month }) => {
   return { qaCount: qaSet.size, agentCount: agSet.size };
 };
 
-// Recompute combined expertise. Admin-tier only (enforced by the SQL
-// function's role guard); for non-admins this throws.
-export const recomputeCombinedExpertise = async ({ token, month }) =>
-  sb.rpc("recalculate_combined_expertise", { target_month: month || null }, token);
+// Read the active combined threshold (single-row config table).
+// Combined and QA each have their own column on qa_expertise_config so
+// the two views can be tuned independently.
+export const fetchCombinedThreshold = async ({ token }) => {
+  const rows = await sb.query("qa_expertise_config", {
+    select: "combined_min_surveys,updated_at,updated_by",
+    filters: "id=eq.1",
+    token,
+  }).catch(() => []);
+  return rows && rows[0] ? rows[0] : { combined_min_surveys: 5 };
+};
+
+// Persist a new combined threshold and trigger a full recompute. Admin
+// only at the RLS / function-guard layer.
+export const saveCombinedThreshold = async ({ token, minSurveys, actorEmail }) => {
+  await sb.query("qa_expertise_config", {
+    method: "PATCH",
+    body: { combined_min_surveys: minSurveys, updated_at: new Date().toISOString(), updated_by: actorEmail || null },
+    filters: "id=eq.1",
+    token,
+  });
+  return await sb.rpc("recalculate_combined_expertise", { target_month: null, min_surveys_override: null }, token);
+};
+
+// Recompute combined expertise without changing the threshold.
+export const recomputeCombinedExpertise = async ({ token, month, override }) =>
+  sb.rpc("recalculate_combined_expertise", {
+    target_month: month || null,
+    min_surveys_override: override ?? null,
+  }, token);
