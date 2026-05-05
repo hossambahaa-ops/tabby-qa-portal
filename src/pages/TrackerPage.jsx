@@ -10,7 +10,7 @@ import {
 import TrackerBoard from "../components/tracker/TrackerBoard.jsx";
 import TrackerTable from "../components/tracker/TrackerTable.jsx";
 import TrackerTimeline from "../components/tracker/TrackerTimeline.jsx";
-import TrackerEditModal from "../components/tracker/TrackerEditModal.jsx";
+import TrackerDetailPanel from "../components/tracker/TrackerDetailPanel.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import PlaceholderPage from "./PlaceholderPage.jsx";
@@ -45,9 +45,13 @@ export default function TrackerPage() {
   const [view, setView] = useState(() => localStorage.getItem(VIEW_KEY) || "board");
   const [boardSort,  setBoardSort]  = useState(() => localStorage.getItem(SORT_KEY)  || "eta");
   const [boardGroup, setBoardGroup] = useState(() => localStorage.getItem(GROUP_KEY) || "none");
-  const [modalRow, setModalRow] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [modalReadOnly, setModalReadOnly] = useState(false);
+  // Slide-out panel stack. Each entry is either { kind: 'view', rowId }
+  // or { kind: 'create', parentId? }. The top of the stack is what the
+  // panel currently displays; back pops one, close clears.
+  const [panelStack, setPanelStack] = useState([]);
+  const pushPanel = useCallback((entry) => setPanelStack(prev => [...prev, entry]), []);
+  const popPanel  = useCallback(() => setPanelStack(prev => prev.slice(0, -1)), []);
+  const closePanel = useCallback(() => setPanelStack([]), []);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -142,18 +146,22 @@ export default function TrackerPage() {
     }
   };
 
-  const openCreate = () => { setModalRow(null); setModalReadOnly(false); setModalOpen(true); };
-  const openRow = (row) => {
-    setModalRow(row);
-    setModalReadOnly(!canEdit(row, myEmail, isAdmin));
-    setModalOpen(true);
-  };
+  const openCreate = useCallback(() => setPanelStack([{ kind: "create" }]), []);
+  const openRow    = useCallback((row) => setPanelStack([{ kind: "view", rowId: row.id }]), []);
+  const openNewSubtask = useCallback(({ parentId } = {}) => pushPanel({ kind: "create", parentId }), [pushPanel]);
+  const openChildRow = useCallback((row) => pushPanel({ kind: "view", rowId: row.id }), [pushPanel]);
+
+  // Look up the row currently shown by the panel (top of stack).
+  const top = panelStack[panelStack.length - 1] || null;
+  const currentRow = top?.kind === "view"
+    ? rows.find(r => r.id === top.rowId)
+    : null;
 
   const onSave = async (form) => {
-    if (modalRow) {
-      const result = await updateInitiative({ token, id: modalRow.id, patch: form });
+    if (top?.kind === "view" && currentRow) {
+      const result = await updateInitiative({ token, id: currentRow.id, patch: form });
       const fresh = Array.isArray(result) ? result[0] : result;
-      setRows(rs => rs.map(r => r.id === modalRow.id ? (fresh || { ...r, ...form }) : r));
+      setRows(rs => rs.map(r => r.id === currentRow.id ? (fresh || { ...r, ...form }) : r));
       globalToast?.("success", "Task updated.");
     } else {
       const result = await createInitiative({ token, row: { ...form, created_by: myEmail } });
@@ -164,13 +172,13 @@ export default function TrackerPage() {
   };
 
   const onDelete = async () => {
-    if (!modalRow) return;
-    if (!canDelete(modalRow, myEmail, isAdmin)) {
+    if (!currentRow) return;
+    if (!canDelete(currentRow, myEmail, isAdmin)) {
       globalToast?.("error", "You can only delete tasks you created.");
       return;
     }
-    await deleteInitiative({ token, id: modalRow.id });
-    setRows(rs => rs.filter(r => r.id !== modalRow.id));
+    await deleteInitiative({ token, id: currentRow.id });
+    setRows(rs => rs.filter(r => r.id !== currentRow.id));
     globalToast?.("success", "Task deleted.");
   };
 
@@ -299,15 +307,17 @@ export default function TrackerPage() {
         <TrackerTable rows={filtered} onOpen={openRow} />
       )}
 
-      <TrackerEditModal
-        open={modalOpen}
-        row={modalRow}
-        readOnly={modalReadOnly}
+      <TrackerDetailPanel
+        stack={panelStack}
+        rows={rows}
         profiles={profiles}
-        allInitiatives={rows}
-        onClose={() => setModalOpen(false)}
+        readOnlyFor={(row) => !canEdit(row, myEmail, isAdmin)}
+        onClose={closePanel}
+        onPop={popPanel}
         onSave={onSave}
-        onDelete={modalRow && canDelete(modalRow, myEmail, isAdmin) ? onDelete : undefined}
+        onDelete={currentRow && canDelete(currentRow, myEmail, isAdmin) ? onDelete : undefined}
+        onOpenRow={openChildRow}
+        onOpenNew={openNewSubtask}
       />
     </div>
   );
