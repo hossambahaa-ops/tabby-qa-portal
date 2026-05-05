@@ -27,9 +27,11 @@ function areCellPropsEqual(p, n) {
     p.att === n.att &&
     p.isEditing === n.isEditing &&
     p.canEdit === n.canEdit &&
+    p.isSuperAdmin === n.isSuperAdmin &&
     p.selMonth === n.selMonth &&
     p.monthIsLocked === n.monthIsLocked &&
     p.onSetAtt === n.onSetAtt &&
+    p.onSetShift === n.onSetShift &&
     p.onApproveAtt === n.onApproveAtt &&
     p.onClearAtt === n.onClearAtt &&
     (!p.isEditing || (p.pickerStage === n.pickerStage && p.pendingReason === n.pendingReason))
@@ -41,9 +43,13 @@ function areCellPropsEqual(p, n) {
 // overlap an adjacent row. Position is computed from the anchor cell's
 // bounding rect, then clamped to the viewport so the picker is always
 // fully visible regardless of which date column the user clicked.
-function CellPicker({ anchorEl, em, dayNum, st, isQA, canApprove, pickerStage, pendingReason, onClose, onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage }) {
+function CellPicker({ anchorEl, em, dayNum, st, isQA, isSuperAdmin, canApprove, shiftStart, shiftEnd, pickerStage, pendingReason, onClose, onSetAtt, onSetShift, onApproveAtt, onClearAtt, setPendingReason, setPickerStage }) {
   const PICKER_W = 220;   // a touch wider than before; codes never overlap text now
-  const PICKER_H_EST = 110; // rough height for clamping decisions
+  const PICKER_H_EST = isSuperAdmin ? 180 : 110; // taller when shift editor is shown
+  // Local time inputs so the lead can edit without committing on every keystroke.
+  const [shiftStartLocal, setShiftStartLocal] = React.useState(shiftStart || "");
+  const [shiftEndLocal, setShiftEndLocal] = React.useState(shiftEnd || "");
+  React.useEffect(() => { setShiftStartLocal(shiftStart || ""); setShiftEndLocal(shiftEnd || ""); }, [shiftStart, shiftEnd]);
 
   const [pos, setPos] = React.useState(() => computePos(anchorEl));
   function computePos(el) {
@@ -183,6 +189,47 @@ function CellPicker({ anchorEl, em, dayNum, st, isQA, canApprove, pickerStage, p
           )}
         </div>
       )}
+      {isSuperAdmin && !pickerStage && (
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--bd)" }}>
+          <div style={{ fontSize: 9, color: "var(--tabby-purple)", fontWeight: 700, marginBottom: 4, letterSpacing: ".3px", textTransform: "uppercase" }}>
+            Shift <span style={{ fontWeight: 400, color: "var(--tx3)", textTransform: "none", letterSpacing: 0 }}>(super-admin preview)</span>
+          </div>
+          <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+            <input
+              type="time"
+              value={shiftStartLocal}
+              onChange={(e) => setShiftStartLocal(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              style={{ fontSize: 10, padding: "3px 5px", borderRadius: 3, border: "1px solid var(--bd)", background: "var(--bg)", color: "var(--tx)", fontFamily: "var(--font)", flex: 1, minWidth: 0 }}
+            />
+            <span style={{ fontSize: 10, color: "var(--tx3)" }}>–</span>
+            <input
+              type="time"
+              value={shiftEndLocal}
+              onChange={(e) => setShiftEndLocal(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              style={{ fontSize: 10, padding: "3px 5px", borderRadius: 3, border: "1px solid var(--bd)", background: "var(--bg)", color: "var(--tx)", fontFamily: "var(--font)", flex: 1, minWidth: 0 }}
+            />
+          </div>
+          <div style={{ display: "flex", gap: 4, marginTop: 4 }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); if (!shiftStartLocal || !shiftEndLocal) return; onSetShift(em, dayNum, shiftStartLocal, shiftEndLocal); }}
+              disabled={!shiftStartLocal || !shiftEndLocal}
+              style={{ flex: 1, fontSize: 9, padding: "4px 0", borderRadius: 3, border: "none", cursor: (!shiftStartLocal || !shiftEndLocal) ? "not-allowed" : "pointer", background: (!shiftStartLocal || !shiftEndLocal) ? "var(--bg2)" : "var(--tabby-purple)", color: (!shiftStartLocal || !shiftEndLocal) ? "var(--tx3)" : "#fff", fontWeight: 700, fontFamily: "var(--font)" }}
+            >
+              Save shift
+            </button>
+            {(shiftStart || shiftEnd) && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onSetShift(em, dayNum, null, null); }}
+                style={{ fontSize: 9, padding: "4px 8px", borderRadius: 3, border: "1px solid var(--bd)", cursor: "pointer", background: "var(--bg)", color: "var(--tx2)", fontFamily: "var(--font)" }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );
@@ -193,9 +240,9 @@ function CellPicker({ anchorEl, em, dayNum, st, isQA, canApprove, pickerStage, p
 // the viewer is a QA (they only have one row anyway, so the grid is
 // overkill). Reuses CellPicker for the same click-to-edit flow.
 function MyMonthCalendar({
-  selMonth, myEmail, attendance, monthIsLocked, isLead, isQA,
+  selMonth, myEmail, attendance, monthIsLocked, isLead, isQA, isSuperAdmin,
   editCell, setEditCell, pickerStage, pendingReason,
-  onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
+  onSetAtt, onSetShift, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
 }) {
   const [year, monthNum] = selMonth.split("-").map(Number);
   const firstDow = new Date(year, monthNum - 1, 1).getDay(); // 0=Sun
@@ -295,10 +342,12 @@ function MyMonthCalendar({
                 em={myEmail}
                 dayNum={day}
                 isQA={isQA}
+                isSuperAdmin={isSuperAdmin}
                 canApprove={false}
                 pickerStage={isEditing ? pickerStage : null}
                 pendingReason={isEditing ? pendingReason : ""}
                 onSetAtt={onSetAtt}
+                onSetShift={onSetShift}
                 onApproveAtt={onApproveAtt}
                 onClearAtt={onClearAtt}
                 setPendingReason={setPendingReason}
@@ -319,8 +368,8 @@ function MyMonthCalendar({
 function CalendarDayCell({
   day, dateStr, att, st, planned, attType, isPending, isDenied,
   isWeekend, isToday, isEditing, canEdit, onOpen, onClose,
-  em, dayNum, isQA, canApprove, pickerStage, pendingReason,
-  onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
+  em, dayNum, isQA, isSuperAdmin, canApprove, pickerStage, pendingReason,
+  onSetAtt, onSetShift, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
 }) {
   const ref = useRef(null);
   return (
@@ -389,6 +438,11 @@ function CalendarDayCell({
           {planned === "H" ? "Home" : planned === "P" ? "Office" : "Day off"}
         </div>
       )}
+      {isSuperAdmin && att?.shift_start && att?.shift_end && (
+        <div style={{ fontSize: 10, color: "var(--tabby-purple)", fontWeight: 600 }}>
+          Shift {String(att.shift_start).slice(0,5)}–{String(att.shift_end).slice(0,5)}
+        </div>
+      )}
       {isEditing && (
         <CellPicker
           anchorEl={ref.current}
@@ -396,11 +450,15 @@ function CalendarDayCell({
           dayNum={dayNum}
           st={st}
           isQA={isQA}
+          isSuperAdmin={isSuperAdmin}
           canApprove={canApprove}
+          shiftStart={att?.shift_start ? String(att.shift_start).slice(0,5) : null}
+          shiftEnd={att?.shift_end ? String(att.shift_end).slice(0,5) : null}
           pickerStage={pickerStage}
           pendingReason={pendingReason}
           onClose={onClose}
           onSetAtt={onSetAtt}
+          onSetShift={onSetShift}
           onApproveAtt={onApproveAtt}
           onClearAtt={onClearAtt}
           setPendingReason={setPendingReason}
@@ -412,9 +470,9 @@ function CalendarDayCell({
 }
 
 const DayCell = React.memo(function DayCell({
-  em, dayNum, isWeekend, att, isEditing, canEdit, isLead, isQA, canApprove,
+  em, dayNum, isWeekend, att, isEditing, canEdit, isLead, isQA, isSuperAdmin, canApprove,
   pickerStage, pendingReason,
-  onOpen, onClose, onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
+  onOpen, onClose, onSetAtt, onSetShift, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
 }) {
   const tdRef = useRef(null);
   const st = att?.status || null;
@@ -425,11 +483,18 @@ const DayCell = React.memo(function DayCell({
   // on the cell itself so hover/click behavior stays clean.
   const planned = att?.planned_code || null;
   const planLabel = planned === "H" ? "Planned: H" : planned === "P" ? "Planned: P" : "";
+  // Shift label (super_admin preview): compact "09–17" rendered below the
+  // status code when both shift_start and shift_end are set. Stays hidden
+  // for everyone else until the feature is fully released.
+  const shiftStart = att?.shift_start ? String(att.shift_start).slice(0, 5) : null;
+  const shiftEnd   = att?.shift_end   ? String(att.shift_end).slice(0, 5)   : null;
+  const showShift  = isSuperAdmin && shiftStart && shiftEnd;
+  const shiftLabel = showShift ? `${shiftStart.replace(":00","")}–${shiftEnd.replace(":00","")}` : "";
   const cellTitle = isPending
-    ? `${attType?.label || st} — pending lead approval${att?.requested_by ? ` (by ${nameFromEmail(att.requested_by)})` : ""}${att?.request_note ? ` · "${att.request_note}"` : ""}${planLabel ? ` · ${planLabel}` : ""}`
+    ? `${attType?.label || st} — pending lead approval${att?.requested_by ? ` (by ${nameFromEmail(att.requested_by)})` : ""}${att?.request_note ? ` · "${att.request_note}"` : ""}${planLabel ? ` · ${planLabel}` : ""}${showShift ? ` · Shift ${shiftStart}–${shiftEnd}` : ""}`
     : isDenied
-    ? `${attType?.label || st} — denied by ${nameFromEmail(att?.denied_by || "")}${att?.denial_reason ? ` · "${att.denial_reason}"` : ""}${planLabel ? ` · ${planLabel}` : ""}`
-    : (attType?.label ? `${attType.label}${planLabel ? ` · ${planLabel}` : ""}` : planLabel);
+    ? `${attType?.label || st} — denied by ${nameFromEmail(att?.denied_by || "")}${att?.denial_reason ? ` · "${att.denial_reason}"` : ""}${planLabel ? ` · ${planLabel}` : ""}${showShift ? ` · Shift ${shiftStart}–${shiftEnd}` : ""}`
+    : `${attType?.label ? `${attType.label}` : ""}${planLabel ? ` · ${planLabel}` : ""}${showShift ? ` · Shift ${shiftStart}–${shiftEnd}` : ""}`.replace(/^ · /, "");
   return (
     <td
       ref={tdRef}
@@ -448,6 +513,9 @@ const DayCell = React.memo(function DayCell({
       ) : (
         <span style={{ fontSize: 10, color: "var(--bd2)", pointerEvents: "none" }}>·</span>
       )}
+      {showShift && (
+        <div style={{ fontSize: 8, color: "var(--tabby-purple)", lineHeight: 1, marginTop: 2, fontWeight: 600, letterSpacing: ".2px", pointerEvents: "none" }}>{shiftLabel}</div>
+      )}
       {isEditing && (
         <CellPicker
           anchorEl={tdRef.current}
@@ -455,11 +523,15 @@ const DayCell = React.memo(function DayCell({
           dayNum={dayNum}
           st={st}
           isQA={isQA}
+          isSuperAdmin={isSuperAdmin}
           canApprove={canApprove}
+          shiftStart={shiftStart}
+          shiftEnd={shiftEnd}
           pickerStage={pickerStage}
           pendingReason={pendingReason}
           onClose={onClose}
           onSetAtt={onSetAtt}
+          onSetShift={onSetShift}
           onApproveAtt={onApproveAtt}
           onClearAtt={onClearAtt}
           setPendingReason={setPendingReason}
@@ -494,6 +566,9 @@ function SchedulePage() {
   const [bulkScope, setBulkScope] = useState("my_team");
   const [bulkPerson, setBulkPerson] = useState("");
   const [bulkDayFilter, setBulkDayFilter] = useState("all");
+  // Optional shift assignment in the bulk modal (super_admin preview only).
+  const [bulkShiftStart, setBulkShiftStart] = useState("");
+  const [bulkShiftEnd, setBulkShiftEnd] = useState("");
   const [selectedQAs, setSelectedQAs] = useState(new Set());
   // Calendar-tab-only: filter by QA Lead. Empty = show all.
   const [selectedLeadFilter, setSelectedLeadFilter] = useUrlState("lead", "");
@@ -526,7 +601,7 @@ function SchedulePage() {
       const mid = Math.ceil(dim / 2);
       const fmtD = (d) => `${selMonth}-${String(d).padStart(2,"0")}`;
       const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
-      const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at,ot_hours,request_note,denial_reason,denied_by,denied_at,planned_code,justification,mismatch_approved,plan_updated_at`;
+      const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at,ot_hours,request_note,denial_reason,denied_by,denied_at,planned_code,justification,mismatch_approved,plan_updated_at,shift_start,shift_end`;
       const [r, a1, a2] = await Promise.all([
         listRoster({ token, select: "email,display_name,manager_email,queue,country" }),
         fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(mid)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
@@ -868,6 +943,50 @@ function SchedulePage() {
     } catch(err) { globalToast("error", safeError(err)); }
   }, [token, globalToast]);
 
+  // ── setShift (super_admin: assign / clear shift on a single cell) ─────────
+  // start/end are "HH:MM" strings (or null to clear). PATCHes only the
+  // shift fields so an existing status is left untouched. Falls back to
+  // an INSERT when no row exists yet for that cell.
+  const setShift = useCallback(async (email, dayNum, start, end) => {
+    if (monthIsLockedRef.current) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
+    const sm = selMonthRef.current;
+    const dateStr = `${sm}-${String(dayNum).padStart(2,"0")}`;
+    const existing = attRef.current.find(a => a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr);
+    const body = { shift_start: start || null, shift_end: end || null, updated_at: new Date().toISOString() };
+    try {
+      if (existing) {
+        if (existing.id && !String(existing.id).startsWith("new")) {
+          await sb.query("qa_attendance", { token, method: "PATCH", body, filters: `id=eq.${existing.id}` });
+        } else {
+          const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(email.toLowerCase())}&date=eq.${dateStr}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
+            body: JSON.stringify(body),
+          });
+          if (!resp.ok) throw new Error(await resp.text());
+        }
+      } else {
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
+          method:"POST",
+          headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
+          body: JSON.stringify({ email: email.toLowerCase(), date: dateStr, ...body, created_by: myEmail }),
+        });
+        if (!resp.ok) throw new Error(await resp.text());
+      }
+      setAttendance(prev => {
+        const idx = prev.findIndex(a => a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr);
+        if (idx >= 0) {
+          const next = [...prev];
+          next[idx] = { ...next[idx], shift_start: body.shift_start, shift_end: body.shift_end };
+          return next;
+        }
+        return [...prev, { email: email.toLowerCase(), date: dateStr, shift_start: body.shift_start, shift_end: body.shift_end, id: "new-"+Date.now(), created_by: myEmail }];
+      });
+      setEditCell(null);
+      globalToast("success", body.shift_start ? `Shift ${body.shift_start.slice(0,5)}–${body.shift_end?.slice(0,5)} set` : "Shift cleared");
+    } catch(e) { globalToast("error", safeError(e)); }
+  }, [token, myEmail, globalToast]);
+
   // ── bulkApprove ───────────────────────────────────────────────────────────
   const bulkApprove = (rows) => {
     confirmAsk(
@@ -993,7 +1112,17 @@ function SchedulePage() {
       if (bulkDayFilter === "weekdays" && (dow === 5 || dow === 6)) continue;
       if (bulkDayFilter === "weekends" && dow !== 5 && dow !== 6) continue;
       const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-      for (const em of targets) rows.push({email: em, date: dateStr, status: bulkStatus, created_by: myEmail});
+      for (const em of targets) {
+        const row = {email: em, date: dateStr, status: bulkStatus, created_by: myEmail};
+        // Super_admin preview: optionally apply a shift window to every
+        // row in the bulk update. Both ends must be set; otherwise the
+        // shift fields are simply omitted (existing values preserved).
+        if (isSuperAdmin && bulkShiftStart && bulkShiftEnd) {
+          row.shift_start = bulkShiftStart;
+          row.shift_end = bulkShiftEnd;
+        }
+        rows.push(row);
+      }
     }
     if (rows.length === 0) { globalToast("error", "No matching days in range"); return; }
     try {
@@ -1376,11 +1505,13 @@ function SchedulePage() {
             monthIsLocked={monthIsLocked}
             isLead={isLead}
             isQA={isQA}
+            isSuperAdmin={isSuperAdmin}
             editCell={editCell}
             setEditCell={setEditCell}
             pickerStage={pickerStage}
             pendingReason={pendingReason}
             onSetAtt={(em, dayNum, code, note) => setAtt(em, dayNum, code, note)}
+            onSetShift={(em, dayNum, start, end) => setShift(em, dayNum, start, end)}
             onApproveAtt={(em, dayNum) => approveAtt(em, dayNum)}
             onClearAtt={(em, dayNum) => clearAtt(em, dayNum)}
             setPendingReason={setPendingReason}
@@ -1445,6 +1576,7 @@ function SchedulePage() {
                           canEdit={canEdit}
                           isLead={isLead}
                           isQA={isQA}
+                          isSuperAdmin={isSuperAdmin}
                           canApprove={canApprove}
                           pickerStage={isEditing ? pickerStage : null}
                           pendingReason={isEditing ? pendingReason : ""}
@@ -1453,6 +1585,7 @@ function SchedulePage() {
                           onOpen={() => { setEditCell(cellKey); setPendingReason(""); }}
                           onClose={() => { setEditCell(null); setPendingReason(""); }}
                           onSetAtt={setAtt}
+                          onSetShift={setShift}
                           onApproveAtt={approveAtt}
                           onClearAtt={clearAtt}
                           setPendingReason={setPendingReason}
@@ -1475,7 +1608,7 @@ function SchedulePage() {
 
         <AttendanceCsvUpload open={csvUpload} onClose={() => setCsvUpload(false)} csvFile={csvFile} setCsvFile={setCsvFile} csvPreview={csvPreview} setCsvPreview={setCsvPreview} csvUploading={csvUploading} selMonth={selMonth} parseCsvUpload={parseCsvUpload} executeCsvUpload={executeCsvUpload} downloadCsvTemplate={downloadCsvTemplate}/>
         <AttendanceOtModal open={otModal} onClose={() => setOtModal(false)} isQA={isQA} visibleQAs={visibleQAs} otFrom={otFrom} setOtFrom={setOtFrom} otTo={otTo} setOtTo={setOtTo} otHoursPerDay={otHoursPerDay} setOtHoursPerDay={setOtHoursPerDay} otTarget={otTarget} setOtTarget={setOtTarget} otNote={otNote} setOtNote={setOtNote} applyOtRequest={applyOtRequest}/>
-        <AttendanceBulkModal open={bulkModal} onClose={() => setBulkModal(false)} bulkStatus={bulkStatus} setBulkStatus={setBulkStatus} bulkDayFilter={bulkDayFilter} setBulkDayFilter={setBulkDayFilter} bulkFrom={bulkFrom} setBulkFrom={setBulkFrom} bulkTo={bulkTo} setBulkTo={setBulkTo} bulkScope={bulkScope} setBulkScope={setBulkScope} bulkPerson={bulkPerson} setBulkPerson={setBulkPerson} selMonth={selMonth} daysInMonth={daysInMonth} isLead={isLead} profile={profile} selectedQAs={selectedQAs} visibleQAs={visibleQAs} applyBulk={applyBulk}/>
+        <AttendanceBulkModal open={bulkModal} onClose={() => setBulkModal(false)} bulkStatus={bulkStatus} setBulkStatus={setBulkStatus} bulkDayFilter={bulkDayFilter} setBulkDayFilter={setBulkDayFilter} bulkFrom={bulkFrom} setBulkFrom={setBulkFrom} bulkTo={bulkTo} setBulkTo={setBulkTo} bulkScope={bulkScope} setBulkScope={setBulkScope} bulkPerson={bulkPerson} setBulkPerson={setBulkPerson} bulkShiftStart={bulkShiftStart} setBulkShiftStart={setBulkShiftStart} bulkShiftEnd={bulkShiftEnd} setBulkShiftEnd={setBulkShiftEnd} selMonth={selMonth} daysInMonth={daysInMonth} isLead={isLead} isSuperAdmin={isSuperAdmin} profile={profile} selectedQAs={selectedQAs} visibleQAs={visibleQAs} applyBulk={applyBulk}/>
       </>}
 
       {/* ── Pending tab ── */}
