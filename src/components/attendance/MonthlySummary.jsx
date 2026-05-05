@@ -1,6 +1,5 @@
 import React from "react";
 import { riyadhTodayStr, computeAttendanceHealth, computeTeamAttendanceHealth, healthColor } from "../../lib/attendancePlan.js";
-import AttendanceHealthCard from "./AttendanceHealthCard.jsx";
 
 const nameFromEmail = (email) => {
   if (!email) return "—";
@@ -144,15 +143,6 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
         </div>
       </div>
 
-      {/* Detailed Team Health card with per-QA breakdown (sorted lowest first) */}
-      <div style={{ marginBottom: 12 }}>
-        <AttendanceHealthCard
-          attendance={attendance}
-          emails={visibleQAs.map(qa => qa.email?.toLowerCase()).filter(Boolean)}
-          monthYM={selMonth}
-          mode="team"
-        />
-      </div>
 
       {/* Detail table */}
       <div className="card" style={{ overflow: "auto" }}>
