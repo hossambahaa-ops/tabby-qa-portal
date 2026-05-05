@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import SearchableSelect from "../SearchableSelect.jsx";
 import { nameFromEmail } from "../../lib/utils.js";
 import { PLAN_FEATURE_START } from "../../lib/attendancePlan.js";
@@ -88,6 +88,9 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
   const [shiftStart, setShiftStart] = useState("");
   const [shiftEnd, setShiftEnd] = useState("");
   const [clearShift, setClearShift] = useState(false);
+  // Ref for the start-hour <select> so clicking anywhere in the shift
+  // panel can refocus it (saves the user from aiming at the small input).
+  const shiftStartRef = useRef(null);
   // SKIP = "don't touch planned_code". Surfaced only when isSuperAdmin so
   // a shift-only bulk apply doesn't accidentally rewrite plans.
   const valueIsSkip = value === "SKIP";
@@ -325,14 +328,41 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
           </div>
         </div>
 
-        {/* Shift (super_admin preview) — optional */}
-        {isSuperAdmin && (
-          <div style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 8, background: "rgba(106,44,121,.06)", border: "1px dashed var(--tabby-purple)" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+        {/* Shift (super_admin preview) — optional. Hour-only picker (no
+            minutes) plus 1-click presets for the common shifts. The whole
+            panel acts as a single click target: tapping any blank space
+            in the panel opens the start-hour dropdown so the user never
+            has to aim precisely at a small input. */}
+        {isSuperAdmin && (() => {
+          const SHIFT_PRESETS = [
+            { label: "10–19", start: "10:00", end: "19:00" },
+            { label: "9–18",  start: "09:00", end: "18:00" },
+            { label: "11–20", start: "11:00", end: "20:00" },
+            { label: "13–22", start: "13:00", end: "22:00" },
+            { label: "14–23", start: "14:00", end: "23:00" },
+          ];
+          const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0") + ":00");
+          const focusStart = () => { if (!clearShift) shiftStartRef.current?.focus(); };
+          const matchedPreset = !clearShift && shiftStart && shiftEnd
+            ? SHIFT_PRESETS.find(p => p.start === shiftStart && p.end === shiftEnd)?.label
+            : null;
+          return (
+          <div
+            onClick={focusStart}
+            style={{
+              marginBottom: 14, padding: "12px 14px", borderRadius: 8,
+              background: "rgba(106,44,121,.06)", border: "1px dashed var(--tabby-purple)",
+              cursor: clearShift ? "default" : "pointer",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
               <span style={{ fontSize: 11, fontWeight: 800, color: "var(--tabby-purple)", textTransform: "uppercase", letterSpacing: ".4px" }}>
                 Shift <span style={{ fontWeight: 400, color: "var(--tx3)", textTransform: "none", letterSpacing: 0 }}>· super-admin preview · optional</span>
               </span>
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--tx2)", cursor: "pointer", userSelect: "none" }}>
+              <label
+                onClick={(e) => e.stopPropagation()}
+                style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--tx2)", cursor: "pointer", userSelect: "none" }}
+              >
                 <input
                   type="checkbox"
                   checked={clearShift}
@@ -342,42 +372,87 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
                 Clear shift on selected cells
               </label>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "end", opacity: clearShift ? 0.45 : 1 }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Shift start</label>
-                <input
-                  type="time"
-                  className="form-input"
-                  value={shiftStart}
-                  disabled={clearShift}
-                  onChange={(e) => setShiftStart(e.target.value)}
-                />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Shift end</label>
-                <input
-                  type="time"
-                  className="form-input"
-                  value={shiftEnd}
-                  disabled={clearShift}
-                  onChange={(e) => setShiftEnd(e.target.value)}
-                />
-              </div>
+
+            {/* Preset chips — 1-click for common shifts. */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10, opacity: clearShift ? 0.45 : 1 }}
+            >
+              {SHIFT_PRESETS.map((p) => {
+                const active = matchedPreset === p.label;
+                return (
+                  <button
+                    key={p.label}
+                    type="button"
+                    disabled={clearShift}
+                    onClick={() => { setShiftStart(p.start); setShiftEnd(p.end); }}
+                    className="btn btn-sm"
+                    style={{
+                      fontSize: 13,
+                      fontWeight: 700,
+                      padding: "8px 16px",
+                      minWidth: 72,
+                      background: active ? "var(--tabby-purple)" : "rgba(106,44,121,.10)",
+                      color: active ? "#fff" : "var(--tabby-purple)",
+                      border: `1.5px solid var(--tabby-purple)`,
+                      cursor: clearShift ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
               {(shiftStart || shiftEnd) && !clearShift && (
                 <button
-                  className="btn btn-outline btn-sm"
-                  style={{ height: 36 }}
+                  type="button"
+                  className="btn btn-sm"
                   onClick={() => { setShiftStart(""); setShiftEnd(""); }}
+                  style={{ fontSize: 12, fontWeight: 600, padding: "8px 14px", background: "transparent", color: "var(--tx3)", border: "1px solid var(--bd)" }}
                 >
                   Reset
                 </button>
               )}
             </div>
-            <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 8, fontStyle: "italic", lineHeight: 1.45 }}>
-              Set both times to stamp the shift on every selected cell. Tick "Clear shift" to wipe shifts on the selection. Pair with status "Skip" if you only want to change shifts without touching plans. Daily, weekly, or monthly cadences are all controlled here.
+
+            {/* Hour-only custom selectors (no minutes). */}
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{ display: "grid", gridTemplateColumns: "1fr auto 1fr", gap: 8, alignItems: "end", opacity: clearShift ? 0.45 : 1 }}
+            >
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Start (hour)</label>
+                <select
+                  ref={shiftStartRef}
+                  className="select form-input"
+                  value={shiftStart}
+                  disabled={clearShift}
+                  onChange={(e) => setShiftStart(e.target.value)}
+                >
+                  <option value="">—</option>
+                  {hours.map((h) => <option key={h} value={h}>{h.slice(0, 2)}</option>)}
+                </select>
+              </div>
+              <div style={{ paddingBottom: 8, color: "var(--tx3)", fontWeight: 700, fontSize: 14 }}>→</div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">End (hour)</label>
+                <select
+                  className="select form-input"
+                  value={shiftEnd}
+                  disabled={clearShift}
+                  onChange={(e) => setShiftEnd(e.target.value)}
+                >
+                  <option value="">—</option>
+                  {hours.map((h) => <option key={h} value={h}>{h.slice(0, 2)}</option>)}
+                </select>
+              </div>
+            </div>
+
+            <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 10, fontStyle: "italic", lineHeight: 1.45 }}>
+              Tap a preset for the common shifts, or pick custom hours below — minutes are always :00. Click anywhere in this panel to jump back to the hour picker. Pair with status "Skip" if you only want to change shifts without touching plans.
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* Day-of-week picker — any combination */}
         <div className="form-group" style={{ marginBottom: 14 }}>
