@@ -4,6 +4,22 @@
 
 export const STATUSES = ["Not started", "In progress", "Done"];
 
+// Public reference for a card. Used in the UI label (`TRK-42`) and as
+// a copyable handle for Slack/email/standup notes. The numeric seq
+// comes from the DB sequence; we just dress it up here.
+export const TRK_PREFIX = "TRK";
+export const trkRef = (row) => row?.seq ? `${TRK_PREFIX}-${row.seq}` : "";
+
+// Soft WIP limits per column. Going over → header chip turns amber and
+// shows "12 / 8". Doesn't block the lead from doing anything; it's
+// just a visual nudge that the column is overcommitted. Tune later if
+// the unit's volume changes; admin-editable is a Phase-3 follow-up.
+export const WIP_LIMITS = {
+  "Not started": null, // backlog has no cap
+  "In progress": 8,    // soft cap
+  "Done":        null, // archive has no cap
+};
+
 export const STATUS_COLORS = {
   "Not started": { bg: "rgba(156,163,175,0.15)", color: "var(--tx2)", border: "var(--bd)" },
   "In progress": { bg: "rgba(59,130,246,0.15)",  color: "#3B82F6",   border: "#3B82F6" },

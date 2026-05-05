@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
   STATUSES, PRIORITIES, TEAMS, TASK_TYPES,
-  TEAM_COLORS, TASK_TYPE_COLORS,
+  TEAM_COLORS, TASK_TYPE_COLORS, trkRef,
 } from "../../lib/initiatives.js";
 import { nameFromEmail } from "../../lib/utils.js";
 import SearchableSelect from "../SearchableSelect.jsx";
@@ -155,9 +155,21 @@ export default function TrackerEditModal({ open, row, readOnly, profiles, allIni
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 999, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 40 }}>
       <div onClick={e => e.stopPropagation()} style={{ background: "var(--bg3)", borderRadius: 14, border: "1px solid var(--bd)", boxShadow: "var(--shadow-lg)", width: "100%", maxWidth: 640, maxHeight: "90vh", overflow: "auto", padding: 22 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontSize: 17, fontWeight: 800, color: "var(--tx)" }}>
-            {isEdit ? (readOnly ? "View task" : "Edit task") : "New task"}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 17, fontWeight: 800, color: "var(--tx)" }}>
+              {isEdit ? (readOnly ? "View task" : "Edit task") : "New task"}
+            </div>
+            {isEdit && row?.seq && (
+              <button
+                type="button"
+                onClick={() => { try { navigator.clipboard?.writeText(trkRef(row)); } catch { /* ignored */ } }}
+                title="Click to copy"
+                style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", letterSpacing: ".4px", padding: "3px 8px", borderRadius: 4, background: "var(--bg2)", border: "1px solid var(--bd2)", cursor: "pointer", fontVariantNumeric: "tabular-nums" }}
+              >
+                {trkRef(row)}
+              </button>
+            )}
           </div>
           <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--tx3)" }}>×</button>
         </div>

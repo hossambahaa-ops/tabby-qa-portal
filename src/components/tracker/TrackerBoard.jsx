@@ -4,7 +4,7 @@ import {
   useSensor, useSensors, useDroppable,
 } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { STATUSES, STATUS_COLORS } from "../../lib/initiatives.js";
+import { STATUSES, STATUS_COLORS, WIP_LIMITS } from "../../lib/initiatives.js";
 import TrackerCard from "./TrackerCard.jsx";
 
 // Kanban view. Columns are statuses; cards are initiatives. Drag a card
@@ -34,7 +34,27 @@ function Column({ status, items, onOpen, childCountsById, isSubMap, descendantsB
         <span style={{ fontSize: 11, fontWeight: 700, color: meta.color || "var(--tx2)", textTransform: "uppercase", letterSpacing: ".4px" }}>
           {status}
         </span>
-        <span style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>{items.length}</span>
+        {(() => {
+          const wip = WIP_LIMITS[status];
+          const over = wip != null && items.length > wip;
+          if (wip == null) {
+            return <span style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>{items.length}</span>;
+          }
+          return (
+            <span
+              title={over ? `Over WIP limit — ${items.length} in this column, soft cap is ${wip}` : `${items.length} of ${wip} (soft WIP cap)`}
+              style={{
+                fontSize: 11, fontWeight: 700,
+                padding: "2px 7px", borderRadius: 10,
+                background: over ? "rgba(245,158,11,0.15)" : "rgba(156,163,175,0.12)",
+                color: over ? "var(--amber)" : "var(--tx3)",
+                fontVariantNumeric: "tabular-nums",
+              }}
+            >
+              {items.length} / {wip}
+            </span>
+          );
+        })()}
       </div>
       <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 6 }}>
         <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>

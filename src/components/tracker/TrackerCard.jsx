@@ -1,7 +1,7 @@
 import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { PRIORITY_COLORS, TEAM_COLORS, TASK_TYPE_COLORS, STATUS_COLORS } from "../../lib/initiatives.js";
+import { PRIORITY_COLORS, TEAM_COLORS, TASK_TYPE_COLORS, STATUS_COLORS, trkRef } from "../../lib/initiatives.js";
 import { nameFromEmail } from "../../lib/utils.js";
 
 // Single Tracker card. Used inside TrackerBoard (draggable) and the
@@ -57,15 +57,20 @@ export default function TrackerCard({ row, onOpen, draggable = false, childCount
       aria-label={`Open ${row.title}`}
     >
       <div style={{ padding: 10 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 6, marginBottom: 6 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--tx)", lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
-            {row.title}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginBottom: 4 }}>
+          <span style={{ fontSize: 9, fontWeight: 700, color: "var(--tx3)", letterSpacing: ".4px", fontVariantNumeric: "tabular-nums" }}>
+            {trkRef(row)}
           </span>
           {row.priority && (
             <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, flexShrink: 0, background: PRIORITY_COLORS[row.priority]?.bg, color: PRIORITY_COLORS[row.priority]?.color }}>
               {row.priority}
             </span>
           )}
+        </div>
+        <div style={{ marginBottom: 6 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "var(--tx)", lineHeight: 1.3, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>
+            {row.title}
+          </span>
         </div>
 
         {(teamChips.length > 0 || typeChips.length > 0) && (

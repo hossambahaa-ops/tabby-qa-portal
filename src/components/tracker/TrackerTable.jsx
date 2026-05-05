@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from "react";
-import { STATUS_COLORS, PRIORITY_COLORS, TEAM_COLORS, TASK_TYPE_COLORS } from "../../lib/initiatives.js";
+import { STATUS_COLORS, PRIORITY_COLORS, TEAM_COLORS, TASK_TYPE_COLORS, trkRef } from "../../lib/initiatives.js";
 import { nameFromEmail } from "../../lib/utils.js";
 
 // Sortable, hierarchical table view. Children render indented under
@@ -8,6 +8,7 @@ import { nameFromEmail } from "../../lib/utils.js";
 // doesn't reshuffle when children sort differently.
 
 const COLUMNS = [
+  { key: "seq",         label: "ID",        sortable: true,  width: 64  },
   { key: "title",       label: "Title",     sortable: true,  width: 280 },
   { key: "status",      label: "Status",    sortable: true,  width: 110 },
   { key: "priority",    label: "Priority",  sortable: true,  width: 80  },
@@ -130,6 +131,9 @@ export default function TrackerTable({ rows, onOpen }) {
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = "var(--bg2)"}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
               >
+                <td style={{ padding: "10px 12px", fontSize: 11, color: "var(--tx3)", fontWeight: 700, fontVariantNumeric: "tabular-nums", letterSpacing: ".3px" }}>
+                  {trkRef(r)}
+                </td>
                 <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--tx)", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 320 }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 4, paddingLeft: depth * 18 }}>
                     {hasChildren ? (

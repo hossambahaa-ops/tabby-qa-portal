@@ -5,8 +5,8 @@
 import { sb } from "../lib/supabase.js";
 
 const SELECT_FULL =
-  "id,title,description,status,priority,team,task_type,assigned_to,created_by," +
-  "start_date,eta_date,parent_id,links,created_at,updated_at,completed_at";
+  "id,seq,title,description,status,priority,team,task_type,assigned_to,created_by," +
+  "start_date,eta_date,parent_id,links,position,created_at,updated_at,completed_at";
 
 // Fetch every initiative the caller has read access to. RLS already
 // scopes to senior_qa+, so leads/admin get everything. Order recent
