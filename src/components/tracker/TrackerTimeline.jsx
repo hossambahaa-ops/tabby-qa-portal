@@ -30,6 +30,20 @@ const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
 export default function TrackerTimeline({ rows, onOpen }) {
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
+  // Two grouping modes:
+  //   - "parent"   → tree by parent_id; subtasks indented under their
+  //                  parent. Best for "this big initiative + its bits".
+  //   - "assignee" → swimlane per person; closest to "who's doing what".
+  // Default = parent (now that subtasks are first-class).
+  const [groupBy, setGroupBy] = useState("parent");
+  // Per-row expand state for parent mode. Sub-subtasks collapse with
+  // their parent. Empty = all collapsed.
+  const [expandedSet, setExpandedSet] = useState(() => new Set());
+  const toggleExpanded = (id) => setExpandedSet(prev => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   // 8-week window: 14 days back, 42 days forward (≈ today + 6 weeks).
   // Lead can scroll forward when planning longer pieces.
@@ -56,9 +70,9 @@ export default function TrackerTimeline({ rows, onOpen }) {
     return { datable: yes, undated: no };
   }, [rows]);
 
-  // Group by assignee. Unassigned and Undated each get their own row
-  // at the bottom for findability.
-  const swimlanes = useMemo(() => {
+  // Group by assignee — every datable task lands in its assignee's
+  // swimlane. Unassigned at the bottom.
+  const assigneeLanes = useMemo(() => {
     const groups = new Map();
     datable.forEach(item => {
       const k = item.row.assigned_to?.toLowerCase() || "__unassigned__";
@@ -71,10 +85,10 @@ export default function TrackerTimeline({ rows, onOpen }) {
       lanes.push({
         key,
         label: key === "__unassigned__" ? "Unassigned" : nameFromEmail(key),
+        depth: 0,
         items: items.sort((a, b) => a.start - b.start),
       });
     });
-    // Stable order: real names alphabetically, unassigned last.
     lanes.sort((a, b) => {
       if (a.key === "__unassigned__") return 1;
       if (b.key === "__unassigned__") return -1;
@@ -82,6 +96,46 @@ export default function TrackerTimeline({ rows, onOpen }) {
     });
     return lanes;
   }, [datable]);
+
+  // Group by parent — build a tree. Each node becomes a lane; children
+  // indent beneath their parent. The lane's `items` array carries the
+  // single bar for that node (each row owns its own row visually).
+  // Orphan children whose parent isn't in the filtered set are promoted
+  // to roots so they don't disappear.
+  const parentLanes = useMemo(() => {
+    const byId = new Map(datable.map(d => [d.row.id, d]));
+    const childrenOf = new Map();
+    const roots = [];
+    datable.forEach(d => {
+      const pid = d.row.parent_id && byId.has(d.row.parent_id) ? d.row.parent_id : null;
+      if (pid === null) {
+        roots.push(d);
+      } else {
+        const arr = childrenOf.get(pid) || [];
+        arr.push(d);
+        childrenOf.set(pid, arr);
+      }
+    });
+    const sortBy = (arr) => [...arr].sort((a, b) => a.start - b.start);
+    const lanes = [];
+    const visit = (item, depth) => {
+      const kids = childrenOf.get(item.row.id) || [];
+      lanes.push({
+        key: item.row.id,
+        label: item.row.title,
+        depth,
+        hasChildren: kids.length > 0,
+        items: [item],
+      });
+      if (kids.length > 0 && expandedSet.has(item.row.id)) {
+        sortBy(kids).forEach(c => visit(c, depth + 1));
+      }
+    };
+    sortBy(roots).forEach(r => visit(r, 0));
+    return lanes;
+  }, [datable, expandedSet]);
+
+  const swimlanes = groupBy === "parent" ? parentLanes : assigneeLanes;
 
   // Position helpers — left/width as a percentage of the visible range.
   const pctFor = (day) => Math.max(0, Math.min(100, ((day - rangeStart) / (rangeEnd - rangeStart)) * 100));
@@ -104,10 +158,25 @@ export default function TrackerTimeline({ rows, onOpen }) {
 
   return (
     <div className="card" style={{ padding: 12 }}>
-      {/* Header — range navigation */}
+      {/* Header — group toggle + range navigation */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ fontSize: 12, color: "var(--tx2)", fontWeight: 700 }}>
-          {fmtDay(rangeStart)} — {fmtDay(rangeEnd)} <span style={{ fontWeight: 400, color: "var(--tx3)" }}>· {datable.length} on schedule, {undated.length} undated</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 12, color: "var(--tx2)", fontWeight: 700 }}>
+            {fmtDay(rangeStart)} — {fmtDay(rangeEnd)} <span style={{ fontWeight: 400, color: "var(--tx3)" }}>· {datable.length} on schedule, {undated.length} undated</span>
+          </div>
+          <div style={{ display: "inline-flex", border: "1px solid var(--bd)", borderRadius: 6, overflow: "hidden", background: "var(--bg2)" }}>
+            <span style={{ fontSize: 10, padding: "4px 8px", color: "var(--tx3)", fontWeight: 600, alignSelf: "center" }}>Group:</span>
+            {[
+              { key: "parent",   label: "Parent" },
+              { key: "assignee", label: "Assignee" },
+            ].map(opt => (
+              <button
+                key={opt.key}
+                onClick={() => setGroupBy(opt.key)}
+                style={{ fontSize: 11, fontWeight: 600, padding: "4px 10px", border: "none", cursor: "pointer", background: groupBy === opt.key ? "var(--tabby-purple)" : "transparent", color: groupBy === opt.key ? "#fff" : "var(--tx2)" }}
+              >{opt.label}</button>
+            ))}
+          </div>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
           <button onClick={() => setAnchor(a => addDays(a, -28))} className="btn btn-outline btn-sm">‹ 4w</button>
@@ -124,8 +193,25 @@ export default function TrackerTimeline({ rows, onOpen }) {
           {swimlanes.length === 0 ? (
             <div style={{ padding: "12px 14px", color: "var(--tx3)", fontSize: 11, fontStyle: "italic" }}>No tasks in this window.</div>
           ) : swimlanes.map(lane => (
-            <div key={lane.key} style={{ height: ROW_HEIGHT, padding: "0 14px", display: "flex", alignItems: "center", borderBottom: "1px solid var(--bd2)", fontSize: 12, fontWeight: 600, color: lane.key === "__unassigned__" ? "var(--tx3)" : "var(--tx2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {lane.label}
+            <div key={lane.key} style={{ height: ROW_HEIGHT, padding: "0 8px 0 0", display: "flex", alignItems: "center", borderBottom: "1px solid var(--bd2)", fontSize: 12, fontWeight: 600, color: lane.key === "__unassigned__" ? "var(--tx3)" : "var(--tx2)", overflow: "hidden", whiteSpace: "nowrap" }}>
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 4, paddingLeft: 8 + (lane.depth || 0) * 14, overflow: "hidden" }}>
+                {groupBy === "parent" && lane.hasChildren ? (
+                  <button
+                    onClick={() => toggleExpanded(lane.key)}
+                    aria-label={expandedSet.has(lane.key) ? "Collapse subtasks" : "Expand subtasks"}
+                    style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 11, width: 14, color: "var(--tx2)" }}
+                  >
+                    {expandedSet.has(lane.key) ? "▾" : "▸"}
+                  </button>
+                ) : (
+                  <span style={{ display: "inline-block", width: 14, color: "var(--tx3)" }}>
+                    {groupBy === "parent" && lane.depth > 0 ? "↳" : ""}
+                  </span>
+                )}
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }} title={lane.label}>
+                  {lane.label}
+                </span>
+              </span>
             </div>
           ))}
         </div>

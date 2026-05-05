@@ -1,7 +1,7 @@
 import React from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { PRIORITY_COLORS, TEAM_COLORS, TASK_TYPE_COLORS } from "../../lib/initiatives.js";
+import { PRIORITY_COLORS, TEAM_COLORS, TASK_TYPE_COLORS, STATUS_COLORS } from "../../lib/initiatives.js";
 import { nameFromEmail } from "../../lib/utils.js";
 
 // Single Tracker card. Used inside TrackerBoard (draggable) and the
@@ -17,8 +17,12 @@ import { nameFromEmail } from "../../lib/utils.js";
 //                  a glance without expanding anything.
 //   isSub        — true if this card itself has a parent (rendered
 //                  under another card on the board)
+//   children     — full descendant rows (BFS) used by the expand drawer.
+//                  When non-empty, the card renders a chevron toggle.
+//   expanded     — drawer state controlled by the parent
+//   onToggleExpand — () => void — fired when the chevron is clicked
 
-export default function TrackerCard({ row, onOpen, draggable = false, childCounts = null, isSub = false }) {
+export default function TrackerCard({ row, onOpen, draggable = false, childCounts = null, isSub = false, children = [], expanded = false, onToggleExpand }) {
   const sortable = useSortable({ id: row.id, disabled: !draggable });
   const style = draggable
     ? {
@@ -82,9 +86,22 @@ export default function TrackerCard({ row, onOpen, draggable = false, childCount
           </span>
           <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {childCounts && childCounts.total > 0 && (
-              <span title={`${childCounts.total} sub-task${childCounts.total !== 1 ? "s" : ""}, ${childCounts.done} done`} style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: "rgba(106,44,121,0.15)", color: "var(--tabby-purple)" }}>
-                ▸ {childCounts.done}/{childCounts.total}
-              </span>
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onToggleExpand?.(); }}
+                onPointerDown={(e) => e.stopPropagation()}
+                title={`${childCounts.total} sub-task${childCounts.total !== 1 ? "s" : ""}, ${childCounts.done} done — click to expand`}
+                style={{
+                  fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 8,
+                  background: expanded ? "var(--tabby-purple)" : "rgba(106,44,121,0.15)",
+                  color: expanded ? "#fff" : "var(--tabby-purple)",
+                  border: "none", cursor: "pointer",
+                  display: "inline-flex", alignItems: "center", gap: 3,
+                  lineHeight: 1,
+                }}
+              >
+                {expanded ? "▾" : "▸"} {childCounts.done}/{childCounts.total}
+              </button>
             )}
             {row.eta_date && (
               <span style={{ color: overdue ? "var(--red)" : "var(--tx3)", fontWeight: overdue ? 700 : 400, fontVariantNumeric: "tabular-nums" }}>
@@ -93,6 +110,53 @@ export default function TrackerCard({ row, onOpen, draggable = false, childCount
             )}
           </span>
         </div>
+
+        {/* Subtask drawer — opens INSIDE the parent card so the
+            relationship is visible without leaving the column. Children
+            still appear as standalone cards in their own status
+            columns; this drawer is the navigation aid, not the
+            authoritative location. Click a child to open its detail. */}
+        {expanded && children.length > 0 && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{ marginTop: 8, paddingTop: 8, borderTop: "1px dashed var(--bd)", display: "flex", flexDirection: "column", gap: 4 }}
+          >
+            {children.map(child => {
+              const sm = STATUS_COLORS[child.status] || {};
+              const childOverdue = child.eta_date && child.status !== "Done" && child.eta_date < new Date().toISOString().slice(0, 10);
+              return (
+                <button
+                  key={child.id}
+                  onClick={(e) => { e.stopPropagation(); onOpen?.(child); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 6,
+                    padding: "4px 6px", borderRadius: 4,
+                    background: "var(--bg2)", border: "1px solid var(--bd2)",
+                    cursor: "pointer", textAlign: "left", width: "100%",
+                  }}
+                >
+                  <span style={{ fontSize: 8, fontWeight: 700, padding: "1px 4px", borderRadius: 3, background: sm.bg, color: sm.color, flexShrink: 0, whiteSpace: "nowrap" }}>
+                    {child.status === "Done" ? "✓" : child.status === "In progress" ? "▶" : "•"}
+                  </span>
+                  <span style={{ flex: 1, fontSize: 11, fontWeight: 600, color: "var(--tx)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {child.title}
+                  </span>
+                  {child.assigned_to && (
+                    <span style={{ fontSize: 9, color: "var(--tx3)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 70 }}>
+                      {nameFromEmail(child.assigned_to)}
+                    </span>
+                  )}
+                  {child.eta_date && (
+                    <span style={{ fontSize: 9, color: childOverdue ? "var(--red)" : "var(--tx3)", fontWeight: childOverdue ? 700 : 400, flexShrink: 0 }}>
+                      {childOverdue ? "⚠ " : ""}{new Date(child.eta_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

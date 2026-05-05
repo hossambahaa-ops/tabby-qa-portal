@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import {
   DndContext, closestCenter, PointerSensor, KeyboardSensor,
   useSensor, useSensors, useDroppable,
@@ -12,7 +12,7 @@ import TrackerCard from "./TrackerCard.jsx";
 // intentionally NOT supported in Phase 1 — the cards sort by ETA asc
 // inside each column. Adding manual order is a Phase 2 thing.
 
-function Column({ status, items, onOpen, childCountsById, isSubMap }) {
+function Column({ status, items, onOpen, childCountsById, isSubMap, descendantsById, expandedSet, toggleExpanded }) {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { kind: "column", status } });
   const meta = STATUS_COLORS[status] || {};
   return (
@@ -49,6 +49,9 @@ function Column({ status, items, onOpen, childCountsById, isSubMap }) {
                 draggable
                 childCounts={childCountsById?.get(row.id) || null}
                 isSub={isSubMap?.get(row.id) || false}
+                children={descendantsById?.get(row.id) || []}
+                expanded={expandedSet?.has(row.id) || false}
+                onToggleExpand={() => toggleExpanded?.(row.id)}
               />
             ))
           )}
@@ -82,11 +85,14 @@ export default function TrackerBoard({ rows, onOpen, onStatusChange }) {
     return buckets;
   }, [rows]);
 
-  // Pre-compute subtask roll-ups so each card knows "X of Y children
-  // are done". Done irrespective of column — a parent's count covers
-  // all its descendants regardless of which status they're in.
-  const childCountsById = useMemo(() => {
-    const map = new Map();
+  // Pre-compute subtask roll-ups + the full descendant list per parent
+  // so each card knows "X of Y children are done" AND can render the
+  // expand drawer with the actual subtask rows. Done irrespective of
+  // column — a parent's count covers all its descendants regardless of
+  // which status they're in.
+  const { childCountsById, descendantsById } = useMemo(() => {
+    const counts = new Map();
+    const desc = new Map();
     const childrenOf = new Map();
     (rows || []).forEach(r => {
       if (!r.parent_id) return;
@@ -108,13 +114,35 @@ export default function TrackerBoard({ rows, onOpen, onStatusChange }) {
         all.push(n);
         (childrenOf.get(n.id) || []).forEach(c => queue.push(c));
       }
-      map.set(r.id, {
+      counts.set(r.id, {
         total: all.length,
         done: all.filter(x => x.status === "Done").length,
       });
+      // Sort the subtask drawer the same way columns sort: ETA asc,
+      // then created. Parent-first means breadth-first ordering keeps
+      // direct children grouped before grandchildren.
+      const sorted = [...all].sort((a, b) => {
+        const ea = a.eta_date || "9999-12-31";
+        const eb = b.eta_date || "9999-12-31";
+        if (ea !== eb) return ea < eb ? -1 : 1;
+        return (a.created_at || "").localeCompare(b.created_at || "");
+      });
+      desc.set(r.id, sorted);
     });
-    return map;
+    return { childCountsById: counts, descendantsById: desc };
   }, [rows]);
+
+  // Per-card expand state for the subtask drawer. Only relevant for
+  // parents (rows with descendants). Not persisted — collapses on
+  // refresh by design so the board defaults to a clean view.
+  const [expandedSet, setExpandedSet] = useState(() => new Set());
+  const toggleExpanded = useCallback((id) => {
+    setExpandedSet(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
 
   const isSubMap = useMemo(() => {
     const m = new Map();
@@ -150,6 +178,9 @@ export default function TrackerBoard({ rows, onOpen, onStatusChange }) {
             onOpen={onOpen}
             childCountsById={childCountsById}
             isSubMap={isSubMap}
+            descendantsById={descendantsById}
+            expandedSet={expandedSet}
+            toggleExpanded={toggleExpanded}
           />
         ))}
       </div>
