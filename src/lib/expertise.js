@@ -108,7 +108,7 @@ export const fetchCombinedExpertise = async ({ token, month, qaEmail }) => {
   if (qaEmail) filters.push(`qa_email=eq.${encodeURIComponent(qaEmail.toLowerCase())}`);
   filters.push("order=star_level.desc,expertise_score.desc");
   return await sb.query("combined_expertise", {
-    select: "qa_email,month,expertise_score,star_level,champion_topics,solid_topics,bnpl_score,card_score,universal_score,total_qualified_topics,topic_breakdown,calculated_at",
+    select: "qa_email,month,expertise_score,star_level,champion_topics,solid_topics,bnpl_score,card_score,universal_score,total_qualified_topics,topic_breakdown,combined_rank,combined_pool_size,calculated_at",
     filters: filters.join("&"),
     token,
   }).catch(() => []);

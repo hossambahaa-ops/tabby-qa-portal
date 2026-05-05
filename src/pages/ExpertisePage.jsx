@@ -291,6 +291,9 @@ export default function ExpertisePage() {
       case "bnpl":       return Number(r.bnpl_score || 0);
       case "card":       return Number(r.card_score || 0);
       case "universal":  return Number(r.universal_score || 0);
+      // Pool Rank: lower rank = better. Encode as (max - rank) so the
+      // existing "desc = highest val first" logic puts #1 at the top.
+      case "poolrank":   return r.combined_rank ? (100000 - Number(r.combined_rank)) : 0;
       default:           return 0;
     }
   };
@@ -507,6 +510,7 @@ export default function ExpertisePage() {
                   <th style={{ width: 40 }}>#</th>
                   {[
                     { k: "specialist", label: "Specialist", align: "left",  style: { minWidth: 180 } },
+                    ...(view === "combined" ? [{ k: "poolrank", label: "Pool Rank", align: "right", style: { width: 110 } }] : []),
                     { k: "stars",      label: "Stars",      align: "left",  style: { width: 100 } },
                     { k: "score",      label: "Score",      align: "right", style: { width: 80 } },
                     { k: "champion",   label: "Champion topics", align: "left", style: { minWidth: 200 } },
@@ -544,6 +548,18 @@ export default function ExpertisePage() {
                             </div>
                           </div>
                         </td>
+                        {view === "combined" && (
+                          <td style={{ textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
+                            {r.combined_rank ? (
+                              <span title={`Ranked #${r.combined_rank} of ${r.combined_pool_size} scorers (QAs + Agents) with at least one qualified topic in this month's pool`}>
+                                <span style={{ fontWeight: 700, fontSize: 14, color: r.combined_rank <= 50 ? "var(--green)" : r.combined_rank <= 200 ? "var(--blue)" : "var(--tx2)" }}>#{r.combined_rank}</span>
+                                <span style={{ fontSize: 11, color: "var(--tx3)", marginLeft: 4 }}>/ {r.combined_pool_size}</span>
+                              </span>
+                            ) : (
+                              <span title="Not enough qualified topics this month to enter the merged ranking pool" style={{ fontSize: 11, color: "var(--tx3)", fontStyle: "italic" }}>unranked</span>
+                            )}
+                          </td>
+                        )}
                         <td>
                           {r.star_level > 0 ? (
                             <span title={starLabel(r.star_level)} style={{ fontSize: 14, color: starColor(r.star_level) }}>
@@ -585,7 +601,7 @@ export default function ExpertisePage() {
                       </tr>
                       {isExp && (
                         <tr style={{ background: "var(--bg)" }}>
-                          <td colSpan={10} style={{ padding: "12px 16px 16px" }}>
+                          <td colSpan={view === "combined" ? 11 : 10} style={{ padding: "12px 16px 16px" }}>
                             <div style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>
                               Topic breakdown · {(r.topic_breakdown || []).length} qualified topic{(r.topic_breakdown || []).length === 1 ? "" : "s"}
                             </div>
