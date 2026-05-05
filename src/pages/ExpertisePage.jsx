@@ -4,7 +4,7 @@ import { nameFromEmail } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { useApp } from "../lib/AppContext.jsx";
-import { fetchExpertise, fetchExpertiseMonths, fetchExpertiseConfig, saveExpertiseThreshold, recomputeExpertise, renderStars, starColor, starLabel, productOf, productColor } from "../lib/expertise.js";
+import { fetchExpertise, fetchExpertiseMonths, fetchExpertiseConfig, saveExpertiseThreshold, recomputeExpertise, fetchCombinedExpertise, fetchCombinedExpertiseMonths, fetchCombinedPopulationCounts, recomputeCombinedExpertise, renderStars, starColor, starLabel, productOf, productColor } from "../lib/expertise.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 
@@ -70,6 +70,13 @@ export default function ExpertisePage() {
   const [pendingThreshold, setPendingThreshold] = useState(5);
   const [thresholdMeta, setThresholdMeta] = useState({ updated_at: null, updated_by: null });
   const [recomputing, setRecomputing] = useState(false);
+  // Combined view (admin-only): pool = QAs + Agents, hardcoded 5-survey
+  // threshold. Agents never appear in the rendered output, only as part
+  // of the comparison pool for percentile / star calculations.
+  const [view, setView] = useState("qa"); // 'qa' | 'combined'
+  const [combinedRows, setCombinedRows] = useState([]);
+  const [combinedPopulation, setCombinedPopulation] = useState({ qaCount: 0, agentCount: 0 });
+  const [recomputingCombined, setRecomputingCombined] = useState(false);
 
   // Initial month + dropdowns + threshold config
   useEffect(() => {
@@ -150,6 +157,44 @@ export default function ExpertisePage() {
     return () => { cancelled = true; };
   }, [token, selMonth]);
 
+  // Reload combined-view rows + population counts whenever month changes
+  // OR the user switches to the Combined tab. Admin-only — non-admins
+  // get empty arrays from the SELECT due to RLS, so the view degrades
+  // gracefully even if accessed via URL.
+  useEffect(() => {
+    if (!token || !selMonth || !isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      const [data, pop] = await Promise.all([
+        fetchCombinedExpertise({ token, month: selMonth }),
+        fetchCombinedPopulationCounts({ token, month: selMonth }),
+      ]);
+      if (cancelled) return;
+      setCombinedRows(Array.isArray(data) ? data : []);
+      setCombinedPopulation(pop || { qaCount: 0, agentCount: 0 });
+    })();
+    return () => { cancelled = true; };
+  }, [token, selMonth, isAdmin, view]);
+
+  // Recompute combined view (admin-only). Mirrors handleRecompute.
+  const handleRecomputeCombined = async () => {
+    setRecomputingCombined(true);
+    try {
+      const res = await recomputeCombinedExpertise({ token, month: null });
+      const [data, pop] = await Promise.all([
+        fetchCombinedExpertise({ token, month: selMonth }),
+        fetchCombinedPopulationCounts({ token, month: selMonth }),
+      ]);
+      setCombinedRows(Array.isArray(data) ? data : []);
+      setCombinedPopulation(pop || { qaCount: 0, agentCount: 0 });
+      globalToast?.("success", `Combined recomputed · ${res?.rows_upserted ?? "?"} rows refreshed`);
+    } catch (e) {
+      console.error("recompute combined:", e);
+      globalToast?.("error", `Couldn't recompute combined: ${e?.message || "server error"}`);
+    }
+    setRecomputingCombined(false);
+  };
+
   // Visibility scoping per role
   const rosterMap = useMemo(() => {
     const m = {};
@@ -180,9 +225,11 @@ export default function ExpertisePage() {
   // different stories that should read differently in the UI.
   const hasSample = (r) => Array.isArray(r?.topic_breakdown) && r.topic_breakdown.length > 0;
 
-  // Apply role-based visibility + UI filters
+  // Apply role-based visibility + UI filters. Source rows depend on the
+  // active view: "qa" reads from rows (qa_expertise table), "combined"
+  // reads from combinedRows (combined_expertise table — admin-only).
   const visibleRows = useMemo(() => {
-    let r = rows;
+    let r = view === "combined" ? combinedRows : rows;
     if (isQAOnly) {
       r = r.filter(x => x.qa_email?.toLowerCase() === myEmail);
     } else if (isLead && !isSupervisor && teamEmailsForMe) {
@@ -205,7 +252,7 @@ export default function ExpertisePage() {
       );
     }
     return r;
-  }, [rows, isQAOnly, isLead, isSupervisor, isAdmin, teamEmailsForMe, myEmail, myDomain, selDomain, selTeam, selStar, search, rosterMap]);
+  }, [view, rows, combinedRows, isQAOnly, isLead, isSupervisor, isAdmin, teamEmailsForMe, myEmail, myDomain, selDomain, selTeam, selStar, search, rosterMap]);
 
   const teams = useMemo(() => [...new Set(roster.map(r => r.queue).filter(q => q && !q.includes(",")))].sort(), [roster]);
 
@@ -306,6 +353,54 @@ export default function ExpertisePage() {
       <div style={{ padding: "10px 14px", marginBottom: 16, background: "var(--amber-bg)", borderLeft: "3px solid var(--amber)", borderRadius: 8, fontSize: 12, color: "var(--tx2)" }}>
         <strong style={{ color: "var(--amber)" }}>Pilot version</strong> — based on {selMonth} data only. Threshold currently set to <strong>{activeThreshold} survey{activeThreshold === 1 ? "" : "s"}</strong> per topic — admins can adjust it below as the dataset grows. Expertise calls will become more accurate as 3+ months of data accumulate.
       </div>
+
+      {/* Tab strip — admin-only. The Combined view ranks QAs against the
+          merged QA + Agent pool with a hardcoded 5-survey threshold.
+          Agents never appear in the rendered output, only in the math. */}
+      {isAdmin && (
+        <div style={{ display: "flex", gap: 0, borderBottom: "1px solid var(--bd)", marginBottom: 16, overflowX: "auto" }}>
+          {[
+            { key: "qa",       label: "QA Expertise" },
+            { key: "combined", label: "Combined (QAs + Agents)" },
+          ].map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setView(t.key)}
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                padding: "10px 18px", border: "none",
+                borderBottom: view === t.key ? "2px solid var(--tabby-purple)" : "2px solid transparent",
+                background: "transparent", cursor: "pointer",
+                fontSize: 13, fontWeight: view === t.key ? 700 : 500,
+                color: view === t.key ? "var(--tabby-purple)" : "var(--tx2)",
+                fontFamily: "var(--font)", whiteSpace: "nowrap",
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Combined-view header — population counts + recompute button. */}
+      {isAdmin && view === "combined" && (
+        <div className="card" style={{ padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", borderLeft: "3px solid var(--tabby-purple)" }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Pool</span>
+          <span style={{ fontSize: 13, fontWeight: 600 }}>
+            <strong>{combinedPopulation.qaCount}</strong> QAs + <strong>{combinedPopulation.agentCount}</strong> Agents = <strong>{combinedPopulation.qaCount + combinedPopulation.agentCount}</strong> scorers
+          </span>
+          <span style={{ fontSize: 11, color: "var(--tx3)" }}>· 5+ surveys per topic · {selMonth}</span>
+          <button
+            className="btn btn-outline btn-sm"
+            onClick={handleRecomputeCombined}
+            disabled={recomputingCombined}
+            title="Re-run the combined expertise calculation against the merged pool"
+            style={{ fontSize: 11, marginLeft: "auto" }}
+          >
+            {recomputingCombined ? "Recomputing…" : "↻ Recompute combined"}
+          </button>
+        </div>
+      )}
 
       {/* Admin threshold control + manual recompute. Whole page is admin-
           only at the route level, so no extra role gate needed here. */}
