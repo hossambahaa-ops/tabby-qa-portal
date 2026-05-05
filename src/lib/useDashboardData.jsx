@@ -34,6 +34,7 @@ export function useDashboardData(token, profile) {
   const [damCount, setDamCount] = useState(0);
   const [profileCount, setProfileCount] = useState({ qas: 0, leads: 0, active: 0 });
   const [todayAttendance, setTodayAttendance] = useState([]);
+  const [monthAttendance, setMonthAttendance] = useState([]);
   const [apPlans, setApPlans] = useState([]);
   const [apWeeks, setApWeeks] = useState([]);
   const [apDetections, setApDetections] = useState([]);
@@ -70,7 +71,11 @@ export function useDashboardData(token, profile) {
         dataCache.fetch("dam_escalation_steps", () =>
           sb.query("dam_escalation_steps", { select: "id,rule_id,occurrence,action,includes_pip,pip_action", token }).catch(() => [])
         ),
-        sb.query("qa_attendance", { select: "email,status", filters: `date=eq.${todayStr}`, token }).catch(() => []),
+        // Month-to-date attendance with planned_code so the dashboard can
+        // compute attendance Health. Today's rows are derived from this
+        // (filtered below) — separate query removed to avoid an extra
+        // round-trip.
+        sb.query("qa_attendance", { select: "email,date,status,planned_code", filters: `date=gte.${todayStr.slice(0,7)}-01`, token }).catch(() => []),
         sb.query("daily_scores", { select: "*", filters: `date=eq.${todayStr}`, token }).catch(() => []),
         dataCache.fetch("teams_hierarchy", () =>
           sb.query("teams", { select: "name,domain,profiles!fk_teams_lead(email),sup:profiles!fk_teams_supervisor(email)", token }).catch(() => [])
@@ -148,7 +153,12 @@ export function useDashboardData(token, profile) {
       setApDismissals(dismissals);
 
       // Today's att / daily scores / teams were fetched in the same round above.
-      setTodayAttendance(Array.isArray(attRaw) ? attRaw : []);
+      // attRaw now holds the full MTD set (see query expansion above) — keep
+      // todayAttendance scoped to today's rows for the existing daily widget,
+      // and expose the month set under monthAttendance for the Health card.
+      const monthRows = Array.isArray(attRaw) ? attRaw : [];
+      setMonthAttendance(monthRows);
+      setTodayAttendance(monthRows.filter(r => r.date === todayStr));
       setDailyScores(Array.isArray(dsRaw) ? dsRaw : []);
       window.__teamsData = (Array.isArray(teamsRaw) ? teamsRaw : []).map(tm => ({
         name: tm.name, domain: tm.domain,
@@ -209,7 +219,7 @@ export function useDashboardData(token, profile) {
 
   return {
     mtd, roster, appProfiles, damCount, profileCount,
-    todayAttendance, apPlans, apWeeks, apDetections, apDismissals,
+    todayAttendance, monthAttendance, apPlans, apWeeks, apDetections, apDismissals,
     dailyScores, loading, refresh,
     // setters that the AP-detection dismiss flow on the page needs
     setApDetections, setApDismissals,

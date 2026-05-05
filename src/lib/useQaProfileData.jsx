@@ -79,7 +79,7 @@ export function useQaProfileData(token, profile) {
           listTasks({ token }),
           sb.query("dam_flags", { select: "id,qa_email,severity,status,triggered_at,occurrence_number,reviewed_by,reviewed_at,notes,dam_rules(name,behavior_type,recommended_action)", filters: "order=triggered_at.desc", token }).catch(() => []),
           listProfiles({ token, select: "email,role", filters: "", cacheKey: "profiles_email_role" }),
-          sb.query("qa_attendance", { select: "email,date,status", filters: `date=gte.${curMonth}-01&order=date.asc`, token }).catch(() => []),
+          sb.query("qa_attendance", { select: "email,date,status,planned_code", filters: `date=gte.${curMonth}-01&order=date.asc`, token }).catch(() => []),
           sb.query("daily_scores", { select: "*", filters: `date=eq.${today}`, token }).catch(() => []),
           listTeamTargets({ token }),
         ]);

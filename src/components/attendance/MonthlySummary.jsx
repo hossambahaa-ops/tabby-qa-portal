@@ -1,5 +1,6 @@
 import React from "react";
-import { riyadhTodayStr } from "../../lib/attendancePlan.js";
+import { riyadhTodayStr, computeAttendanceHealth, computeTeamAttendanceHealth, healthColor } from "../../lib/attendancePlan.js";
+import AttendanceHealthCard from "./AttendanceHealthCard.jsx";
 
 const nameFromEmail = (email) => {
   if (!email) return "—";
@@ -29,6 +30,10 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
       const qaAtt = attendance.filter(a => a.email?.toLowerCase() === em && isApproved(a) && isOnOrBeforeToday(a));
       const count = (...codes) => qaAtt.filter(a => codes.includes(a.status)).length;
       const otHours = qaAtt.filter(a => a.status === "OT").reduce((s, a) => s + (parseFloat(a.ot_hours) || 0), 0);
+      // Health % = healthy / scheduled (planned H or P) MTD; higher = better.
+      // computeAttendanceHealth handles its own date cutoff and planned filter.
+      const allRowsForQa = attendance.filter(a => a.email?.toLowerCase() === em);
+      const health = computeAttendanceHealth(allRowsForQa, selMonth);
       return {
         email: em,
         name: nameFromEmail(em),
@@ -45,8 +50,18 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
         tabbyDay: count("Tabby Day"),
         elDays: count("EL"),
         lateDays: count("L"),
+        healthPct: health.healthPct,
+        healthScheduled: health.scheduledDays,
+        healthAbsent: health.absentDays,
       };
     });
+
+  // Team-level aggregate health (weighted by scheduled days, not avg of %).
+  const teamHealth = computeTeamAttendanceHealth(
+    attendance,
+    visibleQAs.map(qa => qa.email?.toLowerCase()).filter(Boolean),
+    selMonth,
+  );
 
   const tot = summaryRows.reduce((acc, r) => {
     acc.wdPayable += r.wdPayable;
@@ -61,13 +76,16 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
   }, { wdPayable: 0, transDays: 0, otHours: 0, phDays: 0, cdoDays: 0, alDays: 0, slDays: 0, nsnc: 0 });
 
   const downloadCsv = () => {
-    const headers = ["Name", "Email", "WD Payable", "Trans Days", "OT Hours", "PH Days", "CDO Days", "WFH Days", "AL Days", "SL Days", "UL Days", "Tabby Day", "EL Days", "Late Days", "NSNC"];
+    const headers = ["Name", "Email", "WD Payable", "Trans Days", "OT Hours", "PH Days", "CDO Days", "WFH Days", "AL Days", "SL Days", "UL Days", "Tabby Day", "EL Days", "Late Days", "NSNC", "Health %", "Scheduled Days", "Healthy Days"];
     const csvRows = summaryRows.map(r => [
       `"${r.name}"`, r.email,
       r.wdPayable, r.transDays, r.otHours.toFixed(2),
       r.phDays, r.cdoDays, r.wfhDays,
       r.alDays, r.slDays, r.ulDays, r.tabbyDay,
       r.elDays, r.lateDays, r.nsnc,
+      r.healthPct === null ? "" : r.healthPct.toFixed(1),
+      r.healthScheduled,
+      r.healthScheduled - r.healthAbsent,
     ].join(","));
     const csv = [headers.join(","), ...csvRows].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
@@ -113,7 +131,27 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
               <div style={{ fontSize: 9, color: "var(--tx3)", marginTop: 3, letterSpacing: 0.2 }}>{label}</div>
             </div>
           ))}
+          {/* Team Health % — separated from absolute totals so it reads
+              as a derived metric, not another count. Same dataset
+              (approved, today-or-earlier rows). */}
+          <div style={{ width: 1, alignSelf: "stretch", background: "var(--bd2)" }} />
+          <div style={{ textAlign: "center", minWidth: 64 }} title="Health = scheduled days the team showed up / scheduled days. Higher = healthier.">
+            <div style={{ fontSize: 18, fontWeight: 800, color: healthColor(teamHealth.teamHealthPct), lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
+              {teamHealth.teamHealthPct === null ? "—" : `${teamHealth.teamHealthPct.toFixed(1)}%`}
+            </div>
+            <div style={{ fontSize: 9, color: "var(--tx3)", marginTop: 3, letterSpacing: 0.2 }}>Team Health</div>
+          </div>
         </div>
+      </div>
+
+      {/* Detailed Team Health card with per-QA breakdown (sorted lowest first) */}
+      <div style={{ marginBottom: 12 }}>
+        <AttendanceHealthCard
+          attendance={attendance}
+          emails={visibleQAs.map(qa => qa.email?.toLowerCase()).filter(Boolean)}
+          monthYM={selMonth}
+          mode="team"
+        />
       </div>
 
       {/* Detail table */}
@@ -133,6 +171,7 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
               <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#6B7280", fontSize: 11 }}>UL</th>
               <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#A855F7", fontSize: 11 }} title="Tabby Day">TD</th>
               <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "var(--red)", fontSize: 11 }}>NSNC</th>
+              <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }} title="Health = scheduled days where the QA showed up (status set, not NSNC) / scheduled days. Higher = healthier.">Health</th>
             </tr>
           </thead>
           <tbody>
@@ -157,6 +196,9 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
                 <td style={{ padding: "11px 12px", textAlign: "center", color: r.ulDays > 0 ? "#6B7280" : "var(--tx3)" }}>{dash(r.ulDays)}</td>
                 <td style={{ padding: "11px 12px", textAlign: "center", color: r.tabbyDay > 0 ? "#A855F7" : "var(--tx3)" }}>{dash(r.tabbyDay)}</td>
                 <td style={{ padding: "11px 12px", textAlign: "center", color: r.nsnc > 0 ? "var(--red)" : "var(--tx3)", fontWeight: r.nsnc > 0 ? 800 : 400 }}>{dash(r.nsnc)}</td>
+                <td style={{ padding: "11px 12px", textAlign: "center", color: healthColor(r.healthPct), fontWeight: 700, fontVariantNumeric: "tabular-nums" }} title={r.healthScheduled === 0 ? "No scheduled days yet this month" : `${r.healthScheduled - r.healthAbsent}/${r.healthScheduled} scheduled days · ${r.healthAbsent} blank or NSNC`}>
+                  {r.healthPct === null ? "—" : `${r.healthPct.toFixed(0)}%`}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -174,6 +216,9 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
               <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--tx3)" }}>—</td>
               <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--tx3)" }}>—</td>
               <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--red)" }}>{dash(tot.nsnc)}</td>
+              <td style={{ padding: "10px 12px", textAlign: "center", color: healthColor(teamHealth.teamHealthPct), fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
+                {teamHealth.teamHealthPct === null ? "—" : `${teamHealth.teamHealthPct.toFixed(1)}%`}
+              </td>
             </tr>
           </tfoot>
         </table>

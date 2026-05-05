@@ -13,6 +13,7 @@ import EmptyState from "../components/EmptyState.jsx";
 import ExpertiseProfileCard from "../components/ExpertiseProfileCard.jsx";
 import Badges from "../components/Badges.jsx";
 import TitleBelt from "../components/TitleBelt.jsx";
+import AttendanceHealthCard from "../components/attendance/AttendanceHealthCard.jsx";
 import { computeTitleHolders, holdersByEmail, getLastCompletedMonth, getCurrentCalendarMonth, monthBefore } from "../lib/titles.js";
 import { ATT_MAP } from "../lib/attendance.js";
 
@@ -561,6 +562,19 @@ function QAProfilePage() {
           </div>
         </div>
       </div>
+
+      {/* Attendance Health (MTD) — uses qaAttendance which is loaded
+          for the visible month with planned_code + status. */}
+      {qa?.email && (
+        <div style={{marginBottom:16}}>
+          <AttendanceHealthCard
+            attendance={(qaAttendance || []).filter(a => matchQA(a.email))}
+            emails={[qa.email.toLowerCase()]}
+            monthYM={new Date().toISOString().slice(0,7)}
+            mode="personal"
+          />
+        </div>
+      )}
 
       {/* Coaching history — full width (Overview) */}
       <div className="card" style={{marginBottom:16}}>

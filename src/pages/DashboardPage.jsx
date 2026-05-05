@@ -19,6 +19,7 @@ import MyResponsibilities from "../components/dashboard/MyResponsibilities.jsx";
 import AnnouncementForm from "../components/dashboard/AnnouncementForm.jsx";
 import APDetectionAlerts from "../components/dashboard/APDetectionAlerts.jsx";
 import TeamHealth from "../components/dashboard/TeamHealth.jsx";
+import AttendanceHealthCard from "../components/attendance/AttendanceHealthCard.jsx";
 import TeamChampions from "../components/dashboard/TeamChampions.jsx";
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
 import QASelfServiceDashboard from "../components/dashboard/QASelfServiceDashboard.jsx";
@@ -30,7 +31,7 @@ function DashboardPage(){
   // Bulk dashboard data load + AP-detection alerts live in useDashboardData.
   const {
     mtd, roster, appProfiles, damCount, profileCount,
-    todayAttendance, apPlans, apWeeks, apDetections, apDismissals,
+    todayAttendance, monthAttendance, apPlans, apWeeks, apDetections, apDismissals,
     dailyScores, loading, refresh: loadDashboard,
     setApDetections, setApDismissals,
   } = useDashboardData(token, profile);
@@ -353,6 +354,13 @@ function DashboardPage(){
       {/* Team Health — KPI vs targets */}
       <TeamHealth teamData={teamCurrent} allTeamEmails={allTeamEmails} qaQueue={roster.find(r=>r.email?.toLowerCase()===myEmail)?.queue||""} qaDomain={myEmail?.endsWith("@tabby.sa")?"tabby.sa":"tabby.ai"} />
 
+      {/* Team Attendance Health — MTD show-up rate vs scheduled days */}
+      {allTeamEmails.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <AttendanceHealthCard attendance={monthAttendance} emails={allTeamEmails} monthYM={new Date().toISOString().slice(0,7)} mode="team" />
+        </div>
+      )}
+
       {/* Team Champions — admin-only pilot. Expertise stars across the team */}
       {isAdmin && allTeamEmails.length > 0 && <TeamChampions teamEmails={allTeamEmails} month={latestMonth} onOpen={()=>nav("expertise")} />}
 
@@ -486,6 +494,15 @@ function DashboardPage(){
 
     {/* Daily check-in widget — visible to everyone with a planned day. Self-hides on weekends/leave/pre-May. */}
     <DailyCheckInWidget/>
+
+    {/* Personal Attendance Health (MTD) — for QAs and senior QAs viewing
+        their own dashboard. Skipped for leads/supervisors who already see
+        the team Health card above. */}
+    {!isLead && !isSupervisor && myEmail && (
+      <div style={{ marginBottom: 16 }}>
+        <AttendanceHealthCard attendance={monthAttendance} emails={[myEmail]} monthYM={new Date().toISOString().slice(0,7)} mode="personal" compact />
+      </div>
+    )}
 
     {/* QA Self-Service Dashboard for QA/Senior QA roles */}
     {!isLead&&!hasRole(profile?.role,"qa_supervisor")&&<QASelfServiceDashboard dailyScores={dailyScores} myData={myData} myEmail={myEmail} roster={roster} ranked={ranked} myRank={myRank} maxScore={maxScore} getScore={getScore} latestMonth={latestMonth}/>}

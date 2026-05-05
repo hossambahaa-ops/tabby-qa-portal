@@ -99,6 +99,72 @@ export function isPlanEditableDate(dateStr, now = new Date()) {
   return true;
 }
 
+// Attendance Health (MTD show-up rate). Higher = healthier.
+//
+// Definition (per QA):
+//   numerator   = scheduled days where the actual was set AND wasn't NSNC
+//   denominator = scheduled days (planned_code in {H, P}) up to today
+//   health %    = numerator / denominator * 100
+//
+// Days after today are excluded so the metric doesn't dilute with future
+// plan rows that haven't happened yet. A QA with zero scheduled days
+// returns healthPct = null so callers can show "—".
+export function computeAttendanceHealth(rows, monthYM, now = new Date()) {
+  const todayStr = riyadhTodayStr(now);
+  const monthStart = `${monthYM}-01`;
+  const scheduled = (rows || []).filter(r =>
+    r.date && r.date >= monthStart && r.date <= todayStr &&
+    (r.planned_code === "H" || r.planned_code === "P")
+  );
+  const scheduledDays = scheduled.length;
+  if (scheduledDays === 0) return { healthPct: null, healthyDays: 0, absentDays: 0, scheduledDays: 0 };
+  const absentDays = scheduled.filter(r => !r.status || r.status === "NSNC").length;
+  const healthyDays = scheduledDays - absentDays;
+  return {
+    healthPct: (healthyDays / scheduledDays) * 100,
+    healthyDays,
+    absentDays,
+    scheduledDays,
+  };
+}
+
+// Team roll-up: computes health for each member, returns the per-member
+// list plus an aggregate. The aggregate uses TOTAL scheduled days and
+// TOTAL healthy days (not the average of per-QA percentages) so a QA
+// with 1 scheduled day doesn't equal a QA with 22.
+export function computeTeamAttendanceHealth(rows, emails, monthYM, now = new Date()) {
+  const lower = (emails || []).map(e => e?.toLowerCase()).filter(Boolean);
+  const byEmail = new Map();
+  lower.forEach(e => byEmail.set(e, []));
+  (rows || []).forEach(r => {
+    const e = r.email?.toLowerCase();
+    if (e && byEmail.has(e)) byEmail.get(e).push(r);
+  });
+  const members = lower.map(e => {
+    const m = computeAttendanceHealth(byEmail.get(e) || [], monthYM, now);
+    return { email: e, ...m };
+  });
+  const totals = members.reduce((acc, m) => {
+    acc.scheduledDays += m.scheduledDays;
+    acc.healthyDays += m.healthyDays;
+    acc.absentDays += m.absentDays;
+    return acc;
+  }, { scheduledDays: 0, healthyDays: 0, absentDays: 0 });
+  const teamHealthPct = totals.scheduledDays > 0
+    ? (totals.healthyDays / totals.scheduledDays) * 100
+    : null;
+  return { members, teamHealthPct, ...totals };
+}
+
+// Color hint for a health percentage. Healthier = green; mid = amber;
+// poor = red. null returns the muted "no data" colour.
+export function healthColor(pct) {
+  if (pct === null || pct === undefined) return "var(--tx3)";
+  if (pct >= 95) return "var(--green)";
+  if (pct >= 85) return "var(--amber)";
+  return "var(--red)";
+}
+
 // LocalStorage key for "last seen plan publication" per user — used by
 // the bell to decide whether to show the "your plan has been updated"
 // notification.
