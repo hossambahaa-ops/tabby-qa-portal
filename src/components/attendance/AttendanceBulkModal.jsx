@@ -16,12 +16,9 @@ export default function AttendanceBulkModal({
   bulkTo, setBulkTo,
   bulkScope, setBulkScope,
   bulkPerson, setBulkPerson,
-  bulkShiftStart, setBulkShiftStart,
-  bulkShiftEnd, setBulkShiftEnd,
   selMonth,
   daysInMonth,
   isLead,
-  isSuperAdmin,
   profile,
   selectedQAs,
   visibleQAs,
@@ -96,29 +93,6 @@ export default function AttendanceBulkModal({
             </div>
           )}
         </div>
-        {isSuperAdmin && (
-          <div style={{ marginTop: 4, marginBottom: 16, padding: "10px 12px", borderRadius: 8, background: "rgba(106,44,121,.06)", border: "1px dashed var(--tabby-purple)" }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--tabby-purple)", marginBottom: 6, letterSpacing: ".3px", textTransform: "uppercase" }}>
-              Shift <span style={{ fontWeight: 400, color: "var(--tx3)", textTransform: "none", letterSpacing: 0 }}>· super-admin preview · optional</span>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "end" }}>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Shift start</label>
-                <input type="time" className="form-input" value={bulkShiftStart || ""} onChange={(e) => setBulkShiftStart(e.target.value)} />
-              </div>
-              <div className="form-group" style={{ marginBottom: 0 }}>
-                <label className="form-label">Shift end</label>
-                <input type="time" className="form-input" value={bulkShiftEnd || ""} onChange={(e) => setBulkShiftEnd(e.target.value)} />
-              </div>
-              {(bulkShiftStart || bulkShiftEnd) && (
-                <button className="btn btn-outline btn-sm" style={{ height: 36 }} onClick={() => { setBulkShiftStart(""); setBulkShiftEnd(""); }}>Clear</button>
-              )}
-            </div>
-            <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 6, fontStyle: "italic" }}>
-              Leave both empty to skip — bulk apply will only update status. Set both to also stamp a shift on every affected cell.
-            </div>
-          </div>
-        )}
         <div style={{ display: "flex", gap: 8 }}>
           <button className="btn btn-primary btn-sm" onClick={applyBulk}>Apply</button>
           <button className="btn btn-outline btn-sm" onClick={onClose}>Cancel</button>

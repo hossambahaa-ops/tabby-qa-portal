@@ -74,7 +74,7 @@ function getWeeksInRange(fromStr, toStr) {
  * dates are already filtered by weekday + week filters and bounded to
  * [PLAN_FEATURE_START..]; the caller just maps QAs × dates.
  */
-export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onApply }) {
+export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isSuperAdmin, onApply }) {
   const [value, setValue] = useState("P");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -82,6 +82,15 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
   const [selectedWeeks, setSelectedWeeks] = useState(new Set()); // empty = all
   const [scope, setScope] = useState("visible");
   const [specificEmail, setSpecificEmail] = useState("");
+  // Shift bulk fields (super_admin only). Both empty → no shift change.
+  // Both set → stamp on each cell. clearShift forces nulls (overrides the
+  // start/end inputs if checked).
+  const [shiftStart, setShiftStart] = useState("");
+  const [shiftEnd, setShiftEnd] = useState("");
+  const [clearShift, setClearShift] = useState(false);
+  // SKIP = "don't touch planned_code". Surfaced only when isSuperAdmin so
+  // a shift-only bulk apply doesn't accidentally rewrite plans.
+  const valueIsSkip = value === "SKIP";
 
   // Default the from/to to the current month when opening
   useEffect(() => {
@@ -167,22 +176,31 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
 
   // Map the modal's chosen value to a planned_code DB value.
   // "OFF" is a real planned code now (DB v17). "CLEAR" sets it to null.
+  // "SKIP" means don't touch planned_code at all (shift-only apply).
   const valueToCode = (v) => (v === "CLEAR" ? null : v); // 'H', 'P', 'OFF', or null
   const dateCount = computeDates().length;
+  const hasShiftSet = !!(shiftStart && shiftEnd);
+  const hasShiftChange = hasShiftSet || clearShift;
 
   const apply = () => {
     const dates = computeDates();
     if (dates.length === 0 || targetEmails.length === 0) return;
     onApply?.({
-      value: valueToCode(value), // 'H' | 'P' | 'OFF' | null
+      value: valueIsSkip ? null : valueToCode(value), // ignored when valueChanged=false
+      valueChanged: !valueIsSkip,
       dates,
       qaEmails: targetEmails,
+      shiftStart: hasShiftSet && !clearShift ? shiftStart : undefined,
+      shiftEnd: hasShiftSet && !clearShift ? shiftEnd : undefined,
+      clearShift,
     });
     onClose?.();
   };
 
   const totalCells = dateCount * targetEmails.length;
-  const canApply = !!value && from && to && dateCount > 0 && targetEmails.length > 0;
+  // Need at least one of: a real plan change OR a shift change.
+  const canApply = !!value && from && to && dateCount > 0 && targetEmails.length > 0
+    && (!valueIsSkip || hasShiftChange);
 
   return (
     <div
@@ -281,6 +299,7 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
               { code: "P", label: "P — Office", color: "#16A34A", bg: "rgba(34,197,94,.15)" },
               { code: "OFF", label: "OFF — Planned off-day", color: "var(--tx2)", bg: "rgba(156,163,175,.18)" },
               { code: "CLEAR", label: "Clear — No plan set", color: "var(--tx3)", bg: "transparent" },
+              ...(isSuperAdmin ? [{ code: "SKIP", label: "Skip — only set shift", color: "var(--tabby-purple)", bg: "rgba(106,44,121,.10)" }] : []),
             ].map((opt) => {
               const active = value === opt.code;
               return (
@@ -305,6 +324,60 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
             })}
           </div>
         </div>
+
+        {/* Shift (super_admin preview) — optional */}
+        {isSuperAdmin && (
+          <div style={{ marginBottom: 14, padding: "12px 14px", borderRadius: 8, background: "rgba(106,44,121,.06)", border: "1px dashed var(--tabby-purple)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: "var(--tabby-purple)", textTransform: "uppercase", letterSpacing: ".4px" }}>
+                Shift <span style={{ fontWeight: 400, color: "var(--tx3)", textTransform: "none", letterSpacing: 0 }}>· super-admin preview · optional</span>
+              </span>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--tx2)", cursor: "pointer", userSelect: "none" }}>
+                <input
+                  type="checkbox"
+                  checked={clearShift}
+                  onChange={(e) => setClearShift(e.target.checked)}
+                  style={{ accentColor: "var(--tabby-purple)" }}
+                />
+                Clear shift on selected cells
+              </label>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, alignItems: "end", opacity: clearShift ? 0.45 : 1 }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Shift start</label>
+                <input
+                  type="time"
+                  className="form-input"
+                  value={shiftStart}
+                  disabled={clearShift}
+                  onChange={(e) => setShiftStart(e.target.value)}
+                />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label className="form-label">Shift end</label>
+                <input
+                  type="time"
+                  className="form-input"
+                  value={shiftEnd}
+                  disabled={clearShift}
+                  onChange={(e) => setShiftEnd(e.target.value)}
+                />
+              </div>
+              {(shiftStart || shiftEnd) && !clearShift && (
+                <button
+                  className="btn btn-outline btn-sm"
+                  style={{ height: 36 }}
+                  onClick={() => { setShiftStart(""); setShiftEnd(""); }}
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 8, fontStyle: "italic", lineHeight: 1.45 }}>
+              Set both times to stamp the shift on every selected cell. Tick "Clear shift" to wipe shifts on the selection. Pair with status "Skip" if you only want to change shifts without touching plans. Daily, weekly, or monthly cadences are all controlled here.
+            </div>
+          </div>
+        )}
 
         {/* Day-of-week picker — any combination */}
         <div className="form-group" style={{ marginBottom: 14 }}>
@@ -460,15 +533,28 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, onA
         >
           {canApply ? (
             <>
-              Will queue <strong style={{ color: "var(--tx)" }}>{totalCells.toLocaleString()}</strong> cell change{totalCells !== 1 ? "s" : ""}{" "}
-              ({dateCount} day{dateCount !== 1 ? "s" : ""} × {targetEmails.length} QA{targetEmails.length !== 1 ? "s" : ""}) — value:{" "}
-              <strong style={{ color: value === "H" ? "var(--blue)" : value === "P" ? "var(--green)" : "var(--tx3)" }}>
-                {value === "CLEAR" ? "Clear (no plan)" : value}
-              </strong>. Click Apply to stage. Save (in the grid) commits to the database.
+              Will queue <strong style={{ color: "var(--tx)" }}>{totalCells.toLocaleString()}</strong> cell{totalCells !== 1 ? "s" : ""}{" "}
+              ({dateCount} day{dateCount !== 1 ? "s" : ""} × {targetEmails.length} QA{targetEmails.length !== 1 ? "s" : ""}).{" "}
+              {!valueIsSkip && (
+                <>
+                  Plan:{" "}
+                  <strong style={{ color: value === "H" ? "var(--blue)" : value === "P" ? "var(--green)" : "var(--tx3)" }}>
+                    {value === "CLEAR" ? "Clear" : value}
+                  </strong>.{" "}
+                </>
+              )}
+              {clearShift ? (
+                <>Shift: <strong style={{ color: "var(--tabby-purple)" }}>cleared</strong>.{" "}</>
+              ) : (shiftStart && shiftEnd) ? (
+                <>Shift: <strong style={{ color: "var(--tabby-purple)" }}>{shiftStart}–{shiftEnd}</strong>.{" "}</>
+              ) : null}
+              Click Apply to stage. Save (in the grid) commits to the database.
             </>
           ) : (
             <span style={{ color: "var(--tx3)" }}>
-              Pick a status, date range, at least one weekday, and at least one QA target to enable Apply.
+              {valueIsSkip
+                ? "Skip status selected — set a shift (or tick Clear shift) to enable Apply."
+                : "Pick a status, date range, at least one weekday, and at least one QA target to enable Apply."}
             </span>
           )}
         </div>

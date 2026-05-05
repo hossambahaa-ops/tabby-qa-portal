@@ -19,7 +19,7 @@ import AttendancePlanBulkModal from "./AttendancePlanBulkModal.jsx";
  * plan_updated_at automatically (DB trigger). Manager-of-lead
  * notifications fire from the bell, derived from plan_updated_at.
  */
-export default function AttendancePlanGrid({ attendance, qaList, roster, selMonth, onSaved, monthIsLocked }) {
+export default function AttendancePlanGrid({ attendance, qaList, roster, selMonth, onSaved, monthIsLocked, isSuperAdmin }) {
   const { token, profile, globalToast } = useApp();
   const myEmail = profile?.email?.toLowerCase() || "";
 
@@ -31,6 +31,13 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
 
   // pendingChanges: { [email__date]: 'H' | 'P' | null }  (null = clear)
   const [pendingChanges, setPendingChanges] = useState({});
+  // pendingShifts: { [email__date]: { start: 'HH:MM', end: 'HH:MM' } | null }
+  // null = clear shift on save. Independent of pendingChanges so a row
+  // can have a shift change without a status change (and vice-versa).
+  // Currently only populated by the bulk modal — per-cell editing of
+  // shifts is intentionally not exposed because the user reported it
+  // as too tedious for daily/weekly/monthly cadences.
+  const [pendingShifts, setPendingShifts] = useState({});
   const [saving, setSaving] = useState(false);
 
   // Bulk modal state — opens via the 📋 Bulk set button.
@@ -132,6 +139,23 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
     return attMap[key]?.planned_code || null;
   };
 
+  // Effective shift for a cell — pendingShifts wins, then DB row, else null.
+  // Returns { start, end } in HH:MM form or null/{ start: null, end: null }
+  // when clearing.
+  const cellShift = (email, date) => {
+    const key = `${email}__${date}`;
+    if (Object.prototype.hasOwnProperty.call(pendingShifts, key)) {
+      const v = pendingShifts[key];
+      if (!v) return null;
+      return { start: v.start, end: v.end };
+    }
+    const row = attMap[key];
+    if (row?.shift_start && row?.shift_end) {
+      return { start: String(row.shift_start).slice(0, 5), end: String(row.shift_end).slice(0, 5) };
+    }
+    return null;
+  };
+
   // Click handler: empty → H → P → OFF → empty
   const cycleCell = (email, date) => {
     if (!isPlanEditableDate(date)) return;
@@ -146,39 +170,68 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
 
   // Modal-driven bulk apply. Receives a fully-resolved set of dates and
   // QA emails from the modal — we just iterate and stage into pendingChanges.
-  const applyBulkFromModal = ({ value, dates, qaEmails }) => {
+  // The optional `valueChanged` flag lets the modal queue a shift-only
+  // change without forcing a planned_code update (when the lead opens
+  // the modal just to set a shift on existing planned cells).
+  const applyBulkFromModal = ({ value, valueChanged = true, dates, qaEmails, shiftStart, shiftEnd, clearShift }) => {
     if (!Array.isArray(dates) || !Array.isArray(qaEmails)) return;
-    const next = { ...pendingChanges };
-    let count = 0;
+    const nextChanges = { ...pendingChanges };
+    const nextShifts = { ...pendingShifts };
+    const hasShift = !!(shiftStart && shiftEnd);
+    let planCount = 0;
+    let shiftCount = 0;
     qaEmails.forEach((em) => {
       if (!em) return;
       dates.forEach((d) => {
         if (!isPlanEditableDate(d)) return;
-        next[`${em}__${d}`] = value; // null = clear plan
-        count++;
+        if (valueChanged) {
+          nextChanges[`${em}__${d}`] = value; // null = clear plan
+          planCount++;
+        }
+        if (clearShift) {
+          nextShifts[`${em}__${d}`] = null;
+          shiftCount++;
+        } else if (hasShift) {
+          nextShifts[`${em}__${d}`] = { start: shiftStart, end: shiftEnd };
+          shiftCount++;
+        }
       });
     });
-    setPendingChanges(next);
-    if (count > 0) {
-      globalToast(
-        "success",
-        `Queued ${count.toLocaleString()} cell${count !== 1 ? "s" : ""} — click Save to commit.`,
-      );
+    setPendingChanges(nextChanges);
+    setPendingShifts(nextShifts);
+    const total = planCount + shiftCount;
+    if (total > 0) {
+      const parts = [];
+      if (planCount > 0) parts.push(`${planCount.toLocaleString()} plan cell${planCount !== 1 ? "s" : ""}`);
+      if (shiftCount > 0) parts.push(`${shiftCount.toLocaleString()} shift cell${shiftCount !== 1 ? "s" : ""}`);
+      globalToast("success", `Queued ${parts.join(" + ")} — click Save to commit.`);
     } else {
       globalToast("info", "Nothing to queue (all targeted cells were past or unchanged).");
     }
   };
 
-  const pendingCount = Object.keys(pendingChanges).filter((k) => {
+  const planChangeCount = Object.keys(pendingChanges).filter((k) => {
     const [em, dt] = k.split("__");
     const old = attMap[`${em}__${dt}`]?.planned_code || null;
     return pendingChanges[k] !== old;
   }).length;
+  const shiftChangeCount = Object.keys(pendingShifts).filter((k) => {
+    const [em, dt] = k.split("__");
+    const row = attMap[`${em}__${dt}`];
+    const oldStart = row?.shift_start ? String(row.shift_start).slice(0, 5) : null;
+    const oldEnd = row?.shift_end ? String(row.shift_end).slice(0, 5) : null;
+    const v = pendingShifts[k];
+    const newStart = v?.start || null;
+    const newEnd = v?.end || null;
+    return oldStart !== newStart || oldEnd !== newEnd;
+  }).length;
+  const pendingCount = planChangeCount + shiftChangeCount;
 
   const discard = () => {
     if (pendingCount === 0) return;
     if (!window.confirm(`Discard ${pendingCount} unsaved change${pendingCount !== 1 ? "s" : ""}?`)) return;
     setPendingChanges({});
+    setPendingShifts({});
   };
 
   // Save — upserts every changed row in batches.
@@ -193,39 +246,63 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
     }
     setSaving(true);
     try {
-      // Build rows to upsert. We need email+date as PK and either set
-      // planned_code to the new value or null. For null we do PATCH on
-      // any existing row; for non-null we POST upsert. created_by is
-      // NOT NULL on the table, so we must include it on inserts — for
-      // upserts that hit an existing row, the merge-duplicates
-      // resolution preserves the original created_by anyway.
+      // Build rows to upsert. Combines plan and shift edits per-cell so a
+      // cell that changed both gets a single round-trip. Each upserted row
+      // only carries the columns that actually changed — merge-duplicates
+      // preserves the rest.
       //
       // Auto-sync: when the plan is set for a FUTURE date (strictly
       // after today in Riyadh), also stamp `status` to match the new
-      // planned_code. This keeps the calendar tab consistent with the
-      // plan for days that haven't happened yet — without that,
-      // pre-existing default-Present statuses would obscure the plan.
-      // Past dates are NEVER touched (preserve historical record), and
-      // today is left alone so the QA's check-in widget still owns it.
+      // planned_code. Past dates are NEVER touched.
       const creator = profile?.email || myEmail;
       const todayStr = riyadhTodayStr();
+      const allKeys = new Set([...Object.keys(pendingChanges), ...Object.keys(pendingShifts)]);
       const rows = [];
-      const clears = [];
-      Object.entries(pendingChanges).forEach(([key, value]) => {
+      const clearPlanIds = [];
+      const clearShiftIds = [];
+      allKeys.forEach((key) => {
         const [email, date] = key.split("__");
         const existing = attMap[key];
-        const oldVal = existing?.planned_code || null;
-        if (value === oldVal) return;
-        if (value === null) {
-          if (existing) clears.push({ id: existing.id });
-        } else {
-          const row = { email, date, planned_code: value, created_by: creator };
-          if (date > todayStr) row.status = value; // sync actual to plan for future dates
-          rows.push(row);
+        const oldPlan = existing?.planned_code || null;
+        const oldShiftStart = existing?.shift_start ? String(existing.shift_start).slice(0, 5) : null;
+        const oldShiftEnd = existing?.shift_end ? String(existing.shift_end).slice(0, 5) : null;
+        const planPending = Object.prototype.hasOwnProperty.call(pendingChanges, key);
+        const newPlan = planPending ? pendingChanges[key] : oldPlan;
+        const planChanged = planPending && newPlan !== oldPlan;
+        const shiftPending = Object.prototype.hasOwnProperty.call(pendingShifts, key);
+        const sv = shiftPending ? pendingShifts[key] : null;
+        const newShiftStart = shiftPending ? (sv?.start || null) : oldShiftStart;
+        const newShiftEnd = shiftPending ? (sv?.end || null) : oldShiftEnd;
+        const shiftChanged = shiftPending && (newShiftStart !== oldShiftStart || newShiftEnd !== oldShiftEnd);
+        if (!planChanged && !shiftChanged) return;
+
+        // Pure clear-only on an existing row → PATCH (avoids needing
+        // created_by on a row that already has it). Mixed changes go
+        // through the merged upsert path below.
+        if (existing) {
+          if (planChanged && !shiftChanged && newPlan === null) {
+            clearPlanIds.push(existing.id);
+            return;
+          }
+          if (shiftChanged && !planChanged && newShiftStart === null && newShiftEnd === null) {
+            clearShiftIds.push(existing.id);
+            return;
+          }
         }
+
+        const row = { email, date, created_by: creator };
+        if (planChanged) {
+          row.planned_code = newPlan;
+          if (date > todayStr && newPlan) row.status = newPlan; // sync actual to plan for future dates
+        }
+        if (shiftChanged) {
+          row.shift_start = newShiftStart;
+          row.shift_end = newShiftEnd;
+        }
+        rows.push(row);
       });
 
-      // Upsert non-null plans
+      // Upsert merged plan + shift changes
       if (rows.length > 0) {
         const batchSize = 100;
         for (let i = 0; i < rows.length; i += batchSize) {
@@ -244,24 +321,32 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
         }
       }
 
-      // Clear plans on rows that should now be empty
-      if (clears.length > 0) {
-        const ids = clears.map((c) => c.id);
+      // PATCH the pure-clear rows in one shot per column.
+      if (clearPlanIds.length > 0) {
         await sb.query("qa_attendance", {
           token,
           method: "PATCH",
           body: { planned_code: null },
-          filters: `id=in.(${ids.join(",")})`,
+          filters: `id=in.(${clearPlanIds.join(",")})`,
+        });
+      }
+      if (clearShiftIds.length > 0) {
+        await sb.query("qa_attendance", {
+          token,
+          method: "PATCH",
+          body: { shift_start: null, shift_end: null },
+          filters: `id=in.(${clearShiftIds.join(",")})`,
         });
       }
 
-      const totalChanged = rows.length + clears.length;
-      const qaSet = new Set(Object.keys(pendingChanges).map((k) => k.split("__")[0]));
+      const totalChanged = rows.length + clearPlanIds.length + clearShiftIds.length;
+      const qaSet = new Set([...Object.keys(pendingChanges), ...Object.keys(pendingShifts)].map((k) => k.split("__")[0]));
       globalToast(
         "success",
         `Saved ${totalChanged} cell${totalChanged !== 1 ? "s" : ""} across ${qaSet.size} QA${qaSet.size !== 1 ? "s" : ""}. They'll see a bell notification.`,
       );
       setPendingChanges({});
+      setPendingShifts({});
       onSaved?.();
     } catch (e) {
       globalToast("error", safeError(e));
@@ -340,6 +425,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
         open={bulkOpen}
         onClose={() => setBulkOpen(false)}
         visibleQAs={visibleQAs}
+        isSuperAdmin={isSuperAdmin}
         onApply={applyBulkFromModal}
       />
 
@@ -432,6 +518,13 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                     const planned = cellPlan(em, d.date);
                     const original = attMap[`${em}__${d.date}`]?.planned_code || null;
                     const isPending = planned !== original;
+                    const shift = isSuperAdmin ? cellShift(em, d.date) : null;
+                    const cellKey = `${em}__${d.date}`;
+                    const origRow = attMap[cellKey];
+                    const origShiftStart = origRow?.shift_start ? String(origRow.shift_start).slice(0, 5) : null;
+                    const origShiftEnd = origRow?.shift_end ? String(origRow.shift_end).slice(0, 5) : null;
+                    const isShiftPending = isSuperAdmin && Object.prototype.hasOwnProperty.call(pendingShifts, cellKey)
+                      && ((shift?.start || null) !== origShiftStart || (shift?.end || null) !== origShiftEnd);
                     let bg = "transparent";
                     let txt = "";
                     let txtColor = "var(--tx2)";
@@ -451,34 +544,32 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                     // Weekend gets a subtler background only when nothing
                     // is planned — once a plan is set the H/P color wins.
                     if (d.isWeekend && !planned) bg = "var(--bg3)";
+                    const shiftLabel = shift ? `${shift.start.replace(":00", "")}–${shift.end.replace(":00", "")}` : "";
+                    const titleBase =
+                      !editable
+                        ? "Past day — read-only"
+                        : planned === "H"
+                          ? `H — Work from Home${d.isWeekend ? " (weekend)" : ""}. Click for P (Office).`
+                          : planned === "P"
+                            ? `P — Office${d.isWeekend ? " (weekend)" : ""}. Click for OFF (planned off-day).`
+                            : planned === "OFF"
+                              ? `OFF — Planned off-day${d.isWeekend ? " (weekend)" : ""}. Click to clear.`
+                              : `Click to set H (Home)${d.isWeekend ? " (weekend day)" : ""}`;
+                    const title = shift ? `${titleBase} · Shift ${shift.start}–${shift.end}` : titleBase;
                     return (
                       <td
                         key={d.date}
                         onClick={() => editable && cycleCell(em, d.date)}
-                        title={
-                          !editable
-                            ? "Past day — read-only"
-                            : planned === "H"
-                              ? `H — Work from Home${d.isWeekend ? " (weekend)" : ""}. Click for P (Office).`
-                              : planned === "P"
-                                ? `P — Office${d.isWeekend ? " (weekend)" : ""}. Click for OFF (planned off-day).`
-                                : planned === "OFF"
-                                  ? `OFF — Planned off-day${d.isWeekend ? " (weekend)" : ""}. Click to clear.`
-                                  : `Click to set H (Home)${d.isWeekend ? " (weekend day)" : ""}`
-                        }
+                        title={title}
                         style={{
                           textAlign: "center",
-                          padding: 0,
-                          height: 36,
+                          padding: shift ? "2px 0" : 0,
+                          height: shift ? 44 : 36,
                           background: bg,
                           cursor: editable ? "pointer" : "default",
                           opacity: editable ? 1 : 0.55,
-                          // Always 1px solid border so the cell box-size
-                          // never changes when toggling pending state. The
-                          // amber dashed pending hint is layered as an
-                          // outline (zero layout cost) instead.
                           border: "1px solid var(--bd2)",
-                          outline: isPending ? "2px dashed var(--amber)" : "none",
+                          outline: (isPending || isShiftPending) ? "2px dashed var(--amber)" : "none",
                           outlineOffset: -2,
                           fontSize: planned === "OFF" ? 11 : 13,
                           fontWeight: 700,
@@ -486,9 +577,15 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                           userSelect: "none",
                           position: "relative",
                           letterSpacing: planned === "OFF" ? ".3px" : 0,
+                          lineHeight: 1.1,
                         }}
                       >
                         {txt}
+                        {shift && (
+                          <div style={{ fontSize: 8, color: "var(--tabby-purple)", fontWeight: 600, marginTop: 1, letterSpacing: ".2px" }}>
+                            {shiftLabel}
+                          </div>
+                        )}
                       </td>
                     );
                   })}
