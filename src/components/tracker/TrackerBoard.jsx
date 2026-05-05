@@ -12,7 +12,7 @@ import TrackerCard from "./TrackerCard.jsx";
 // intentionally NOT supported in Phase 1 — the cards sort by ETA asc
 // inside each column. Adding manual order is a Phase 2 thing.
 
-function Column({ status, items, onOpen, onCanDrop }) {
+function Column({ status, items, onOpen, childCountsById, isSubMap }) {
   const { setNodeRef, isOver } = useDroppable({ id: status, data: { kind: "column", status } });
   const meta = STATUS_COLORS[status] || {};
   return (
@@ -41,7 +41,16 @@ function Column({ status, items, onOpen, onCanDrop }) {
           {items.length === 0 ? (
             <div style={{ fontSize: 11, color: "var(--tx3)", fontStyle: "italic", padding: 14, textAlign: "center" }}>Drop cards here</div>
           ) : (
-            items.map(row => <TrackerCard key={row.id} row={row} onOpen={onOpen} draggable />)
+            items.map(row => (
+              <TrackerCard
+                key={row.id}
+                row={row}
+                onOpen={onOpen}
+                draggable
+                childCounts={childCountsById?.get(row.id) || null}
+                isSub={isSubMap?.get(row.id) || false}
+              />
+            ))
           )}
         </SortableContext>
       </div>
@@ -73,6 +82,46 @@ export default function TrackerBoard({ rows, onOpen, onStatusChange }) {
     return buckets;
   }, [rows]);
 
+  // Pre-compute subtask roll-ups so each card knows "X of Y children
+  // are done". Done irrespective of column — a parent's count covers
+  // all its descendants regardless of which status they're in.
+  const childCountsById = useMemo(() => {
+    const map = new Map();
+    const childrenOf = new Map();
+    (rows || []).forEach(r => {
+      if (!r.parent_id) return;
+      const arr = childrenOf.get(r.parent_id) || [];
+      arr.push(r);
+      childrenOf.set(r.parent_id, arr);
+    });
+    (rows || []).forEach(r => {
+      const direct = childrenOf.get(r.id) || [];
+      if (direct.length === 0) return;
+      // BFS through descendants for the full roll-up (sub-subtasks too).
+      const all = [];
+      const queue = [...direct];
+      const seen = new Set();
+      while (queue.length) {
+        const n = queue.shift();
+        if (seen.has(n.id)) continue;
+        seen.add(n.id);
+        all.push(n);
+        (childrenOf.get(n.id) || []).forEach(c => queue.push(c));
+      }
+      map.set(r.id, {
+        total: all.length,
+        done: all.filter(x => x.status === "Done").length,
+      });
+    });
+    return map;
+  }, [rows]);
+
+  const isSubMap = useMemo(() => {
+    const m = new Map();
+    (rows || []).forEach(r => { if (r.parent_id) m.set(r.id, true); });
+    return m;
+  }, [rows]);
+
   const onDragEnd = (event) => {
     const { active, over } = event;
     if (!over) return;
@@ -94,7 +143,14 @@ export default function TrackerBoard({ rows, onOpen, onStatusChange }) {
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <div style={{ display: "flex", gap: 10, alignItems: "stretch" }}>
         {STATUSES.map(s => (
-          <Column key={s} status={s} items={grouped[s] || []} onOpen={onOpen} />
+          <Column
+            key={s}
+            status={s}
+            items={grouped[s] || []}
+            onOpen={onOpen}
+            childCountsById={childCountsById}
+            isSubMap={isSubMap}
+          />
         ))}
       </div>
     </DndContext>

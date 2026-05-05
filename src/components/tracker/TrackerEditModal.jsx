@@ -26,7 +26,28 @@ const blank = () => ({
   start_date: "",
   eta_date: "",
   links: [],
+  parent_id: "",
 });
+
+// Walk the parent_id graph from each row to find every descendant of
+// `rootId`. Used by the parent picker to exclude descendants (so a task
+// can't pick its own child as parent → infinite cycle).
+function descendantIdSet(allRows, rootId) {
+  const ids = new Set();
+  if (!rootId) return ids;
+  const queue = [rootId];
+  let safety = 1000; // belt-and-braces against weird DB cycles
+  while (queue.length && safety-- > 0) {
+    const id = queue.shift();
+    (allRows || []).forEach(r => {
+      if (r.parent_id === id && !ids.has(r.id)) {
+        ids.add(r.id);
+        queue.push(r.id);
+      }
+    });
+  }
+  return ids;
+}
 
 const cleanForSave = (form) => {
   const out = { ...form };
@@ -35,12 +56,13 @@ const cleanForSave = (form) => {
   if (!out.eta_date) out.eta_date = null;
   if (!out.assigned_to) out.assigned_to = null;
   if (!out.priority) out.priority = null;
+  if (!out.parent_id) out.parent_id = null;
   // links: drop empty rows.
   out.links = (out.links || []).filter(l => l && (l.label || l.url));
   return out;
 };
 
-export default function TrackerEditModal({ open, row, readOnly, profiles, onClose, onSave, onDelete }) {
+export default function TrackerEditModal({ open, row, readOnly, profiles, allInitiatives = [], onClose, onSave, onDelete }) {
   const [form, setForm] = useState(blank);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
@@ -59,6 +81,7 @@ export default function TrackerEditModal({ open, row, readOnly, profiles, onClos
         start_date: row.start_date || "",
         eta_date: row.eta_date || "",
         links: Array.isArray(row.links) ? [...row.links] : [],
+        parent_id: row.parent_id || "",
       });
     } else {
       setForm(blank());
@@ -72,6 +95,31 @@ export default function TrackerEditModal({ open, row, readOnly, profiles, onClos
       .map(p => ({ value: p.email.toLowerCase(), label: `${nameFromEmail(p.email)} (${p.email})` }))
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [profiles]);
+
+  // Parent picker options. Excludes:
+  //   1. The task itself (can't be its own parent).
+  //   2. Every descendant (would create a cycle).
+  // Available even when creating a NEW task — useful for entering a
+  // sub-task of an existing one straight from the form.
+  const parentOptions = useMemo(() => {
+    const blocked = new Set();
+    if (row?.id) {
+      blocked.add(row.id);
+      const desc = descendantIdSet(allInitiatives, row.id);
+      desc.forEach(id => blocked.add(id));
+    }
+    const opts = (allInitiatives || [])
+      .filter(r => !blocked.has(r.id))
+      .map(r => ({
+        value: r.id,
+        // Show status to disambiguate identical titles, and (sub) when
+        // the candidate parent itself has a parent — gives a quick hint
+        // about depth.
+        label: `${r.title}${r.parent_id ? "  ·  ↳ sub" : ""}  ·  ${r.status}`,
+      }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+    return [{ value: "", label: "— None (top-level task) —" }, ...opts];
+  }, [allInitiatives, row?.id]);
 
   if (!open) return null;
 
@@ -158,6 +206,17 @@ export default function TrackerEditModal({ open, row, readOnly, profiles, onClos
             value={form.assigned_to || ""}
             onChange={(v) => setForm(f => ({ ...f, assigned_to: v }))}
             placeholder="Unassigned"
+            disabled={fieldDisabled}
+          />
+        </div>
+
+        <div className="form-group">
+          <label className="form-label">Parent task <span style={{ fontWeight: 400, color: "var(--tx3)" }}>(makes this a sub-task; can be nested any depth)</span></label>
+          <SearchableSelect
+            options={parentOptions}
+            value={form.parent_id || ""}
+            onChange={(v) => setForm(f => ({ ...f, parent_id: v }))}
+            placeholder="— None (top-level task) —"
             disabled={fieldDisabled}
           />
         </div>

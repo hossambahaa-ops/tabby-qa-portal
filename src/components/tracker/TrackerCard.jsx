@@ -9,11 +9,16 @@ import { nameFromEmail } from "../../lib/utils.js";
 // card in @dnd-kit's sortable handlers.
 //
 // Props:
-//   row       — initiative row from the DB
-//   onOpen    — open detail modal
-//   draggable — wire @dnd-kit useSortable when true (board view only)
+//   row          — initiative row from the DB
+//   onOpen       — open detail modal
+//   draggable    — wire @dnd-kit useSortable when true (board view only)
+//   childCounts  — { total: N, done: M } | null — when present, render
+//                  a subtask badge so the lead can see "3 ▸ 1 done" at
+//                  a glance without expanding anything.
+//   isSub        — true if this card itself has a parent (rendered
+//                  under another card on the board)
 
-export default function TrackerCard({ row, onOpen, draggable = false }) {
+export default function TrackerCard({ row, onOpen, draggable = false, childCounts = null, isSub = false }) {
   const sortable = useSortable({ id: row.id, disabled: !draggable });
   const style = draggable
     ? {
@@ -71,14 +76,22 @@ export default function TrackerCard({ row, onOpen, draggable = false }) {
         )}
 
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 10, color: "var(--tx3)" }}>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 110 }}>
+          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 110, display: "flex", alignItems: "center", gap: 4 }}>
+            {isSub && <span title="Sub-task" style={{ color: "var(--tx3)" }}>↳</span>}
             {row.assigned_to ? nameFromEmail(row.assigned_to) : <em style={{ opacity: 0.6 }}>Unassigned</em>}
           </span>
-          {row.eta_date && (
-            <span style={{ color: overdue ? "var(--red)" : "var(--tx3)", fontWeight: overdue ? 700 : 400, fontVariantNumeric: "tabular-nums" }}>
-              {overdue ? "⚠ " : ""}{new Date(row.eta_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-            </span>
-          )}
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {childCounts && childCounts.total > 0 && (
+              <span title={`${childCounts.total} sub-task${childCounts.total !== 1 ? "s" : ""}, ${childCounts.done} done`} style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: "rgba(106,44,121,0.15)", color: "var(--tabby-purple)" }}>
+                ▸ {childCounts.done}/{childCounts.total}
+              </span>
+            )}
+            {row.eta_date && (
+              <span style={{ color: overdue ? "var(--red)" : "var(--tx3)", fontWeight: overdue ? 700 : 400, fontVariantNumeric: "tabular-nums" }}>
+                {overdue ? "⚠ " : ""}{new Date(row.eta_date).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+              </span>
+            )}
+          </span>
         </div>
       </div>
     </div>

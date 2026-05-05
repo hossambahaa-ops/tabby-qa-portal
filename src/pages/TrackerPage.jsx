@@ -9,6 +9,7 @@ import {
 } from "../lib/initiatives.js";
 import TrackerBoard from "../components/tracker/TrackerBoard.jsx";
 import TrackerTable from "../components/tracker/TrackerTable.jsx";
+import TrackerTimeline from "../components/tracker/TrackerTimeline.jsx";
 import TrackerEditModal from "../components/tracker/TrackerEditModal.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import EmptyState from "../components/EmptyState.jsx";
@@ -145,16 +146,18 @@ export default function TrackerPage() {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <div role="tablist" aria-label="View" style={{ display: "inline-flex", border: "1px solid var(--bd)", borderRadius: 8, overflow: "hidden", background: "var(--bg2)" }}>
-            <button
-              role="tab" aria-selected={view === "board"}
-              onClick={() => setView("board")}
-              style={{ fontSize: 12, fontWeight: 600, padding: "6px 12px", border: "none", cursor: "pointer", background: view === "board" ? "var(--tabby-purple)" : "transparent", color: view === "board" ? "#fff" : "var(--tx2)" }}
-            >Board</button>
-            <button
-              role="tab" aria-selected={view === "table"}
-              onClick={() => setView("table")}
-              style={{ fontSize: 12, fontWeight: 600, padding: "6px 12px", border: "none", cursor: "pointer", background: view === "table" ? "var(--tabby-purple)" : "transparent", color: view === "table" ? "#fff" : "var(--tx2)" }}
-            >Table</button>
+            {[
+              { key: "board",    label: "Board" },
+              { key: "table",    label: "Table" },
+              { key: "timeline", label: "Timeline" },
+            ].map(t => (
+              <button
+                key={t.key}
+                role="tab" aria-selected={view === t.key}
+                onClick={() => setView(t.key)}
+                style={{ fontSize: 12, fontWeight: 600, padding: "6px 12px", border: "none", cursor: "pointer", background: view === t.key ? "var(--tabby-purple)" : "transparent", color: view === t.key ? "#fff" : "var(--tx2)" }}
+              >{t.label}</button>
+            ))}
           </div>
           <button className="btn btn-primary btn-sm" onClick={openCreate} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <Icon d={icons.plus} size={14} /> New task
@@ -213,6 +216,8 @@ export default function TrackerPage() {
         />
       ) : view === "board" ? (
         <TrackerBoard rows={filtered} onOpen={openRow} onStatusChange={onStatusChange} />
+      ) : view === "timeline" ? (
+        <TrackerTimeline rows={filtered} onOpen={openRow} />
       ) : (
         <TrackerTable rows={filtered} onOpen={openRow} />
       )}
@@ -222,6 +227,7 @@ export default function TrackerPage() {
         row={modalRow}
         readOnly={modalReadOnly}
         profiles={profiles}
+        allInitiatives={rows}
         onClose={() => setModalOpen(false)}
         onSave={onSave}
         onDelete={modalRow && canDelete(modalRow, myEmail, isAdmin) ? onDelete : undefined}

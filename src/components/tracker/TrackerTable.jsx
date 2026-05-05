@@ -1,10 +1,11 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useCallback } from "react";
 import { STATUS_COLORS, PRIORITY_COLORS, TEAM_COLORS, TASK_TYPE_COLORS } from "../../lib/initiatives.js";
 import { nameFromEmail } from "../../lib/utils.js";
 
-// Sortable, scannable table view. Click a row to open the modal.
-// Sort indicator is a single-character glyph next to the column header.
-// Phase 1 keeps it simple — no inline edit, no row selection.
+// Sortable, hierarchical table view. Children render indented under
+// their parent (any depth) with a chevron toggle. The current sort key
+// applies to siblings only — parent ordering is preserved so the tree
+// doesn't reshuffle when children sort differently.
 
 const COLUMNS = [
   { key: "title",       label: "Title",     sortable: true,  width: 280 },
@@ -32,15 +33,54 @@ const cmp = (a, b, key) => {
 export default function TrackerTable({ rows, onOpen }) {
   const [sortKey, setSortKey] = useState("updated_at");
   const [sortDir, setSortDir] = useState("desc");
+  const [collapsed, setCollapsed] = useState(() => new Set());
 
-  const sorted = useMemo(() => {
-    const out = [...(rows || [])];
-    out.sort((a, b) => {
-      const r = cmp(a, b, sortKey);
-      return sortDir === "asc" ? r : -r;
+  const toggleCollapsed = useCallback((id) => {
+    setCollapsed(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
     });
+  }, []);
+
+  // Build the children map once, then walk the tree depth-first.
+  // Filtered rows (from the page's filter bar) may exclude a parent
+  // while keeping its children — in that case the orphan children
+  // become roots so they're still visible.
+  const flatTree = useMemo(() => {
+    const list = rows || [];
+    const idSet = new Set(list.map(r => r.id));
+    const childrenOf = new Map(); // parentId → child rows
+    const roots = [];
+    list.forEach(r => {
+      const pid = r.parent_id && idSet.has(r.parent_id) ? r.parent_id : null;
+      if (pid === null) {
+        roots.push(r);
+      } else {
+        const arr = childrenOf.get(pid) || [];
+        arr.push(r);
+        childrenOf.set(pid, arr);
+      }
+    });
+    const sortSiblings = (siblings) => {
+      const cp = [...siblings];
+      cp.sort((a, b) => {
+        const r = cmp(a, b, sortKey);
+        return sortDir === "asc" ? r : -r;
+      });
+      return cp;
+    };
+    const out = [];
+    const visit = (row, depth) => {
+      const kids = childrenOf.get(row.id) || [];
+      out.push({ row, depth, hasChildren: kids.length > 0 });
+      if (kids.length > 0 && !collapsed.has(row.id)) {
+        sortSiblings(kids).forEach(c => visit(c, depth + 1));
+      }
+    };
+    sortSiblings(roots).forEach(r => visit(r, 0));
     return out;
-  }, [rows, sortKey, sortDir]);
+  }, [rows, sortKey, sortDir, collapsed]);
 
   const toggleSort = (k) => {
     if (sortKey === k) setSortDir(d => (d === "asc" ? "desc" : "asc"));
@@ -70,17 +110,18 @@ export default function TrackerTable({ rows, onOpen }) {
           </tr>
         </thead>
         <tbody>
-          {sorted.length === 0 && (
+          {flatTree.length === 0 && (
             <tr>
               <td colSpan={COLUMNS.length} style={{ padding: 28, textAlign: "center", color: "var(--tx3)", fontStyle: "italic" }}>
                 No tasks match the current filters.
               </td>
             </tr>
           )}
-          {sorted.map(r => {
+          {flatTree.map(({ row: r, depth, hasChildren }) => {
             const sm = STATUS_COLORS[r.status] || {};
             const pm = r.priority ? PRIORITY_COLORS[r.priority] : null;
             const overdue = r.eta_date && r.status !== "Done" && r.eta_date < new Date().toISOString().slice(0, 10);
+            const isCollapsed = collapsed.has(r.id);
             return (
               <tr
                 key={r.id}
@@ -90,7 +131,22 @@ export default function TrackerTable({ rows, onOpen }) {
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
               >
                 <td style={{ padding: "10px 12px", fontWeight: 600, color: "var(--tx)", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 320 }}>
-                  {r.title}
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 4, paddingLeft: depth * 18 }}>
+                    {hasChildren ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); toggleCollapsed(r.id); }}
+                        aria-label={isCollapsed ? "Expand subtasks" : "Collapse subtasks"}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: 0, fontSize: 11, width: 14, color: "var(--tx2)" }}
+                      >
+                        {isCollapsed ? "▸" : "▾"}
+                      </button>
+                    ) : (
+                      <span style={{ display: "inline-block", width: 14, color: depth > 0 ? "var(--tx3)" : "transparent" }}>
+                        {depth > 0 ? "↳" : ""}
+                      </span>
+                    )}
+                    <span>{r.title}</span>
+                  </span>
                 </td>
                 <td style={{ padding: "10px 12px" }}>
                   <span style={{ fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 4, background: sm.bg, color: sm.color, border: `1px solid ${sm.border || "transparent"}` }}>
