@@ -414,7 +414,13 @@ export default function ExpertisePage() {
       )}
 
       {/* Admin threshold control + manual recompute. Whole page is admin-
-          only at the route level, so no extra role gate needed here. */}
+          only at the route level, so no extra role gate needed here.
+          Hidden in Combined view: that view uses a hardcoded 5-survey
+          threshold, and its own Recompute combined button lives in the
+          header card above — keeping this card visible would make the
+          "Recompute now" button look like it applies to combined data
+          when it doesn't. */}
+      {view !== "combined" && (
       <div className="card" style={{ padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <span style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Threshold</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -463,6 +469,7 @@ export default function ExpertisePage() {
           </span>
         )}
       </div>
+      )}
 
       {/* Filters + star summary */}
       <div className="card" style={{ padding: "12px 14px", marginBottom: 16 }}>
