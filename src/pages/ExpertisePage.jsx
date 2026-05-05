@@ -282,7 +282,15 @@ export default function ExpertisePage() {
 
   const sortVal = (r, key) => {
     switch (key) {
-      case "default":    return Number(r.star_level || 0) * 10000 + Number(r.expertise_score || 0);
+      case "default":
+        // In Combined view, the natural ordering is by pool rank
+        // ascending — so #1 of 769 is at the top, then #2, then #3,
+        // not by star group (which scrambles ranks within each tier).
+        // QA view keeps the star/score-first ordering it always had.
+        if (view === "combined") {
+          return r.combined_rank ? (100000 - Number(r.combined_rank)) : 0;
+        }
+        return Number(r.star_level || 0) * 10000 + Number(r.expertise_score || 0);
       case "specialist": return nameFromEmail(r.qa_email).toLowerCase();
       case "stars":      return Number(r.star_level || 0) * 10000 + Number(r.expertise_score || 0);
       case "score":      return Number(r.expertise_score || 0);
