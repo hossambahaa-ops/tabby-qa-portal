@@ -41,6 +41,7 @@ const QAProfilePage = lazy(() => import("./pages/QAProfilePage.jsx"));
 const SchedulePage = lazy(() => import("./pages/SchedulePage.jsx"));
 const UtilizationPage = lazy(() => import("./pages/UtilizationPage.jsx"));
 const ExpertisePage = lazy(() => import("./pages/ExpertisePage.jsx"));
+const TrackerPage = lazy(() => import("./pages/TrackerPage.jsx"));
 const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
 
 document.title = "Tabby Pulse — QA Performance & Analytics";
@@ -62,6 +63,7 @@ const NAV_ITEMS=[
   {key:"expertise",label:"Expertise",icon:icons.leaderboard,minRole:"admin"},
   {key:"targets",label:"Targets",icon:icons.scores,minRole:"qa_lead"},
   {key:"schedule",label:"Attendance",icon:icons.coaching,section:"Management"},
+  {key:"tracker",label:"Tracker",icon:icons.tracker,minRole:"senior_qa"},
   {key:"quality",label:"Quality Control",icon:icons.dam,minRole:"qa_lead"},
   {key:"escalations",label:"Escalations",icon:icons.escalation},
   {key:"hr",label:"HR cases",icon:icons.hr,minRole:"qa_supervisor"},
@@ -646,6 +648,7 @@ function AppInner(){
       <Route path="/profile" element={<QAProfilePage/>}/>
       <Route path="/schedule" element={<SchedulePage/>}/>
       <Route path="/escalations" element={<EscalationsPage/>}/>
+      <Route path="/tracker" element={hasRole(userRole,"senior_qa")?<TrackerPage/>:<PlaceholderPage title="Tracker" icon={icons.tracker} minRole="senior_qa" userRole={userRole}/>}/>
       <Route path="/quality" element={guardRole("qa_lead",<QualityControlPage/>,{title:"Quality Control",icon:icons.dam})}/>
       {/* Legacy redirects */}
       <Route path="/dam" element={<Navigate to="/quality" replace/>}/>

@@ -24,6 +24,7 @@ import TeamChampions from "../components/dashboard/TeamChampions.jsx";
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
 import QASelfServiceDashboard from "../components/dashboard/QASelfServiceDashboard.jsx";
 import DailyCheckInWidget from "../components/dashboard/DailyCheckInWidget.jsx";
+import MyTrackerWidget from "../components/dashboard/MyTrackerWidget.jsx";
 import AttendanceQuickSet from "../components/dashboard/AttendanceQuickSet.jsx";
 
 function DashboardPage(){
@@ -494,6 +495,10 @@ function DashboardPage(){
 
     {/* Daily check-in widget — visible to everyone with a planned day. Self-hides on weekends/leave/pre-May. */}
     <DailyCheckInWidget/>
+
+    {/* My Tracker tasks — senior_qa+ only. Self-hides when there are
+        no open tasks assigned to me. */}
+    {hasRole(profile?.role, "senior_qa") && <MyTrackerWidget/>}
 
     {/* Personal Attendance Health (MTD) — for QAs and senior QAs viewing
         their own dashboard. Skipped for leads/supervisors who already see
