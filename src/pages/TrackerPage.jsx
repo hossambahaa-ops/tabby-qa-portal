@@ -23,7 +23,9 @@ import { Icon, icons } from "../components/Icons.jsx";
 //   - Click any card or row to open the edit modal.
 //   - Permissions: senior_qa+ to view; creator/assignee/admin to edit.
 
-const VIEW_KEY = "tracker_view_v1";
+const VIEW_KEY  = "tracker_view_v1";
+const SORT_KEY  = "tracker_board_sort_v1";
+const GROUP_KEY = "tracker_board_group_v1";
 
 export default function TrackerPage() {
   const { token, profile, globalToast } = useApp();
@@ -41,6 +43,8 @@ export default function TrackerPage() {
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState(() => localStorage.getItem(VIEW_KEY) || "board");
+  const [boardSort,  setBoardSort]  = useState(() => localStorage.getItem(SORT_KEY)  || "eta");
+  const [boardGroup, setBoardGroup] = useState(() => localStorage.getItem(GROUP_KEY) || "none");
   const [modalRow, setModalRow] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalReadOnly, setModalReadOnly] = useState(false);
@@ -55,6 +59,8 @@ export default function TrackerPage() {
   const [mineOnly, setMineOnly] = useState(false);
 
   useEffect(() => { localStorage.setItem(VIEW_KEY, view); }, [view]);
+  useEffect(() => { localStorage.setItem(SORT_KEY,  boardSort);  }, [boardSort]);
+  useEffect(() => { localStorage.setItem(GROUP_KEY, boardGroup); }, [boardGroup]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -101,6 +107,38 @@ export default function TrackerPage() {
     } catch (e) {
       setRows(rs => rs.map(r => r.id === row.id ? { ...r, status: prev } : r));
       globalToast?.("error", "Move failed: " + (e.message || ""));
+    }
+  };
+
+  // Manual reorder within a column. Position is a sparse numeric so we
+  // can usually drop a card between two neighbours without renumbering.
+  // Optimistic update + rollback on RLS reject.
+  const onReorder = async (row, newPosition) => {
+    const prev = row.position;
+    setRows(rs => rs.map(r => r.id === row.id ? { ...r, position: newPosition } : r));
+    try {
+      const result = await updateInitiative({ token, id: row.id, patch: { position: newPosition } });
+      const fresh = Array.isArray(result) ? result[0] : result;
+      if (fresh) setRows(rs => rs.map(r => r.id === row.id ? fresh : r));
+    } catch (e) {
+      setRows(rs => rs.map(r => r.id === row.id ? { ...r, position: prev } : r));
+      globalToast?.("error", "Reorder failed: " + (e.message || ""));
+    }
+  };
+
+  // Cross-lane drag → reassign the grouping attribute (assignee /
+  // priority / first team) AND maybe the status in one PATCH. Same
+  // optimistic + rollback flow.
+  const onLaneReassign = async (row, patch) => {
+    const prev = { ...row };
+    setRows(rs => rs.map(r => r.id === row.id ? { ...r, ...patch } : r));
+    try {
+      const result = await updateInitiative({ token, id: row.id, patch });
+      const fresh = Array.isArray(result) ? result[0] : result;
+      if (fresh) setRows(rs => rs.map(r => r.id === row.id ? fresh : r));
+    } catch (e) {
+      setRows(rs => rs.map(r => r.id === row.id ? prev : r));
+      globalToast?.("error", "Reassign failed: " + (e.message || ""));
     }
   };
 
@@ -159,6 +197,37 @@ export default function TrackerPage() {
               >{t.label}</button>
             ))}
           </div>
+          {view === "board" && (
+            <>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--tx3)" }}>
+                Group
+                <select
+                  value={boardGroup}
+                  onChange={e => setBoardGroup(e.target.value)}
+                  className="select"
+                  style={{ fontSize: 11, padding: "4px 8px" }}
+                >
+                  <option value="none">None</option>
+                  <option value="assignee">Assignee</option>
+                  <option value="team">Team</option>
+                  <option value="priority">Priority</option>
+                </select>
+              </div>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--tx3)" }}>
+                Sort
+                <select
+                  value={boardSort}
+                  onChange={e => setBoardSort(e.target.value)}
+                  className="select"
+                  style={{ fontSize: 11, padding: "4px 8px" }}
+                >
+                  <option value="eta">ETA</option>
+                  <option value="manual">Manual (drag)</option>
+                  <option value="priority">Priority</option>
+                </select>
+              </div>
+            </>
+          )}
           <button className="btn btn-primary btn-sm" onClick={openCreate} style={{ display: "flex", alignItems: "center", gap: 4 }}>
             <Icon d={icons.plus} size={14} /> New task
           </button>
@@ -215,7 +284,15 @@ export default function TrackerPage() {
           cta={{ label: "New task", onClick: openCreate }}
         />
       ) : view === "board" ? (
-        <TrackerBoard rows={filtered} onOpen={openRow} onStatusChange={onStatusChange} />
+        <TrackerBoard
+          rows={filtered}
+          onOpen={openRow}
+          onStatusChange={onStatusChange}
+          onReorder={onReorder}
+          onLaneReassign={onLaneReassign}
+          sortMode={boardSort}
+          groupBy={boardGroup}
+        />
       ) : view === "timeline" ? (
         <TrackerTimeline rows={filtered} onOpen={openRow} />
       ) : (
