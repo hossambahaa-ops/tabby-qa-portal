@@ -30,6 +30,12 @@ function fmtWeek(d) {
   return `W${wk}: ${dt.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} — ${end.toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
 }
 
+function fmtMonth(yyyymm) {
+  const [y, m] = yyyymm.split("-").map(Number);
+  const dt = new Date(y, (m || 1) - 1, 1);
+  return dt.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
+}
+
 function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
   const { token, globalToast } = useApp();
   const [data, setData] = useState(null);
@@ -37,8 +43,11 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("daily");
   const today = new Date().toISOString().split("T")[0];
-  const thirtyAgo = (() => { const d = new Date(); d.setDate(d.getDate() - 30); return d.toISOString().split("T")[0]; })();
-  const [dateFrom, setDateFrom] = useState(thirtyAgo);
+  // Default range: from May 1 (when productivity_history started) to
+  // today, so weekly + monthly views show something useful out of the
+  // box. The lead can still narrow it via the date picker.
+  const defaultFrom = "2026-05-01";
+  const [dateFrom, setDateFrom] = useState(defaultFrom);
   const [dateTo, setDateTo] = useState(today);
 
   const load = async (from, to) => {
@@ -46,15 +55,15 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
     const f = from || dateFrom;
     const t = to || dateTo;
     try {
-      const rows = await sb.query("daily_scores", {
-        // Pull both possible email columns — different syncs write to
-        // different ones, so selecting only qa_email silently misses
-        // QAs whose row landed under `email`.
-        select: "qa_email,email,date,sbs,non_sbs,coaching_sessions,side_task_minutes,occupancy_pct",
+      // New source: productivity_history. Started May 2026; one row per
+      // (date, qa_email). Has its own occupancy_pct so we don't have to
+      // compute it from targets unless that column is null on a row.
+      const rows = await sb.query("productivity_history", {
+        select: "qa_email,date,sbs,non_sbs,coaching_sessions,side_task_minutes,occupancy_pct",
         filters: `date=gte.${f}&date=lte.${t}&order=date.desc`,
         token,
       });
-      const filtered = (rows || []).filter(r => matchQA(r.qa_email) || matchQA(r.email));
+      const filtered = (rows || []).filter(r => matchQA(r.qa_email));
       setData(filtered.sort((a, b) => a.date.localeCompare(b.date)));
     } catch (e) {
       console.error("EvalHistory:", e);
@@ -64,16 +73,13 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
     setLoading(false);
   };
 
-  // Auto-load the last 30 days when the component first mounts for a QA.
-  // The Today_Productivity sheet only ever holds today's data, but every
-  // sync writes a (date, qa_email) row keyed by the Riyadh date — so past
-  // dates accumulate as a read-only archive. Showing the archive
-  // immediately matches expectations for day-over-day comparison.
+  // Auto-load on mount / QA change. Showing the archive immediately
+  // matches expectations for day-over-day comparison.
   useEffect(() => {
     if (!qaEmail) { setLoading(false); return; }
     setData(null);
     setLoading(true);
-    load(thirtyAgo, today);
+    load(defaultFrom, today);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qaEmail]);
 
@@ -90,14 +96,16 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
     return (
       <div className="card" style={{ marginTop: 16 }}>
         <div className="card-header"><span className="card-title">Evaluation History</span></div>
-        <div style={{ padding: 24, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>No daily scores found in the last 30 days</div>
+        <div style={{ padding: 24, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>No productivity history rows in the selected range.</div>
       </div>
     );
   }
 
   const num = (v) => parseFloat(v) || 0;
 
-  // Resolve targets for in-app occupancy calculation
+  // Resolve targets for the legacy in-app occupancy fallback. Used
+  // only when productivity_history.occupancy_pct is NULL on a row
+  // (shouldn't happen post-bootstrap, but keeps the table robust).
   const qaEmailLow = qaEmail?.toLowerCase() || "";
   const qaDomain = qaEmailLow.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
   const qaQueue = qa?.queue || "Default";
@@ -116,8 +124,16 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
     const productive = (sbs * sbsDur) + (nsbs * nonSbsDur) + (coaching * coachingDur) + side;
     return shiftMins > 0 ? (productive / shiftMins) * 100 : 0;
   };
+  // Prefer the source's stored occupancy; fall back to computed only
+  // when it's actually missing. Side-task time is already excluded
+  // from the upstream calculation until approved (per Hossam) so we
+  // don't try to second-guess the formula here.
+  const occForRow = (r) => {
+    if (r?.occupancy_pct != null) return Number(r.occupancy_pct);
+    return calcOcc(num(r.sbs), num(r.non_sbs), num(r.coaching_sessions), num(r.side_task_minutes));
+  };
 
-  // Weekly aggregation — occupancy is AVERAGE of working-day occupancies
+  // Weekly aggregation — occupancy is AVERAGE of working-day occupancies.
   const weeklyData = (() => {
     const groups = {};
     data.forEach(d => {
@@ -129,40 +145,70 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
       groups[wk].non_sbs += dayNsbs;
       groups[wk].coaching += dayCoach;
       groups[wk].side += daySide;
-      const dayOcc = calcOcc(daySbs, dayNsbs, dayCoach, daySide);
+      const dayOcc = occForRow(d);
       if (dayOcc > 0) { groups[wk].occSum += dayOcc; groups[wk].workDays++; }
     });
     return Object.values(groups).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
   })();
 
-  const rows = view === "daily" ? data : weeklyData;
+  // Monthly aggregation — same shape as weekly, keyed by YYYY-MM.
+  const monthlyData = (() => {
+    const groups = {};
+    data.forEach(d => {
+      const m = (d.date || "").slice(0, 7);
+      if (!m) return;
+      if (!groups[m]) groups[m] = { monthStart: m, days: 0, workDays: 0, sbs: 0, non_sbs: 0, coaching: 0, side: 0, occSum: 0 };
+      groups[m].days++;
+      const daySbs = num(d.sbs), dayNsbs = num(d.non_sbs), dayCoach = num(d.coaching_sessions), daySide = num(d.side_task_minutes);
+      groups[m].sbs += daySbs;
+      groups[m].non_sbs += dayNsbs;
+      groups[m].coaching += dayCoach;
+      groups[m].side += daySide;
+      const dayOcc = occForRow(d);
+      if (dayOcc > 0) { groups[m].occSum += dayOcc; groups[m].workDays++; }
+    });
+    return Object.values(groups).sort((a, b) => a.monthStart.localeCompare(b.monthStart));
+  })();
 
-  // Chart dimensions
-  const barW = view === "daily" ? 16 : 28;
-  const gap = view === "daily" ? 4 : 8;
+  const rows =
+    view === "daily"  ? data :
+    view === "weekly" ? weeklyData :
+                        monthlyData;
+
+  // Chart dimensions per view granularity.
+  const barW = view === "daily" ? 16 : view === "weekly" ? 28 : 40;
+  const gap  = view === "daily" ? 4  : view === "weekly" ? 8  : 14;
   const chartH = 120;
   const chartW = Math.max(300, rows.length * (barW + gap) + 40);
-  const maxTotal = Math.max(...rows.map(r => view === "daily" ? num(r.sbs) + num(r.non_sbs) : r.sbs + r.non_sbs), 1);
+  const maxTotal = Math.max(
+    ...rows.map(r => view === "daily" ? num(r.sbs) + num(r.non_sbs) : r.sbs + r.non_sbs),
+    1,
+  );
+
+  const TOGGLES = [
+    { key: "daily",   label: "Daily" },
+    { key: "weekly",  label: "Weekly" },
+    { key: "monthly", label: "Monthly" },
+  ];
 
   return (
     <div className="card" style={{ marginTop: 16 }}>
       <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span className="card-title">Evaluation History</span>
         <div style={{ display: "flex", gap: 4, background: "var(--bg2)", padding: 3, borderRadius: 8 }}>
-          <button onClick={() => setView("daily")} style={{
-            padding: "4px 12px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 600,
-            fontFamily: "var(--font)", cursor: "pointer",
-            background: view === "daily" ? "var(--bg3)" : "transparent",
-            color: view === "daily" ? "var(--tabby-purple)" : "var(--tx3)",
-            boxShadow: view === "daily" ? "var(--shadow)" : "none",
-          }}>Daily</button>
-          <button onClick={() => setView("weekly")} style={{
-            padding: "4px 12px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 600,
-            fontFamily: "var(--font)", cursor: "pointer",
-            background: view === "weekly" ? "var(--bg3)" : "transparent",
-            color: view === "weekly" ? "var(--tabby-purple)" : "var(--tx3)",
-            boxShadow: view === "weekly" ? "var(--shadow)" : "none",
-          }}>Weekly</button>
+          {TOGGLES.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setView(t.key)}
+              style={{
+                padding: "4px 12px", borderRadius: 6, border: "none", fontSize: 11, fontWeight: 600,
+                fontFamily: "var(--font)", cursor: "pointer",
+                background: view === t.key ? "var(--bg3)" : "transparent",
+                color: view === t.key ? "var(--tabby-purple)" : "var(--tx3)",
+                boxShadow: view === t.key ? "var(--shadow)" : "none",
+              }}
+            >{t.label}</button>
+          ))}
         </div>
       </div>
 
@@ -173,6 +219,9 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
         <label style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>To</label>
         <input type="date" className="form-input" value={dateTo} min={dateFrom} max={today} onChange={e => setDateTo(e.target.value)} style={{ padding: "4px 8px", fontSize: 12, width: "auto" }} />
         <button className="btn btn-primary btn-sm" onClick={() => load()} style={{ fontSize: 11, padding: "4px 12px" }}>Apply</button>
+        <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--tx3)", fontStyle: "italic" }}>
+          Side-task time is added to Occupancy once approved.
+        </span>
       </div>
 
       {/* Stacked bar chart */}
@@ -197,6 +246,10 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
             const nsbsH = barH - sbsH;
             const x = 35 + i * (barW + gap);
             const baseY = chartH;
+            const label =
+              view === "daily"   ? fmtDate(r.date) :
+              view === "weekly"  ? fmtDate(r.weekStart) :
+                                   fmtMonth(r.monthStart);
             return <g key={i}>
               {/* Non-SBS (bottom) */}
               <rect x={x} y={baseY - nsbsH} width={barW} height={Math.max(nsbsH, 0)} rx="2" fill="var(--blue)" opacity="0.8" />
@@ -206,7 +259,7 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
               {total > 0 && <text x={x + barW / 2} y={baseY - barH - 4} textAnchor="middle" fill="var(--tx2)" fontSize="8" fontWeight="600">{total}</text>}
               {/* Date label */}
               <text x={x + barW / 2} y={chartH + 14} textAnchor="middle" fill="var(--tx3)" fontSize="7" transform={view === "daily" ? `rotate(-45 ${x + barW / 2} ${chartH + 14})` : ""}>
-                {view === "daily" ? fmtDate(r.date) : fmtDate(r.weekStart)}
+                {label}
               </text>
             </g>;
           })}
@@ -229,32 +282,38 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
         <div className="table-wrap">
           <table style={{ fontSize: 12 }}>
             <thead><tr>
-              <th>{view === "daily" ? "Date" : "Week"}</th>
-              {view === "weekly" && <th style={{ textAlign: "center" }}>Days</th>}
+              <th>{view === "daily" ? "Date" : view === "weekly" ? "Week" : "Month"}</th>
+              {view !== "daily" && <th style={{ textAlign: "center" }}>Days</th>}
               <th style={{ textAlign: "center" }}>SBS</th>
               <th style={{ textAlign: "center" }}>Non-SBS</th>
               <th style={{ textAlign: "center" }}>Coaching</th>
-              <th style={{ textAlign: "center" }}>Side Tasks</th>
+              <th style={{ textAlign: "center" }} title="Pending until approved.">
+                Side Tasks <span style={{ fontSize: 9, fontWeight: 700, padding: "0 5px", borderRadius: 6, background: "rgba(245,158,11,0.18)", color: "var(--amber)", verticalAlign: "middle", marginLeft: 2 }}>pending</span>
+              </th>
               <th style={{ textAlign: "center" }}>Occupancy</th>
               <th style={{ textAlign: "center", fontWeight: 700 }}>Total</th>
             </tr></thead>
             <tbody>
-              {(view === "daily" ? [...data].reverse() : [...weeklyData].reverse()).map((r, i) => {
+              {(view === "daily" ? [...data].reverse() : view === "weekly" ? [...weeklyData].reverse() : [...monthlyData].reverse()).map((r, i) => {
                 const sbs = view === "daily" ? num(r.sbs) : r.sbs;
                 const nsbs = view === "daily" ? num(r.non_sbs) : r.non_sbs;
                 const coaching = view === "daily" ? num(r.coaching_sessions) : r.coaching;
                 const side = view === "daily" ? num(r.side_task_minutes) : r.side;
-                const occ = view === "daily" ? calcOcc(sbs, nsbs, coaching, side) : (r.workDays > 0 ? r.occSum / r.workDays : 0);
+                const occ =
+                  view === "daily" ? occForRow(r) :
+                  (r.workDays > 0 ? r.occSum / r.workDays : 0);
                 const total = sbs + nsbs;
+                const dateLabel =
+                  view === "daily"   ? fmtDate(r.date) :
+                  view === "weekly"  ? fmtWeek(r.weekStart) :
+                                       fmtMonth(r.monthStart);
                 return <tr key={i}>
-                  <td style={{ fontWeight: 500, whiteSpace: "nowrap" }}>
-                    {view === "daily" ? fmtDate(r.date) : fmtWeek(r.weekStart)}
-                  </td>
-                  {view === "weekly" && <td style={{ textAlign: "center", color: "var(--tx3)" }}>{r.days}</td>}
+                  <td style={{ fontWeight: 500, whiteSpace: "nowrap" }}>{dateLabel}</td>
+                  {view !== "daily" && <td style={{ textAlign: "center", color: "var(--tx3)" }}>{r.days}</td>}
                   <td style={{ textAlign: "center", color: "var(--green)", fontWeight: 600 }}>{sbs || "—"}</td>
                   <td style={{ textAlign: "center", color: "var(--blue)", fontWeight: 600 }}>{nsbs || "—"}</td>
                   <td style={{ textAlign: "center" }}>{coaching || "—"}</td>
-                  <td style={{ textAlign: "center" }}>{side || "—"}</td>
+                  <td style={{ textAlign: "center" }} title={side ? "Pending until approved." : ""}>{side || "—"}</td>
                   <td style={{ textAlign: "center", color: occ >= 95 ? "var(--green)" : occ >= 60 ? "var(--amber)" : occ > 0 ? "var(--red)" : "var(--tx3)", fontWeight: 600 }}>{occ > 0 ? occ.toFixed(1) + "%" : "—"}</td>
                   <td style={{ textAlign: "center", fontWeight: 700, color: total > 0 ? "var(--tx)" : "var(--tx3)" }}>{total || "—"}</td>
                 </tr>;

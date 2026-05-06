@@ -33,7 +33,7 @@ function QAProfilePage() {
   // Bulk data load is owned by useQaProfileData; the page keeps the
   // selection / search / expanded-row state plus the per-QA derivations.
   const {
-    roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, productivityHistory, teamTargets,
+    roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
     loading, allQAs, qaLeadSet, refreshDailyScores, refreshMtd,
   } = useQaProfileData(token, profile);
 
@@ -154,12 +154,6 @@ function QAProfilePage() {
   })();
   // Use the latest month that has data (first in chronologically sorted array)
   const latestMtd = qaMtd.length > 0 ? qaMtd[0] : null;
-  // Day-by-day productivity history for the viewed QA. Sourced from
-  // productivity_history (Google Sheet, started May 2026). Used by the
-  // Monthly performance tab's daily breakdown card.
-  const qaProductivity = (productivityHistory || [])
-    .filter(p => matchQA(p.qa_email))
-    .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
   const qaSessions = sessions.filter(s => matchQA(s.member_email)).slice(0, 10);
   const qaPlans = plans.filter(p => matchQA(p.qa_email));
   const qaTasks = tasks.filter(t => matchQA(t.assigned_to) || (matchQA(t.created_by) && !t.assigned_to));
@@ -877,134 +871,8 @@ function QAProfilePage() {
         {/* Expertise — admin-only pilot. CSAT-driven topic mastery, follows the same selected month. Full-width below. */}
         {hasRole(profile?.role, "admin") && <ExpertiseProfileCard qaEmail={selectedQA} month={selMonth || latestMtd?.month} />}
 
-        {/* Daily productivity breakdown — sourced from
-            productivity_history (the new Google-Sheet feed). Shows
-            day-by-day SBS / Non-SBS / Coaching / Side-task minutes
-            for the month picked above. Started May 2026. */}
-        {(() => {
-          // Resolve the visible month from the picker. qaMtd entries
-          // use a "Mon-YYYY" string; productivity_history dates are
-          // ISO. Convert the picker label → YYYY-MM prefix for filter.
-          const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-          const monthStr = selMonth || latestMtd?.month;
-          let isoPrefix = null;
-          if (monthStr) {
-            const m = String(monthStr).match(/^([A-Za-z]{3})-(\d{4})$/);
-            if (m) {
-              const idx = MONTHS.indexOf(m[1]);
-              if (idx >= 0) isoPrefix = `${m[2]}-${String(idx+1).padStart(2,"0")}`;
-            }
-            if (!isoPrefix && /^\d{4}-\d{2}$/.test(monthStr)) isoPrefix = monthStr;
-          }
-          const monthRows = isoPrefix
-            ? qaProductivity.filter(p => (p.date || "").startsWith(isoPrefix))
-            : qaProductivity.slice();
-          if (monthRows.length === 0) return null;
-          const totalSbs = monthRows.reduce((n, r) => n + (r.sbs || 0), 0);
-          const totalNon = monthRows.reduce((n, r) => n + (r.non_sbs || 0), 0);
-          const totalCoach = monthRows.reduce((n, r) => n + (r.coaching_sessions || 0), 0);
-          const totalSide  = monthRows.reduce((n, r) => n + (r.side_task_minutes || 0), 0);
-          // Average occupancy across days that have a recorded value.
-          // Days where occupancy is null aren't dragged into the avg
-          // (the source columns started populating partway through).
-          const occRows = monthRows.filter(r => r.occupancy_pct != null);
-          const avgOcc  = occRows.length > 0
-            ? occRows.reduce((n, r) => n + Number(r.occupancy_pct || 0), 0) / occRows.length
-            : null;
-          const maxEval = Math.max(...monthRows.map(r => (r.sbs || 0) + (r.non_sbs || 0)), 1);
-          // Helper: traffic-light colour for an occupancy reading.
-          const occColor = (v) => {
-            if (v == null) return "var(--tx3)";
-            if (v >= 80) return "var(--green)";
-            if (v >= 50) return "var(--amber)";
-            return "var(--red)";
-          };
-          return (
-            <div className="card" style={{ marginBottom: 16 }}>
-              <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span className="card-title">Daily productivity {isoPrefix && <span style={{ fontSize: 12, fontWeight: 400, color: "var(--tx3)", marginLeft: 6 }}>· {monthStr}</span>}</span>
-                <span style={{ fontSize: 11, color: "var(--tx3)" }}>{monthRows.length} day{monthRows.length !== 1 ? "s" : ""} · sourced from Productivity_History</span>
-              </div>
-              <div style={{ padding: "10px 16px 6px", display: "flex", gap: 18, flexWrap: "wrap", borderBottom: "1px solid var(--bd)" }}>
-                <div><div style={{ fontSize: 18, fontWeight: 800, color: "var(--green)" }}>{totalSbs + totalNon}</div><div style={{ fontSize: 10, color: "var(--tx3)" }}>Total evals</div></div>
-                <div><div style={{ fontSize: 18, fontWeight: 800, color: "#3B82F6" }}>{totalSbs}</div><div style={{ fontSize: 10, color: "var(--tx3)" }}>SBS</div></div>
-                <div><div style={{ fontSize: 18, fontWeight: 800, color: "#16A34A" }}>{totalNon}</div><div style={{ fontSize: 10, color: "var(--tx3)" }}>Non-SBS</div></div>
-                <div><div style={{ fontSize: 18, fontWeight: 800, color: "#0D9488" }}>{totalCoach}</div><div style={{ fontSize: 10, color: "var(--tx3)" }}>Coaching</div></div>
-                <div title="Side-task time only counts toward Occupancy once it's been approved.">
-                  <div style={{ fontSize: 18, fontWeight: 800, color: "#A855F7", display: "flex", alignItems: "baseline", gap: 4 }}>
-                    {Math.round(totalSide / 60 * 10) / 10}h
-                    <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: "rgba(245,158,11,0.18)", color: "var(--amber)" }}>pending</span>
-                  </div>
-                  <div style={{ fontSize: 10, color: "var(--tx3)" }}>Side tasks</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: occColor(avgOcc), fontVariantNumeric: "tabular-nums" }}>
-                    {avgOcc == null ? "—" : `${avgOcc.toFixed(1)}%`}
-                  </div>
-                  <div style={{ fontSize: 10, color: "var(--tx3)" }}>Avg occupancy</div>
-                </div>
-              </div>
-              <div style={{ padding: "6px 16px", fontSize: 10, color: "var(--tx3)", fontStyle: "italic", borderBottom: "1px solid var(--bd)" }}>
-                Side-task time will be added to Occupancy once approved.
-              </div>
-              <div style={{ overflowX: "auto", padding: 12 }}>
-                <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse", whiteSpace: "nowrap" }}>
-                  <thead>
-                    <tr style={{ borderBottom: "1px solid var(--bd)", background: "var(--bg3)" }}>
-                      <th style={{ padding: "6px 10px", textAlign: "left", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }}>Date</th>
-                      <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }}>SBS</th>
-                      <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }}>Non-SBS</th>
-                      <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }}>Coaching</th>
-                      <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }} title="Pending until approved.">
-                        Side (min) <span style={{ fontSize: 8, fontWeight: 700, padding: "0 4px", borderRadius: 6, background: "rgba(245,158,11,0.18)", color: "var(--amber)", verticalAlign: "middle", marginLeft: 2 }}>pending</span>
-                      </th>
-                      <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }}>Occupancy</th>
-                      <th style={{ padding: "6px 10px", textAlign: "left",  fontWeight: 700, color: "var(--tx2)", fontSize: 11, minWidth: 200 }}>Volume</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {monthRows.map(r => {
-                      const evals = (r.sbs || 0) + (r.non_sbs || 0);
-                      const sbsPct = evals > 0 ? (r.sbs / evals) * 100 : 0;
-                      const nonPct = evals > 0 ? (r.non_sbs / evals) * 100 : 0;
-                      const widthPct = (evals / maxEval) * 100;
-                      const dt = new Date(r.date + "T00:00:00");
-                      const dayLabel = dt.toLocaleDateString("en-US", { month: "short", day: "numeric", weekday: "short" });
-                      const occVal = r.occupancy_pct == null ? null : Number(r.occupancy_pct);
-                      return (
-                        <tr key={r.date} style={{ borderBottom: "1px solid var(--bd)" }}>
-                          <td style={{ padding: "8px 10px", fontWeight: 600, color: "var(--tx)", fontVariantNumeric: "tabular-nums" }}>{dayLabel}</td>
-                          <td style={{ padding: "8px 10px", textAlign: "right", color: r.sbs ? "#3B82F6" : "var(--tx3)", fontWeight: r.sbs ? 700 : 400 }}>{r.sbs || "—"}</td>
-                          <td style={{ padding: "8px 10px", textAlign: "right", color: r.non_sbs ? "#16A34A" : "var(--tx3)", fontWeight: r.non_sbs ? 700 : 400 }}>{r.non_sbs || "—"}</td>
-                          <td style={{ padding: "8px 10px", textAlign: "right", color: r.coaching_sessions ? "#0D9488" : "var(--tx3)", fontWeight: r.coaching_sessions ? 700 : 400 }}>{r.coaching_sessions || "—"}</td>
-                          <td style={{ padding: "8px 10px", textAlign: "right", color: r.side_task_minutes ? "#A855F7" : "var(--tx3)", fontWeight: r.side_task_minutes ? 700 : 400 }} title={r.side_task_minutes ? "Pending until approved." : ""}>{r.side_task_minutes || "—"}</td>
-                          <td style={{ padding: "8px 10px", textAlign: "right", color: occColor(occVal), fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                            {occVal == null ? "—" : `${occVal.toFixed(1)}%`}
-                          </td>
-                          <td style={{ padding: "8px 10px" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                              <div style={{ flex: 1, height: 10, background: "var(--bg2)", borderRadius: 5, overflow: "hidden", display: "flex", maxWidth: 220 }}>
-                                {evals > 0 && (
-                                  <>
-                                    <div style={{ width: `${widthPct * sbsPct / 100}%`, background: "#3B82F6" }} title={`SBS ${r.sbs}`} />
-                                    <div style={{ width: `${widthPct * nonPct / 100}%`, background: "#16A34A" }} title={`Non-SBS ${r.non_sbs}`} />
-                                  </>
-                                )}
-                              </div>
-                              <span style={{ fontSize: 10, color: "var(--tx3)", fontVariantNumeric: "tabular-nums", minWidth: 30, textAlign: "right" }}>{evals || ""}</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })()}
-
-        {/* Evaluation History — moved into Monthly performance review */}
+        {/* Evaluation History — Daily / Weekly / Monthly aggregates,
+            sourced from productivity_history (new feed, May 2026+). */}
         {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} />}
       </>}
     </div>
