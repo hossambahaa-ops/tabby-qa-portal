@@ -132,13 +132,21 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
     if (r?.occupancy_pct != null) return Number(r.occupancy_pct);
     return calcOcc(num(r.sbs), num(r.non_sbs), num(r.coaching_sessions), num(r.side_task_minutes));
   };
+  // Side-task contribution to occupancy if the pending hours were
+  // approved. Doesn't depend on existing occupancy — same shift basis.
+  const sideTaskOccContribution = (sideMin) => shiftMins > 0 ? (Number(sideMin || 0) / shiftMins) * 100 : 0;
+  // Projected occupancy = current + the contribution from pending
+  // side-task minutes. Useful as a "what it'd be once approved" view.
+  const projOccForRow = (r) => occForRow(r) + sideTaskOccContribution(num(r.side_task_minutes));
 
   // Weekly aggregation — occupancy is AVERAGE of working-day occupancies.
+  // projOccSum mirrors occSum but uses the projected value (current +
+  // side-task contribution) so the table can show two columns.
   const weeklyData = (() => {
     const groups = {};
     data.forEach(d => {
       const wk = isoMonday(d.date);
-      if (!groups[wk]) groups[wk] = { weekStart: wk, days: 0, workDays: 0, sbs: 0, non_sbs: 0, coaching: 0, side: 0, occSum: 0 };
+      if (!groups[wk]) groups[wk] = { weekStart: wk, days: 0, workDays: 0, sbs: 0, non_sbs: 0, coaching: 0, side: 0, occSum: 0, projOccSum: 0 };
       groups[wk].days++;
       const daySbs = num(d.sbs), dayNsbs = num(d.non_sbs), dayCoach = num(d.coaching_sessions), daySide = num(d.side_task_minutes);
       groups[wk].sbs += daySbs;
@@ -146,7 +154,11 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
       groups[wk].coaching += dayCoach;
       groups[wk].side += daySide;
       const dayOcc = occForRow(d);
-      if (dayOcc > 0) { groups[wk].occSum += dayOcc; groups[wk].workDays++; }
+      if (dayOcc > 0) {
+        groups[wk].occSum += dayOcc;
+        groups[wk].projOccSum += dayOcc + sideTaskOccContribution(daySide);
+        groups[wk].workDays++;
+      }
     });
     return Object.values(groups).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
   })();
@@ -157,7 +169,7 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
     data.forEach(d => {
       const m = (d.date || "").slice(0, 7);
       if (!m) return;
-      if (!groups[m]) groups[m] = { monthStart: m, days: 0, workDays: 0, sbs: 0, non_sbs: 0, coaching: 0, side: 0, occSum: 0 };
+      if (!groups[m]) groups[m] = { monthStart: m, days: 0, workDays: 0, sbs: 0, non_sbs: 0, coaching: 0, side: 0, occSum: 0, projOccSum: 0 };
       groups[m].days++;
       const daySbs = num(d.sbs), dayNsbs = num(d.non_sbs), dayCoach = num(d.coaching_sessions), daySide = num(d.side_task_minutes);
       groups[m].sbs += daySbs;
@@ -165,7 +177,11 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
       groups[m].coaching += dayCoach;
       groups[m].side += daySide;
       const dayOcc = occForRow(d);
-      if (dayOcc > 0) { groups[m].occSum += dayOcc; groups[m].workDays++; }
+      if (dayOcc > 0) {
+        groups[m].occSum += dayOcc;
+        groups[m].projOccSum += dayOcc + sideTaskOccContribution(daySide);
+        groups[m].workDays++;
+      }
     });
     return Object.values(groups).sort((a, b) => a.monthStart.localeCompare(b.monthStart));
   })();
@@ -290,7 +306,10 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
               <th style={{ textAlign: "center" }} title="Pending until approved.">
                 Side Tasks <span style={{ fontSize: 9, fontWeight: 700, padding: "0 5px", borderRadius: 6, background: "rgba(245,158,11,0.18)", color: "var(--amber)", verticalAlign: "middle", marginLeft: 2 }}>pending</span>
               </th>
-              <th style={{ textAlign: "center" }}>Occupancy</th>
+              <th style={{ textAlign: "center" }} title="Approved-only occupancy. Source value, excludes pending side-task time.">Occupancy</th>
+              <th style={{ textAlign: "center" }} title="Projection: current occupancy + the contribution from pending side-task minutes if they were approved.">
+                + ST <span style={{ fontSize: 9, fontWeight: 700, padding: "0 5px", borderRadius: 6, background: "rgba(245,158,11,0.18)", color: "var(--amber)", verticalAlign: "middle", marginLeft: 2 }}>pending</span>
+              </th>
               <th style={{ textAlign: "center", fontWeight: 700 }}>Total</th>
             </tr></thead>
             <tbody>
@@ -302,6 +321,10 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
                 const occ =
                   view === "daily" ? occForRow(r) :
                   (r.workDays > 0 ? r.occSum / r.workDays : 0);
+                const projOcc =
+                  view === "daily" ? projOccForRow(r) :
+                  (r.workDays > 0 ? r.projOccSum / r.workDays : 0);
+                const projDelta = projOcc - occ;
                 const total = sbs + nsbs;
                 const dateLabel =
                   view === "daily"   ? fmtDate(r.date) :
@@ -315,6 +338,15 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
                   <td style={{ textAlign: "center" }}>{coaching || "—"}</td>
                   <td style={{ textAlign: "center" }} title={side ? "Pending until approved." : ""}>{side || "—"}</td>
                   <td style={{ textAlign: "center", color: occ >= 95 ? "var(--green)" : occ >= 60 ? "var(--amber)" : occ > 0 ? "var(--red)" : "var(--tx3)", fontWeight: 600 }}>{occ > 0 ? occ.toFixed(1) + "%" : "—"}</td>
+                  <td style={{ textAlign: "center", color: projOcc >= 95 ? "var(--green)" : projOcc >= 60 ? "var(--amber)" : projOcc > 0 ? "var(--red)" : "var(--tx3)", fontWeight: 600 }}
+                    title={projDelta > 0 ? `+${projDelta.toFixed(1)}% from pending side tasks` : ""}>
+                    {projOcc > 0 ? (
+                      <>
+                        {projOcc.toFixed(1)}%
+                        {projDelta > 0.05 && <span style={{ fontSize: 9, color: "var(--amber)", marginLeft: 4 }}>+{projDelta.toFixed(1)}</span>}
+                      </>
+                    ) : "—"}
+                  </td>
                   <td style={{ textAlign: "center", fontWeight: 700, color: total > 0 ? "var(--tx)" : "var(--tx3)" }}>{total || "—"}</td>
                 </tr>;
               })}
