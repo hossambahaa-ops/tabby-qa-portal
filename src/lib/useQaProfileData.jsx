@@ -87,7 +87,7 @@ export function useQaProfileData(token, profile) {
           // Day-by-day productivity history (started May 2026). Used by
           // the Monthly performance daily breakdown — replaces the old
           // mtd_scores-based productivity numbers per Hossam 2026-05-06.
-          sb.query("productivity_history", { select: "date,qa_email,sbs,non_sbs,coaching_sessions,side_task_minutes", filters: "order=date.asc", token }).catch(() => []),
+          sb.query("productivity_history", { select: "date,qa_email,sbs,non_sbs,coaching_sessions,side_task_minutes,occupancy_pct", filters: "order=date.asc", token }).catch(() => []),
         ]);
         if (cancelled) return;
         const d = {

@@ -904,7 +904,21 @@ function QAProfilePage() {
           const totalNon = monthRows.reduce((n, r) => n + (r.non_sbs || 0), 0);
           const totalCoach = monthRows.reduce((n, r) => n + (r.coaching_sessions || 0), 0);
           const totalSide  = monthRows.reduce((n, r) => n + (r.side_task_minutes || 0), 0);
+          // Average occupancy across days that have a recorded value.
+          // Days where occupancy is null aren't dragged into the avg
+          // (the source columns started populating partway through).
+          const occRows = monthRows.filter(r => r.occupancy_pct != null);
+          const avgOcc  = occRows.length > 0
+            ? occRows.reduce((n, r) => n + Number(r.occupancy_pct || 0), 0) / occRows.length
+            : null;
           const maxEval = Math.max(...monthRows.map(r => (r.sbs || 0) + (r.non_sbs || 0)), 1);
+          // Helper: traffic-light colour for an occupancy reading.
+          const occColor = (v) => {
+            if (v == null) return "var(--tx3)";
+            if (v >= 80) return "var(--green)";
+            if (v >= 50) return "var(--amber)";
+            return "var(--red)";
+          };
           return (
             <div className="card" style={{ marginBottom: 16 }}>
               <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -916,7 +930,22 @@ function QAProfilePage() {
                 <div><div style={{ fontSize: 18, fontWeight: 800, color: "#3B82F6" }}>{totalSbs}</div><div style={{ fontSize: 10, color: "var(--tx3)" }}>SBS</div></div>
                 <div><div style={{ fontSize: 18, fontWeight: 800, color: "#16A34A" }}>{totalNon}</div><div style={{ fontSize: 10, color: "var(--tx3)" }}>Non-SBS</div></div>
                 <div><div style={{ fontSize: 18, fontWeight: 800, color: "#0D9488" }}>{totalCoach}</div><div style={{ fontSize: 10, color: "var(--tx3)" }}>Coaching</div></div>
-                <div><div style={{ fontSize: 18, fontWeight: 800, color: "#A855F7" }}>{Math.round(totalSide / 60 * 10) / 10}h</div><div style={{ fontSize: 10, color: "var(--tx3)" }}>Side tasks</div></div>
+                <div title="Side-task time only counts toward Occupancy once it's been approved.">
+                  <div style={{ fontSize: 18, fontWeight: 800, color: "#A855F7", display: "flex", alignItems: "baseline", gap: 4 }}>
+                    {Math.round(totalSide / 60 * 10) / 10}h
+                    <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 5px", borderRadius: 8, background: "rgba(245,158,11,0.18)", color: "var(--amber)" }}>pending</span>
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--tx3)" }}>Side tasks</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: occColor(avgOcc), fontVariantNumeric: "tabular-nums" }}>
+                    {avgOcc == null ? "—" : `${avgOcc.toFixed(1)}%`}
+                  </div>
+                  <div style={{ fontSize: 10, color: "var(--tx3)" }}>Avg occupancy</div>
+                </div>
+              </div>
+              <div style={{ padding: "6px 16px", fontSize: 10, color: "var(--tx3)", fontStyle: "italic", borderBottom: "1px solid var(--bd)" }}>
+                Side-task time will be added to Occupancy once approved.
               </div>
               <div style={{ overflowX: "auto", padding: 12 }}>
                 <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse", whiteSpace: "nowrap" }}>
@@ -926,7 +955,10 @@ function QAProfilePage() {
                       <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }}>SBS</th>
                       <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }}>Non-SBS</th>
                       <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }}>Coaching</th>
-                      <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }}>Side (min)</th>
+                      <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }} title="Pending until approved.">
+                        Side (min) <span style={{ fontSize: 8, fontWeight: 700, padding: "0 4px", borderRadius: 6, background: "rgba(245,158,11,0.18)", color: "var(--amber)", verticalAlign: "middle", marginLeft: 2 }}>pending</span>
+                      </th>
+                      <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, color: "var(--tx2)", fontSize: 11 }}>Occupancy</th>
                       <th style={{ padding: "6px 10px", textAlign: "left",  fontWeight: 700, color: "var(--tx2)", fontSize: 11, minWidth: 200 }}>Volume</th>
                     </tr>
                   </thead>
@@ -938,13 +970,17 @@ function QAProfilePage() {
                       const widthPct = (evals / maxEval) * 100;
                       const dt = new Date(r.date + "T00:00:00");
                       const dayLabel = dt.toLocaleDateString("en-US", { month: "short", day: "numeric", weekday: "short" });
+                      const occVal = r.occupancy_pct == null ? null : Number(r.occupancy_pct);
                       return (
                         <tr key={r.date} style={{ borderBottom: "1px solid var(--bd)" }}>
                           <td style={{ padding: "8px 10px", fontWeight: 600, color: "var(--tx)", fontVariantNumeric: "tabular-nums" }}>{dayLabel}</td>
                           <td style={{ padding: "8px 10px", textAlign: "right", color: r.sbs ? "#3B82F6" : "var(--tx3)", fontWeight: r.sbs ? 700 : 400 }}>{r.sbs || "—"}</td>
                           <td style={{ padding: "8px 10px", textAlign: "right", color: r.non_sbs ? "#16A34A" : "var(--tx3)", fontWeight: r.non_sbs ? 700 : 400 }}>{r.non_sbs || "—"}</td>
                           <td style={{ padding: "8px 10px", textAlign: "right", color: r.coaching_sessions ? "#0D9488" : "var(--tx3)", fontWeight: r.coaching_sessions ? 700 : 400 }}>{r.coaching_sessions || "—"}</td>
-                          <td style={{ padding: "8px 10px", textAlign: "right", color: r.side_task_minutes ? "#A855F7" : "var(--tx3)", fontWeight: r.side_task_minutes ? 700 : 400 }}>{r.side_task_minutes || "—"}</td>
+                          <td style={{ padding: "8px 10px", textAlign: "right", color: r.side_task_minutes ? "#A855F7" : "var(--tx3)", fontWeight: r.side_task_minutes ? 700 : 400 }} title={r.side_task_minutes ? "Pending until approved." : ""}>{r.side_task_minutes || "—"}</td>
+                          <td style={{ padding: "8px 10px", textAlign: "right", color: occColor(occVal), fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
+                            {occVal == null ? "—" : `${occVal.toFixed(1)}%`}
+                          </td>
                           <td style={{ padding: "8px 10px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <div style={{ flex: 1, height: 10, background: "var(--bg2)", borderRadius: 5, overflow: "hidden", display: "flex", maxWidth: 220 }}>
