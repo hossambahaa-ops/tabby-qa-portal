@@ -503,24 +503,6 @@ function AppInner(){
           </div>);
         });
       })()}</nav>
-      {/* Recently viewed QA profiles — only shown for users who can view
-          others' profiles (leads+). Hidden when sidebar is collapsed. */}
-      {(() => {
-        const myEm = profile?.email?.toLowerCase();
-        const filteredRecent = recentQAs.filter(em => em && em.toLowerCase() !== myEm);
-        if (!filteredRecent.length || !hasRole(userRole, "qa_lead") || sidebarCollapsed) return null;
-        return (
-          <div className="sidebar-recent">
-            <div className="sidebar-recent-label">Recent</div>
-            {filteredRecent.slice(0, 5).map(em => (
-              <button key={em} className="sidebar-recent-item" onClick={() => { window.location.hash = `#/profile?qa=${encodeURIComponent(em)}`; setSidebarOpen(false); }}>
-                <span style={{ width: 20, height: 20, borderRadius: "50%", flexShrink: 0, ...avatarStyle(em), display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700 }}>{initialsForAvatar(em)}</span>
-                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{em.split("@")[0].split(".").map(p => p.charAt(0).toUpperCase() + p.slice(1).replace(/\d+$/, "")).filter(Boolean).join(" ")}</span>
-              </button>
-            ))}
-          </div>
-        );
-      })()}
       {/* Mobile-only footer: user info + dark mode + sign out
           (topbar versions are hidden on mobile to save space) */}
       <div className="sidebar-mobile-footer">
