@@ -24,7 +24,7 @@ export const bustBulkCache = () => { _bulk = { ts: 0, token: null, data: null };
 // depend on URL state that lives in the component.
 //
 // Returns: { roster, mtd, sessions, plans, tasks, flags, qaAttendance,
-//   dailyScores, teamTargets, loading, allQAs, qaLeadSet }
+//   dailyScores, teamTargets, productivityHistory, loading, allQAs, qaLeadSet }
 export function useQaProfileData(token, profile) {
   const [roster, setRoster] = useState([]);
   const [mtd, setMtd] = useState([]);
@@ -34,6 +34,7 @@ export function useQaProfileData(token, profile) {
   const [flags, setFlags] = useState([]);
   const [qaAttendance, setQaAttendance] = useState([]);
   const [dailyScores, setDailyScores] = useState([]);
+  const [productivityHistory, setProductivityHistory] = useState([]);
   const [teamTargets, setTeamTargets] = useState([]);
   const [loading, setLoading] = useState(true);
   // qaLeadSet + allProfiles drive the QA-only filter; we keep them in
@@ -55,6 +56,7 @@ export function useQaProfileData(token, profile) {
       setFlags(d.flags);
       setQaAttendance(d.qaAttendance);
       setDailyScores(d.dailyScores);
+      setProductivityHistory(d.productivityHistory);
       setTeamTargets(d.teamTargets);
       setAllProfiles(d.profList);
       setQaLeadSet(new Set(d.profList.filter(p => p.role === "qa_lead").map(p => p.email?.toLowerCase()).filter(Boolean)));
@@ -71,7 +73,7 @@ export function useQaProfileData(token, profile) {
       try {
         const curMonth = new Date().toISOString().slice(0, 7);
         const today = new Date().toISOString().split("T")[0];
-        const [r, m, s, ap, t, f, profs, att, ds, tgt] = await Promise.all([
+        const [r, m, s, ap, t, f, profs, att, ds, tgt, prodHist] = await Promise.all([
           listRoster({ token, select: "email,display_name,manager_email,queue,country,hiring_date", cacheKey: "qa_roster_full" }),
           listMtd({ token }),
           listCoachingSessions({ token, select: "id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass", filters: "order=session_date.desc" }),
@@ -82,6 +84,10 @@ export function useQaProfileData(token, profile) {
           sb.query("qa_attendance", { select: "email,date,status,planned_code", filters: `date=gte.${curMonth}-01&order=date.asc`, token }).catch(() => []),
           sb.query("daily_scores", { select: "*", filters: `date=eq.${today}`, token }).catch(() => []),
           listTeamTargets({ token }),
+          // Day-by-day productivity history (started May 2026). Used by
+          // the Monthly performance daily breakdown — replaces the old
+          // mtd_scores-based productivity numbers per Hossam 2026-05-06.
+          sb.query("productivity_history", { select: "date,qa_email,sbs,non_sbs,coaching_sessions,side_task_minutes", filters: "order=date.asc", token }).catch(() => []),
         ]);
         if (cancelled) return;
         const d = {
@@ -93,6 +99,7 @@ export function useQaProfileData(token, profile) {
           flags:        Array.isArray(f)   ? f   : [],
           qaAttendance: Array.isArray(att) ? att : [],
           dailyScores:  Array.isArray(ds)  ? ds  : [],
+          productivityHistory: Array.isArray(prodHist) ? prodHist : [],
           teamTargets:  Array.isArray(tgt) ? tgt : [],
           profList:     Array.isArray(profs) ? profs : [],
         };
@@ -165,7 +172,7 @@ export function useQaProfileData(token, profile) {
   }, [token]);
 
   return {
-    roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
+    roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, productivityHistory, teamTargets,
     loading, allQAs, qaLeadSet, refreshDailyScores, refreshMtd,
   };
 }
