@@ -379,8 +379,12 @@ function CoachingViolationsPage() {
         const suggestion = violationMap[reviewModal.violation_type] || null;
         const suggestedRule = suggestion ? damRules.find(r => r.name === suggestion.ruleName) : null;
 
-        return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflowY: "auto" }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
-        <div className="card" style={{ width: "100%", maxWidth: 560, margin: 20, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        // Overlay uses overflow: hidden + padding so the card is guaranteed
+        // to fit. The card itself caps height at (viewport - overlay padding)
+        // and lets only its body scroll, so header + action footer are always
+        // visible without scrolling the page.
+        return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflow: "hidden" }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
+        <div className="card" style={{ width: "100%", maxWidth: 560, maxHeight: "calc(100vh - 40px)", margin: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           <div className="card-header" style={{ flexShrink: 0 }}><span className="card-title">{reviewModal.status !== "pending" ? "Update Review" : "Review Violation"}</span></div>
 
           <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 4 }}>
