@@ -16,6 +16,28 @@ export default function CoachingHistory({ sessions, onDelete }) {
   const [expandedSession, setExpandedSession] = useState(null);
   const [historySearch, setHistorySearch] = useState("");
   const [historyFilterBy, setHistoryFilterBy] = useState("all");
+  // Click-to-sort state. Default: newest sessions first.
+  const [sortKey, setSortKey] = useState("date");
+  const [sortDir, setSortDir] = useState("desc");
+  const toggleSort = (key) => {
+    if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+    else { setSortKey(key); setSortDir(key === "date" ? "desc" : "asc"); }
+  };
+
+  // Performance rating order so "Outstanding" sorts above "Needs Attention"
+  // even though they're text values. Lower index = higher rating.
+  const PERF_ORDER = { "Outstanding": 0, "Exceeds Expectations": 1, "Meets Expectations": 2, "Improvement Needed": 3, "Below Expectations": 3, "Needs Attention": 4 };
+
+  // Per-column key extractors. Returned as comparable primitives so the
+  // generic sort below works for every column without bespoke logic.
+  const sortKeyFor = {
+    date:        s => s.session_date || "",
+    type:        s => (ENUM_TO_LABEL[s.meeting_type] || s.meeting_type || "").toLowerCase(),
+    member:      s => nameFromEmail(s.member_email).toLowerCase(),
+    sender:      s => nameFromEmail(s.sender_email).toLowerCase(),
+    performance: s => PERF_ORDER[s.performance_rating] ?? 99,
+    outcome:     s => (s.outcome || "").toLowerCase(),
+  };
 
   const isLeadOnly = hasRole(profile?.role, "qa_lead") && !hasRole(profile?.role, "qa_supervisor");
   const myEmail = profile?.email?.toLowerCase() || "";
@@ -31,7 +53,39 @@ export default function CoachingHistory({ sessions, onDelete }) {
     });
   };
 
-  const filtered = getScopedFiltered();
+  // Filter, then sort by the selected column. Sort is non-mutating so the
+  // upstream sessions array stays untouched.
+  const filtered = (() => {
+    const list = [...getScopedFiltered()];
+    const extractor = sortKeyFor[sortKey] || sortKeyFor.date;
+    list.sort((a, b) => {
+      const va = extractor(a), vb = extractor(b);
+      if (va < vb) return sortDir === "asc" ? -1 : 1;
+      if (va > vb) return sortDir === "asc" ? 1 : -1;
+      return 0;
+    });
+    return list;
+  })();
+
+  // Render a sortable column header. Clicking toggles asc/desc and shows
+  // an arrow on the active column so the order is obvious.
+  const SortableTh = ({ col, label, style }) => {
+    const active = sortKey === col;
+    return (
+      <th
+        onClick={() => toggleSort(col)}
+        style={{ cursor: "pointer", userSelect: "none", whiteSpace: "nowrap", ...(style || {}) }}
+        title={`Sort by ${label.toLowerCase()}`}
+      >
+        <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: active ? "var(--tabby-purple)" : undefined }}>
+          {label}
+          <span style={{ fontSize: 9, opacity: active ? 1 : 0.35 }}>
+            {active ? (sortDir === "asc" ? "▲" : "▼") : "▾"}
+          </span>
+        </span>
+      </th>
+    );
+  };
 
   return (<div className="card">
     {/* Search and filter bar */}
@@ -62,7 +116,16 @@ export default function CoachingHistory({ sessions, onDelete }) {
         />
     ) :
     <div className="table-wrap"><table>
-      <thead><tr><th>Date</th><th>Type</th><th>Member</th><th>Sent by</th><th>Performance</th><th>Outcome</th>{hasRole(profile?.role,"super_admin")&&<th></th>}<th style={{width:30}}></th></tr></thead>
+      <thead><tr>
+        <SortableTh col="date" label="Date" />
+        <SortableTh col="type" label="Type" />
+        <SortableTh col="member" label="Member" />
+        <SortableTh col="sender" label="Sent by" />
+        <SortableTh col="performance" label="Performance" />
+        <SortableTh col="outcome" label="Outcome" />
+        {hasRole(profile?.role,"super_admin")&&<th></th>}
+        <th style={{width:30}}></th>
+      </tr></thead>
       <tbody>
         {filtered.map(s => {
           const isExp=expandedSession===s.id;
