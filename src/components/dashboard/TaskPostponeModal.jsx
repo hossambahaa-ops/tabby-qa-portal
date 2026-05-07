@@ -1,4 +1,5 @@
 import React from "react";
+import Modal from "../Modal.jsx";
 
 // "Pick a new due date + reason" modal. State (postponeDate /
 // postponeReason) is owned by the parent so the existing postponeTask
@@ -12,12 +13,8 @@ export default function TaskPostponeModal({
 }) {
   if (!postponeModal) return null;
   return (
-    <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflowY: "auto" }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="card" style={{ width: "100%", maxWidth: 400, margin: 20, maxHeight: "85vh", overflowY: "auto" }}>
-        <div className="card-header"><span className="card-title">Postpone: {postponeModal.title}</span></div>
+    <Modal onClose={onClose} maxWidth={400}>
+      <div className="card-header" style={{ marginBottom: 16 }}><span className="card-title">Postpone: {postponeModal.title}</span></div>
         <div className="form-group" style={{ marginBottom: 12 }}>
           <label className="form-label">New due date *</label>
           <input
@@ -43,7 +40,6 @@ export default function TaskPostponeModal({
           <button className="btn btn-primary" onClick={onConfirm} disabled={!postponeDate}>Postpone</button>
           <button className="btn btn-outline" onClick={onClose}>Cancel</button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

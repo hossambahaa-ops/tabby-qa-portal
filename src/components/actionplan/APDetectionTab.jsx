@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { hasRole } from "../../lib/constants.js";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
+import Modal from "../Modal.jsx";
 
 export default function APDetectionTab({
   detections,
@@ -86,9 +87,8 @@ export default function APDetectionTab({
       )}
 
       {/* Dismiss reason modal for non-super-admins */}
-      {dismissModalAP && <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,overflowY:"auto"}} onClick={e=>{if(e.target===e.currentTarget){setDismissModalAP(null);setDismissReasonAP("");}}}>
-        <div className="card" style={{width:"100%",maxWidth:480,margin:20,maxHeight:"85vh",overflowY:"auto"}}>
-          <div className="card-header"><span className="card-title">Dismiss Detection — {nameFromEmail(dismissModalAP.email)}</span></div>
+      {dismissModalAP && <Modal onClose={()=>{setDismissModalAP(null);setDismissReasonAP("");}} maxWidth={480}>
+          <div className="card-header" style={{marginBottom:16}}><span className="card-title">Dismiss Detection — {nameFromEmail(dismissModalAP.email)}</span></div>
           <div style={{fontSize:13,color:"var(--tx2)",marginBottom:12}}>{dismissModalAP.reason}</div>
           <div className="form-group">
             <label className="form-label">Reason for dismissal (required — visible to your supervisor)</label>
@@ -101,8 +101,7 @@ export default function APDetectionTab({
             }}>Confirm dismissal</button>
             <button className="btn btn-outline" onClick={()=>{setDismissModalAP(null);setDismissReasonAP("");}}>Cancel</button>
           </div>
-        </div>
-      </div>}
+      </Modal>}
     </div>
   );
 }

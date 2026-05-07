@@ -2,6 +2,7 @@ import React from "react";
 import { Icon, icons } from "../Icons.jsx";
 import { priorityFor } from "../../lib/taskUI.js";
 import { nameFromEmail } from "../../lib/utils.js";
+import Modal from "../Modal.jsx";
 
 // Read-only-ish task detail card surfaced when the user clicks a task
 // in the calendar / list. Holds the standard CTA row (toggle done,
@@ -26,11 +27,7 @@ export default function TaskDetailModal({
   })();
 
   return (
-    <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflowY: "auto" }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="card" style={{ width: "100%", maxWidth: 440, margin: 20, maxHeight: "85vh", overflowY: "auto" }}>
+    <Modal onClose={onClose} maxWidth={440}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <span style={{ fontSize: 10, padding: "2px 10px", borderRadius: 8, background: pc.bg, color: pc.color, fontWeight: 700, textTransform: "uppercase" }}>{pc.label}</span>
@@ -61,7 +58,6 @@ export default function TaskDetailModal({
             <Icon d={icons.trash} size={14} />Delete
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

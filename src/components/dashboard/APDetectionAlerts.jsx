@@ -3,6 +3,7 @@ import { hasRole } from "../../lib/constants.js";
 import { sb } from "../../lib/supabase.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
+import Modal from "../Modal.jsx";
 
 function APDetectionAlerts({ apDetections, setApDetections, apDismissals, setApDismissals, months }){
   const { profile, token } = useApp();
@@ -49,9 +50,8 @@ function APDetectionAlerts({ apDetections, setApDetections, apDismissals, setApD
     </div>}
 
     {/* Dismiss Modal */}
-    {dismissModal&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:20,overflowY:"auto"}} onClick={e=>{if(e.target===e.currentTarget){setDismissModal(null);setDismissReason("");}}}>
-      <div className="card" style={{width:"100%",maxWidth:480,margin:20,maxHeight:"85vh",overflowY:"auto"}}>
-        <div className="card-header"><span className="card-title">Dismiss AP Detection — {dismissModal.name}</span></div>
+    {dismissModal&&<Modal onClose={()=>{setDismissModal(null);setDismissReason("");}} maxWidth={480}>
+        <div className="card-header" style={{marginBottom:16}}><span className="card-title">Dismiss AP Detection — {dismissModal.name}</span></div>
         <div style={{fontSize:13,color:"var(--tx2)",marginBottom:12}}>{dismissModal.reason} · Score: {dismissModal.score.toFixed(1)}/55</div>
         <div className="form-group">
           <label className="form-label">Reason for dismissal (required)</label>
@@ -74,8 +74,7 @@ function APDetectionAlerts({ apDetections, setApDetections, apDismissals, setApD
           }}>Confirm dismissal</button>
           <button className="btn btn-outline" onClick={()=>{setDismissModal(null);setDismissReason("");}}>Cancel</button>
         </div>
-      </div>
-    </div>}
+    </Modal>}
 
     {/* Supervisor: Recent dismissals by TLs */}
     {hasRole(profile?.role,"qa_supervisor")&&(()=>{

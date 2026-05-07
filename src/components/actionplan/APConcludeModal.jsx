@@ -1,4 +1,5 @@
 import React from "react";
+import Modal from "../Modal.jsx";
 
 export default function APConcludeModal({
   concludingPlan,
@@ -19,13 +20,10 @@ export default function APConcludeModal({
   const prog = getPlanProgress(concludingPlan);
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflowY: "auto",
-    }} onClick={(e) => { if (e.target === e.currentTarget) setConcludingPlan(null); }}>
-      <div className="card" style={{ width: "100%", maxWidth: 520, margin: 20, maxHeight: "85vh", overflowY: "auto" }}>
-        <div className="card-header">
-          <span className="card-title">Conclude {concludingPlan.type.toUpperCase()} — {nameFromEmail(concludingPlan.qa_email)}</span>
-        </div>
+    <Modal onClose={() => setConcludingPlan(null)} maxWidth={520}>
+      <div className="card-header" style={{ marginBottom: 16 }}>
+        <span className="card-title">Conclude {concludingPlan.type.toUpperCase()} — {nameFromEmail(concludingPlan.qa_email)}</span>
+      </div>
 
         {/* Auto-recommendation */}
         {rec && (
@@ -64,7 +62,6 @@ export default function APConcludeModal({
           </button>
           <button className="btn btn-outline" onClick={() => { setConcludingPlan(null); setConclusionOutcome(""); setConclusionNotes(""); }}>Cancel</button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

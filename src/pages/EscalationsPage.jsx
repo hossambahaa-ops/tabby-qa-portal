@@ -10,6 +10,7 @@ import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import Modal from "../components/Modal.jsx";
 
 const ESCALATION_CATEGORIES = [
   "Unfair treatment",
@@ -425,9 +426,8 @@ function EscalationsPage() {
       })()}
 
       {/* View/Respond Modal */}
-      {viewEsc && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflowY: "auto" }} onClick={e => { if (e.target === e.currentTarget) setViewEsc(null); }}>
-        <div className="card" style={{ width: "100%", maxWidth: 600, margin: 20, maxHeight: "80vh", overflow: "auto" }}>
-          <div className="card-header">
+      {viewEsc && <Modal onClose={() => setViewEsc(null)} maxWidth={600}>
+          <div className="card-header" style={{ marginBottom: 16 }}>
             <span className="card-title">Escalation Details</span>
             <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, fontWeight: 600, ...statusColor(viewEsc.status) }}>{viewEsc.status.replace("_", " ")}</span>
           </div>
@@ -515,8 +515,7 @@ function EscalationsPage() {
           <div style={{ marginTop: 16 }}>
             <button className="btn btn-outline" onClick={() => setViewEsc(null)}>Close</button>
           </div>
-        </div>
-      </div>}
+      </Modal>}
 
       {confirmEl}
     </div>
