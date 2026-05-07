@@ -81,21 +81,37 @@ export const SIG_TITLE_BY_ROLE = {
   super_admin: "QA Lead",
 };
 
-// Resolve the supervisor for a QA. Primary source: the `teams` table,
-// which has supervisor_id explicitly. Fallback: walk roster (QA →
-// manager_email → manager_email) when the team lookup misses.
+// Resolve the supervisor for a recipient. Lookup order:
+//   1. leadSvMap[recipient_email] — recipient is a lead, return their SV
+//   2. roster.queue + recipient.domain → teamSvMap — recipient is a QA
+//   3. walk QA → manager_email → that lead's SV via leadSvMap
+//   4. last-resort: walk roster (QA → manager_email → manager_email)
 //
-// `teamSvMap` is keyed `<queue>|<domain>` → supervisor email.
-export const findSv = (toEmail, roster, teamSvMap) => {
+// teamSvMap is keyed `<queue>|<domain>` → supervisor email.
+// leadSvMap is keyed `<lead_email>` → supervisor email.
+export const findSv = (toEmail, roster, teamSvMap, leadSvMap) => {
   if (!toEmail) return null;
   const lower = toEmail.toLowerCase();
+  const tMap = teamSvMap || {};
+  const lMap = leadSvMap || {};
+
+  // Recipient is themselves a lead.
+  if (lMap[lower]) return lMap[lower];
+
   const qa = roster.find(r => (r.email || "").toLowerCase() === lower);
+
+  // Recipient is a QA — find their team's SV via queue + domain.
   if (qa?.queue) {
     const domain = lower.split("@")[1] || "";
-    const sv = teamSvMap[`${qa.queue}|${domain}`];
+    const sv = tMap[`${qa.queue}|${domain}`];
     if (sv) return sv;
   }
+
+  // Recipient is a QA whose lead we know — bounce through leadSvMap.
   const lead = qa?.manager_email?.toLowerCase();
+  if (lead && lMap[lead]) return lMap[lead];
+
+  // Last-resort fallback: walk the roster manager chain.
   if (lead) {
     return roster.find(r => (r.email || "").toLowerCase() === lead)?.manager_email?.toLowerCase() || null;
   }
@@ -104,10 +120,10 @@ export const findSv = (toEmail, roster, teamSvMap) => {
 
 // CC line for an outgoing coaching email: SV (resolved via findSv) +
 // Amanda. Sender is excluded from CC.
-export const buildAutoCc = (toEmail, roster, senderEmail, teamSvMap) => {
+export const buildAutoCc = (toEmail, roster, senderEmail, teamSvMap, leadSvMap) => {
   if (!toEmail) return "";
   const sender = (senderEmail || "").toLowerCase();
-  const sv = findSv(toEmail, roster, teamSvMap || {});
+  const sv = findSv(toEmail, roster, teamSvMap || {}, leadSvMap || {});
   const out = new Set();
   if (sv && sv !== sender) out.add(sv);
   if (AMANDA_EMAIL !== sender) out.add(AMANDA_EMAIL);

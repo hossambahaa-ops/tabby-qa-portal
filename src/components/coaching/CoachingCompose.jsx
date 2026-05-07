@@ -31,20 +31,54 @@ export default function CoachingCompose({ roster, pickerCandidates, sessions, pl
   // the SV (lead's manager_email may not point to the SV's tabby email),
   // so we load the teams table which has supervisor_id explicitly.
   // Keyed `<queue>|<domain>` → supervisor email.
+  //
+  // Implementation: two simple queries instead of a PostgREST embed
+  // (`sup:profiles!fk_teams_supervisor(email)`). The embed silently
+  // returned null sup objects in some sessions, which left teamSvMap
+  // empty and made auto-CC fall back to Amanda only. Two-query + JS
+  // join is bulletproof.
   const [teamSvMap, setTeamSvMap] = useState({});
+  // leadSvMap maps a lead's email -> their supervisor's email. Lets the CC
+  // resolver work when the picker recipient is a lead, not a QA.
+  const [leadSvMap, setLeadSvMap] = useState({});
   useEffect(() => {
     if (!token) return;
-    sb.query("teams", {
-      token,
-      select: "name,domain,sup:profiles!fk_teams_supervisor(email)",
-    }).then(rows => {
-      const m = {};
-      (rows || []).forEach(t => {
-        const sv = t.sup?.email?.toLowerCase();
-        if (t.name && t.domain && sv) m[`${t.name}|${t.domain}`] = sv;
-      });
-      setTeamSvMap(m);
-    }).catch(() => {});
+    (async () => {
+      try {
+        const teams = await sb.query("teams", {
+          token,
+          select: "name,domain,lead_id,supervisor_id",
+        });
+        const teamRows = Array.isArray(teams) ? teams : [];
+        const ids = [...new Set([
+          ...teamRows.map(t => t.supervisor_id).filter(Boolean),
+          ...teamRows.map(t => t.lead_id).filter(Boolean),
+        ])];
+        if (ids.length === 0) { setTeamSvMap({}); setLeadSvMap({}); return; }
+        const profs = await sb.query("profiles", {
+          token,
+          select: "id,email",
+          filters: `id=in.(${ids.join(",")})`,
+        });
+        const emailById = new Map();
+        for (const p of (Array.isArray(profs) ? profs : [])) {
+          if (p.id && p.email) emailById.set(p.id, p.email.toLowerCase());
+        }
+        const tMap = {};
+        const lMap = {};
+        for (const t of teamRows) {
+          const sv = emailById.get(t.supervisor_id);
+          const ld = emailById.get(t.lead_id);
+          if (t.name && t.domain && sv) tMap[`${t.name}|${t.domain}`] = sv;
+          if (ld && sv) lMap[ld] = sv;
+        }
+        setTeamSvMap(tMap);
+        setLeadSvMap(lMap);
+      } catch {
+        setTeamSvMap({});
+        setLeadSvMap({});
+      }
+    })();
   }, [token]);
 
   // Form state
@@ -274,10 +308,10 @@ export default function CoachingCompose({ roster, pickerCandidates, sessions, pl
     if (ccUserEditedRef.current) return;
     const recipient = (toEmail || "").split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)[0] || "";
     if (!recipient) return;
-    const next = buildAutoCc(recipient, candidates, profile?.email, teamSvMap);
+    const next = buildAutoCc(recipient, candidates, profile?.email, teamSvMap, leadSvMap);
     setCcEmail(next || "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toEmail, candidates, profile?.email, teamSvMap, hydrated]);
+  }, [toEmail, candidates, profile?.email, teamSvMap, leadSvMap, hydrated]);
 
   // AP/PIP Integration: detect active plans for selected member
   const memberPlans = plans.filter(p => p.qa_email?.toLowerCase() === toEmail.toLowerCase());
@@ -468,7 +502,7 @@ export default function CoachingCompose({ roster, pickerCandidates, sessions, pl
                 const matches = candidates.filter(r => (r.email||"").toLowerCase().includes(q) || (r.display_name||"").toLowerCase().includes(q)).slice(0, 8);
                 if (!matches.length) return null;
                 return <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:"0 0 var(--radius) var(--radius)",boxShadow:"var(--shadow-lg)",maxHeight:200,overflowY:"auto"}}>
-                  {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email); ccUserEditedRef.current = false; setCcEmail(buildAutoCc(r.email, candidates, profile?.email, teamSvMap));}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email); ccUserEditedRef.current = false; setCcEmail(buildAutoCc(r.email, candidates, profile?.email, teamSvMap, leadSvMap));}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <span style={{fontWeight:500}}>{r.email}</span>
                     <span style={{color:"var(--tx3)",fontSize:11}}>{r.display_name || nameFromEmail(r.email)}</span>
                   </div>)}
