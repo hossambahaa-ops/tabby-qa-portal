@@ -13,12 +13,17 @@ import {
   PERF_OPTIONS,
   PERF_MESSAGES,
   TEMPLATES,
+  SIG_TITLE_BY_ROLE,
   buildAutoCc,
   AMANDA_EMAIL,
 } from "../../lib/coachingTemplates.js";
 import { buildCoachingEmailBody, fmtCoachingDate } from "../../lib/coachingEmail.js";
 
-export default function CoachingCompose({ roster, sessions, plans, planWeeks, gmailAuthorized, setGmailAuthorized, gmailChecking, connectGmail, callGmailFn, loadSessions }) {
+export default function CoachingCompose({ roster, pickerCandidates, sessions, plans, planWeeks, gmailAuthorized, setGmailAuthorized, gmailChecking, connectGmail, callGmailFn, loadSessions }) {
+  // Recipient picker pulls from the unified candidates list (roster + leads
+  // + supervisors + manager + HOD + admins) so MPRs can address anyone, not
+  // just QAs. Falls back to roster when the parent didn't supply candidates.
+  const candidates = (pickerCandidates && pickerCandidates.length > 0) ? pickerCandidates : roster;
   const { token, profile, globalToast } = useApp();
 
   // Team → supervisor lookup. Walking only the qa_roster sometimes misses
@@ -52,8 +57,18 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
   const [goals, setGoals] = useState("");
   const [actions, setActions] = useState("");
   const [perfRating, setPerfRating] = useState("");
+  // Signature seeded silently from the logged-in profile. Title comes from
+  // role; user no longer types either of these but they stay in state in
+  // case a future "override signature" UI needs to flip them.
   const [sigName, setSigName] = useState(profile?.display_name || "");
-  const [sigTitle, setSigTitle] = useState("QA Lead");
+  const [sigTitle, setSigTitle] = useState(SIG_TITLE_BY_ROLE[profile?.role] || "QA Lead");
+  // Keep signature in sync with profile changes (e.g. when profile loads
+  // after the component mounts).
+  useEffect(() => {
+    if (profile?.display_name) setSigName(prev => prev || profile.display_name);
+    if (profile?.role) setSigTitle(prev => prev || SIG_TITLE_BY_ROLE[profile.role] || prev);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.display_name, profile?.role]);
   const [targetRows, setTargetRows] = useState([{metric:"",start:"",w1:"",w2:"",w3:"",w4:"",a1:"",a2:"",a3:"",a4:""}]);
   const [outcome, setOutcome] = useState("");
   const [nextSteps, setNextSteps] = useState("");
@@ -145,17 +160,18 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
   }, [hydrated, myEmail, draftKey, toEmail, ccEmail, sessionDate, meetingType, topics, strengths, weaknesses, goals, actions, perfRating, sigName, sigTitle, targetRows, outcome, nextSteps]);
 
   // Reset form to defaults — used after send + by the manual Clear button.
+  // No more template prefill: content boxes start empty.
   const resetFormToDefaults = () => {
     setToEmail("");
     setCcEmail("");
+    ccUserEditedRef.current = false;
     setSessionDate(new Date().toISOString().split("T")[0]);
     setMeetingType("1:1 Meeting");
-    const t = TEMPLATES["1:1 Meeting"];
-    setTopics(t?.topics || "");
-    setStrengths(t?.strengths || "");
-    setWeaknesses(t?.weaknesses || "");
-    setGoals(t?.goals || "");
-    setActions(t?.actions || "");
+    setTopics("");
+    setStrengths("");
+    setWeaknesses("");
+    setGoals("");
+    setActions("");
     setPerfRating("");
     setOutcome("");
     setNextSteps("");
@@ -247,6 +263,21 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
   const memberHistory = sessions.filter(s => s.member_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
   const ENUM_TO_LABEL = {"weekly_1on1":"1:1 Meeting","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
 
+  // CC auto-fill: whenever the recipient changes (typed or picked), rebuild
+  // CC from supervisor + Amanda, dropping whoever the sender is. The user
+  // can still edit CC after — but they no longer have to manually type
+  // anything for the common case.
+  const ccUserEditedRef = useRef(false);
+  useEffect(() => {
+    if (!hydrated) return;
+    if (ccUserEditedRef.current) return;
+    const recipient = (toEmail || "").split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)[0] || "";
+    if (!recipient) return;
+    const next = buildAutoCc(recipient, candidates, profile?.email, teamSvMap);
+    setCcEmail(next || "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toEmail, candidates, profile?.email, teamSvMap, hydrated]);
+
   // AP/PIP Integration: detect active plans for selected member
   const memberPlans = plans.filter(p => p.qa_email?.toLowerCase() === toEmail.toLowerCase());
   const memberActivePlan = memberPlans.find(p => meetingType === "PIP Review" ? p.type === "pip" : p.type === "ap") || memberPlans[0];
@@ -265,24 +296,9 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
     if (!forceType) globalToast("success", "Template applied");
   };
 
-  // Auto-apply template when meeting type changes and fields are empty.
-  // Gated on `hydrated` so we never run before the restore effect — if
-  // we did, the body would briefly hold template defaults, the auto-
-  // save would persist them, and the user's typed body would be wiped.
-  useEffect(() => {
-    if (!hydrated) return;
-    if (!topics && !strengths && !weaknesses && !goals && !actions) {
-      const t = TEMPLATES[meetingType];
-      if (t) {
-        setTopics(t.topics || "");
-        setStrengths(t.strengths || "");
-        setWeaknesses(t.weaknesses || "");
-        setGoals(t.goals || "");
-        setActions(t.actions || "");
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meetingType, hydrated]);
+  // Pre-fill templates were removed per Amanda 2026-05-07. The auto-apply
+  // effect that used to populate topics/strengths/etc on meeting-type change
+  // is gone too — content fields stay empty until the user types.
 
   // Target row helpers
   const addTargetRow = () => setTargetRows([...targetRows, {metric:"",start:"",w1:"",w2:"",w3:"",w4:"",a1:"",a2:"",a3:"",a4:""}]);
@@ -436,27 +452,22 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
       {/* LEFT — Form */}
       <div style={{display:"flex",flexDirection:"column",gap:16}}>
 
-        {/* Signature block */}
-        <div className="card">
-          <div className="card-header"><span className="card-title">Your signature</span></div>
-          <div className="form-grid">
-            <div className="form-group"><label className="form-label">Full name</label><input className="form-input" value={sigName} onChange={e=>setSigName(e.target.value)}/></div>
-            <div className="form-group"><label className="form-label">Title</label><input className="form-input" value={sigTitle} onChange={e=>setSigTitle(e.target.value)}/></div>
-          </div>
-        </div>
+        {/* Signature block was removed per Amanda 2026-05-07. The signature
+            now auto-fills from the logged-in profile (display_name + role),
+            shown read-only in the email preview. */}
 
         {/* Session details */}
         <div className="card">
           <div className="card-header"><span className="card-title">Session details</span></div>
           <div className="form-grid">
-            <div className="form-group" style={{position:"relative"}}><label className="form-label">Team member email (To)</label>
-              <input className="form-input" value={toEmail} onChange={e=>{setToEmail(e.target.value);}} placeholder="Type name or email..." autoComplete="off"/>
-              {toEmail && !roster.find(r=>r.email===toEmail) && (() => {
+            <div className="form-group" style={{position:"relative"}}><label className="form-label">Member</label>
+              <input className="form-input" value={toEmail} onChange={e=>{setToEmail(e.target.value); ccUserEditedRef.current = false;}} placeholder="Type name or email..." autoComplete="off"/>
+              {toEmail && !candidates.find(r=>r.email===toEmail) && (() => {
                 const q = toEmail.toLowerCase();
-                const matches = roster.filter(r => (r.email||"").toLowerCase().includes(q) || (r.display_name||"").toLowerCase().includes(q)).slice(0, 8);
+                const matches = candidates.filter(r => (r.email||"").toLowerCase().includes(q) || (r.display_name||"").toLowerCase().includes(q)).slice(0, 8);
                 if (!matches.length) return null;
                 return <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:"0 0 var(--radius) var(--radius)",boxShadow:"var(--shadow-lg)",maxHeight:200,overflowY:"auto"}}>
-                  {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email);setCcEmail(buildAutoCc(r.email, roster, profile?.email, teamSvMap));}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email); ccUserEditedRef.current = false; setCcEmail(buildAutoCc(r.email, candidates, profile?.email, teamSvMap));}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <span style={{fontWeight:500}}>{r.email}</span>
                     <span style={{color:"var(--tx3)",fontSize:11}}>{r.display_name || nameFromEmail(r.email)}</span>
                   </div>)}
@@ -464,9 +475,7 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
               })()}
             </div>
             <div className="form-group"><label className="form-label">CC (Supervisor + Amanda)</label>
-              {toEmail && roster.find(r=>r.email===toEmail) ? (
-                <input className="form-input" value={ccEmail || buildAutoCc(toEmail, roster, profile?.email, teamSvMap)} onChange={e=>setCcEmail(e.target.value)} onFocus={()=>{if(!ccEmail){const ac=buildAutoCc(toEmail, roster, profile?.email, teamSvMap);if(ac)setCcEmail(ac);}}}/>
-              ) : <input className="form-input" value={ccEmail} onChange={e=>setCcEmail(e.target.value)} placeholder={`supervisor@tabby.ai, ${AMANDA_EMAIL}`}/>}
+              <input className="form-input" value={ccEmail} onChange={e=>{setCcEmail(e.target.value); ccUserEditedRef.current = true;}} placeholder={`supervisor@tabby.ai, ${AMANDA_EMAIL}`}/>
             </div>
             <div className="form-group"><label className="form-label">Session date</label><input type="date" className="form-input" value={sessionDate} onChange={e=>setSessionDate(e.target.value)}/></div>
             <div className="form-group"><label className="form-label">Meeting type</label>
@@ -512,11 +521,8 @@ export default function CoachingCompose({ roster, sessions, plans, planWeeks, gm
           })}
         </div>}
 
-        {/* Template bar */}
-        {TEMPLATES[meetingType] && <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"10px 14px",background:"var(--accent-light)",borderRadius:8,fontSize:13}}>
-          <span style={{color:"var(--accent-text)",fontWeight:500}}>Template available for {meetingType}</span>
-          <button className="btn btn-outline btn-sm" onClick={applyTemplate}>Apply template</button>
-        </div>}
+        {/* Template bar removed (Amanda 2026-05-07) — fields stay empty
+            until the user types. */}
 
         {/* Content fields */}
         <div className="card">

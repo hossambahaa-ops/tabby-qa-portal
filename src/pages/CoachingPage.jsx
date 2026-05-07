@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { listRoster } from "../api/roster.js";
+import { listProfiles } from "../api/profiles.js";
 import { listCoachingSessions } from "../api/coachingSessions.js";
 import { listPlans, listPlanWeeks } from "../api/plans.js";
 import { useConfirm } from "../lib/hooks.jsx";
@@ -20,6 +21,10 @@ function CoachingPage() {
   const [roster, setRoster] = useState([]);
   const [activePlans, setActivePlans] = useState([]);
   const [planWeeks, setPlanWeeks] = useState([]);
+  // pickerCandidates = roster + non-QA roles (leads, supervisors, manager,
+  // HOD/Rija, admins). The compose form picks recipients from this combined
+  // list so MPR emails can address leads/supervisors directly, not just QAs.
+  const [pickerCandidates, setPickerCandidates] = useState([]);
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   // Gmail OAuth state
@@ -103,11 +108,12 @@ function CoachingPage() {
     if (!token) return;
     (async () => {
       try {
-        const [r, s, ap, apw] = await Promise.all([
+        const [r, s, ap, apw, profs] = await Promise.all([
           listRoster({ token }),
           listCoachingSessions({ token }),
           listPlans({ token, filters: "status=eq.active" }),
           listPlanWeeks({ token }),
+          listProfiles({ token, select: "email,display_name,role", filters: "" }).catch(() => []),
         ]);
         const sessionsArr = Array.isArray(s) ? s : [];
         const rosterArr = Array.isArray(r) ? r : [];
@@ -125,6 +131,24 @@ function CoachingPage() {
         setSessions(filteredSessions);
         setActivePlans(filteredPlans);
         setPlanWeeks(apw);
+
+        // Merge non-QA profiles into the recipient picker so the compose
+        // form can address leads, supervisors, the QA manager, the HOD,
+        // and admins. Roster entries take precedence (we want their queue
+        // / manager_email metadata for CC resolution).
+        const nonQaRoles = new Set(["qa_lead", "qa_supervisor", "manager", "hod", "admin", "super_admin"]);
+        const merged = new Map();
+        for (const r of filteredRoster) {
+          const e = (r.email || "").toLowerCase();
+          if (e) merged.set(e, r);
+        }
+        for (const p of (Array.isArray(profs) ? profs : [])) {
+          const e = (p.email || "").toLowerCase();
+          if (!e || merged.has(e)) continue;
+          if (!nonQaRoles.has(p.role)) continue;
+          merged.set(e, { email: p.email, display_name: p.display_name, role: p.role });
+        }
+        setPickerCandidates([...merged.values()]);
       } catch (e) { console.error("Coaching load:", e); }
     })();
   }, [token]);
@@ -164,6 +188,7 @@ function CoachingPage() {
 
       {tab==="compose" && <CoachingCompose
         roster={roster}
+        pickerCandidates={pickerCandidates}
         sessions={sessions}
         plans={activePlans}
         planWeeks={planWeeks}

@@ -85,7 +85,7 @@ export function buildCoachingEmailBody(params) {
       "Outstanding": "background:#C5F5C5;color:#1A3D2B;",
       "Exceeds Expectations": "background:#A0E8A0;color:#1A3D2B;",
       "Meets Expectations": "background:#E8F5E8;color:#2A5A2A;",
-      "Below Expectations": "background:#FEF9F0;color:#854F0B;",
+      "Improvement Needed": "background:#FEF9F0;color:#854F0B;",
       "Needs Attention": "background:#FCEBEB;color:#A32D2D;",
     };
     html += mkSection("Overall Performance Rating", `<p style="margin:8px 0 6px;"><span style="${pillStyles[perfRating] || ""}padding:4px 16px;border-radius:20px;font-weight:700;font-size:13px;">${perfRating}</span></p><p style="margin:0 0 4px;">${PERF_MESSAGES[perfRating] || ""}</p>`);

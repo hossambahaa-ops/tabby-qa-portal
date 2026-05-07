@@ -30,7 +30,7 @@ export const AMANDA_EMAIL = "amanda.souza@tabby.ai";
 
 export const PERF_OPTIONS = [
   { val: "Needs Attention",       emoji: "⚠️",  bg: "var(--red-bg)",     color: "var(--red)" },
-  { val: "Below Expectations",    emoji: "📉",  bg: "var(--amber-bg)",   color: "var(--amber)" },
+  { val: "Improvement Needed",    emoji: "📉",  bg: "var(--amber-bg)",   color: "var(--amber)" },
   { val: "Meets Expectations",    emoji: "✅",  bg: "var(--green-bg)",   color: "var(--green)" },
   { val: "Exceeds Expectations",  emoji: "⭐",  bg: "var(--accent-light)", color: "var(--accent-text)" },
   { val: "Outstanding",           emoji: "🏆",  bg: "var(--accent-light)", color: "var(--accent-text)" },
@@ -40,9 +40,18 @@ export const PERF_MESSAGES = {
   "Outstanding": "Your dedication and quality of work have set a commendable standard for the team. This level of performance is highly valued and acknowledged.",
   "Exceeds Expectations": "You have consistently gone beyond the required scope of your responsibilities, demonstrating strong professional commitment.",
   "Meets Expectations": "You are fulfilling your responsibilities in a satisfactory manner and are encouraged to continue building on this foundation.",
-  "Below Expectations": "There are areas that require immediate attention and improvement. I am confident in your ability to address these with focus and commitment.",
+  "Improvement Needed": "There are areas that would benefit from focused attention. I'm confident you can address these with continued effort and the right support.",
   "Needs Attention": "I would like us to work closely together to identify the root causes and establish a clear action plan.",
 };
+
+// Map historical rating strings to their current label so old coaching rows
+// still aggregate under the new value. Add to this map any time we rename
+// a rating going forward.
+export const PERF_LEGACY_REMAP = {
+  "Below Expectations": "Improvement Needed",
+};
+export const normalizePerfRating = (val) =>
+  PERF_LEGACY_REMAP[val] || val;
 
 export const INTRO_MAP = {
   "1:1 Meeting": "This is a formal summary of our weekly 1:1 meeting.",
@@ -53,13 +62,23 @@ export const INTRO_MAP = {
   "PIP Review": "This is a formal summary of your Performance Improvement Plan (PIP) Review. Please review your weekly targets and progress carefully.",
 };
 
-export const TEMPLATES = {
-  "1:1 Meeting": { topics: "Weekly performance update\nTeam challenges and support needed\nCareer development discussion", strengths: "Consistent quality of work\nStrong communication with team members", weaknesses: "Time management on complex cases\nEscalation handling", goals: "Improve first response resolution rate\nComplete pending training module", actions: "Share weekly self-assessment by Thursday\nSchedule shadowing session with senior agent" },
-  "Coaching Session": { topics: "Calibration score review\nSpecific case analysis\nScoring accuracy discussion", strengths: "Improvement noted in handling complex cases\nGood alignment with quality standards", weaknesses: "Soft skills in resolution communication\nAttribute scoring consistency", goals: "Reach calibration alignment score above 85%\nReduce scoring deviation", actions: "Review 5 calibration cases before next session\nComplete RTR self-practice twice this week" },
-  "Weekly Check-in": { topics: "Weekly scorecard review\nCurrent challenges and blockers\nPriorities for the coming week", strengths: "Maintained consistent quality scores\nProactive communication", weaknesses: "Areas needing attention this week", goals: "Hit weekly targets across all KPIs", actions: "Focus on identified weak areas\nFlag any support needs by Wednesday" },
-  "Action Plan Review": { topics: "Weekly target progress review\nCalibration score performance\nRTR session completion\nQuality consistency", strengths: "Commitment to improvement plan\nAttendance and engagement in sessions", weaknesses: "Areas where targets were not fully met\nSpecific attribute scoring gaps", goals: "Achieve agreed weekly targets\nImprove calibration alignment score", actions: "Complete weekly RTR sessions as agreed\nAttend all calibration sessions\nSubmit weekly self-review" },
-  "PIP Review": { topics: "PIP target progress review\nDetailed performance metrics discussion\nSupport and resources assessment", strengths: "Positive steps taken during PIP period\nEngagement with coaching sessions", weaknesses: "Areas where PIP targets were not met\nRoot causes identified", goals: "Meet all PIP performance targets\nDemonstrate sustained improvement", actions: "Complete all agreed PIP actions\nMeet with HR for formal review\nSubmit weekly progress log" },
-  "MPR": { topics: "Overall performance review for the period\nKey achievements and highlights\nAreas requiring development", strengths: "Demonstrated ownership of quality metrics\nPositive attitude and team collaboration", weaknesses: "Consistency across all ticket categories\nDocumentation quality", goals: "Achieve target KPI scores for next quarter\nComplete mandatory compliance training", actions: "Submit self-appraisal form by end of week\nAgree on development plan for next period" },
+// Pre-fill templates removed per Amanda 2026-05-07. The structure is kept
+// (intentionally empty) so any leftover "Apply template" code paths fall
+// through to no-ops without runtime errors.
+export const TEMPLATES = {};
+
+// Map a profile.role to a human-readable signature title. Used to seed the
+// signature line automatically from the logged-in user instead of asking
+// them to type it every time.
+export const SIG_TITLE_BY_ROLE = {
+  qa: "Quality Specialist",
+  senior_qa: "Senior Quality Specialist",
+  qa_lead: "QA Lead",
+  qa_supervisor: "QA Supervisor",
+  manager: "Quality Manager",
+  hod: "Head of Quality",
+  admin: "QA Lead",
+  super_admin: "QA Lead",
 };
 
 // Resolve the supervisor for a QA. Primary source: the `teams` table,
