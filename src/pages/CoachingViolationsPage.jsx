@@ -380,8 +380,10 @@ function CoachingViolationsPage() {
         const suggestedRule = suggestion ? damRules.find(r => r.name === suggestion.ruleName) : null;
 
         return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflowY: "auto" }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
-        <div className="card" style={{ width: "100%", maxWidth: 560, margin: 20, maxHeight: "85vh", overflowY: "auto" }}>
-          <div className="card-header"><span className="card-title">{reviewModal.status !== "pending" ? "Update Review" : "Review Violation"}</span></div>
+        <div className="card" style={{ width: "100%", maxWidth: 560, margin: 20, maxHeight: "85vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          <div className="card-header" style={{ flexShrink: 0 }}><span className="card-title">{reviewModal.status !== "pending" ? "Update Review" : "Review Violation"}</span></div>
+
+          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 4 }}>
 
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13 }}>
@@ -435,7 +437,9 @@ function CoachingViolationsPage() {
             {!reviewNotes.trim() && reviewStatus && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>Notes are required</div>}
           </div>
 
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center", borderTop: "1px solid var(--border)", paddingTop: 12, marginTop: 12, flexShrink: 0 }}>
             <button className="btn btn-primary" onClick={submitReview} disabled={!reviewStatus || !reviewNotes.trim() || (reviewStatus === "valid" && !selDamRule)}>
               {reviewModal.status !== "pending" ? "Update" : "Confirm"}
             </button>
