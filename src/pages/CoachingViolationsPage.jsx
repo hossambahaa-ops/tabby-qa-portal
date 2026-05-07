@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { hasRole } from "../lib/constants.js";
 import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
@@ -379,14 +380,15 @@ function CoachingViolationsPage() {
         const suggestion = violationMap[reviewModal.violation_type] || null;
         const suggestedRule = suggestion ? damRules.find(r => r.name === suggestion.ruleName) : null;
 
-        // Overlay flex-centers the card. The card is hard-capped at
-        // calc(100vh - 40px) with overflow:hidden so it can't grow taller
-        // than the viewport — that's what kept flex centering breaking on
-        // the previous attempt. No transform-based centering on the card
-        // because the .card class already animates transform on mount, and
-        // combining the two pushed the modal off-centre on shorter screens.
-        return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflow: "hidden" }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
-        <div className="card" style={{ width: "100%", maxWidth: 560, maxHeight: "calc(100vh - 40px)", margin: 0, padding: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxSizing: "border-box" }}>
+        // Rendered via React portal to document.body so no parent transform,
+        // animation, or filter can shift the centring. The wrapper drops the
+        // .card class on purpose — that class adds a mount animation
+        // (cardSlideUp) whose transform was fighting our positioning. Custom
+        // inline styles, box-sizing border-box, hard maxHeight cap; only the
+        // body scrolls.
+        return createPortal(
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000, padding: 20, overflow: "hidden", boxSizing: "border-box" }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
+        <div style={{ width: "100%", maxWidth: 560, maxHeight: "calc(100vh - 40px)", margin: 0, padding: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxSizing: "border-box", background: "var(--bg3)", border: "1px solid var(--bd2)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg, 0 10px 30px rgba(0,0,0,.3))", color: "var(--tx)" }}>
           <div className="card-header" style={{ flexShrink: 0 }}><span className="card-title">{reviewModal.status !== "pending" ? "Update Review" : "Review Violation"}</span></div>
 
           <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 4 }}>
@@ -465,7 +467,8 @@ function CoachingViolationsPage() {
             </button>}
           </div>
         </div>
-      </div>;
+      </div>,
+      document.body);
       })()}
 
       {confirmEl}
