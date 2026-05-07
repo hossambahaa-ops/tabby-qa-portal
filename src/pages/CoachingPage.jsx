@@ -132,11 +132,13 @@ function CoachingPage() {
         setActivePlans(filteredPlans);
         setPlanWeeks(apw);
 
-        // Merge non-QA profiles into the recipient picker so the compose
-        // form can address leads, supervisors, the QA manager, the HOD,
-        // and admins. Roster entries take precedence (we want their queue
-        // / manager_email metadata for CC resolution).
-        const nonQaRoles = new Set(["qa_lead", "qa_supervisor", "manager", "hod", "admin", "super_admin"]);
+        // Merge profiles into the recipient picker so the compose form
+        // can address anyone with a portal account — leads, supervisors,
+        // senior QAs, manager, HOD, auditor (Rija), admins. Roster entries
+        // take precedence so QA queue / manager_email metadata (used by
+        // CC resolution) is preserved. Plain "qa" rows from profiles are
+        // skipped because they're already in the roster; everything else
+        // is added. Adding new roles in the future is now zero-config.
         const merged = new Map();
         for (const r of filteredRoster) {
           const e = (r.email || "").toLowerCase();
@@ -145,7 +147,7 @@ function CoachingPage() {
         for (const p of (Array.isArray(profs) ? profs : [])) {
           const e = (p.email || "").toLowerCase();
           if (!e || merged.has(e)) continue;
-          if (!nonQaRoles.has(p.role)) continue;
+          if (p.role === "qa") continue;
           merged.set(e, { email: p.email, display_name: p.display_name, role: p.role });
         }
         setPickerCandidates([...merged.values()]);
