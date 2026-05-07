@@ -5,6 +5,7 @@ import { safeError, logActivity } from "../../lib/utils.js";
 import { listPlans } from "../../api/plans.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
+import RichTextField from "./RichTextField.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import {
   MEETING_TYPES,
@@ -524,14 +525,15 @@ export default function CoachingCompose({ roster, pickerCandidates, sessions, pl
         {/* Template bar removed (Amanda 2026-05-07) — fields stay empty
             until the user types. */}
 
-        {/* Content fields */}
+        {/* Content fields — light rich-text editors with bold / italic /
+            bullets / link. HTML is sanitized on every keystroke before
+            it leaves the editor. */}
         <div className="card">
           <div className="card-header"><span className="card-title">Session content</span></div>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {[["topics","Topics discussed",topics,setTopics],["strengths","Strengths observed",strengths,setStrengths],["weaknesses","Areas for improvement",weaknesses,setWeaknesses],["goals","Goals & progress update",goals,setGoals],["actions","Action items / next steps",actions,setActions]].map(([id,label,val,setter]) => (
               <div className="form-group" key={id}><label className="form-label">{label}</label>
-                <textarea className="form-input" rows={3} value={val} onChange={e=>setter(e.target.value)} placeholder="One point per line" style={{resize:"vertical"}}/>
-                <div style={{fontSize:10,color:val.length>1800?"var(--red)":"var(--tx3)",textAlign:"right"}}>{val.length} / 2000</div>
+                <RichTextField value={val} onChange={setter} placeholder="Type your notes — use the toolbar for bold, italic, bullets, or links" maxChars={2000} />
               </div>
             ))}
           </div>
@@ -629,7 +631,7 @@ export default function CoachingCompose({ roster, pickerCandidates, sessions, pl
             </div>
             {outcome==="fail" && <div className="form-group" style={{marginTop:8}}>
               <label className="form-label">Agreed next steps / consequence</label>
-              <textarea className="form-input" rows={2} value={nextSteps} onChange={e=>setNextSteps(e.target.value)} placeholder="Describe the formal next steps..." style={{resize:"vertical"}}/>
+              <RichTextField value={nextSteps} onChange={setNextSteps} placeholder="Describe the formal next steps..." maxChars={2000} />
               <div style={{marginTop:8,padding:"8px 12px",background:"var(--red-bg)",borderRadius:6,fontSize:12,color:"var(--red)",fontWeight:500}}>Please add HR to the CC field before sending.</div>
             </div>}
           </div>
