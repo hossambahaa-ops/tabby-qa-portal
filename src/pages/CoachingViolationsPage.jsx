@@ -379,12 +379,13 @@ function CoachingViolationsPage() {
         const suggestion = violationMap[reviewModal.violation_type] || null;
         const suggestedRule = suggestion ? damRules.find(r => r.name === suggestion.ruleName) : null;
 
-        // Overlay uses overflow: hidden + padding so the card is guaranteed
-        // to fit. The card itself caps height at (viewport - overlay padding)
-        // and lets only its body scroll, so header + action footer are always
-        // visible without scrolling the page.
-        return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 20, overflow: "hidden" }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
-        <div className="card" style={{ width: "100%", maxWidth: 560, maxHeight: "calc(100vh - 40px)", margin: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        // Overlay is just a plain dim layer. The card is absolutely positioned
+        // at viewport center via top/left/transform so flex-centering quirks
+        // (where a too-tall flex child has its top pushed off-screen) can't
+        // happen. Card is hard-capped at calc(100vh - 40px); only its body
+        // scrolls, so header and action footer stay visible always.
+        return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
+        <div className="card" style={{ position: "fixed", top: "50%", left: "50%", transform: "translate(-50%, -50%)", width: "min(560px, calc(100vw - 40px))", maxHeight: "calc(100vh - 40px)", margin: 0, padding: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxSizing: "border-box" }}>
           <div className="card-header" style={{ flexShrink: 0 }}><span className="card-title">{reviewModal.status !== "pending" ? "Update Review" : "Review Violation"}</span></div>
 
           <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 4 }}>
