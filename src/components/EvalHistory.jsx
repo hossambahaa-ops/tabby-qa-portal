@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { sb } from "../lib/supabase.js";
+import { sb, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { PulseLoader } from "./Charts.jsx";
 
@@ -42,6 +42,7 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
   // Start in the loading state — the auto-load effect kicks in on mount.
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("daily");
+  const [refreshing, setRefreshing] = useState(false);
   const today = new Date().toISOString().split("T")[0];
   // Default range: from May 1 (when productivity_history started) to
   // today, so weekly + monthly views show something useful out of the
@@ -208,9 +209,44 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
 
   return (
     <div className="card" style={{ marginTop: 16 }}>
-      <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <span className="card-title">Evaluation History</span>
-        <div style={{ display: "flex", gap: 4, background: "var(--bg2)", padding: 3, borderRadius: 8 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Manual sync — fires productivity-history-sync on demand so the user
+              doesn't have to wait up to 15 min for the next scheduled refresh. */}
+          <button
+            className="btn btn-outline btn-sm"
+            disabled={refreshing}
+            title="Pull the latest productivity data from the Google Sheet"
+            onClick={async () => {
+              if (refreshing) return;
+              setRefreshing(true);
+              try {
+                const r = await fetch(`${SUPABASE_URL}/functions/v1/productivity-history-sync`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({}),
+                });
+                const j = await r.json().catch(() => ({}));
+                if (!r.ok || j?.error) {
+                  globalToast("error", `Sync failed — ${j?.error || `HTTP ${r.status}`}`);
+                } else {
+                  await load();
+                  const n = j?.rows_upserted ?? "?";
+                  globalToast("success", `Synced ${n} row${n === 1 ? "" : "s"} — refreshed.`);
+                }
+              } catch (e) {
+                globalToast("error", `Sync failed — ${e?.message || "network error"}`);
+              }
+              setRefreshing(false);
+            }}
+            style={{ fontSize: 11, padding: "4px 10px", display: "flex", alignItems: "center", gap: 6 }}
+          >
+            {refreshing
+              ? <><div className="spinner" style={{ width: 11, height: 11, borderWidth: 2 }} />Refreshing…</>
+              : <><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh</>}
+          </button>
+          <div style={{ display: "flex", gap: 4, background: "var(--bg2)", padding: 3, borderRadius: 8 }}>
           {TOGGLES.map(t => (
             <button
               key={t.key}
@@ -224,6 +260,7 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
               }}
             >{t.label}</button>
           ))}
+          </div>
         </div>
       </div>
 

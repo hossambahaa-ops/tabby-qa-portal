@@ -796,7 +796,15 @@ function QAProfilePage() {
               const rows = [
                 ["SBS", m.sbs],["Non-SBS", m.non_sbs],["DSAT", m.dsat],
                 ["RTR Score", fmtPct(m.avg_rtr_score)],["Calibration", fmtPct(m.avg_calibration_match_rate)],
-                ["CO Score", fmtPct(m.avg_observation_score_pct)],["Coaching on-time", fmtPct(m.ontime_coaching_pct)],
+                ["CO Score", fmtPct(m.avg_observation_score_pct)],
+                // On-time falls back to CRM-anchored % when there's no eval-date
+                // eligibility yet (otherwise the source SQL hands us a misleading "0%").
+                ["Coaching on-time", (() => {
+                  const elig = Number(m.coaching_eligibility_count || 0);
+                  if (elig > 0) return fmtPct(m.ontime_coaching_pct);
+                  if (m.crm_pct_coaching_on_time) return fmtPct(m.crm_pct_coaching_on_time);
+                  return "—";
+                })()],
                 ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"],
                 ["Occupancy", fmtPct(m.occupancy_pct)],["JKQ", m.jkq_score || "—"],
                 ["CSAT %", (() => { const v = csatPctValue(m.csat_pct); const s = Number(m.csat_total || 0); return (v != null && s > 0) ? v.toFixed(1) + "%" : "—"; })()],

@@ -434,8 +434,19 @@ function ScoreEntryPage(){
     { k: "obs_pct",         label: "Obs. %",      presets: ["all","coach"],        render: r => fmtPct(r.avg_observation_score_pct) },
     { k: "calib",           label: "Calib.",      presets: ["all","coach"],        render: r => r.calibration_count ?? "—" },
     { k: "calib_pct",       label: "Calib. %",    presets: ["all","coach"],        render: r => fmtPct(r.avg_calibration_match_rate) },
-    { k: "completion",      label: "Completion",  presets: ["all","coach"],        render: r => fmtPct(r.coaching_completion_pct) },
-    { k: "ontime_pct",      label: "On-time %",   presets: ["all","coach"],        render: r => fmtPct(r.ontime_coaching_pct) },
+    // When no evals are eligible yet (early in the month / no eval-date coverage),
+    // the source SQL produces "0%" via COALESCE-around-divide-by-zero. Show "—"
+    // instead so it doesn't read like the QA scored zero.
+    { k: "completion",      label: "Completion",  presets: ["all","coach"],        render: r => (r.coaching_eligibility_count || 0) === 0 ? "—" : fmtPct(r.coaching_completion_pct) },
+    // On-time: prefer the CRM-anchored % (creation-date denominator) when the
+    // legacy eval-based value is 0% with no eligibility. Falls back to "—" if
+    // the new column isn't populated either.
+    { k: "ontime_pct",      label: "On-time %",   presets: ["all","coach"],        render: r => {
+      const elig = r.coaching_eligibility_count || 0;
+      if (elig > 0) return fmtPct(r.ontime_coaching_pct);
+      if (r.crm_pct_coaching_on_time) return fmtPct(r.crm_pct_coaching_on_time);
+      return "—";
+    } },
     { k: "jkq",             label: "JKQ",         align: "center", presets: ["all","perf"], render: r =>
       r.jkq_result && r.jkq_result !== "N/A"
         ? <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}{r.jkq_score>0?` (${r.jkq_score})`:""}</span>
