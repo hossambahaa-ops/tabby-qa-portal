@@ -23,6 +23,7 @@ import TeamHealth from "../components/dashboard/TeamHealth.jsx";
 import AttendanceHealthCard from "../components/attendance/AttendanceHealthCard.jsx";
 import TeamChampions from "../components/dashboard/TeamChampions.jsx";
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
+import PendingSideTasksCard from "../components/dashboard/PendingSideTasksCard.jsx";
 import QASelfServiceDashboard from "../components/dashboard/QASelfServiceDashboard.jsx";
 import DailyCheckInWidget from "../components/dashboard/DailyCheckInWidget.jsx";
 import MyTrackerWidget from "../components/dashboard/MyTrackerWidget.jsx";
@@ -256,6 +257,10 @@ function DashboardPage(){
 
     {/* What needs the lead's attention — deep-links to detail pages */}
     <MyResponsibilities roster={roster} onNavigate={nav}/>
+
+    {/* QA Lead alert: side-task minutes waiting for the lead's approval
+        across their team. Renders nothing when no pending work. */}
+    <PendingSideTasksCard/>
 
     {/* User Task Management */}
     <DashboardTasks roster={roster} appProfiles={appProfiles} todayAttendance={todayAttendance} dailyScores={dailyScores}/>
