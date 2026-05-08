@@ -36,6 +36,18 @@ export default function TeamOccupancyCard() {
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState([]);
   const [sortBy, setSortBy] = useState("projected"); // current | projected | delta | name
+  // Collapsed by default — supervisors can have 30+ QAs and the full
+  // table dominates the dashboard. Persist the user's choice in
+  // localStorage so they don't have to re-expand on every page load.
+  const [expanded, setExpanded] = useState(() => {
+    try { return localStorage.getItem("team-occupancy-expanded") === "1"; } catch { return false; }
+  });
+  const toggleExpanded = () => {
+    setExpanded(v => {
+      try { localStorage.setItem("team-occupancy-expanded", v ? "0" : "1"); } catch {}
+      return !v;
+    });
+  };
 
   useEffect(() => {
     if (!token || !isLead || !profile?.email) { setLoading(false); return; }
@@ -82,14 +94,14 @@ export default function TeamOccupancyCard() {
         };
 
         // 4. Build the per-QA row with current + projected occupancy.
+        //    Members with no recent productivity_history row are dropped
+        //    here — there's nothing meaningful to show for them and they
+        //    just clutter the supervisor's view.
         const out = team.map(r => {
           const lower = r.email.toLowerCase();
           const ph = latestPerQa.get(lower);
+          if (!ph) return null;
           const shiftMin = findShiftMin(r.email, r.queue);
-          if (!ph) return {
-            email: r.email, display_name: r.display_name, name: nameFromEmail(r.email),
-            date: null, current: null, pendingMin: 0, projected: null, delta: null, shiftMin,
-          };
           const current = Number(ph.occupancy_pct ?? 0);
           const pendingMin = Number(ph.pending_side_minutes || 0);
           const lift = shiftMin > 0 ? (pendingMin / shiftMin) * 100 : 0;
@@ -98,7 +110,7 @@ export default function TeamOccupancyCard() {
             email: r.email, display_name: r.display_name, name: nameFromEmail(r.email),
             date: ph.date, current, pendingMin, projected, delta: lift, shiftMin,
           };
-        });
+        }).filter(Boolean);
 
         if (!cancelled) {
           setRows(out);
@@ -115,17 +127,20 @@ export default function TeamOccupancyCard() {
   const sorted = useMemo(() => {
     const arr = [...rows];
     arr.sort((a, b) => {
-      // Members with no recent data always go last so sortable columns
-      // don't put nulls above real data.
-      const aNull = a.current == null, bNull = b.current == null;
-      if (aNull && !bNull) return 1;
-      if (!aNull && bNull) return -1;
       if (sortBy === "name") return a.name.localeCompare(b.name);
       const av = Number(a[sortBy] || 0), bv = Number(b[sortBy] || 0);
       return bv - av; // desc
     });
     return arr;
   }, [rows, sortBy]);
+
+  // For the collapsed-state subtitle: how many on this team currently
+  // have side-task minutes pending the lead's approval. Surfaces the
+  // actionable number without forcing the user to expand.
+  const withPending = useMemo(
+    () => rows.filter(r => Number(r.pendingMin || 0) > 0).length,
+    [rows]
+  );
 
   if (!isLead) return null;
   if (loading) return null;
@@ -145,51 +160,64 @@ export default function TeamOccupancyCard() {
 
   return (
     <div className="card" style={{ marginBottom: 16 }}>
-      <div className="card-header">
-        <span className="card-title">Occupancy by QA · {rows.length} member{rows.length === 1 ? "" : "s"}</span>
+      <div
+        className="card-header"
+        onClick={toggleExpanded}
+        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none" }}
+        title={expanded ? "Click to collapse" : "Click to expand"}
+      >
+        <span className="card-title">
+          Occupancy by QA · {rows.length} member{rows.length === 1 ? "" : "s"}
+          {withPending > 0 ? <span style={{ color: "var(--amber)", fontWeight: 500 }}> · {withPending} with pending ST</span> : null}
+        </span>
+        <span style={{ color: "var(--tx3)", fontSize: 12, marginLeft: 12 }}>{expanded ? "▼" : "▶"}</span>
       </div>
-      <div className="table-wrap" style={{ padding: "0 16px 12px" }}>
-        <table style={{ fontSize: 12 }}>
-          <thead>
-            <tr>
-              {sortHeader("name", "Member", "left")}
-              <th style={{ textAlign: "right", whiteSpace: "nowrap" }}>As of</th>
-              {sortHeader("current", "Current")}
-              {sortHeader("pendingMin", "Pending ST")}
-              {sortHeader("projected", "If approved")}
-              {sortHeader("delta", "Δ")}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map(r => (
-              <tr key={r.email}>
-                <td style={{ fontWeight: 500 }}>
-                  {r.name}
-                  <div style={{ fontSize: 10, color: "var(--tx3)" }}>{r.email}</div>
-                </td>
-                <td style={{ textAlign: "right", color: "var(--tx3)", fontSize: 11, whiteSpace: "nowrap" }}>
-                  {r.date ? new Date(r.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
-                </td>
-                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: r.current == null ? "var(--tx3)" : occColor(r.current) }}>
-                  {r.current == null ? "—" : `${r.current.toFixed(1)}%`}
-                </td>
-                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: r.pendingMin > 0 ? "var(--amber)" : "var(--tx3)", fontWeight: r.pendingMin > 0 ? 600 : 400 }}>
-                  {r.pendingMin > 0 ? `${r.pendingMin}m` : "—"}
-                </td>
-                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: r.projected == null ? "var(--tx3)" : occColor(r.projected) }}>
-                  {r.projected == null ? "—" : `${r.projected.toFixed(1)}%`}
-                </td>
-                <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: !r.delta ? "var(--tx3)" : "var(--green)", fontWeight: 600 }}>
-                  {!r.delta || r.delta < 0.05 ? "—" : `+${r.delta.toFixed(1)}`}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ padding: "0 16px 12px", fontSize: 10, color: "var(--tx3)", fontStyle: "italic" }}>
-        "If approved" projects what each QA's occupancy would become if their pending side-task minutes were approved today (current occupancy + pending minutes / shift minutes × 100). Shift length resolved from team_targets.daily_working_hours, defaulting to 8 h.
-      </div>
+      {expanded && (
+        <>
+          <div className="table-wrap" style={{ padding: "0 16px 12px" }}>
+            <table style={{ fontSize: 12 }}>
+              <thead>
+                <tr>
+                  {sortHeader("name", "Member", "left")}
+                  <th style={{ textAlign: "right", whiteSpace: "nowrap" }}>As of</th>
+                  {sortHeader("current", "Current")}
+                  {sortHeader("pendingMin", "Pending ST")}
+                  {sortHeader("projected", "If approved")}
+                  {sortHeader("delta", "Δ")}
+                </tr>
+              </thead>
+              <tbody>
+                {sorted.map(r => (
+                  <tr key={r.email}>
+                    <td style={{ fontWeight: 500 }}>
+                      {r.name}
+                      <div style={{ fontSize: 10, color: "var(--tx3)" }}>{r.email}</div>
+                    </td>
+                    <td style={{ textAlign: "right", color: "var(--tx3)", fontSize: 11, whiteSpace: "nowrap" }}>
+                      {r.date ? new Date(r.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+                    </td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: occColor(r.current) }}>
+                      {`${r.current.toFixed(1)}%`}
+                    </td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: r.pendingMin > 0 ? "var(--amber)" : "var(--tx3)", fontWeight: r.pendingMin > 0 ? 600 : 400 }}>
+                      {r.pendingMin > 0 ? `${r.pendingMin}m` : "—"}
+                    </td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 700, color: occColor(r.projected) }}>
+                      {`${r.projected.toFixed(1)}%`}
+                    </td>
+                    <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", color: !r.delta ? "var(--tx3)" : "var(--green)", fontWeight: 600 }}>
+                      {!r.delta || r.delta < 0.05 ? "—" : `+${r.delta.toFixed(1)}`}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ padding: "0 16px 12px", fontSize: 10, color: "var(--tx3)", fontStyle: "italic" }}>
+            "If approved" projects what each QA's occupancy would become if their pending side-task minutes were approved today (current occupancy + pending minutes / shift minutes × 100). Shift length resolved from team_targets.daily_working_hours, defaulting to 8 h. Members with no recent productivity row are hidden.
+          </div>
+        </>
+      )}
     </div>
   );
 }
