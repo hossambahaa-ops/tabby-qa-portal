@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
+import Modal from "../components/Modal.jsx";
 import { hasRole } from "../lib/constants.js";
 import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
@@ -380,19 +380,34 @@ function CoachingViolationsPage() {
         const suggestion = violationMap[reviewModal.violation_type] || null;
         const suggestedRule = suggestion ? damRules.find(r => r.name === suggestion.ruleName) : null;
 
-        // Rendered via React portal to document.body so no parent transform,
-        // animation, or filter can shift the centring. The wrapper drops the
-        // .card class on purpose — that class adds a mount animation
-        // (cardSlideUp) whose transform was fighting our positioning. Custom
-        // inline styles, box-sizing border-box, hard maxHeight cap; only the
-        // body scrolls.
-        return createPortal(
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10000, padding: 20, overflow: "hidden", boxSizing: "border-box" }} onClick={e => { if (e.target === e.currentTarget) setReviewModal(null); }}>
-        <div style={{ width: "100%", maxWidth: 560, maxHeight: "calc(100vh - 40px)", margin: 0, padding: 16, display: "flex", flexDirection: "column", overflow: "hidden", boxSizing: "border-box", background: "var(--bg3)", border: "1px solid var(--bd2)", borderRadius: "var(--radius-lg)", boxShadow: "var(--shadow-lg, 0 10px 30px rgba(0,0,0,.3))", color: "var(--tx)" }}>
-          <div className="card-header" style={{ flexShrink: 0 }}><span className="card-title">{reviewModal.status !== "pending" ? "Update Review" : "Review Violation"}</span></div>
-
-          <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingRight: 4 }}>
-
+        // Now uses the shared Modal shell with title + footer slots so the
+        // accessibility, scroll-lock, and focus-trap behaviour stays
+        // consistent across every popup.
+        return (
+        <Modal
+          onClose={() => setReviewModal(null)}
+          maxWidth={560}
+          title={reviewModal.status !== "pending" ? "Update Review" : "Review Violation"}
+          footer={<>
+            <button className="btn btn-primary" onClick={submitReview} disabled={!reviewStatus || !reviewNotes.trim() || (reviewStatus === "valid" && !selDamRule)}>
+              {reviewModal.status !== "pending" ? "Update" : "Confirm"}
+            </button>
+            <button className="btn btn-outline" onClick={() => setReviewModal(null)}>Cancel</button>
+            {reviewModal.status !== "pending" && <button className="btn btn-outline" style={{marginLeft:"auto",color:"var(--amber)",borderColor:"var(--amber)"}} onClick={()=>{
+              confirmAsk("Reopen violation?",`This will set the violation back to "pending" for re-review. The previous decision will be cleared.`,async()=>{
+                try{
+                  await sb.query("coaching_violations",{token,method:"PATCH",body:{status:"pending",reviewed_by:null,reviewed_at:null,review_notes:null},filters:`id=eq.${reviewModal.id}`});
+                  setViolations(prev=>prev.map(v=>v.id===reviewModal.id?{...v,status:"pending",reviewed_by:null,reviewed_at:null,review_notes:null}:v));
+                  globalToast("success","Violation reopened for review");
+                  setReviewModal(null);
+                }catch(e){globalToast("error",safeError(e));}
+              },"Reopen","var(--amber)");
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+              Reopen
+            </button>}
+          </>}
+        >
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13 }}>
               <div><span style={{ color: "var(--tx3)" }}>QA: </span><strong>{reviewModal.qa_emails?.split("\n").map(e => nameFromEmail(e)).join(", ")}</strong></div>
@@ -444,31 +459,8 @@ function CoachingViolationsPage() {
             <textarea className="form-input" rows={2} value={reviewNotes} onChange={e => setReviewNotes(e.target.value)} placeholder="Explain your decision (required)..." style={{ resize: "vertical", borderColor: !reviewNotes.trim() && reviewStatus ? "var(--red)" : "" }} />
             {!reviewNotes.trim() && reviewStatus && <div style={{ fontSize: 11, color: "var(--red)", marginTop: 4 }}>Notes are required</div>}
           </div>
-
-          </div>
-
-          <div style={{ display: "flex", gap: 8, alignItems: "center", borderTop: "1px solid var(--border)", paddingTop: 12, marginTop: 12, flexShrink: 0 }}>
-            <button className="btn btn-primary" onClick={submitReview} disabled={!reviewStatus || !reviewNotes.trim() || (reviewStatus === "valid" && !selDamRule)}>
-              {reviewModal.status !== "pending" ? "Update" : "Confirm"}
-            </button>
-            <button className="btn btn-outline" onClick={() => setReviewModal(null)}>Cancel</button>
-            {reviewModal.status !== "pending" && <button className="btn btn-outline" style={{marginLeft:"auto",color:"var(--amber)",borderColor:"var(--amber)"}} onClick={()=>{
-              confirmAsk("Reopen violation?",`This will set the violation back to "pending" for re-review. The previous decision will be cleared.`,async()=>{
-                try{
-                  await sb.query("coaching_violations",{token,method:"PATCH",body:{status:"pending",reviewed_by:null,reviewed_at:null,review_notes:null},filters:`id=eq.${reviewModal.id}`});
-                  setViolations(prev=>prev.map(v=>v.id===reviewModal.id?{...v,status:"pending",reviewed_by:null,reviewed_at:null,review_notes:null}:v));
-                  globalToast("success","Violation reopened for review");
-                  setReviewModal(null);
-                }catch(e){globalToast("error",safeError(e));}
-              },"Reopen","var(--amber)");
-            }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M3 12a9 9 0 019-9 9.75 9.75 0 016.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 01-9 9 9.75 9.75 0 01-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
-              Reopen
-            </button>}
-          </div>
-        </div>
-      </div>,
-      document.body);
+        </Modal>
+        );
       })()}
 
       {confirmEl}

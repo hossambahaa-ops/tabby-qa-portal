@@ -1,4 +1,5 @@
 import React from "react";
+import Modal from "../Modal.jsx";
 
 // "Assign Task to N selected QAs" modal — opened from the floating
 // selection bar at the bottom of ScoreEntryPage. The parent owns the
@@ -14,12 +15,8 @@ export default function MtdBulkTaskModal({
 }) {
   if (!open) return null;
   return (
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 9999, background: "rgba(0,0,0,.6)", backdropFilter: "blur(6px)", display: "flex", justifyContent: "center", alignItems: "center" }}
-      onClick={onClose}
-    >
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--bg3)", borderRadius: 16, border: "1px solid var(--bd)", boxShadow: "0 25px 50px rgba(0,0,0,.5)", width: "100%", maxWidth: 480, padding: 24, margin: 16 }}>
-        <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Assign Task to {selectedRows.size} QA{selectedRows.size !== 1 ? "s" : ""}</div>
+    <Modal onClose={onClose} maxWidth={480}>
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>Assign Task to {selectedRows.size} QA{selectedRows.size !== 1 ? "s" : ""}</div>
         <div style={{ fontSize: 12, color: "var(--tx3)", marginBottom: 16 }}>One task will be created for each selected specialist</div>
 
         <div className="form-group" style={{ marginBottom: 12 }}>
@@ -50,7 +47,6 @@ export default function MtdBulkTaskModal({
             {bulkSending ? "Creating..." : "Create tasks"}
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

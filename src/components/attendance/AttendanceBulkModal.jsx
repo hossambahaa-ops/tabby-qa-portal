@@ -3,6 +3,7 @@ import SearchableSelect from "../SearchableSelect.jsx";
 import { ATTENDANCE_TYPES } from "../../lib/attendance.js";
 import { hasRole } from "../../lib/constants.js";
 import { nameFromEmail } from "../../lib/utils.js";
+import Modal from "../Modal.jsx";
 
 // Bulk-set attendance modal. Stateful inputs live on the parent
 // (SchedulePage) so the same selection state can be reused by the
@@ -26,15 +27,7 @@ export default function AttendanceBulkModal({
 }) {
   if (!open) return null;
   return (
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: 60 }}
-      onClick={onClose}
-    >
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--bg3)", borderRadius: 16, border: "1px solid var(--bd)", boxShadow: "var(--shadow-lg)", width: "100%", maxWidth: 520, padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--tx)" }}>Bulk set attendance</div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--tx3)" }}>×</button>
-        </div>
+    <Modal onClose={onClose} maxWidth={520} padding={20} title="Bulk set attendance">
 
         {/* Quick actions */}
         <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
@@ -97,7 +90,6 @@ export default function AttendanceBulkModal({
           <button className="btn btn-primary btn-sm" onClick={applyBulk}>Apply</button>
           <button className="btn btn-outline btn-sm" onClick={onClose}>Cancel</button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

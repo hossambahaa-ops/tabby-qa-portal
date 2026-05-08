@@ -2,6 +2,7 @@ import React from "react";
 import { Icon, icons } from "../Icons.jsx";
 import SearchableSelect from "../SearchableSelect.jsx";
 import { COL_LABELS } from "../../lib/mtdColumns.js";
+import Modal from "../Modal.jsx";
 
 // Three-step MTD CSV upload modal: config (pick month + columns +
 // safe-mode), preview (diff per QA), done (success/error summary).
@@ -28,12 +29,8 @@ export default function MtdUploadModal({
 }) {
   if (!open) return null;
   return (
-    <div
-      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", zIndex: 1000, display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "60px 20px 20px" }}
-      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-    >
-      <div className="card" style={{ width: "100%", maxWidth: 720, maxHeight: "85vh", overflow: "auto", background: "var(--card-bg,var(--bg2))", boxShadow: "0 20px 60px rgba(0,0,0,.4)" }}>
-        <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+    <Modal onClose={onClose} maxWidth={720} padding={0}>
+      <div className="card-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px 24px", margin: 0, borderBottom: "1px solid var(--bd2)" }}>
           <span className="card-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <Icon d={icons.upload} size={18} />Upload data to MTD
           </span>
@@ -206,7 +203,6 @@ export default function MtdUploadModal({
             <button className="btn btn-primary" onClick={onClose}>Done</button>
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

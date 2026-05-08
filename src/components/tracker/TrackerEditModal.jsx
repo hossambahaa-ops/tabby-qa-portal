@@ -5,6 +5,7 @@ import {
 } from "../../lib/initiatives.js";
 import { nameFromEmail } from "../../lib/utils.js";
 import SearchableSelect from "../SearchableSelect.jsx";
+import Modal from "../Modal.jsx";
 
 // Tracker create/edit modal. Reuses Pulse's modal styling. Props:
 //   open    — boolean
@@ -153,8 +154,7 @@ export default function TrackerEditModal({ open, row, readOnly, profiles, allIni
   const fieldDisabled = readOnly;
 
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 999, display: "flex", alignItems: "flex-start", justifyContent: "center", paddingTop: 40 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--bg3)", borderRadius: 14, border: "1px solid var(--bd)", boxShadow: "var(--shadow-lg)", width: "100%", maxWidth: 640, maxHeight: "90vh", overflow: "auto", padding: 22 }}>
+    <Modal onClose={onClose} maxWidth={640} padding={22}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14, gap: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ fontSize: 17, fontWeight: 800, color: "var(--tx)" }}>
@@ -331,7 +331,6 @@ export default function TrackerEditModal({ open, row, readOnly, profiles, allIni
             )}
           </div>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

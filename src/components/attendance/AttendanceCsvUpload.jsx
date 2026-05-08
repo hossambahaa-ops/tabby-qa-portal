@@ -1,5 +1,6 @@
 import React from "react";
 import { ATTENDANCE_TYPES, ATT_MAP } from "../../lib/attendance.js";
+import Modal from "../Modal.jsx";
 
 // CSV upload modal — accepts a filled-in attendance template, previews
 // the parsed rows, and on confirm calls executeCsvUpload (which the
@@ -18,15 +19,7 @@ export default function AttendanceCsvUpload({
   if (!open) return null;
   const closeAndReset = () => { onClose(); setCsvFile(null); setCsvPreview([]); };
   return (
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: 60 }}
-      onClick={closeAndReset}
-    >
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--bg3)", borderRadius: 16, border: "1px solid var(--bd)", boxShadow: "var(--shadow-lg)", width: "100%", maxWidth: 600, padding: 20, maxHeight: "80vh", overflow: "auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--tx)" }}>Upload attendance CSV</div>
-          <button onClick={closeAndReset} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--tx3)" }}>×</button>
-        </div>
+    <Modal onClose={closeAndReset} maxWidth={600} padding={20} title="Upload attendance CSV">
         {csvPreview.length === 0 ? (
           <>
             <div style={{ fontSize: 12, color: "var(--tx2)", marginBottom: 12, lineHeight: 1.6 }}>
@@ -77,7 +70,6 @@ export default function AttendanceCsvUpload({
             </div>
           </>
         )}
-      </div>
-    </div>
+    </Modal>
   );
 }

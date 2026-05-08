@@ -1,6 +1,7 @@
 import React from "react";
 import SearchableSelect from "../SearchableSelect.jsx";
 import { nameFromEmail } from "../../lib/utils.js";
+import Modal from "../Modal.jsx";
 
 // "Request OT" (QA) / "Add OT" (lead) modal. The parent owns the form
 // state so it can pre-fill defaults when the user opens the modal
@@ -19,18 +20,13 @@ export default function AttendanceOtModal({
 }) {
   if (!open) return null;
   return (
-    <div
-      style={{ position: "fixed", inset: 0, zIndex: 999, background: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "flex-start", paddingTop: 80 }}
-      onClick={onClose}
-    >
-      <div onClick={e => e.stopPropagation()} style={{ background: "var(--bg3)", borderRadius: 16, border: "1px solid var(--bd)", boxShadow: "var(--shadow-lg)", width: "100%", maxWidth: 460, padding: 20 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, color: "var(--tx)", display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ fontSize: 12, padding: "3px 8px", borderRadius: 6, background: "#0D948820", color: "#0D9488", fontWeight: 700 }}>OT</span>
-            {isQA ? "Request overtime" : "Add overtime"}
-          </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", fontSize: 20, color: "var(--tx3)" }}>×</button>
+    <Modal onClose={onClose} maxWidth={460} padding={20}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: "var(--tx)", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, padding: "3px 8px", borderRadius: 6, background: "#0D948820", color: "#0D9488", fontWeight: 700 }}>OT</span>
+          {isQA ? "Request overtime" : "Add overtime"}
         </div>
+      </div>
         <div style={{ fontSize: 12, color: "var(--tx2)", marginBottom: 12, lineHeight: 1.5 }}>
           {isQA
             ? "Pick the day(s) you worked overtime. Your QA Lead will get a notification and can approve or replace it."
@@ -77,11 +73,10 @@ export default function AttendanceOtModal({
           <label className="form-label">Note (optional)</label>
           <input type="text" className="form-input" value={otNote} onChange={e => setOtNote(e.target.value)} placeholder="e.g. weekend coverage for launch" />
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button className="btn btn-primary btn-sm" onClick={applyOtRequest}>{isQA ? "Send request" : "Add OT"}</button>
-          <button className="btn btn-outline btn-sm" onClick={onClose}>Cancel</button>
-        </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button className="btn btn-primary btn-sm" onClick={applyOtRequest}>{isQA ? "Send request" : "Add OT"}</button>
+        <button className="btn btn-outline btn-sm" onClick={onClose}>Cancel</button>
       </div>
-    </div>
+    </Modal>
   );
 }
