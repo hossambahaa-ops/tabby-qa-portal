@@ -54,7 +54,10 @@ export default function CoachingHistory({ sessions, onDelete }) {
   };
 
   // Filter, then sort by the selected column. Sort is non-mutating so the
-  // upstream sessions array stays untouched.
+  // upstream sessions array stays untouched. session_date desc is the
+  // secondary key so ties (e.g. two rows both rated "Improvement Needed",
+  // or two rows on the same date) render in newest-first order rather than
+  // depending on Array.sort stability across engines.
   const filtered = (() => {
     const list = [...getScopedFiltered()];
     const extractor = sortKeyFor[sortKey] || sortKeyFor.date;
@@ -62,6 +65,9 @@ export default function CoachingHistory({ sessions, onDelete }) {
       const va = extractor(a), vb = extractor(b);
       if (va < vb) return sortDir === "asc" ? -1 : 1;
       if (va > vb) return sortDir === "asc" ? 1 : -1;
+      const da = a.session_date || "", db = b.session_date || "";
+      if (da < db) return 1;
+      if (da > db) return -1;
       return 0;
     });
     return list;

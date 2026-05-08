@@ -13,7 +13,6 @@ import {
   TARGET_TYPES,
   PERF_OPTIONS,
   PERF_MESSAGES,
-  TEMPLATES,
   SIG_TITLE_BY_ROLE,
   buildAutoCc,
   AMANDA_EMAIL,
@@ -319,18 +318,6 @@ export default function CoachingCompose({ roster, pickerCandidates, sessions, pl
   const memberPlanWeeks = memberActivePlan ? planWeeks.filter(w => w.plan_id === memberActivePlan.id).sort((a, b) => a.week_number - b.week_number) : [];
   const nextUnfilledWeek = memberPlanWeeks.find(w => !w.actual_data);
 
-  // Apply template
-  const applyTemplate = (forceType) => {
-    const t = TEMPLATES[forceType || meetingType];
-    if (!t) return;
-    setTopics(t.topics || "");
-    setStrengths(t.strengths || "");
-    setWeaknesses(t.weaknesses || "");
-    setGoals(t.goals || "");
-    setActions(t.actions || "");
-    if (!forceType) globalToast("success", "Template applied");
-  };
-
   // Pre-fill templates were removed per Amanda 2026-05-07. The auto-apply
   // effect that used to populate topics/strengths/etc on meeting-type change
   // is gone too — content fields stay empty until the user types.
@@ -394,7 +381,15 @@ export default function CoachingCompose({ roster, pickerCandidates, sessions, pl
       }
 
       try {
-        const htmlBody = buildEmailBody();
+        // Defense-in-depth: each RichTextField sanitises its own output on
+        // every keystroke so the values in state are already clean. Run a
+        // final DOMPurify pass right before the email leaves the app so a
+        // future field that forgets to sanitise on input can't regress
+        // recipients into receiving raw HTML.
+        const htmlBody = DOMPurify.sanitize(buildEmailBody(), {
+          ALLOWED_TAGS: ["p","br","b","strong","i","em","u","ul","ol","li","a","div","span","table","thead","tbody","tr","th","td"],
+          ALLOWED_ATTR: ["href","target","rel","style"],
+        });
         const result = await callGmailFn({
           action: "send",
           to: toEmail,

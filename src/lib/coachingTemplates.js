@@ -62,10 +62,10 @@ export const INTRO_MAP = {
   "PIP Review": "This is a formal summary of your Performance Improvement Plan (PIP) Review. Please review your weekly targets and progress carefully.",
 };
 
-// Pre-fill templates removed per Amanda 2026-05-07. The structure is kept
-// (intentionally empty) so any leftover "Apply template" code paths fall
-// through to no-ops without runtime errors.
-export const TEMPLATES = {};
+// Pre-fill templates and the matching applyTemplate() helper were removed
+// per Amanda 2026-05-07 — content boxes start empty, and there's no longer
+// an "Apply template" affordance. Both the export and the consumer code
+// were deleted on 2026-05-08.
 
 // Map a profile.role to a human-readable signature title. Used to seed the
 // signature line automatically from the logged-in user instead of asking
