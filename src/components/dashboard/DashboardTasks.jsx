@@ -633,7 +633,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
 
       {/* Completed tasks */}
       {taskView!=="templates"&&doneTasks.length>0&&<div style={{marginTop:12}}>
-        <button onClick={()=>setHideCompleted(!hideCompleted)} style={{background:"none",border:"none",cursor:"pointer",fontSize:12,color:"var(--green)",fontWeight:600,fontFamily:"var(--font)",padding:"8px 14px",display:"flex",alignItems:"center",gap:6,width:"100%",borderRadius:8,background:hideCompleted?"transparent":"var(--bg)"}}>
+        <button onClick={()=>setHideCompleted(!hideCompleted)} style={{background:hideCompleted?"transparent":"var(--bg)",border:"none",cursor:"pointer",fontSize:12,color:"var(--green)",fontWeight:600,fontFamily:"var(--font)",padding:"8px 14px",display:"flex",alignItems:"center",gap:6,width:"100%",borderRadius:8}}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d={icons.check}/></svg>
           {doneTasks.length} completed task{doneTasks.length!==1?"s":""}
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{marginLeft:"auto",transition:"transform .2s",transform:hideCompleted?"rotate(-90deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg>

@@ -131,7 +131,7 @@ export default function CoachingHistory({ sessions, onDelete }) {
           const isExp=expandedSession===s.id;
           return(<React.Fragment key={s.id}>
             <tr onClick={()=>setExpandedSession(isExp?null:s.id)} style={{cursor:"pointer"}}>
-            <td style={{fontSize:13,whiteSpace:"nowrap"}}>{new Date(s.session_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"})}</td>
+            <td style={{fontSize:13,whiteSpace:"nowrap"}}>{s.session_date ? new Date(s.session_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"}) : "—"}</td>
             <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{ENUM_TO_LABEL[s.meeting_type]||s.meeting_type}</span></td>
             <td style={{fontWeight:500}}>{nameFromEmail(s.member_email)}</td>
             <td style={{fontSize:13,color:"var(--tx2)"}}>{nameFromEmail(s.sender_email)}</td>

@@ -31,11 +31,18 @@ const SANITIZE_OPTS = {
 export default function RichTextField({ value, onChange, placeholder = "", maxChars = 2000 }) {
   const ref = useRef(null);
   const [isFocused, setIsFocused] = useState(false);
-  // Sync external value -> DOM only when it actually differs from what's
-  // already there (otherwise we'd reset the cursor on every keystroke).
+  // Sync external value -> DOM, but never while the user is actively typing.
+  // Why: every keystroke runs onChange -> parent re-renders with sanitized
+  // HTML -> this effect would compare value to el.innerHTML, find them
+  // different (DOMPurify normalised something the browser inserted, e.g.
+  // pasting from Word drops style attrs), and overwrite innerHTML — which
+  // wipes the caret. The fix is to skip the sync while focused; we still
+  // re-sync on external changes (form reset, draft restore) since those
+  // happen when the editor isn't focused.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    if (document.activeElement === el) return;
     const incoming = value || "";
     if (el.innerHTML !== incoming) el.innerHTML = incoming;
   }, [value]);
