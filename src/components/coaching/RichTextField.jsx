@@ -13,6 +13,41 @@ import DOMPurify from "dompurify";
 // formally deprecated — when that breaks we can swap in a real editor
 // without changing the consuming form.
 //
+// REPLACEMENT PLAN — when to migrate off execCommand
+//
+//   Trigger: any of the following.
+//     1. Safari drops insertHTML (the most fragile execCommand path).
+//        Track via the `inputType="insertReplacementText"` warning in
+//        the browser console — Safari has been logging deprecations
+//        intermittently since 18.x.
+//     2. Amanda asks for a feature execCommand can't do cleanly:
+//        tables, code blocks, mentions, image embed, structured
+//        templates, real undo/redo across formatting.
+//     3. We need collaborative editing (multi-user MPRs).
+//
+//   Recommended target: Tiptap (built on ProseMirror).
+//     - Plugin-based, ship only the marks we use (bold/italic/list/link)
+//       to keep the bundle near 30 KB gzipped.
+//     - First-class React integration via @tiptap/react.
+//     - Stable schema model we can extend later (mentions, tables).
+//     - Active maintenance, no Facebook-style policy risk.
+//
+//   Migration shape:
+//     - Keep this component's external API: { value, onChange,
+//       placeholder, maxChars }. Consumers (CoachingCompose) won't
+//       need to change.
+//     - Replace the contentEditable + execCommand internals with
+//       useEditor({ extensions: [StarterKit, Link.configure({...})] }).
+//     - Output stays sanitised HTML so coachingEmail.js's renderRich
+//       branch keeps working unchanged.
+//     - Drop DOMPurify ALLOWED_TAGS for `span`/`u` if we don't surface
+//       those marks in the toolbar.
+//     - Keep the placeholder pseudo-element CSS — Tiptap has its own
+//       placeholder extension (Placeholder.configure({ placeholder })).
+//
+//   Cost estimate: ~half-day for the swap, ~half-day for paste
+//   handling and toolbar styling polish.
+//
 // Props:
 //   value         current HTML string
 //   onChange(html)  emits sanitized HTML on every keystroke / format
