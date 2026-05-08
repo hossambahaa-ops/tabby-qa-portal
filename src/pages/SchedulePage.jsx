@@ -8,6 +8,7 @@ import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
+import { callEdgeFunction } from "../lib/edgeSync.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES } from "../lib/attendance.js";
@@ -1169,21 +1170,15 @@ function SchedulePage() {
               className="btn btn-outline btn-sm"
               style={{fontSize:11}}
               onClick={async()=>{
-                try{
-                  const r=await fetch(`${SUPABASE_URL}/functions/v1/attendance-digest`,{
-                    method:"POST",
-                    headers:{"Content-Type":"application/json",apikey:SUPABASE_ANON,Authorization:`Bearer ${token}`,"X-Trigger":"manual"},
-                    body:JSON.stringify({}),
-                  });
-                  const data=await r.json().catch(()=>({}));
-                  if(r.ok&&data.success){
-                    globalToast("success",`Attendance digest sent — ${data.overall?.planned||0} planned, ${data.overall?.accuracy||0}% match`);
-                  }else if(data.skipped){
-                    globalToast("success",data.reason || "No planned QAs today");
-                  }else{
-                    globalToast("error",data.error||"Send failed");
-                  }
-                }catch(e){globalToast("error",safeError(e));}
+                const r = await callEdgeFunction("attendance-digest", { token, headers: { "X-Trigger": "manual" } });
+                const data = r.data || {};
+                if(r.ok && data.success){
+                  globalToast("success",`Attendance digest sent — ${data.overall?.planned||0} planned, ${data.overall?.accuracy||0}% match`);
+                }else if(data.skipped){
+                  globalToast("success", data.reason || "No planned QAs today");
+                }else{
+                  globalToast("error", r.error || "Send failed");
+                }
               }}
               title="Send the attendance digest now (also runs automatically at 2 PM Riyadh)"
             >

@@ -7,6 +7,7 @@ import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { SkeletonTable } from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import { callEdgeFunction } from "../lib/edgeSync.js";
 
 function TeamManagementPage(){
   const { token, profile, globalToast } = useApp();
@@ -104,29 +105,23 @@ function TeamManagementPage(){
   const runSync = async () => {
     if (syncing) return;
     setSyncing(true);
-    try {
-      const r = await fetch(`${SUPABASE_URL}/functions/v1/roster-sync`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
-        body: JSON.stringify({}),
-      });
-      const data = await r.json().catch(() => ({}));
-      if (r.ok && data.success) {
-        const parts = [];
-        if (data.roster_added) parts.push(`+${data.roster_added} added`);
-        if (data.roster_updated) parts.push(`${data.roster_updated} updated`);
-        if (data.roster_removed) parts.push(`${data.roster_removed} removed`);
-        if (data.teams_added) parts.push(`${data.teams_added} teams added`);
-        if (data.teams_updated) parts.push(`${data.teams_updated} teams updated`);
-        if (data.teams_removed) parts.push(`${data.teams_removed} teams removed`);
-        const msg = parts.length > 0 ? `Synced — ${parts.join(", ")}` : "Synced — no changes";
-        globalToast("success", msg);
-        setLastSync({ ran_at: new Date().toISOString(), triggered_by: profile?.email, status: "ok", ...data });
-        load();
-      } else {
-        globalToast("error", data.error || "Sync failed");
-      }
-    } catch (e) { globalToast("error", safeError(e)); }
+    const r = await callEdgeFunction("roster-sync", { token });
+    if (r.ok && r.data?.success) {
+      const data = r.data;
+      const parts = [];
+      if (data.roster_added) parts.push(`+${data.roster_added} added`);
+      if (data.roster_updated) parts.push(`${data.roster_updated} updated`);
+      if (data.roster_removed) parts.push(`${data.roster_removed} removed`);
+      if (data.teams_added) parts.push(`${data.teams_added} teams added`);
+      if (data.teams_updated) parts.push(`${data.teams_updated} teams updated`);
+      if (data.teams_removed) parts.push(`${data.teams_removed} teams removed`);
+      const msg = parts.length > 0 ? `Synced — ${parts.join(", ")}` : "Synced — no changes";
+      globalToast("success", msg);
+      setLastSync({ ran_at: new Date().toISOString(), triggered_by: profile?.email, status: "ok", ...data });
+      load();
+    } else {
+      globalToast("error", r.error || "Sync failed");
+    }
     setSyncing(false);
   };
 

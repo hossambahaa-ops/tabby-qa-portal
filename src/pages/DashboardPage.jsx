@@ -7,6 +7,7 @@ import { parseRawD, KPI_SLABS_D, calcSlabD, getScore, MAX_SCORE, scoreColor, sco
 import { useConfirm } from "../lib/hooks.jsx";
 import { useDashboardData } from "../lib/useDashboardData.jsx";
 import { useFreshness } from "../lib/useFreshness.js";
+import { callEdgeFunction } from "../lib/edgeSync.js";
 import FreshnessBadge from "../components/FreshnessBadge.jsx";
 import HelpTip from "../components/HelpTip.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
@@ -113,14 +114,10 @@ function DashboardPage(){
         if (syncing) return;
         setSyncing(true);
         try {
-          const callSync = (slug) => fetch(`${SUPABASE_URL}/functions/v1/${slug}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
-            body: JSON.stringify({}),
-          }).then(r => r.json().then(d => ({ ok: r.ok, data: d })).catch(() => ({ ok: r.ok, data: {} })))
-            .catch(e => ({ ok: false, data: { error: e?.message || "fetch failed" } }));
           const [daily, mtdRes, csat] = await Promise.all([
-            callSync("daily-scores-sync"), callSync("mtd-sync"), callSync("csat-topic-sync"),
+            callEdgeFunction("daily-scores-sync", { token }),
+            callEdgeFunction("mtd-sync", { token }),
+            callEdgeFunction("csat-topic-sync", { token }),
           ]);
           dataCache?.invalidate?.();
           await loadDashboard?.();

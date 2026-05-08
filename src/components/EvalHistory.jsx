@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { sb, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
+import { sb } from "../lib/supabase.js";
+import { callEdgeFunction } from "../lib/edgeSync.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { PulseLoader } from "./Charts.jsx";
 
@@ -221,22 +222,13 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
             onClick={async () => {
               if (refreshing) return;
               setRefreshing(true);
-              try {
-                const r = await fetch(`${SUPABASE_URL}/functions/v1/productivity-history-sync`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
-                  body: JSON.stringify({}),
-                });
-                const j = await r.json().catch(() => ({}));
-                if (!r.ok || j?.error) {
-                  globalToast("error", `Sync failed — ${j?.error || `HTTP ${r.status}`}`);
-                } else {
-                  await load();
-                  const n = j?.rows_upserted ?? "?";
-                  globalToast("success", `Synced ${n} row${n === 1 ? "" : "s"} — refreshed.`);
-                }
-              } catch (e) {
-                globalToast("error", `Sync failed — ${e?.message || "network error"}`);
+              const r = await callEdgeFunction("productivity-history-sync", { token });
+              if (!r.ok) {
+                globalToast("error", `Sync failed — ${r.error}`);
+              } else {
+                await load();
+                const n = r.data?.rows_upserted ?? "?";
+                globalToast("success", `Synced ${n} row${n === 1 ? "" : "s"} — refreshed.`);
               }
               setRefreshing(false);
             }}

@@ -8,6 +8,7 @@ import EvalHistory from "../components/EvalHistory.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import { useQaProfileData, bustBulkCache } from "../lib/useQaProfileData.jsx";
 import { useFreshness } from "../lib/useFreshness.js";
+import { callEdgeFunction } from "../lib/edgeSync.js";
 import FreshnessBadge from "../components/FreshnessBadge.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import ExpertiseProfileCard from "../components/ExpertiseProfileCard.jsx";
@@ -61,17 +62,11 @@ function QAProfilePage() {
   const refreshLive = async () => {
     if (refreshing) return;
     setRefreshing(true);
-    const callSync = (slug) => fetch(`${SUPABASE_URL}/functions/v1/${slug}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
-      body: JSON.stringify({}),
-    }).then(r => r.json().then(d => ({ ok: r.ok, data: d })).catch(() => ({ ok: r.ok, data: {} })))
-      .catch(e => ({ ok: false, data: { error: e?.message || "fetch failed" } }));
     try {
       const [daily, mtdRes, csat] = await Promise.all([
-        callSync("daily-scores-sync"),
-        callSync("mtd-sync"),
-        callSync("csat-topic-sync"),
+        callEdgeFunction("daily-scores-sync", { token }),
+        callEdgeFunction("mtd-sync", { token }),
+        callEdgeFunction("csat-topic-sync", { token }),
       ]);
       // Re-fetch the rows the page reads from, in parallel.
       await Promise.all([refreshDailyScores(), refreshMtd()]);

@@ -5,6 +5,7 @@ import { nameFromEmail, logActivity, csatPctValue, csatColor } from "../lib/util
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
+import { callEdgeFunction } from "../lib/edgeSync.js";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -481,23 +482,14 @@ function ScoreEntryPage(){
         {hasRole(profile?.role,"qa_lead")&&<button className="btn btn-outline btn-sm" disabled={refreshing} onClick={async()=>{
           if (refreshing) return;
           setRefreshing(true);
-          try {
-            const r = await fetch(`${SUPABASE_URL}/functions/v1/mtd-sync`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json", apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` },
-              body: JSON.stringify({}),
-            });
-            const data = await r.json().catch(() => ({}));
-            if (!r.ok || data?.error) {
-              globalToast("error", `Sync failed — ${data?.error || `HTTP ${r.status}`}`);
-            } else {
-              dataCache?.invalidate?.();
-              setReloadKey(k => k + 1);
-              const upserted = data?.rows_upserted ?? "?";
-              globalToast("success", `Synced ${upserted} row${upserted===1?"":"s"} — refreshing…`);
-            }
-          } catch (e) {
-            globalToast("error", `Sync failed — ${e?.message || "network error"}`);
+          const r = await callEdgeFunction("mtd-sync", { token });
+          if (!r.ok) {
+            globalToast("error", `Sync failed — ${r.error}`);
+          } else {
+            dataCache?.invalidate?.();
+            setReloadKey(k => k + 1);
+            const upserted = r.data?.rows_upserted ?? "?";
+            globalToast("success", `Synced ${upserted} row${upserted===1?"":"s"} — refreshing…`);
           }
           setRefreshing(false);
         }} title="Pull the latest MTD data from the Google Sheet" style={{fontSize:12,marginLeft:8,display:"flex",alignItems:"center",gap:6}}>

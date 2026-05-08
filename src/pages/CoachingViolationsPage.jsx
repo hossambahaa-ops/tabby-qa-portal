@@ -8,6 +8,7 @@ import { listViolations } from "../api/violations.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import { callEdgeFunction } from "../lib/edgeSync.js";
 import useKeyboard from "../lib/useKeyboard.jsx";
 
 function CoachingViolationsPage() {
@@ -218,21 +219,15 @@ function CoachingViolationsPage() {
             onClick={async()=>{
               if(sendingDigest)return;
               setSendingDigest(true);
-              try{
-                const r=await fetch(`${SUPABASE_URL}/functions/v1/violations-digest`,{
-                  method:"POST",
-                  headers:{"Content-Type":"application/json",apikey:SUPABASE_ANON,Authorization:`Bearer ${token}`},
-                  body:JSON.stringify({}),
-                });
-                const data=await r.json().catch(()=>({}));
-                if(r.ok&&data.success){
-                  globalToast("success",`Digest sent — ${data.leads} lead${data.leads===1?"":"s"}, ${data.violations} violation${data.violations===1?"":"s"}`);
-                }else if(data.skipped){
-                  globalToast("success","No pending violations — nothing to send");
-                }else{
-                  globalToast("error",data.error||"Send failed");
-                }
-              }catch(e){globalToast("error",safeError(e));}
+              const r = await callEdgeFunction("violations-digest", { token });
+              const data = r.data || {};
+              if(r.ok && data.success){
+                globalToast("success",`Digest sent — ${data.leads} lead${data.leads===1?"":"s"}, ${data.violations} violation${data.violations===1?"":"s"}`);
+              }else if(data.skipped){
+                globalToast("success","No pending violations — nothing to send");
+              }else{
+                globalToast("error", r.error || "Send failed");
+              }
               setSendingDigest(false);
             }}
             title="Send the daily violations digest now (also runs automatically at 11 AM Riyadh)">
