@@ -8,6 +8,9 @@ import { listTasks } from "../api/tasks.js";
 import { listCoachingSessions } from "../api/coachingSessions.js";
 import { listTeamTargets } from "../api/teamTargets.js";
 import { listPlans } from "../api/plans.js";
+import { listDamFlags } from "../api/damFlags.js";
+import { listAttendance } from "../api/attendance.js";
+import { listDailyScores } from "../api/dailyScores.js";
 
 // Module-level short-term cache: survives React re-renders/unmounts but
 // is cleared on page reload or when the session token changes.
@@ -77,10 +80,10 @@ export function useQaProfileData(token, profile) {
           listCoachingSessions({ token, select: "id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass", filters: "order=session_date.desc" }),
           listPlans({ token, select: "id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)", filters: "", cacheKey: "action_plans_full", cache: true }),
           listTasks({ token }),
-          sb.query("dam_flags", { select: "id,qa_email,severity,status,triggered_at,occurrence_number,reviewed_by,reviewed_at,notes,dam_rules(name,behavior_type,recommended_action)", filters: "order=triggered_at.desc", token }).catch(() => []),
+          listDamFlags({ token }),
           listProfiles({ token, select: "email,role", filters: "", cacheKey: "profiles_email_role" }),
-          sb.query("qa_attendance", { select: "email,date,status,planned_code", filters: `date=gte.${curMonth}-01&order=date.asc`, token }).catch(() => []),
-          sb.query("daily_scores", { select: "*", filters: `date=eq.${today}`, token }).catch(() => []),
+          listAttendance({ token, filters: `date=gte.${curMonth}-01&order=date.asc` }),
+          listDailyScores({ token, filters: `date=eq.${today}` }),
           listTeamTargets({ token }),
         ]);
         if (cancelled) return;
@@ -149,7 +152,7 @@ export function useQaProfileData(token, profile) {
   const refreshDailyScores = useCallback(async () => {
     if (!token) return;
     const today = new Date().toISOString().split("T")[0];
-    const ds = await sb.query("daily_scores", { select: "*", filters: `date=eq.${today}`, token }).catch(() => []);
+    const ds = await listDailyScores({ token, filters: `date=eq.${today}` });
     setDailyScores(Array.isArray(ds) ? ds : []);
   }, [token]);
 
