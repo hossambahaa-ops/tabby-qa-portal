@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { hasRole } from "../../lib/constants.js";
 import { sb } from "../../lib/supabase.js";
 import { nameFromEmail, safeError } from "../../lib/utils.js";
@@ -22,6 +22,24 @@ export default function CoachingHistory({ sessions, onDelete }) {
   const [filterTo, setFilterTo] = useState("");
   const [filterType, setFilterType] = useState("");
   const [filterRating, setFilterRating] = useState("");
+  // Per-session ack lookup: session_id -> acked_at. Loaded once on mount,
+  // used to render ✓ / ⏳ on each row.
+  const [ackBySession, setAckBySession] = useState({});
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    sb.query("coaching_session_acks", {
+      token, select: "session_id,acked_at,member_email",
+    }).then(rows => {
+      if (cancelled) return;
+      const map = {};
+      for (const r of (Array.isArray(rows) ? rows : [])) {
+        if (r.session_id) map[r.session_id] = r.acked_at;
+      }
+      setAckBySession(map);
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [token]);
   // Click-to-sort state. Default: newest sessions first.
   const [sortKey, setSortKey] = useState("date");
   const [sortDir, setSortDir] = useState("desc");
@@ -216,7 +234,12 @@ export default function CoachingHistory({ sessions, onDelete }) {
             <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{ENUM_TO_LABEL[s.meeting_type]||s.meeting_type}</span>
             {followUpNeeded.has(s.id) && <span title="Action items from this session have no follow-up session" style={{marginLeft:6,fontSize:10,padding:"1px 6px",borderRadius:8,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:700,letterSpacing:.2}}>↻ Follow-up</span>}
             </td>
-            <td style={{fontWeight:500}}>{nameFromEmail(s.member_email)}</td>
+            <td style={{fontWeight:500}}>
+              {nameFromEmail(s.member_email)}
+              {ackBySession[s.id]
+                ? <span title={`Read ${new Date(ackBySession[s.id]).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}`} style={{marginLeft:6,fontSize:11,color:"var(--green)"}}>✓</span>
+                : <span title="Not yet acknowledged by the member" style={{marginLeft:6,fontSize:11,color:"var(--tx3)"}}>⏳</span>}
+            </td>
             <td style={{fontSize:13,color:"var(--tx2)"}}>{nameFromEmail(s.sender_email)}</td>
             <td>{s.performance_rating ? <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,
               background:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green-bg)":s.performance_rating==="Meets Expectations"?"var(--accent-light)":"var(--amber-bg)",

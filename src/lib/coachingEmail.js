@@ -36,6 +36,10 @@ export const calcDiff = (target, actual) => {
 
 // Build the inline-styled HTML body of a coaching session email. Pure
 // function — every piece of state the page knows about is passed in.
+//
+// Optional `ackUrl` (the "I've read this" link the QA clicks to acknowledge
+// receipt) is appended near the signature when provided. CoachingCompose
+// passes it after the session row is INSERTed and we know the new id.
 export function buildCoachingEmailBody(params) {
   const {
     toEmail,
@@ -52,6 +56,7 @@ export function buildCoachingEmailBody(params) {
     targetRows,
     sigName,
     sigTitle,
+    ackUrl,
   } = params;
 
   const fn = firstNameFromEmail(toEmail);
@@ -154,6 +159,14 @@ export function buildCoachingEmailBody(params) {
   html += `<div style="margin-top:28px;padding-top:16px;border-top:1px solid #E8F5E8;">`;
   html += `<p style="margin:0 0 10px;">Should you have any questions, please do not hesitate to reach out.</p>`;
   html += `<p style="margin:0 0 16px;">I appreciate your continued commitment and professionalism.</p>`;
+  if (ackUrl) {
+    // Inline-styled "I've read this" button. Recipients sign in once and
+    // the route writes a row to coaching_session_acks; the lead then sees
+    // ✓/⏳ in CoachingHistory.
+    html += `<p style="margin:0 0 18px;text-align:center;">`;
+    html += `<a href="${ackUrl}" style="display:inline-block;padding:10px 18px;background:#6A2C79;color:#fff;border-radius:8px;text-decoration:none;font-weight:700;font-size:13px;">✓ I've read this</a>`;
+    html += `</p>`;
+  }
   html += `<p style="margin:0;">Best regards,<br><strong>${sigName || "QA Leader"}</strong><br>${sigTitle || "QA Lead"} | Tabby</p>`;
   html += `</div></div>`;
   return html;

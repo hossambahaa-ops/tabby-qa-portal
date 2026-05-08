@@ -235,6 +235,13 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
       if (emails && emails.length > 0) {
         setToEmail(emails.join(", "));
         if (e.detail.type) setMeetingType(e.detail.type);
+        // Optional content prefills — used by the violation→coaching wizard
+        // to drop the failing rule + recording link straight into the form.
+        // Only sets a field when the caller passes it; existing draft
+        // content for unspecified fields is preserved.
+        if (e.detail.topics)     setTopics(e.detail.topics);
+        if (e.detail.weaknesses) setWeaknesses(e.detail.weaknesses);
+        if (e.detail.actions)    setActions(e.detail.actions);
         pendingPrefillRef.current = emails[0];
         pendingPrefillTypeRef.current = e.detail.type;
       }
@@ -356,10 +363,15 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
     try {
       // Parse toEmail for multiple recipients (comma/space separated)
       const memberEmails = toEmail.split(/[,;\s]+/).map(e=>e.trim()).filter(Boolean);
-      // Create one coaching session record per member (group coaching)
+      // Create one coaching session record per member (group coaching).
+      // We capture the inserted row's id so the ack-link in the email
+      // can deep-link back into the portal. PostgREST returns the new
+      // representation when Prefer: return=representation is sent.
+      const insertedSessions = [];
       for (const em of memberEmails) {
-        await sb.query("coaching_sessions", {
+        const inserted = await sb.query("coaching_sessions", {
           token, method: "POST",
+          headers: { Prefer: "return=representation" },
           body: {
             sender_email: profile?.email || "",
             member_email: em,
@@ -378,15 +390,28 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
             email_subject: emailSubject,
           }
         });
+        const row = Array.isArray(inserted) && inserted[0] ? inserted[0] : null;
+        if (row?.id) insertedSessions.push(row);
       }
 
       try {
+        // Build the ack URL for the (single) recipient. Group coachings
+        // skip the ack link because each recipient would need a different
+        // session id and we send one email body to everyone.
+        const ackUrl = (insertedSessions.length === 1)
+          ? `${window.location.origin}${window.location.pathname}#/coaching/ack/${insertedSessions[0].id}`
+          : null;
         // Defense-in-depth: each RichTextField sanitises its own output on
         // every keystroke so the values in state are already clean. Run a
         // final DOMPurify pass right before the email leaves the app so a
         // future field that forgets to sanitise on input can't regress
         // recipients into receiving raw HTML.
-        const htmlBody = DOMPurify.sanitize(buildEmailBody(), {
+        const htmlBody = DOMPurify.sanitize(buildCoachingEmailBody({
+          toEmail, meetingType, isTargetType, outcome, nextSteps,
+          topics, strengths, weaknesses, goals, actions,
+          perfRating, targetRows, sigName, sigTitle,
+          ackUrl,
+        }), {
           ALLOWED_TAGS: ["p","br","b","strong","i","em","u","ul","ol","li","a","div","span","table","thead","tbody","tr","th","td"],
           ALLOWED_ATTR: ["href","target","rel","style"],
         });

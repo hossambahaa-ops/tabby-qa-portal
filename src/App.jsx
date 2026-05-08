@@ -35,6 +35,7 @@ const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage.jsx"));
 const DAMPage = lazy(() => import("./pages/DAMPage.jsx"));
 const ActionPlanPage = lazy(() => import("./pages/ActionPlanPage.jsx"));
 const CoachingPage = lazy(() => import("./pages/CoachingPage.jsx"));
+const CoachingAckPage = lazy(() => import("./pages/CoachingAckPage.jsx"));
 const CoachingViolationsPage = lazy(() => import("./pages/CoachingViolationsPage.jsx"));
 const EscalationsPage = lazy(() => import("./pages/EscalationsPage.jsx"));
 const QualityControlPage = lazy(() => import("./pages/QualityControlPage.jsx"));
@@ -583,6 +584,9 @@ function AppInner(){
       <Route path="/dam" element={<Navigate to="/quality" replace/>}/>
       <Route path="/plans" element={<Navigate to="/quality" replace/>}/>
       <Route path="/coaching" element={<Navigate to="/quality" replace/>}/>
+      {/* Coaching email "I've read this" landing page. Posts an ack to
+          coaching_session_acks; route owns its own auth check. */}
+      <Route path="/coaching/ack/:id" element={<CoachingAckPage/>}/>
       <Route path="/violations" element={<Navigate to="/quality" replace/>}/>
       <Route path="/audit" element={<Navigate to="/admin" replace/>}/>
       <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>

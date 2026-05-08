@@ -388,6 +388,30 @@ function CoachingViolationsPage() {
               {reviewModal.status !== "pending" ? "Update" : "Confirm"}
             </button>
             <button className="btn btn-outline" onClick={() => setReviewModal(null)}>Cancel</button>
+            {/* Schedule coaching wizard — jumps to Coaching → Compose
+                with the QA, recording link, and failing rule pre-filled
+                into the form. Visible always so leads can use it for
+                pending/valid/invalid alike. */}
+            <button
+              className="btn btn-outline"
+              style={{ color: "var(--tabby-purple)", borderColor: "var(--tabby-purple)" }}
+              title="Open Coaching → Compose with this violation pre-filled"
+              onClick={() => {
+                const qa = (reviewModal.qa_emails || "").split(/[,\n]/).map(e => e.trim()).filter(Boolean)[0] || "";
+                const ruleName = suggestedRule?.name || reviewModal.violation_type;
+                const weaknesses = `<ul><li>${ruleName} on ${reviewModal.violation_date || ""}</li></ul>`;
+                const topics = reviewModal.coaching_link
+                  ? `<ul><li>Review recording: <a href="${reviewModal.coaching_link}" target="_blank" rel="noreferrer">Open coaching link</a></li></ul>`
+                  : "";
+                window.dispatchEvent(new CustomEvent("prefill-coaching", {
+                  detail: { email: qa, type: "Coaching Session", weaknesses, topics },
+                }));
+                window.dispatchEvent(new CustomEvent("qc-tab", { detail: "coaching" }));
+                setReviewModal(null);
+              }}
+            >
+              📒 Schedule coaching
+            </button>
             {reviewModal.status !== "pending" && <button className="btn btn-outline" style={{marginLeft:"auto",color:"var(--amber)",borderColor:"var(--amber)"}} onClick={()=>{
               confirmAsk("Reopen violation?",`This will set the violation back to "pending" for re-review. The previous decision will be cleared.`,async()=>{
                 try{
