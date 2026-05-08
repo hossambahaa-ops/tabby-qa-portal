@@ -183,15 +183,8 @@ function LeaderboardPage() {
   // Rank by calculated total score
   const ranked = [...filtered].sort((a, b) => getTotalScore(b) - getTotalScore(a));
 
-  const nameFromEmail = (email) => {
-    if (!email) return "—";
-    const local = email.split("@")[0];
-    return local.split(".").map(p => {
-      const clean = p.replace(/[\d]+$/, "");
-      return clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : "";
-    }).filter(Boolean).join(" ");
-  };
-
+  // nameFromEmail is imported from lib/utils. The local re-implementation
+  // that lived here was deleted 2026-05-08 — identical behaviour.
   const initialsFromEmail = (email) => {
     const name = nameFromEmail(email);
     const parts = name.split(" ");
