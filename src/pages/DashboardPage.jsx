@@ -25,6 +25,7 @@ import TeamChampions from "../components/dashboard/TeamChampions.jsx";
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
 import PendingSideTasksCard from "../components/dashboard/PendingSideTasksCard.jsx";
 import OwedCoachingsCard from "../components/dashboard/OwedCoachingsCard.jsx";
+import TeamOccupancyCard from "../components/dashboard/TeamOccupancyCard.jsx";
 import QASelfServiceDashboard from "../components/dashboard/QASelfServiceDashboard.jsx";
 import DailyCheckInWidget from "../components/dashboard/DailyCheckInWidget.jsx";
 import MyTrackerWidget from "../components/dashboard/MyTrackerWidget.jsx";
@@ -259,11 +260,12 @@ function DashboardPage(){
     {/* What needs the lead's attention — deep-links to detail pages */}
     <MyResponsibilities roster={roster} onNavigate={nav}/>
 
-    {/* QA Lead alerts: side-task approvals + overdue coachings. Both
-        cards self-render only when the viewer is a lead+ and there's
-        actually something to act on. */}
+    {/* QA Lead alerts: side-task approvals + overdue coachings + team
+        occupancy. All three cards self-render only when the viewer is
+        a lead+ and there's actually something to act on. */}
     <PendingSideTasksCard/>
     <OwedCoachingsCard/>
+    <TeamOccupancyCard/>
 
     {/* User Task Management */}
     <DashboardTasks roster={roster} appProfiles={appProfiles} todayAttendance={todayAttendance} dailyScores={dailyScores}/>
