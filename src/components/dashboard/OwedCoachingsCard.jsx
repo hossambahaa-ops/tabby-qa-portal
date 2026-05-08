@@ -3,6 +3,7 @@ import { sb } from "../../lib/supabase.js";
 import { hasRole } from "../../lib/constants.js";
 import { useApp } from "../../lib/AppContext.jsx";
 import { nameFromEmail } from "../../lib/utils.js";
+import { loadTeamForViewer } from "../../lib/teamScope.js";
 
 // Tiny widget for QA Leads (and above) showing which of their team's QAs
 // are overdue for a coaching session — defaults to "no coaching in the
@@ -28,14 +29,9 @@ export default function OwedCoachingsCard() {
     let cancelled = false;
     (async () => {
       try {
-        const myEmail = profile.email.toLowerCase();
-        // 1. The lead's direct reports.
-        const roster = await sb.query("qa_roster", {
-          token,
-          select: "email,display_name,manager_email",
-          filters: `manager_email=ilike.${myEmail}`,
-        }).catch(() => []);
-        const team = (Array.isArray(roster) ? roster : []).filter(r => r.email);
+        // 1. Effective team — direct reports for leads; supervisors+ also
+        //    see QAs whose lead reports to them via teams.supervisor_id.
+        const team = (await loadTeamForViewer({ token, profile })).filter(r => r.email);
         if (team.length === 0) { if (!cancelled) setLoading(false); return; }
 
         // 2. Latest coaching_sessions.session_date per member, scoped to

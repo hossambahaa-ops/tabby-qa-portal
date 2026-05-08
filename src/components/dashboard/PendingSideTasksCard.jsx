@@ -3,6 +3,7 @@ import { sb } from "../../lib/supabase.js";
 import { hasRole } from "../../lib/constants.js";
 import { useApp } from "../../lib/AppContext.jsx";
 import { nameFromEmail } from "../../lib/utils.js";
+import { loadTeamForViewer } from "../../lib/teamScope.js";
 
 // Tiny widget for QA Leads (and above) showing how many side-task hours
 // across their team are currently waiting for their approval. Renders
@@ -33,19 +34,11 @@ export default function PendingSideTasksCard() {
     let cancelled = false;
     (async () => {
       try {
-        // 1. Roster of QAs reporting to this lead. RLS already scopes
-        //    qa_roster reads, but we filter again client-side so a
-        //    qa_supervisor viewing this dashboard still sees only their
-        //    own direct reports.
-        const myEmail = profile.email.toLowerCase();
-        const roster = await sb.query("qa_roster", {
-          token,
-          select: "email,display_name,manager_email",
-          filters: `manager_email=ilike.${myEmail}`,
-        }).catch(() => []);
-        const teamEmails = (Array.isArray(roster) ? roster : [])
-          .map(r => r.email?.toLowerCase())
-          .filter(Boolean);
+        // 1. Effective team for this viewer — direct reports for leads;
+        //    for supervisors+ also walks one level down via teams.supervisor_id
+        //    so a sup sees every QA under the leads reporting to them.
+        const team = (await loadTeamForViewer({ token, profile })).filter(r => r.email);
+        const teamEmails = team.map(r => r.email.toLowerCase());
         if (teamEmails.length === 0) {
           if (!cancelled) { setLoading(false); }
           return;

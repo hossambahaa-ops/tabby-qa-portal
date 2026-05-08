@@ -4,6 +4,7 @@ import { hasRole } from "../../lib/constants.js";
 import { useApp } from "../../lib/AppContext.jsx";
 import { nameFromEmail } from "../../lib/utils.js";
 import { listTeamTargets } from "../../api/teamTargets.js";
+import { loadTeamForViewer } from "../../lib/teamScope.js";
 
 // Compact "Team occupancy" view for QA Lead+. Shows each direct
 // report's most-recent occupancy and what it would become if their
@@ -41,15 +42,10 @@ export default function TeamOccupancyCard() {
     let cancelled = false;
     (async () => {
       try {
-        const myEmail = profile.email.toLowerCase();
-        // 1. The lead's direct reports (case-insensitive match on
-        //    manager_email so "tabby.ai" / "tabby.sa" mixed case works).
-        const roster = await sb.query("qa_roster", {
-          token,
-          select: "email,display_name,queue,manager_email",
-          filters: `manager_email=ilike.${myEmail}`,
-        }).catch(() => []);
-        const team = (Array.isArray(roster) ? roster : []).filter(r => r.email);
+        // The viewer's effective team — direct reports for leads; for
+        // supervisors+ also walks one level down via teams.supervisor_id
+        // so a sup sees every QA under the leads reporting to them.
+        const team = (await loadTeamForViewer({ token, profile })).filter(r => r.email);
         if (team.length === 0) { if (!cancelled) setLoading(false); return; }
         const teamEmails = team.map(r => r.email.toLowerCase());
         const teamMap = new Map(team.map(r => [r.email.toLowerCase(), r]));
