@@ -14,6 +14,12 @@ export default function CoachingHistory({ sessions, onDelete }) {
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
   const [expandedSession, setExpandedSession] = useState(null);
+  // Local mirror of observation edits so saves reflect instantly even
+  // before the parent's sessions array is reloaded.
+  const [obsLocal, setObsLocal] = useState({});
+  // Tracks which session id is currently in "edit observation" mode.
+  const [editingObs, setEditingObs] = useState(null);
+  const [obsDraft, setObsDraft] = useState({ empathy: 3, clarity: 3, specificity: 3, note: "" });
   const [historySearch, setHistorySearch] = useState("");
   const [historyFilterBy, setHistoryFilterBy] = useState("all");
   // New filter dropdowns — date range, meeting type, performance rating.
@@ -302,7 +308,102 @@ export default function CoachingHistory({ sessions, onDelete }) {
 
             {s.target_data&&<div style={{marginBottom:12}}><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>Target data</div><div style={{fontSize:12,color:"var(--tx2)",fontFamily:"monospace",background:"var(--bg3)",padding:"8px 10px",borderRadius:6,overflowX:"auto"}}>{s.target_data}</div></div>}
 
-            <div style={{display:"flex",gap:16,flexWrap:"wrap",paddingTop:12,borderTop:"1px solid var(--bd2)",fontSize:12,color:"var(--tx3)"}}>
+            {/* Observation panel — supervisors and above can rate the
+                lead's coaching style on three axes (Empathy, Clarity,
+                Specificity 1-5) plus a free-text note. Visible to
+                everyone who can see the row; editable by qa_supervisor+. */}
+            {(() => {
+              const cur = obsLocal[s.id] || {
+                empathy: s.observation_empathy,
+                clarity: s.observation_clarity,
+                specificity: s.observation_specificity,
+                note: s.observation_note,
+                observed_by: s.observed_by,
+                observed_at: s.observed_at,
+              };
+              const hasObs = cur.empathy != null || cur.clarity != null || cur.specificity != null;
+              const canEdit = hasRole(profile?.role, "qa_supervisor");
+              const isEditing = editingObs === s.id;
+              if (!hasObs && !canEdit) return null;
+              return (
+                <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--bd2)"}}>
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+                    <span style={{fontSize:11,fontWeight:600,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px"}}>
+                      Coaching observation {hasObs && cur.observed_by ? <span style={{color:"var(--tx3)",fontWeight:500,textTransform:"none",letterSpacing:0}}> · by {nameFromEmail(cur.observed_by)}{cur.observed_at?` · ${new Date(cur.observed_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`:""}</span> : null}
+                    </span>
+                    {canEdit && !isEditing && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        style={{fontSize:10,padding:"3px 8px"}}
+                        onClick={(e) => { e.stopPropagation(); setEditingObs(s.id); setObsDraft({ empathy: cur.empathy ?? 3, clarity: cur.clarity ?? 3, specificity: cur.specificity ?? 3, note: cur.note || "" }); }}
+                      >{hasObs ? "Edit" : "Add"}</button>
+                    )}
+                  </div>
+
+                  {isEditing ? (
+                    <div onClick={(e) => e.stopPropagation()} style={{display:"flex",flexDirection:"column",gap:8}}>
+                      {[["Empathy","empathy"],["Clarity","clarity"],["Specificity","specificity"]].map(([label,key]) => (
+                        <div key={key} style={{display:"flex",alignItems:"center",gap:8}}>
+                          <span style={{fontSize:12,minWidth:80,color:"var(--tx2)"}}>{label}</span>
+                          {[1,2,3,4,5].map(n => (
+                            <button key={n} type="button" onClick={() => setObsDraft(d => ({ ...d, [key]: n }))}
+                              style={{width:28,height:28,borderRadius:6,border:obsDraft[key]===n?`2px solid var(--tabby-purple)`:"1px solid var(--bd)",background:obsDraft[key]===n?"var(--accent-light)":"var(--bg)",color:obsDraft[key]===n?"var(--accent-text)":"var(--tx2)",fontWeight:700,fontSize:12,cursor:"pointer",fontFamily:"var(--font)"}}>{n}</button>
+                          ))}
+                        </div>
+                      ))}
+                      <textarea
+                        className="form-input"
+                        rows={2}
+                        value={obsDraft.note}
+                        onChange={(e) => setObsDraft(d => ({ ...d, note: e.target.value }))}
+                        placeholder="Optional note on what stood out — coaching style, tone, evidence cited..."
+                        style={{fontSize:12,resize:"vertical"}}
+                      />
+                      <div style={{display:"flex",gap:8}}>
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          style={{fontSize:11,padding:"4px 12px"}}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              const body = {
+                                observation_empathy: obsDraft.empathy,
+                                observation_clarity: obsDraft.clarity,
+                                observation_specificity: obsDraft.specificity,
+                                observation_note: obsDraft.note || null,
+                                observed_by: profile?.email || null,
+                                observed_at: new Date().toISOString(),
+                              };
+                              await sb.query("coaching_sessions", { token, method: "PATCH", body, filters: `id=eq.${s.id}` });
+                              setObsLocal(prev => ({ ...prev, [s.id]: { ...body } }));
+                              setEditingObs(null);
+                              globalToast?.("success", "Observation saved.");
+                            } catch (err) {
+                              globalToast?.("error", safeError(err));
+                            }
+                          }}
+                        >Save observation</button>
+                        <button type="button" className="btn btn-outline btn-sm" style={{fontSize:11,padding:"4px 12px"}} onClick={(e) => { e.stopPropagation(); setEditingObs(null); }}>Cancel</button>
+                      </div>
+                    </div>
+                  ) : hasObs ? (
+                    <div style={{display:"flex",flexWrap:"wrap",gap:14,fontSize:12}}>
+                      {[["Empathy",cur.empathy],["Clarity",cur.clarity],["Specificity",cur.specificity]].map(([label,val]) => (
+                        <span key={label} style={{display:"inline-flex",alignItems:"center",gap:4}}>
+                          <span style={{color:"var(--tx3)"}}>{label}:</span>
+                          <strong style={{color:val>=4?"var(--green)":val>=3?"var(--accent-text)":"var(--amber)"}}>{val ?? "—"}/5</strong>
+                        </span>
+                      ))}
+                      {cur.note && <span style={{flexBasis:"100%",color:"var(--tx2)",fontStyle:"italic",marginTop:4}}>"{cur.note}"</span>}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })()}
+
+            <div style={{display:"flex",gap:16,flexWrap:"wrap",paddingTop:12,borderTop:"1px solid var(--bd2)",fontSize:12,color:"var(--tx3)",marginTop:12}}>
               {s.sig_name&&<span>Signed by: <strong style={{color:"var(--tx)"}}>{s.sig_name}</strong>{s.sig_title?" — "+s.sig_title:""}</span>}
               {s.created_at&&<span>Logged: {new Date(s.created_at).toLocaleString("en-GB",{month:"short",day:"numeric",year:"numeric",hour:"2-digit",minute:"2-digit"})}</span>}
             </div>

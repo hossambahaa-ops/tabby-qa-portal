@@ -352,6 +352,26 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
   const emailSubject = `Session Summary: ${meetingType} - ${fmtDate(sessionDate)}`;
 
   // Save session and send via Gmail API
+  // Pull individual action-item lines out of the (possibly HTML)
+  // action_items field so each one becomes its own task. Handles three
+  // shapes: <li>...</li> bullets from RichTextField, plain-text lines
+  // separated by \n, and the legacy "- foo" / "• foo" prefix style.
+  const extractActionLines = (raw) => {
+    if (!raw) return [];
+    const s = String(raw);
+    if (/<li[\s>]/i.test(s)) {
+      const lines = [];
+      const re = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+      let m;
+      while ((m = re.exec(s)) !== null) {
+        const text = m[1].replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+        if (text) lines.push(text);
+      }
+      return lines;
+    }
+    return s.split(/\r?\n/).map(l => l.replace(/^[-•*]\s*/, "").trim()).filter(Boolean);
+  };
+
   const generateAndSend = async () => {
     if (!toEmail) { globalToast("error", "Enter the team member's email"); return; }
     if (!gmailAuthorized) {
@@ -392,6 +412,45 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
         });
         const row = Array.isArray(inserted) && inserted[0] ? inserted[0] : null;
         if (row?.id) insertedSessions.push(row);
+      }
+
+      // Action items → Tracker tasks. Each non-empty action-item line
+      // becomes a "pending" task on the member's Tracker, due in 7 days.
+      // Best-effort: failures don't block the email send. Skipped when
+      // action_items is empty.
+      const actionLines = extractActionLines(actions);
+      if (actionLines.length > 0) {
+        const due = new Date();
+        due.setDate(due.getDate() + 7);
+        const dueIso = due.toISOString().split("T")[0];
+        const today = new Date().toISOString();
+        const dateLabel = new Date(sessionDate + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+        let createdTasks = 0;
+        for (const em of memberEmails) {
+          for (const line of actionLines) {
+            try {
+              await sb.query("tasks", {
+                token, method: "POST",
+                body: {
+                  title: line.length > 140 ? line.slice(0, 137) + "…" : line,
+                  description: `From coaching session on ${dateLabel} (${meetingType}) with ${nameFromEmail(profile?.email)}`,
+                  priority: "medium",
+                  created_by: profile?.email,
+                  assigned_to: em,
+                  due_date: dueIso,
+                  status: "pending",
+                  updated_at: today,
+                },
+              });
+              createdTasks++;
+            } catch (e) {
+              console.warn("[coaching] failed to create task for action line:", line, e);
+            }
+          }
+        }
+        if (createdTasks > 0) {
+          globalToast?.("success", `${createdTasks} task${createdTasks === 1 ? "" : "s"} added to ${memberEmails.length === 1 ? "their" : "the team's"} Tracker (due ${dueIso}).`);
+        }
       }
 
       try {

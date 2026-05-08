@@ -103,7 +103,7 @@ export function useQaProfileData(token, profile) {
     const today = new Date().toISOString().split("T")[0];
     const detailPromise = (async () => {
       const [s, ap, t, f, att, ds, tgt] = await Promise.all([
-        listCoachingSessions({ token, select: "id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass", filters: "order=session_date.desc" }),
+        listCoachingSessions({ token, select: "id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass,observation_empathy,observation_clarity,observation_specificity,observation_note,observed_by,observed_at", filters: "order=session_date.desc" }),
         listPlans({ token, select: "id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)", filters: "", cacheKey: "action_plans_full", cache: true }),
         listTasks({ token }),
         listDamFlags({ token }),

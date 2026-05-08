@@ -5,6 +5,7 @@ import { nameFromEmail, csatPctValue, csatColor, safeError, logActivity } from "
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
+import CoachingTimeline from "../components/coaching/CoachingTimeline.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import { useQaProfileData, bustBulkCache } from "../lib/useQaProfileData.jsx";
 import { useFreshness } from "../lib/useFreshness.js";
@@ -570,6 +571,11 @@ function QAProfilePage() {
           />
         </div>
       )}
+
+      {/* Coaching timeline — chronological list of every session for
+          this QA with effectiveness deltas (CSAT / Coaching%) computed
+          across the next MTD cycle. Renders nothing when no sessions. */}
+      <CoachingTimeline sessions={qaSessions} mtd={qaMtd}/>
 
       {/* Coaching history — full width (Overview) */}
       <div className="card" style={{marginBottom:16}}>
