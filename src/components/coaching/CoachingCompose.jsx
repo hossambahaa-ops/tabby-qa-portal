@@ -25,6 +25,9 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
   // just QAs. Falls back to roster when the parent didn't supply candidates.
   const candidates = (pickerCandidates && pickerCandidates.length > 0) ? pickerCandidates : roster;
   const { token, profile, globalToast } = useApp();
+  // Inline confirm modal — used by the destructive "Clear" button so the
+  // lead can't accidentally wipe a long draft with one stray click.
+  const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
   // Team → supervisor lookup. Walking only the qa_roster sometimes misses
   // the SV (lead's manager_email may not point to the SV's tabby email),
@@ -717,7 +720,31 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
             bullets / link. HTML is sanitized on every keystroke before
             it leaves the editor. */}
         <div className="card">
-          <div className="card-header"><span className="card-title">Session content</span></div>
+          <div className="card-header" style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+            <span className="card-title">Session content</span>
+            {/* Clear button — wipes every form field back to defaults
+                after an explicit confirm. Lives here (not next to Send)
+                so it's visible while the lead is still drafting, but
+                never the easy click. */}
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => confirmAsk(
+                "Clear this draft?",
+                "This will reset every field on this form — recipient, date, meeting type, all section content, and any AP/PIP targets. This cannot be undone.",
+                () => {
+                  resetFormToDefaults();
+                  globalToast("success", "Draft cleared");
+                },
+                "Clear",
+                "var(--red)",
+              )}
+              style={{fontSize:11,padding:"3px 10px",color:"var(--red)",borderColor:"var(--red)"}}
+              title="Wipe every field on this form (asks for confirmation first)"
+            >
+              ✕ Clear
+            </button>
+          </div>
           <div style={{display:"flex",flexDirection:"column",gap:12}}>
             {[["topics","Topics discussed",topics,setTopics],["strengths","Strengths observed",strengths,setStrengths],["weaknesses","Areas for improvement",weaknesses,setWeaknesses],["goals","Goals & progress update",goals,setGoals],["actions","Action items / next steps",actions,setActions]].map(([id,label,val,setter]) => (
               <div className="form-group" key={id}><label className="form-label">{label}</label>
@@ -877,5 +904,6 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
         </div>
       </div>
     </div>
+    {confirmEl}
   </>);
 }
