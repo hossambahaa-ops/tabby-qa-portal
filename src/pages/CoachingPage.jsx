@@ -40,11 +40,20 @@ function CoachingPage() {
 
   const GMAIL_EDGE_FN = `${SUPABASE_URL}/functions/v1/gmail-auth`;
 
-  // Helper to call the gmail-auth edge function
+  // Helper to call the gmail-auth edge function. Pulls the freshest
+  // access_token via sb.auth.getSession() — which silently refreshes if
+  // the JWT is within 60s of expiry — so an idle tab over an hour old
+  // doesn't hit a 401 from the Edge Function's verifyUser path. Falls
+  // back to the prop token if getSession returns nothing (offline, etc.).
   const callGmailFn = async (body) => {
+    let bearer = token;
+    try {
+      const session = await sb.auth.getSession();
+      if (session?.access_token) bearer = session.access_token;
+    } catch { /* fall through to prop token */ }
     const r = await fetch(GMAIL_EDGE_FN, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}`, apikey: SUPABASE_ANON },
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${bearer}`, apikey: SUPABASE_ANON },
       body: JSON.stringify(body),
     });
     return r.json();
@@ -89,8 +98,14 @@ function CoachingPage() {
       if (result.authUrl) {
         sessionStorage.setItem("gmail_oauth_return", "coaching");
         window.location.href = result.authUrl;
+      } else if (/expired|invalid|authorization token/i.test(result.error || "")) {
+        // verifyUser failed on the edge function — almost always a stale
+        // Supabase session on a long-open tab. Surface the real cause and
+        // tell the user how to recover instead of showing the unhelpful
+        // "Could not get Gmail authorization URL" message.
+        globalToast("error", "Your session expired — please refresh the page and try again.");
       } else {
-        globalToast("error", "Could not get Gmail authorization URL");
+        globalToast("error", `Could not get Gmail authorization URL${result.error ? ": " + result.error : ""}`);
       }
     } catch (e) {
       globalToast("error", "Failed to start Gmail authorization");
