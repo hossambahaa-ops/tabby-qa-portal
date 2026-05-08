@@ -10,6 +10,34 @@ import EmptyState from "../components/EmptyState.jsx";
 
 const fmtScore = (v) => Number(v || 0).toFixed(2);
 
+// Faint background tint on leaderboard rows so the eye can group QAs
+// by tier at a glance. Kept low-saturation so chips and text contrast
+// stays readable; full color is reserved for the star itself.
+const starTint = (lvl) => {
+  const n = Number(lvl) || 0;
+  if (n >= 3) return "rgba(245,158,11,.07)";
+  if (n === 2) return "rgba(59,130,246,.06)";
+  if (n === 1) return "rgba(34,197,94,.05)";
+  return "transparent";
+};
+
+// Avatar color derived from the QA's email domain so Front Line vs
+// CCU vs tabby.sa cluster recognition kicks in without reading text.
+const avatarTone = (email) => {
+  const d = (email || "").split("@")[1] || "";
+  if (d === "tabby.sa") return { bg: "rgba(16,185,129,.18)", color: "var(--green)" };
+  return { bg: "var(--accent-light)", color: "var(--accent-text)" };
+};
+
+// Star-tier text for screen-reader announcement. Pure text alternative
+// to the visual ⭐⭐⭐ glyphs.
+const starsAria = (lvl) => {
+  const n = Number(lvl) || 0;
+  if (n === 0) return "0 stars";
+  if (n === 1) return "1 star";
+  return `${n} stars`;
+};
+
 // Mini horizontal bar capped at 3.0 (the rough ceiling for any single
 // product sub-score in practice — 3 Tier-1 champion topics × 1.0).
 const ProductBar = ({ label, value, max = 3 }) => {
@@ -390,14 +418,12 @@ export default function ExpertisePage() {
     <div className="page">
       <div className="page-header">
         <div>
-          <div className="page-title">Expertise <span style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: "var(--amber-bg)", color: "var(--amber)", marginLeft: 8, verticalAlign: "middle" }}>PILOT</span></div>
-          <div className="page-subtitle">CSAT-driven topic mastery — {visibleRows.length} specialist{visibleRows.length === 1 ? "" : "s"} · {selMonth}</div>
+          <div className="page-title">
+            Expertise
+            <span title={`Pilot version — based on ${selMonth} data only. Expertise calls will sharpen as 3+ months accumulate.`} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: "var(--amber-bg)", color: "var(--amber)", marginLeft: 8, verticalAlign: "middle", cursor: "help" }}>PILOT</span>
+          </div>
+          <div className="page-subtitle">CSAT-driven topic mastery — {visibleRows.length} specialist{visibleRows.length === 1 ? "" : "s"} · {selMonth} · ≥{activeThreshold} survey{activeThreshold === 1 ? "" : "s"} per topic</div>
         </div>
-      </div>
-
-      {/* Pilot disclaimer */}
-      <div style={{ padding: "10px 14px", marginBottom: 16, background: "var(--amber-bg)", borderLeft: "3px solid var(--amber)", borderRadius: 8, fontSize: 12, color: "var(--tx2)" }}>
-        <strong style={{ color: "var(--amber)" }}>Pilot version</strong> — based on {selMonth} data only. Threshold currently set to <strong>{activeThreshold} survey{activeThreshold === 1 ? "" : "s"}</strong> per topic — admins can adjust it below as the dataset grows. Expertise calls will become more accurate as 3+ months of data accumulate.
       </div>
 
       {/* Tab strip — admin-only. The Combined view ranks QAs against the
@@ -577,18 +603,51 @@ export default function ExpertisePage() {
             <input className="form-input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or email" style={{ fontSize: 12, padding: "6px 10px" }} />
             {search && <button onClick={() => setSearch("")} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--tx3)", fontSize: 14 }}>×</button>}
           </div>
-          <div style={{ display: "flex", gap: 12, marginLeft: "auto", fontSize: 11, color: "var(--tx2)", fontWeight: 600 }}>
-            {[3, 2, 1, 0].map(lv => (
-              <span key={lv} style={{ display: "inline-flex", alignItems: "center", gap: 4 }} title={lv === 0 ? "0★ — has CSAT data but didn't reach champion/solid percentile on any topic" : undefined}>
-                <span style={{ color: starColor(lv) }}>{lv > 0 ? renderStars(lv) : "0★"}</span>
-                <span>{starCounts[lv]}</span>
-              </span>
-            ))}
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, color: "var(--tx3)" }} title="No topic met the survey threshold yet — these QAs need more CSAT data before we can score them">
-              <span style={{ fontSize: 10, fontWeight: 500 }}>n/a</span>
-              <span>{starCounts.no_sample}</span>
-            </span>
-          </div>
+          {/* Inline distribution histogram — same numbers as the old chip
+              strip, but the proportion is visible at a glance. Hover gives
+              the exact count + label per bar. */}
+          {(() => {
+            const bars = [
+              { key: "3", lvl: 3, label: "⭐⭐⭐", color: starColor(3), val: starCounts[3] || 0 },
+              { key: "2", lvl: 2, label: "⭐⭐",   color: starColor(2), val: starCounts[2] || 0 },
+              { key: "1", lvl: 1, label: "⭐",     color: starColor(1), val: starCounts[1] || 0 },
+              { key: "0", lvl: 0, label: "0★",     color: "var(--tx3)", val: starCounts[0] || 0 },
+              { key: "n", lvl: null, label: "n/a", color: "var(--bd)", val: starCounts.no_sample || 0 },
+            ];
+            const max = Math.max(...bars.map(b => b.val), 1);
+            return (
+              <div role="img" aria-label={`Distribution: ${bars.map(b => `${b.val} ${b.label}`).join(", ")}`} style={{ marginLeft: "auto", display: "flex", alignItems: "flex-end", gap: 6, height: 38 }}>
+                {bars.map(b => (
+                  <div
+                    key={b.key}
+                    onClick={() => {
+                      // Click a bar to filter to that bucket. Re-clicking the
+                      // active bar clears the filter.
+                      if (b.lvl == null) setSelStar(selStar === "no_sample" ? "" : "no_sample");
+                      else if (b.lvl === 0) setSelStar(selStar === "0_lowperf" ? "" : "0_lowperf");
+                      else setSelStar(String(selStar) === String(b.lvl) ? "" : String(b.lvl));
+                    }}
+                    title={`${b.val} ${b.label === "n/a" ? "QA(s) not enough sample" : b.label + " QA" + (b.val === 1 ? "" : "s")}`}
+                    style={{
+                      display: "flex", flexDirection: "column", alignItems: "center",
+                      cursor: "pointer", minWidth: 28,
+                    }}
+                  >
+                    <span style={{ fontSize: 9, fontWeight: 700, color: b.color, lineHeight: 1, marginBottom: 2, fontVariantNumeric: "tabular-nums" }}>{b.val}</span>
+                    <div style={{
+                      width: 18,
+                      height: `${Math.max(2, (b.val / max) * 22)}px`,
+                      background: b.color,
+                      borderRadius: 2,
+                      transition: "height .2s",
+                      opacity: b.val === 0 ? 0.25 : 1,
+                    }} />
+                    <span style={{ fontSize: 9, color: "var(--tx3)", marginTop: 2, lineHeight: 1 }}>{b.label}</span>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -627,13 +686,21 @@ export default function ExpertisePage() {
               <tbody>
                 {sortedRows.map((r, i) => {
                   const isExp = expanded === r.qa_email;
+                  const lvl = Number(r.star_level) || 0;
+                  const baseTint = starTint(lvl);
+                  const av = avatarTone(r.qa_email);
                   return (
                     <React.Fragment key={r.qa_email}>
-                      <tr onClick={() => setExpanded(isExp ? null : r.qa_email)} style={{ cursor: "pointer" }}>
+                      <tr
+                        onClick={() => setExpanded(isExp ? null : r.qa_email)}
+                        style={{ cursor: "pointer", background: baseTint, transition: "background .15s" }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = baseTint; }}
+                      >
                         <td style={{ color: "var(--tx3)", fontWeight: 500 }}>{i + 1}</td>
                         <td>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: "var(--accent-light)", color: "var(--accent-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>
+                            <div title={(r.qa_email || "").split("@")[1] || ""} style={{ width: 28, height: 28, borderRadius: "50%", flexShrink: 0, background: av.bg, color: av.color, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700 }}>
                               {nameFromEmail(r.qa_email).split(" ").map(p => p[0]).join("").toUpperCase().slice(0, 2)}
                             </div>
                             <div>
@@ -656,19 +723,19 @@ export default function ExpertisePage() {
                         )}
                         <td>
                           {r.star_level > 0 ? (
-                            <span title={starLabel(r.star_level)} style={{ fontSize: 14, color: starColor(r.star_level) }}>
+                            <span aria-label={`${starsAria(r.star_level)} — ${starLabel(r.star_level)}`} title={starLabel(r.star_level)} style={{ fontSize: 14, color: starColor(r.star_level) }}>
                               {renderStars(r.star_level)}
                             </span>
                           ) : !hasSample(r) ? (
-                            <span title={`No topic met the ${activeThreshold}-survey threshold this month`} style={{
+                            <span aria-label={`Not enough surveys yet — needs at least ${activeThreshold} per topic`} title={`No topic met the ${activeThreshold}-survey threshold this month — keep handling chats and the score will follow`} style={{
                               fontSize: 10, fontWeight: 600,
                               padding: "2px 8px", borderRadius: 8,
-                              background: "var(--bg)", color: "var(--tx3)",
-                              border: "1px dashed var(--bd)",
+                              background: "var(--amber-bg)", color: "var(--amber)",
+                              border: "1px solid var(--amber)",
                               whiteSpace: "nowrap",
-                            }}>Not enough sample</span>
+                            }}>Needs ≥{activeThreshold} surveys</span>
                           ) : (
-                            <span title="Has CSAT data but didn't reach champion/solid percentile on any topic" style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>0★</span>
+                            <span aria-label="0 stars — has data but did not reach champion or solid percentile" title="Has CSAT data but didn't reach champion/solid percentile on any topic" style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>0★</span>
                           )}
                         </td>
                         <td style={{ textAlign: "right", fontWeight: 700, fontSize: 13, color: starColor(r.star_level), fontVariantNumeric: "tabular-nums" }}>

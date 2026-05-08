@@ -89,7 +89,10 @@ export default function ExpertiseProfileCard({ qaEmail, month }) {
 
       {/* Hero: big stars + score + label */}
       <div style={{ display: "flex", alignItems: "center", gap: 16, paddingBottom: 14, borderBottom: "1px solid var(--bd2)", marginBottom: 14 }}>
-        <div style={{ fontSize: 36, lineHeight: 1, color: starColor(lvl), filter: lvl === 0 ? "grayscale(1) opacity(0.4)" : "none" }}>
+        <div
+          aria-label={lvl > 0 ? `${lvl} star${lvl === 1 ? "" : "s"} — ${starLabel(lvl)}` : "0 stars"}
+          style={{ fontSize: 36, lineHeight: 1, color: starColor(lvl), filter: lvl === 0 ? "grayscale(1) opacity(0.4)" : "none" }}
+        >
           {lvl > 0 ? renderStars(lvl) : "☆☆☆"}
         </div>
         <div style={{ flex: 1 }}>
