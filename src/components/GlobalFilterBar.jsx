@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { hasRole } from "../lib/constants.js";
+import { hasRole, defaultFilters } from "../lib/constants.js";
 import SearchableSelect from "./SearchableSelect.jsx";
 
 function GlobalFilterBar({ filters, setFilters, months, teams, roster, profile, role }) {
