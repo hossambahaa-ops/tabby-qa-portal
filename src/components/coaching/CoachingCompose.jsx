@@ -19,7 +19,7 @@ import {
 } from "../../lib/coachingTemplates.js";
 import { buildCoachingEmailBody, fmtCoachingDate } from "../../lib/coachingEmail.js";
 
-export default function CoachingCompose({ roster, pickerCandidates, sessions, plans, planWeeks, gmailAuthorized, setGmailAuthorized, gmailChecking, connectGmail, callGmailFn, loadSessions }) {
+export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}, damFlagsByQa = {}, sessions, plans, planWeeks, gmailAuthorized, setGmailAuthorized, gmailChecking, connectGmail, callGmailFn, loadSessions }) {
   // Recipient picker pulls from the unified candidates list (roster + leads
   // + supervisors + manager + HOD + admins) so MPRs can address anyone, not
   // just QAs. Falls back to roster when the parent didn't supply candidates.
@@ -535,9 +535,72 @@ export default function CoachingCompose({ roster, pickerCandidates, sessions, pl
             </div>
           </div>
 
+          {/* Member context strip — surfaces the most-relevant facts about
+              the picked QA above the previous-sessions list, so the lead
+              doesn't have to flip tabs to gather context. Sources:
+                - mtdByQa (latest snapshot per QA)
+                - damFlagsByQa (most recent flag)
+                - plans (active AP/PIP)
+              Renders nothing until a recognised member is picked. */}
+          {toEmail && (() => {
+            const lower = toEmail.toLowerCase();
+            const m = mtdByQa[lower];
+            const f = damFlagsByQa[lower];
+            const activePlan = plans.find(p => (p.qa_email||"").toLowerCase() === lower && (p.status === "active" || p.status === "pending_review"));
+            if (!m && !f && !activePlan) return null;
+            const fmtPctLocal = (v) => v == null || v === "" ? "—" : (String(v).includes("%") ? v : `${v}%`);
+            const csatVal = m?.csat_pct;
+            const rtrVal = m?.avg_rtr_score;
+            const completionVal = (m?.coaching_eligibility_count || 0) > 0 ? m?.coaching_completion_pct : "—";
+            const flagAgeDays = f?.triggered_at ? Math.max(0, Math.round((Date.now() - new Date(f.triggered_at).getTime())/86400000)) : null;
+            return <div style={{marginTop:16,padding:"10px 14px",background:"var(--bg)",borderRadius:8,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",fontSize:12,border:"1px solid var(--bd2)"}}>
+              <div style={{display:"flex",alignItems:"center",gap:6}}>
+                <span style={{color:"var(--tx3)",fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:.4}}>Context</span>
+              </div>
+              {m && <>
+                <span><span style={{color:"var(--tx3)"}}>Latest MTD: </span><strong>{m.month || "—"}</strong></span>
+                <span><span style={{color:"var(--tx3)"}}>CSAT: </span><strong>{csatVal ? fmtPctLocal(csatVal) : "—"}</strong></span>
+                <span><span style={{color:"var(--tx3)"}}>RTR: </span><strong>{rtrVal ? fmtPctLocal(rtrVal) : "—"}</strong></span>
+                <span><span style={{color:"var(--tx3)"}}>Coaching: </span><strong>{completionVal === "—" ? "—" : fmtPctLocal(completionVal)}</strong></span>
+              </>}
+              {activePlan && <span style={{padding:"2px 8px",borderRadius:10,background:activePlan.type==="pip"?"var(--red-bg)":"var(--amber-bg)",color:activePlan.type==="pip"?"var(--red)":"var(--amber)",fontWeight:700,fontSize:11}}>
+                ⚠ Active {activePlan.type.toUpperCase()}
+              </span>}
+              {f && <span title={`${f.notes || f.dam_rules?.name || "DAM flag"} · ${f.severity || "?"}`} style={{padding:"2px 8px",borderRadius:10,background:f.severity==="critical"?"var(--red-bg)":"var(--amber-bg)",color:f.severity==="critical"?"var(--red)":"var(--amber)",fontWeight:600,fontSize:11}}>
+                Last DAM: {f.dam_rules?.name || "flag"}{flagAgeDays != null ? ` · ${flagAgeDays}d ago` : ""}
+              </span>}
+            </div>;
+          })()}
+
           {/* Previous sessions for this member */}
           {toEmail && memberHistory.length > 0 && <div style={{marginTop:16,padding:"12px 14px",background:"var(--bg)",borderRadius:8}}>
-            <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)",marginBottom:8}}>Previous sessions ({memberHistory.length})</div>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
+              <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)"}}>Previous sessions ({memberHistory.length})</div>
+              {/* Duplicate-from-last — copies the most recent session's
+                  meeting type + content fields into the current draft so
+                  the lead doesn't restart from a blank page every time.
+                  Replaces the removed prefill templates. */}
+              <button
+                type="button"
+                className="btn btn-outline btn-sm"
+                title="Copy the most recent session's content into this draft"
+                onClick={() => {
+                  const last = memberHistory[0];
+                  if (!last) return;
+                  const lbl = ENUM_TO_LABEL[last.meeting_type] || meetingType;
+                  if (MEETING_TYPES.includes(lbl)) setMeetingType(lbl);
+                  if (last.topics)       setTopics(last.topics);
+                  if (last.strengths)    setStrengths(last.strengths);
+                  if (last.weaknesses)   setWeaknesses(last.weaknesses);
+                  if (last.goals)        setGoals(last.goals);
+                  if (last.action_items) setActions(last.action_items);
+                  globalToast("success", `Copied content from ${new Date(last.session_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`);
+                }}
+                style={{fontSize:11,padding:"3px 10px"}}
+              >
+                ↻ Duplicate from last
+              </button>
+            </div>
             {memberHistory.map(s => (
               <div key={s.id} style={{fontSize:12,padding:"4px 0",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between"}}>
                 <span>{new Date(s.session_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"})}</span>

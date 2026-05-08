@@ -5,6 +5,8 @@ import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listCoachingSessions } from "../api/coachingSessions.js";
 import { listPlans, listPlanWeeks } from "../api/plans.js";
+import { listMtd } from "../api/mtd.js";
+import { listDamFlags } from "../api/damFlags.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { useApp } from "../lib/AppContext.jsx";
@@ -25,6 +27,11 @@ function CoachingPage() {
   // HOD/Rija, admins). The compose form picks recipients from this combined
   // list so MPR emails can address leads/supervisors directly, not just QAs.
   const [pickerCandidates, setPickerCandidates] = useState([]);
+  // mtdByQa / damFlagsByQa power the Compose member context strip — when
+  // a member is selected, the strip pulls latest MTD KPI snapshot + most
+  // recent DAM flag without an extra round trip.
+  const [mtdByQa, setMtdByQa] = useState({});
+  const [damFlagsByQa, setDamFlagsByQa] = useState({});
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   // Gmail OAuth state
@@ -108,12 +115,14 @@ function CoachingPage() {
     if (!token) return;
     (async () => {
       try {
-        const [r, s, ap, apw, profs] = await Promise.all([
+        const [r, s, ap, apw, profs, mtdRows, flags] = await Promise.all([
           listRoster({ token }),
           listCoachingSessions({ token }),
           listPlans({ token, filters: "status=eq.active" }),
           listPlanWeeks({ token }),
           listProfiles({ token, select: "email,display_name,role", filters: "" }).catch(() => []),
+          listMtd({ token }).catch(() => []),
+          listDamFlags({ token, filters: "order=triggered_at.desc" }).catch(() => []),
         ]);
         const sessionsArr = Array.isArray(s) ? s : [];
         const rosterArr = Array.isArray(r) ? r : [];
@@ -151,6 +160,29 @@ function CoachingPage() {
           merged.set(e, { email: p.email, display_name: p.display_name, role: p.role });
         }
         setPickerCandidates([...merged.values()]);
+
+        // Build per-QA latest MTD + most-recent DAM flag indexes for the
+        // member context strip on Compose. mtd.month is "MMM-YYYY" so we
+        // can't sort it lexicographically — bump rows with the latest
+        // synced_at, falling back to month string equality with the
+        // current month label.
+        const mtdMap = {};
+        for (const row of (Array.isArray(mtdRows) ? mtdRows : [])) {
+          const k = (row.qa_email || "").toLowerCase();
+          if (!k) continue;
+          const cur = mtdMap[k];
+          const ts = row.synced_at ? new Date(row.synced_at).getTime() : 0;
+          if (!cur || ts >= cur._ts) mtdMap[k] = { ...row, _ts: ts };
+        }
+        setMtdByQa(mtdMap);
+
+        const flagMap = {};
+        for (const f of (Array.isArray(flags) ? flags : [])) {
+          const k = (f.qa_email || "").toLowerCase();
+          if (!k) continue;
+          if (!flagMap[k]) flagMap[k] = f; // already ordered desc by triggered_at
+        }
+        setDamFlagsByQa(flagMap);
       } catch (e) { console.error("Coaching load:", e); }
     })();
   }, [token]);
@@ -191,6 +223,8 @@ function CoachingPage() {
       {tab==="compose" && <CoachingCompose
         roster={roster}
         pickerCandidates={pickerCandidates}
+        mtdByQa={mtdByQa}
+        damFlagsByQa={damFlagsByQa}
         sessions={sessions}
         plans={activePlans}
         planWeeks={planWeeks}
