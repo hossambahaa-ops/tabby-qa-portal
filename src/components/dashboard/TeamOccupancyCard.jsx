@@ -135,12 +135,6 @@ export default function TeamOccupancyCard() {
   if (loading) return null;
   if (rows.length === 0) return null;
 
-  const withData = rows.filter(r => r.current != null);
-  const avgCurrent = withData.length > 0 ? withData.reduce((s, r) => s + r.current, 0) / withData.length : 0;
-  const avgProjected = withData.length > 0 ? withData.reduce((s, r) => s + r.projected, 0) / withData.length : 0;
-  const totalPendingMin = withData.reduce((s, r) => s + r.pendingMin, 0);
-  const totalLift = avgProjected - avgCurrent;
-
   const sortHeader = (key, label, align = "right") => (
     <th
       onClick={() => setSortBy(key)}
@@ -155,13 +149,8 @@ export default function TeamOccupancyCard() {
 
   return (
     <div className="card" style={{ marginBottom: 16 }}>
-      <div className="card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-        <span className="card-title">Team occupancy · {rows.length} member{rows.length === 1 ? "" : "s"}</span>
-        <div style={{ display: "flex", gap: 12, fontSize: 11, color: "var(--tx2)", alignItems: "center" }}>
-          <span><span style={{ color: "var(--tx3)" }}>Avg now: </span><strong style={{ color: occColor(avgCurrent) }}>{avgCurrent.toFixed(1)}%</strong></span>
-          <span><span style={{ color: "var(--tx3)" }}>If approved: </span><strong style={{ color: occColor(avgProjected) }}>{avgProjected.toFixed(1)}%</strong>{totalLift > 0.05 && <span style={{ color: "var(--green)", marginLeft: 4, fontWeight: 600 }}>+{totalLift.toFixed(1)}</span>}</span>
-          {totalPendingMin > 0 && <span style={{ color: "var(--tx3)" }}>· {(totalPendingMin / 60).toFixed(1)}h pending</span>}
-        </div>
+      <div className="card-header">
+        <span className="card-title">Occupancy by QA · {rows.length} member{rows.length === 1 ? "" : "s"}</span>
       </div>
       <div className="table-wrap" style={{ padding: "0 16px 12px" }}>
         <table style={{ fontSize: 12 }}>
