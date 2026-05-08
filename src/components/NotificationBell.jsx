@@ -101,6 +101,17 @@ function NotificationBell({ onNavigate }) {
           newErrorsIdx = queries.length;
           queries.push(sb.query("client_errors", { select: "id,source,message,user_email,created_at", filters: `created_at=gte.${since}&order=created_at.desc&limit=10`, token }).catch(() => []));
         }
+        // Tracker initiatives assigned to me. The dashboard "tasks" table
+        // (queried at index 0) is separate from the "initiatives" table
+        // that powers the Tracker page — assigning a TRK-N item didn't
+        // fire a notification at all before this. Open items only,
+        // ordered newest first.
+        let trackerIdx = queries.length;
+        queries.push(sb.query("initiatives", {
+          select: "id,seq,title,priority,status,assigned_to,created_by,eta_date,created_at",
+          filters: `assigned_to=eq.${profile?.email}&status=neq.Done&order=created_at.desc&limit=20`,
+          token,
+        }).catch(() => []));
         const results = await Promise.all(queries);
         const [assignedTasks, escalations, announcements, myFeedback, myCoaching] = results;
         const violations = (isLead || isSv) ? (results[5] || []) : [];
@@ -109,6 +120,7 @@ function NotificationBell({ onNavigate }) {
         const pendingAtt = attReqIdx >= 0 ? (results[attReqIdx] || []) : [];
         const newFeedback = newFeedbackIdx >= 0 ? (results[newFeedbackIdx] || []) : [];
         const newErrors  = newErrorsIdx  >= 0 ? (results[newErrorsIdx]  || []) : [];
+        const myInitiatives = trackerIdx >= 0 ? (results[trackerIdx] || []) : [];
 
         // Filter attendance requests to the viewer's effective team.
         // Leads → direct reports; supervisors+ → also QAs whose lead
@@ -128,6 +140,16 @@ function NotificationBell({ onNavigate }) {
 
         const all = [
           ...assignedTasks.map(t => ({ id: "t-"+t.id, type: "task", title: `Task: ${t.title}`, sub: `From: ${t.created_by?.split("@")[0]}${t.eta_date?" · ETA: "+new Date(t.eta_date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"}):""}`, time: t.created_at, page: "dashboard" })),
+          // Tracker initiatives assigned to me. Self-assigned items are
+          // skipped (no need to notify yourself about your own create).
+          ...myInitiatives.filter(i => (i.created_by || "").toLowerCase() !== myEmail).map(i => ({
+            id: "trk-" + i.id,
+            type: "tracker",
+            title: `Tracker: ${i.title}`,
+            sub: `${i.created_by ? "From " + i.created_by.split("@")[0] : "Assigned"}${i.eta_date ? " · ETA: " + new Date(i.eta_date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""}`,
+            time: i.created_at,
+            page: "tracker",
+          })),
           ...escalations.map(e => ({ id: "e-"+e.id, type: "escalation", title: `Escalation: ${e.category}`, sub: "Anonymous submission", time: e.created_at, page: "escalations" })),
           ...myFeedback.filter(f => f.admin_response).map(f => ({ id: "fb-"+f.id, type: "feedback", title: `Feedback response: ${f.category}`, sub: `Status: ${f.status}`, time: f.created_at, page: "dashboard" })),
           ...(!isLead && !isSv ? (myCoaching || []) : []).map(c => ({ id: "c-"+c.id, type: "coaching", title: `Coaching logged: ${c.meeting_type || "Session"}`, sub: c.sender_email ? `From ${c.sender_email.split("@")[0]}` : "—", time: c.created_at, page: "profile" })),

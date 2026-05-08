@@ -6,9 +6,11 @@ import {
 import { nameFromEmail } from "../../lib/utils.js";
 import SearchableSelect from "../SearchableSelect.jsx";
 
-// TrackerDetailPanel — right-side slide-out, replaces the centered
-// modal as the canonical detail surface. Designed so the board /
-// timeline / table behind stays visible while the user reads or edits.
+// TrackerDetailPanel — top-centered modal, fades over a dimmed
+// backdrop. The previous right-side slide-out put the form in the
+// far-right gutter where users had to scan across the whole viewport
+// to read fields; centering puts the title + description directly
+// under their eye-line where they're already looking.
 //
 // Stack-aware: a parent can open one of its children straight from
 // the inline subtask list, which pushes the child onto the stack.
@@ -206,14 +208,26 @@ export default function TrackerDetailPanel({
         role="dialog"
         aria-label={currentRow ? currentRow.title : "Task detail"}
         style={{
-          position: "fixed", top: 0, right: 0, bottom: 0,
-          width: "min(560px, 100vw)",
+          // Top-centered modal. `top: 56px` clears the app top-bar so
+          // the breadcrumbs / search are still visible above. The
+          // panel never grows beyond the viewport — overflow scrolls
+          // inside the body div below.
+          position: "fixed",
+          top: 56,
+          left: "50%",
+          width: "min(720px, 92vw)",
+          maxHeight: "calc(100vh - 80px)",
           zIndex: 999,
           background: "var(--bg3)",
-          borderLeft: "1px solid var(--bd)",
-          boxShadow: "-12px 0 32px rgba(0,0,0,.18)",
-          transform: open ? "translateX(0)" : "translateX(100%)",
-          transition: "transform .22s cubic-bezier(.2,.7,.2,1)",
+          border: "1px solid var(--bd)",
+          borderRadius: 12,
+          boxShadow: "0 24px 48px rgba(0,0,0,.32)",
+          transform: open
+            ? "translate(-50%, 0) scale(1)"
+            : "translate(-50%, -8px) scale(.98)",
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? "auto" : "none",
+          transition: "transform .18s ease, opacity .18s ease",
           display: "flex", flexDirection: "column",
         }}
       >
