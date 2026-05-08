@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { hasRole, ROLE_LABELS, ROLE_LEVEL } from "../lib/constants.js";
 import { sb, SUPABASE_URL, dataCache } from "../lib/supabase.js";
+import { callEdgeFunction } from "../lib/edgeSync.js";
 import { safeError, logActivity } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
@@ -35,13 +36,14 @@ function AdminUsersPage({teams}){
     confirmAsk("Delete user?",`Permanently delete ${u.display_name||u.email}? This removes their profile, auth account, tokens, team memberships, sessions, and DAM flags. This cannot be undone.`,async()=>{
       setDeletingId(u.id);
       try{
-        const resp=await fetch(`${SUPABASE_URL}/functions/v1/user-management`,{
-          method:"POST",
-          headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`},
-          body:JSON.stringify({action:"delete_user",target_user_id:u.id,target_email:u.email}),
+        // callEdgeFunction auto-refreshes the JWT via sb.auth.getSession()
+        // so a long-open Admin tab doesn't 401 on the user-management edge
+        // function past the 1h token TTL.
+        const r = await callEdgeFunction("user-management", {
+          token,
+          body: { action: "delete_user", target_user_id: u.id, target_email: u.email },
         });
-        const data=await resp.json();
-        if(!resp.ok||data.error){globalToast("error",data.error||"Failed to delete user");setDeletingId(null);return;}
+        if (!r.ok) { globalToast("error", r.error || "Failed to delete user"); setDeletingId(null); return; }
         setUsers(prev=>prev.filter(x=>x.id!==u.id));
         setSelected(prev=>{const n=new Set(prev);n.delete(u.id);return n;});
         globalToast("success",`${u.display_name||u.email} deleted`);

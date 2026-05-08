@@ -9,6 +9,7 @@ import { listPlans } from "../api/plans.js";
 import { listViolations } from "../api/violations.js";
 import { listEscalations } from "../api/escalations.js";
 import { listRoster } from "../api/roster.js";
+import { loadTeamForViewer } from "../lib/teamScope.js";
 import { fetchUnreadReleases, ackRelease } from "../lib/featureReleases.js";
 import { isMismatch, isMissingCheckIn, isAutoNsnc, PLAN_FEATURE_START, seenPlanKey, isPlanUnseen } from "../lib/attendancePlan.js";
 import { listProfiles } from "../api/profiles.js";
@@ -109,12 +110,14 @@ function NotificationBell({ onNavigate }) {
         const newFeedback = newFeedbackIdx >= 0 ? (results[newFeedbackIdx] || []) : [];
         const newErrors  = newErrorsIdx  >= 0 ? (results[newErrorsIdx]  || []) : [];
 
-        // Filter attendance requests to the lead's direct reports.
+        // Filter attendance requests to the viewer's effective team.
+        // Leads → direct reports; supervisors+ → also QAs whose lead
+        // reports to them via teams.supervisor_id.
         let teamEmails = null;
         if (isLead && pendingAtt.length > 0) {
           try {
-            const team = await listRoster({ token, select: "email,manager_email", filters: `manager_email=eq.${myEmail}` });
-            teamEmails = new Set((Array.isArray(team) ? team : []).map(r => r.email?.toLowerCase()).filter(Boolean));
+            const team = await loadTeamForViewer({ token, profile });
+            teamEmails = new Set((team || []).map(r => r.email?.toLowerCase()).filter(Boolean));
           } catch { teamEmails = new Set(); }
         }
         const myTeamPendingAtt = pendingAtt.filter(a => {
@@ -303,15 +306,16 @@ function NotificationBell({ onNavigate }) {
             }
           });
 
-          // Lead: same flags for their team. Reuses teamEmails from the
-          // attendance-approval block above when available; otherwise
-          // fetches the lead's direct reports.
+          // Lead+: same flags for their effective team. Reuses
+          // teamEmails from the attendance-approval block above when
+          // available; otherwise resolves via loadTeamForViewer so
+          // supervisors+ see QAs under the leads reporting to them too.
           if (isLead) {
             let leadTeamEmails = teamEmails;
             if (!leadTeamEmails) {
               try {
-                const team = await listRoster({ token, select: "email,manager_email", filters: `manager_email=eq.${myEmail}` });
-                leadTeamEmails = new Set((Array.isArray(team) ? team : []).map(r => r.email?.toLowerCase()).filter(Boolean));
+                const team = await loadTeamForViewer({ token, profile });
+                leadTeamEmails = new Set((team || []).map(r => r.email?.toLowerCase()).filter(Boolean));
               } catch { leadTeamEmails = new Set(); }
             }
             if (leadTeamEmails && leadTeamEmails.size > 0) {

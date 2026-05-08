@@ -14,17 +14,27 @@
 // multi-source refresh buttons. Returns per-slug results so the UI can
 // say e.g. "Synced 3/4 — mtd-sync failed (HTTP 500)".
 
-import { SUPABASE_URL, SUPABASE_ANON } from "./supabase.js";
+import { SUPABASE_URL, SUPABASE_ANON, sb } from "./supabase.js";
 
 export async function callEdgeFunction(slug, { token, body = {}, signal, headers = {} } = {}) {
   if (!slug) return { ok: false, status: 0, data: null, error: "Missing slug" };
   try {
+    // Pull the freshest access token before every call. sb.auth.getSession()
+    // silently refreshes when the JWT is within 60s of expiry, which fixes
+    // the class of bug where an idle tab past the 1h token TTL hits a 401
+    // from the edge function's verifyUser path. Falls back to the caller's
+    // passed-in token if getSession fails (offline, no session, etc.).
+    let bearer = token;
+    try {
+      const session = await sb.auth.getSession();
+      if (session?.access_token) bearer = session.access_token;
+    } catch { /* fall through to passed-in token */ }
     const r = await fetch(`${SUPABASE_URL}/functions/v1/${slug}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         apikey: SUPABASE_ANON,
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(bearer ? { Authorization: `Bearer ${bearer}` } : {}),
         ...headers,
       },
       body: JSON.stringify(body),
