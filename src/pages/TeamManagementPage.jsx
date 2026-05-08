@@ -276,7 +276,20 @@ function TeamManagementPage(){
                             <div style={{ fontSize: 12, fontWeight: 700, color: "var(--tx)", textTransform: "uppercase", letterSpacing: ".5px" }}>{tg.name}</div>
                             <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600 }}>{tg.members.length} member{tg.members.length === 1 ? "" : "s"}</div>
                             <div style={{ display: "flex", gap: 4, marginLeft: "auto" }}>
-                              {tg.dbRows.map(t => (
+                              {/* Dedupe by domain. The DB now has a UNIQUE
+                                  (lead_id, name, domain) constraint, but the
+                                  UI is still defensive: if a duplicate ever
+                                  sneaks in we render one button pair per
+                                  domain, not one per dbRow. Domains with
+                                  >1 row keep the earliest id (it's the one
+                                  with FK references in user_teams /
+                                  profiles in the only known case). */}
+                              {Array.from(
+                                tg.dbRows.reduce((m, t) => {
+                                  if (!m.has(t.domain)) m.set(t.domain, t);
+                                  return m;
+                                }, new Map()).values()
+                              ).map(t => (
                                 <React.Fragment key={t.id}>
                                   <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); startEdit(t); }} title={`Edit ${t.name} / ${t.domain}`}><Icon d={icons.edit} size={12} /></button>
                                   <button className="btn btn-outline btn-sm" style={{ color: "var(--red)" }} onClick={(e) => { e.stopPropagation(); del(t.id); }} title={`Delete ${t.name} / ${t.domain}`}><Icon d={icons.trash} size={12} /></button>
