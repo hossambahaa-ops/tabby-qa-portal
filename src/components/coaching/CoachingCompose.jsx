@@ -17,7 +17,7 @@ import {
   buildAutoCc,
   AMANDA_EMAIL,
 } from "../../lib/coachingTemplates.js";
-import { buildCoachingEmailBody, fmtCoachingDate } from "../../lib/coachingEmail.js";
+import { buildCoachingEmailBody, fmtCoachingDate, calcEom, calcDiff } from "../../lib/coachingEmail.js";
 
 export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}, damFlagsByQa = {}, sessions, plans, planWeeks, gmailAuthorized, setGmailAuthorized, gmailChecking, connectGmail, callGmailFn, loadSessions }) {
   // Recipient picker pulls from the unified candidates list (roster + leads
