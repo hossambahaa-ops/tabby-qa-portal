@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import SearchableSelect from "../SearchableSelect.jsx";
 import { nameFromEmail } from "../../lib/utils.js";
-import { PLAN_FEATURE_START } from "../../lib/attendancePlan.js";
+import { PLAN_FEATURE_START, riyadhTodayStr } from "../../lib/attendancePlan.js";
 
 // Day-of-week labels — index matches Date.getDay() (0=Sun..6=Sat).
 const DOW = [
@@ -95,14 +95,28 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
   // a shift-only bulk apply doesn't accidentally rewrite plans.
   const valueIsSkip = value === "SKIP";
 
-  // Default the from/to to the current month when opening
+  // Default the from/to to "tomorrow → end of the spanning month" when
+  // opening. Bulk plan-set is for FUTURE schedule — today's row often
+  // already has actual attendance recorded (auto-NSNC cron, lead set
+  // P, QA self-approval), so writing a planned_code over it triggers
+  // save errors. Starting from tomorrow avoids the conflict; the
+  // single-cell click-to-edit path is still the right tool for today.
+  const tomorrowStr = useMemo(() => {
+    const d = new Date(riyadhTodayStr() + "T00:00:00");
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split("T")[0];
+  }, [open]);
   useEffect(() => {
     if (!open) return;
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
-    if (!from) setFrom(`${y}-${m}-01`);
+    // Pick the spanning month from tomorrow's date (not today's), so a
+    // user opening the modal late on the last of a month still gets a
+    // sane default range that's actually editable.
+    const start = new Date(tomorrowStr + "T00:00:00");
+    const y = start.getFullYear();
+    const m0 = start.getMonth();
+    const lastDay = new Date(y, m0 + 1, 0).getDate();
+    const m = String(m0 + 1).padStart(2, "0");
+    if (!from) setFrom(tomorrowStr);
     if (!to) setTo(`${y}-${m}-${String(lastDay).padStart(2, "0")}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -269,7 +283,10 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
           </button>
         </div>
 
-        {/* From / To */}
+        {/* From / To — bulk plan-set is for the future. The date pickers
+            cap at tomorrow so today's already-recorded attendance can't
+            be overwritten by a stray bulk apply. Use the calendar's
+            click-to-edit for today specifically if you need it. */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
           <div className="form-group">
             <label className="form-label">From</label>
@@ -277,9 +294,10 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
               type="date"
               className="form-input"
               value={from}
-              min={PLAN_FEATURE_START}
+              min={tomorrowStr}
               onChange={(e) => setFrom(e.target.value)}
             />
+            <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 4 }}>Earliest: tomorrow ({tomorrowStr})</div>
           </div>
           <div className="form-group">
             <label className="form-label">To</label>
@@ -287,7 +305,7 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
               type="date"
               className="form-input"
               value={to}
-              min={PLAN_FEATURE_START}
+              min={tomorrowStr}
               onChange={(e) => setTo(e.target.value)}
             />
           </div>

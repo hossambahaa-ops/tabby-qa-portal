@@ -178,11 +178,19 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
     const nextChanges = { ...pendingChanges };
     const nextShifts = { ...pendingShifts };
     const hasShift = !!(shiftStart && shiftEnd);
+    // Defensive guard — bulk apply ALWAYS skips today's date so a stray
+    // future-only schedule can't overwrite today's already-recorded
+    // attendance row (which has its own status / approval lifecycle and
+    // would error on the upsert). The modal's date picker also enforces
+    // a `min={tomorrow}`; this is the belt-and-braces back-stop.
+    const todayBulkSkip = riyadhTodayStr();
+    let skippedTodayCount = 0;
     let planCount = 0;
     let shiftCount = 0;
     qaEmails.forEach((em) => {
       if (!em) return;
       dates.forEach((d) => {
+        if (d === todayBulkSkip) { skippedTodayCount++; return; }
         if (!isPlanEditableDate(d)) return;
         if (valueChanged) {
           nextChanges[`${em}__${d}`] = value; // null = clear plan
@@ -204,9 +212,10 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
       const parts = [];
       if (planCount > 0) parts.push(`${planCount.toLocaleString()} plan cell${planCount !== 1 ? "s" : ""}`);
       if (shiftCount > 0) parts.push(`${shiftCount.toLocaleString()} shift cell${shiftCount !== 1 ? "s" : ""}`);
-      globalToast("success", `Queued ${parts.join(" + ")} — click Save to commit.`);
+      const todayNote = skippedTodayCount > 0 ? ` · skipped today (${skippedTodayCount} cell${skippedTodayCount === 1 ? "" : "s"})` : "";
+      globalToast("success", `Queued ${parts.join(" + ")}${todayNote} — click Save to commit.`);
     } else {
-      globalToast("info", "Nothing to queue (all targeted cells were past or unchanged).");
+      globalToast("info", "Nothing to queue (all targeted cells were past, today, or unchanged).");
     }
   };
 
