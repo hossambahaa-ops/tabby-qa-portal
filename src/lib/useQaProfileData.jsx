@@ -39,6 +39,11 @@ export function useQaProfileData(token, profile) {
   const [dailyScores, setDailyScores] = useState([]);
   const [teamTargets, setTeamTargets] = useState([]);
   const [loading, setLoading] = useState(true);
+  // headerLoading flips false as soon as roster + mtd + profiles land,
+  // even if sessions / plans / attendance are still in flight. The page
+  // can render the QA picker (which only needs roster + lead set) at that
+  // point instead of waiting for the slowest detail query.
+  const [headerLoading, setHeaderLoading] = useState(true);
   // qaLeadSet + allProfiles drive the QA-only filter; we keep them in
   // state instead of stashing on `window` like the original code did.
   const [qaLeadSet, setQaLeadSet] = useState(() => new Set());
@@ -48,10 +53,16 @@ export function useQaProfileData(token, profile) {
     if (!token) return;
     let cancelled = false;
 
-    const applyData = (d) => {
+    const applyHeader = (d) => {
       if (cancelled) return;
       setRoster(d.roster);
       setMtd(d.mtd);
+      setAllProfiles(d.profList);
+      setQaLeadSet(new Set(d.profList.filter(p => p.role === "qa_lead").map(p => p.email?.toLowerCase()).filter(Boolean)));
+      setHeaderLoading(false);
+    };
+    const applyDetail = (d) => {
+      if (cancelled) return;
       setSessions(d.sessions);
       setPlans(d.plans);
       setTasks(d.tasks);
@@ -59,53 +70,75 @@ export function useQaProfileData(token, profile) {
       setQaAttendance(d.qaAttendance);
       setDailyScores(d.dailyScores);
       setTeamTargets(d.teamTargets);
-      setAllProfiles(d.profList);
-      setQaLeadSet(new Set(d.profList.filter(p => p.role === "qa_lead").map(p => p.email?.toLowerCase()).filter(Boolean)));
       setLoading(false);
     };
 
     // Serve from cache if fresh and same session.
     if (_bulk.token === token && Date.now() - _bulk.ts < BULK_TTL && _bulk.data) {
-      applyData(_bulk.data);
+      applyHeader(_bulk.data);
+      applyDetail(_bulk.data);
       return () => { cancelled = true; };
     }
 
-    (async () => {
-      try {
-        const curMonth = new Date().toISOString().slice(0, 7);
-        const today = new Date().toISOString().split("T")[0];
-        const [r, m, s, ap, t, f, profs, att, ds, tgt] = await Promise.all([
-          listRoster({ token, select: "email,display_name,manager_email,queue,country,hiring_date", cacheKey: "qa_roster_full" }),
-          listMtd({ token }),
-          listCoachingSessions({ token, select: "id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass", filters: "order=session_date.desc" }),
-          listPlans({ token, select: "id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)", filters: "", cacheKey: "action_plans_full", cache: true }),
-          listTasks({ token }),
-          listDamFlags({ token }),
-          listProfiles({ token, select: "email,role", filters: "", cacheKey: "profiles_email_role" }),
-          listAttendance({ token, filters: `date=gte.${curMonth}-01&order=date.asc` }),
-          listDailyScores({ token, filters: `date=eq.${today}` }),
-          listTeamTargets({ token }),
-        ]);
-        if (cancelled) return;
-        const d = {
-          roster:       Array.isArray(r)   ? r   : [],
-          mtd:          Array.isArray(m)   ? m   : [],
-          sessions:     Array.isArray(s)   ? s   : [],
-          plans:        Array.isArray(ap)  ? ap  : [],
-          tasks:        Array.isArray(t)   ? t   : [],
-          flags:        Array.isArray(f)   ? f   : [],
-          qaAttendance: Array.isArray(att) ? att : [],
-          dailyScores:  Array.isArray(ds)  ? ds  : [],
-          teamTargets:  Array.isArray(tgt) ? tgt : [],
-          profList:     Array.isArray(profs) ? profs : [],
-        };
-        _bulk = { ts: Date.now(), token, data: d };
-        applyData(d);
-      } catch (e) {
-        console.error("QA Profile load:", e);
-        if (!cancelled) setLoading(false);
-      }
+    // Two parallel fetch groups — header (roster + mtd + profiles) and
+    // detail (everything else). Both groups run concurrently, so total
+    // wall-clock is unchanged, but the picker can paint as soon as the
+    // header group's slowest query lands instead of waiting on the full
+    // detail set. Cache write happens only after BOTH groups complete so
+    // the next mount still gets a complete snapshot.
+    const headerPromise = (async () => {
+      const [r, m, profs] = await Promise.all([
+        listRoster({ token, select: "email,display_name,manager_email,queue,country,hiring_date", cacheKey: "qa_roster_full" }),
+        listMtd({ token }),
+        listProfiles({ token, select: "email,role", filters: "", cacheKey: "profiles_email_role" }),
+      ]);
+      return {
+        roster:   Array.isArray(r)     ? r     : [],
+        mtd:      Array.isArray(m)     ? m     : [],
+        profList: Array.isArray(profs) ? profs : [],
+      };
     })();
+
+    const curMonth = new Date().toISOString().slice(0, 7);
+    const today = new Date().toISOString().split("T")[0];
+    const detailPromise = (async () => {
+      const [s, ap, t, f, att, ds, tgt] = await Promise.all([
+        listCoachingSessions({ token, select: "id,member_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass", filters: "order=session_date.desc" }),
+        listPlans({ token, select: "id,qa_email,type,status,start_date,end_date,conclusion,created_by,team,reason,action_plan_weeks(id,week_number,week_start,target_data,actual_data,met_targets,notes)", filters: "", cacheKey: "action_plans_full", cache: true }),
+        listTasks({ token }),
+        listDamFlags({ token }),
+        listAttendance({ token, filters: `date=gte.${curMonth}-01&order=date.asc` }),
+        listDailyScores({ token, filters: `date=eq.${today}` }),
+        listTeamTargets({ token }),
+      ]);
+      return {
+        sessions:     Array.isArray(s)   ? s   : [],
+        plans:        Array.isArray(ap)  ? ap  : [],
+        tasks:        Array.isArray(t)   ? t   : [],
+        flags:        Array.isArray(f)   ? f   : [],
+        qaAttendance: Array.isArray(att) ? att : [],
+        dailyScores:  Array.isArray(ds)  ? ds  : [],
+        teamTargets:  Array.isArray(tgt) ? tgt : [],
+      };
+    })();
+
+    headerPromise.then(applyHeader, e => {
+      console.error("QA Profile header load:", e);
+      if (!cancelled) setHeaderLoading(false);
+    });
+    detailPromise.then(applyDetail, e => {
+      console.error("QA Profile detail load:", e);
+      if (!cancelled) setLoading(false);
+    });
+
+    // Cache only after both groups complete so the next mount still gets
+    // a full snapshot (otherwise the cache could hold a header-only blob
+    // and the detail effect would skip).
+    Promise.all([headerPromise, detailPromise]).then(([h, d]) => {
+      if (cancelled) return;
+      _bulk = { ts: Date.now(), token, data: { ...h, ...d } };
+    }).catch(() => {});
+
     return () => { cancelled = true; };
   }, [token]);
 
@@ -169,6 +202,6 @@ export function useQaProfileData(token, profile) {
 
   return {
     roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
-    loading, allQAs, qaLeadSet, refreshDailyScores, refreshMtd,
+    loading, headerLoading, allQAs, qaLeadSet, refreshDailyScores, refreshMtd,
   };
 }
