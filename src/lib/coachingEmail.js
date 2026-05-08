@@ -62,6 +62,44 @@ export function buildCoachingEmailBody(params) {
   const fn = firstNameFromEmail(toEmail);
   const isConclusion = isTargetType && outcome;
   const planName = meetingType === "PIP Review" ? "Performance Improvement Plan" : "Action Plan";
+
+  // ── Helpers (defined up-front so the conclusion branches below can
+  // ── safely call renderRich without hitting a TDZ ReferenceError) ──
+  //
+  // Two content shapes flow through here:
+  //   * New rich-text fields hand us HTML (<p>, <ul>, <a>, etc.)
+  //   * Legacy plain-text drafts saved before the editor shipped come in
+  //     as raw strings, one bullet per line.
+  // renderRich detects the HTML case (any tag) and injects as-is; for the
+  // legacy case it falls through to the original line-split bullet list.
+  const hasMarkup = (text) => /<[a-z][^>]*>/i.test(String(text || ""));
+  // Visually-empty check. Rich-text editors emit `<p></p>`, `<p><br></p>`,
+  // `&nbsp;`-only paragraphs, etc. when the user clicks in and out without
+  // typing — `.trim()` reports them as non-empty (the tags are real chars)
+  // and the email ended up with stray section headers like "Strengths &
+  // Recognized Contributions" above an empty block. Strip tags + entities
+  // + whitespace and test what's left.
+  const isBlank = (text) => {
+    if (!text) return true;
+    const stripped = String(text)
+      .replace(/<[^>]*>/g, "")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&#160;/g, " ")
+      .replace(/\s+/g, "");
+    return stripped.length === 0;
+  };
+  const mkLegacyList = (text) => {
+    if (isBlank(text)) return "";
+    return `<ul style="margin:8px 0;padding-left:22px;">${text.split("\n").filter(l => l.trim()).map(l => `<li style="margin-bottom:6px;">${l.replace(/^[-•]\s*/, "").trim()}</li>`).join("")}</ul>`;
+  };
+  const renderRich = (text) => {
+    if (isBlank(text)) return "";
+    return hasMarkup(text)
+      ? `<div style="margin:8px 0;">${text}</div>`
+      : mkLegacyList(text);
+  };
+  const mkSection = (title, body) => `<div style="margin-top:24px;"><p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#1A3D2B;border-bottom:1px solid #E8F5E8;padding-bottom:4px;">${title}</p>${body}</div>`;
+
   let html = "";
 
   html += `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.8;color:#1a1a1a;max-width:680px;">`;
@@ -72,31 +110,12 @@ export function buildCoachingEmailBody(params) {
     html += `<p style="margin:0 0 20px;">I am pleased to formally confirm that you have successfully completed your ${planName}. Your commitment, consistency, and improvement throughout this period have been genuinely noted and are greatly appreciated. This concludes the formal ${planName} process, and your performance will continue to be monitored through our regular 1:1 sessions.</p>`;
   } else if (isConclusion && outcome === "fail") {
     html += `<p style="margin:0 0 12px;">Following a full review of your ${planName}, I regret to formally notify you that the required performance targets were not met within the agreed timeframe. This outcome has been documented and will be shared with the relevant stakeholders, including Human Resources.</p>`;
-    if (nextSteps) html += `<p style="margin:0 0 6px;font-weight:700;">Agreed Next Steps:</p><div style="margin:0 0 20px;">${renderRich(nextSteps)}</div>`;
+    if (!isBlank(nextSteps)) html += `<p style="margin:0 0 6px;font-weight:700;">Agreed Next Steps:</p><div style="margin:0 0 20px;">${renderRich(nextSteps)}</div>`;
   } else {
     html += `<p style="margin:0 0 20px;">${INTRO_MAP[meetingType] || "This is a formal summary of our session."}</p>`;
   }
 
-  // Two content shapes flow through here:
-  //   * New rich-text fields hand us HTML (<p>, <ul>, <a>, etc.)
-  //   * Legacy plain-text drafts saved before the editor shipped come in
-  //     as raw strings, one bullet per line.
-  // renderRich detects the HTML case (any tag) and injects as-is; for the
-  // legacy case it falls through to the original line-split bullet list.
-  const hasMarkup = (text) => /<[a-z][^>]*>/i.test(String(text || ""));
-  const mkLegacyList = (text) => {
-    if (!text?.trim()) return "";
-    return `<ul style="margin:8px 0;padding-left:22px;">${text.split("\n").filter(l => l.trim()).map(l => `<li style="margin-bottom:6px;">${l.replace(/^[-•]\s*/, "").trim()}</li>`).join("")}</ul>`;
-  };
-  const renderRich = (text) => {
-    if (!text || !String(text).trim()) return "";
-    return hasMarkup(text)
-      ? `<div style="margin:8px 0;">${text}</div>`
-      : mkLegacyList(text);
-  };
-  const mkSection = (title, body) => `<div style="margin-top:24px;"><p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#1A3D2B;border-bottom:1px solid #E8F5E8;padding-bottom:4px;">${title}</p>${body}</div>`;
-
-  if (topics?.trim()) html += mkSection("Topics Discussed", renderRich(topics));
+  if (!isBlank(topics)) html += mkSection("Topics Discussed", renderRich(topics));
 
   if (perfRating) {
     const pillStyles = {
@@ -109,10 +128,10 @@ export function buildCoachingEmailBody(params) {
     html += mkSection("Overall Performance Rating", `<p style="margin:8px 0 6px;"><span style="${pillStyles[perfRating] || ""}padding:4px 16px;border-radius:20px;font-weight:700;font-size:13px;">${perfRating}</span></p><p style="margin:0 0 4px;">${PERF_MESSAGES[perfRating] || ""}</p>`);
   }
 
-  if (strengths?.trim()) html += mkSection("Strengths & Recognized Contributions", renderRich(strengths));
-  if (weaknesses?.trim()) html += mkSection("Areas for Development", renderRich(weaknesses));
-  if (goals?.trim()) html += mkSection("Goals & Progress Update", renderRich(goals));
-  if (actions?.trim()) html += mkSection("Action Items & Agreed Next Steps", renderRich(actions));
+  if (!isBlank(strengths)) html += mkSection("Strengths & Recognized Contributions", renderRich(strengths));
+  if (!isBlank(weaknesses)) html += mkSection("Areas for Development", renderRich(weaknesses));
+  if (!isBlank(goals)) html += mkSection("Goals & Progress Update", renderRich(goals));
+  if (!isBlank(actions)) html += mkSection("Action Items & Agreed Next Steps", renderRich(actions));
 
   // Target table — only for AP / PIP review meeting types.
   if (isTargetType && targetRows.some(r => r.metric.trim())) {
