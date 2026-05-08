@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from "react";
-import { hasRole, defaultFilters } from "../lib/constants.js";
+import React from "react";
+import { defaultFilters } from "../lib/constants.js";
 import SearchableSelect from "./SearchableSelect.jsx";
 
 function GlobalFilterBar({ filters, setFilters, months, teams, roster, profile, role }) {
-  const isSv = hasRole(role, "qa_supervisor") && !hasRole(role, "admin");
   const isQa = role === "qa";
 
   // Build people options from roster
@@ -15,13 +14,13 @@ function GlobalFilterBar({ filters, setFilters, months, teams, roster, profile, 
   const teamOptions = [...new Set(roster.map(r => r.queue).filter(Boolean))].sort();
   const domainOptions = [{ value: "tabby.ai", label: "tabby.ai" }, { value: "tabby.sa", label: "tabby.sa" }];
 
-  // Lock domain for supervisors
-  useEffect(() => {
-    if (isSv && !filters.domain) {
-      const svDomain = profile?.operational_domain || profile?.domain || "tabby.ai";
-      setFilters(f => ({ ...f, domain: svDomain }));
-    }
-  }, [isSv, profile]);
+  // Note: previously this component auto-locked the domain filter to a
+  // supervisor's operational_domain and disabled the dropdown. That hid
+  // cross-domain reports — e.g. an @tabby.ai supervisor whose team
+  // includes both .ai and .sa QAs (team scope is now resolved via
+  // teams.supervisor_id, not domain) could only ever see one half of
+  // their team. Treat supervisors like leads: default to "all domains"
+  // and let them filter manually if they want.
 
   if (isQa) return null; // QAs don't see global filters
 
@@ -38,7 +37,6 @@ function GlobalFilterBar({ filters, setFilters, months, teams, roster, profile, 
         value={filters.domain}
         onChange={v => setFilters(f => ({ ...f, domain: v, teams: [], people: [] }))}
         placeholder="All domains"
-        disabled={isSv}
       />
 
       <SearchableSelect
@@ -65,7 +63,7 @@ function GlobalFilterBar({ filters, setFilters, months, teams, roster, profile, 
       />
 
       {(filters.domain || filters.teams.length > 0 || filters.month || filters.people.length > 0) &&
-        <button onClick={() => setFilters({ ...defaultFilters, domain: isSv ? filters.domain : "" })} style={{
+        <button onClick={() => setFilters({ ...defaultFilters })} style={{
           background: "none", border: "none", color: "var(--red)", fontSize: 11, cursor: "pointer",
           fontFamily: "var(--font)", fontWeight: 500, padding: "4px 8px",
         }}>Clear all</button>
