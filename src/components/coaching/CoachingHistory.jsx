@@ -325,6 +325,22 @@ export default function CoachingHistory({ sessions, onDelete }) {
               const canEdit = hasRole(profile?.role, "qa_supervisor");
               const isEditing = editingObs === s.id;
               if (!hasObs && !canEdit) return null;
+              // Compact mode: when there's no observation yet, render JUST a
+              // small "+ Add observation" link instead of the whole panel
+              // header. The form expands inline once clicked. Stops the
+              // expanded row from showing an empty observation header for
+              // every coaching that hasn't been observed yet.
+              if (!hasObs && canEdit && !isEditing) {
+                return (
+                  <div style={{marginTop:10}}>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setEditingObs(s.id); setObsDraft({ empathy: 3, clarity: 3, specificity: 3, note: "" }); }}
+                      style={{background:"none",border:"none",padding:0,cursor:"pointer",fontSize:11,fontWeight:600,color:"var(--accent-text)",fontFamily:"var(--font)"}}
+                    >+ Add observation</button>
+                  </div>
+                );
+              }
               return (
                 <div style={{marginTop:12,paddingTop:12,borderTop:"1px solid var(--bd2)"}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
@@ -337,7 +353,7 @@ export default function CoachingHistory({ sessions, onDelete }) {
                         className="btn btn-outline btn-sm"
                         style={{fontSize:10,padding:"3px 8px"}}
                         onClick={(e) => { e.stopPropagation(); setEditingObs(s.id); setObsDraft({ empathy: cur.empathy ?? 3, clarity: cur.clarity ?? 3, specificity: cur.specificity ?? 3, note: cur.note || "" }); }}
-                      >{hasObs ? "Edit" : "Add"}</button>
+                      >Edit</button>
                     )}
                   </div>
 

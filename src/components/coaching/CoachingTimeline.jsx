@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { nameFromEmail } from "../../lib/utils.js";
 
 // Per-QA coaching timeline shown on the QA Profile. Combines two
@@ -51,6 +51,11 @@ const deltaTone = (d) => {
 };
 
 export default function CoachingTimeline({ sessions = [], mtd = [] }) {
+  // Effectiveness deltas (Δ CSAT / Δ Coach) are noisy when most rows are
+  // current-month and have no next-month MTD to compare against. Default
+  // OFF; lead opts in via the small toggle in the header.
+  const [showEff, setShowEff] = useState(false);
+
   if (!sessions || sessions.length === 0) return null;
 
   const sorted = [...sessions].sort((a, b) => (b.session_date || "").localeCompare(a.session_date || ""));
@@ -62,13 +67,19 @@ export default function CoachingTimeline({ sessions = [], mtd = [] }) {
 
   return (
     <div className="card" style={{ marginBottom: 16 }}>
-      <div className="card-header">
+      <div className="card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span className="card-title">Coaching timeline · {sessions.length} session{sessions.length === 1 ? "" : "s"}{observed > 0 ? ` · ${observed} observed` : ""}</span>
+        <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--tx2)", cursor: "pointer", fontWeight: 500 }}>
+          <input type="checkbox" checked={showEff} onChange={e => setShowEff(e.target.checked)} />
+          Show effectiveness
+        </label>
       </div>
       <div style={{ padding: "0 16px 12px" }}>
-        <div style={{ fontSize: 11, color: "var(--tx3)", marginBottom: 10 }}>
-          Δ shows the change in MTD KPIs from the session's month to the following month — a directional read on whether the coaching moved the metric.
-        </div>
+        {showEff && (
+          <div style={{ fontSize: 11, color: "var(--tx3)", marginBottom: 10 }}>
+            Δ shows the change in MTD KPIs from the session's month to the following month — a directional read on whether the coaching moved the metric.
+          </div>
+        )}
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {sorted.map(s => {
             const tone = ratingTone(s.performance_rating);
@@ -92,7 +103,7 @@ export default function CoachingTimeline({ sessions = [], mtd = [] }) {
                 key={s.id}
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "100px 1fr auto auto",
+                  gridTemplateColumns: showEff ? "100px 1fr auto auto" : "100px 1fr auto",
                   alignItems: "center",
                   gap: 12,
                   padding: "8px 10px",
@@ -125,15 +136,17 @@ export default function CoachingTimeline({ sessions = [], mtd = [] }) {
                     </span>
                   )}
                 </div>
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, minWidth: 95 }}>
-                  <span style={{ fontSize: 10, color: "var(--tx3)" }}>vs next month</span>
-                  <span style={{ fontSize: 11, color: csatTone.color, fontWeight: 600 }}>
-                    Δ CSAT {dCsat == null ? "—" : `${csatTone.sign}${dCsat.toFixed(1)}%`}
-                  </span>
-                  <span style={{ fontSize: 11, color: compTone.color, fontWeight: 600 }}>
-                    Δ Coach {dComp == null ? "—" : `${compTone.sign}${dComp.toFixed(1)}%`}
-                  </span>
-                </div>
+                {showEff && (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4, minWidth: 95 }}>
+                    <span style={{ fontSize: 10, color: "var(--tx3)" }}>vs next month</span>
+                    <span style={{ fontSize: 11, color: csatTone.color, fontWeight: 600 }}>
+                      Δ CSAT {dCsat == null ? "—" : `${csatTone.sign}${dCsat.toFixed(1)}%`}
+                    </span>
+                    <span style={{ fontSize: 11, color: compTone.color, fontWeight: 600 }}>
+                      Δ Coach {dComp == null ? "—" : `${compTone.sign}${dComp.toFixed(1)}%`}
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })}

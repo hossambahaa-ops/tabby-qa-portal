@@ -107,6 +107,11 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
   const [outcome, setOutcome] = useState("");
   const [nextSteps, setNextSteps] = useState("");
   const [showPreview, setShowPreview] = useState(false);
+  // Opt-in: also create a Tracker task for every action-item line on send.
+  // Defaults to OFF so members' Trackers don't fill with imported items
+  // they didn't ask for; the lead checks the box per-coaching when they
+  // actually want the follow-up to live in the Tracker.
+  const [addAsTasks, setAddAsTasks] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // ── Form persistence (per-user) ──
@@ -206,6 +211,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
     setWeaknesses("");
     setGoals("");
     setActions("");
+    setAddAsTasks(false);
     setPerfRating("");
     setOutcome("");
     setNextSteps("");
@@ -414,11 +420,11 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
         if (row?.id) insertedSessions.push(row);
       }
 
-      // Action items → Tracker tasks. Each non-empty action-item line
+      // Action items → Tracker tasks. Opt-in via the "Add to Tracker"
+      // checkbox below the action-items field — default off. Each line
       // becomes a "pending" task on the member's Tracker, due in 7 days.
-      // Best-effort: failures don't block the email send. Skipped when
-      // action_items is empty.
-      const actionLines = extractActionLines(actions);
+      // Best-effort: failures don't block the email send.
+      const actionLines = addAsTasks ? extractActionLines(actions) : [];
       if (actionLines.length > 0) {
         const due = new Date();
         due.setDate(due.getDate() + 7);
@@ -619,39 +625,25 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
             </div>
           </div>
 
-          {/* Member context strip — surfaces the most-relevant facts about
-              the picked QA above the previous-sessions list, so the lead
-              doesn't have to flip tabs to gather context. Sources:
-                - mtdByQa (latest snapshot per QA)
-                - damFlagsByQa (most recent flag)
-                - plans (active AP/PIP)
-              Renders nothing until a recognised member is picked. */}
+          {/* Member context strip — minimal: latest MTD month + CSAT, plus
+              an Active AP/PIP badge when relevant. RTR, Coaching%, and
+              last-DAM details are still one click away on the QA Profile;
+              they were diluting the strip on Compose so we dropped them. */}
           {toEmail && (() => {
             const lower = toEmail.toLowerCase();
             const m = mtdByQa[lower];
-            const f = damFlagsByQa[lower];
             const activePlan = plans.find(p => (p.qa_email||"").toLowerCase() === lower && (p.status === "active" || p.status === "pending_review"));
-            if (!m && !f && !activePlan) return null;
+            if (!m && !activePlan) return null;
             const fmtPctLocal = (v) => v == null || v === "" ? "—" : (String(v).includes("%") ? v : `${v}%`);
             const csatVal = m?.csat_pct;
-            const rtrVal = m?.avg_rtr_score;
-            const completionVal = (m?.coaching_eligibility_count || 0) > 0 ? m?.coaching_completion_pct : "—";
-            const flagAgeDays = f?.triggered_at ? Math.max(0, Math.round((Date.now() - new Date(f.triggered_at).getTime())/86400000)) : null;
             return <div style={{marginTop:16,padding:"10px 14px",background:"var(--bg)",borderRadius:8,display:"flex",alignItems:"center",gap:14,flexWrap:"wrap",fontSize:12,border:"1px solid var(--bd2)"}}>
-              <div style={{display:"flex",alignItems:"center",gap:6}}>
-                <span style={{color:"var(--tx3)",fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:.4}}>Context</span>
-              </div>
+              <span style={{color:"var(--tx3)",fontSize:10,fontWeight:600,textTransform:"uppercase",letterSpacing:.4}}>Context</span>
               {m && <>
                 <span><span style={{color:"var(--tx3)"}}>Latest MTD: </span><strong>{m.month || "—"}</strong></span>
                 <span><span style={{color:"var(--tx3)"}}>CSAT: </span><strong>{csatVal ? fmtPctLocal(csatVal) : "—"}</strong></span>
-                <span><span style={{color:"var(--tx3)"}}>RTR: </span><strong>{rtrVal ? fmtPctLocal(rtrVal) : "—"}</strong></span>
-                <span><span style={{color:"var(--tx3)"}}>Coaching: </span><strong>{completionVal === "—" ? "—" : fmtPctLocal(completionVal)}</strong></span>
               </>}
               {activePlan && <span style={{padding:"2px 8px",borderRadius:10,background:activePlan.type==="pip"?"var(--red-bg)":"var(--amber-bg)",color:activePlan.type==="pip"?"var(--red)":"var(--amber)",fontWeight:700,fontSize:11}}>
                 ⚠ Active {activePlan.type.toUpperCase()}
-              </span>}
-              {f && <span title={`${f.notes || f.dam_rules?.name || "DAM flag"} · ${f.severity || "?"}`} style={{padding:"2px 8px",borderRadius:10,background:f.severity==="critical"?"var(--red-bg)":"var(--amber-bg)",color:f.severity==="critical"?"var(--red)":"var(--amber)",fontWeight:600,fontSize:11}}>
-                Last DAM: {f.dam_rules?.name || "flag"}{flagAgeDays != null ? ` · ${flagAgeDays}d ago` : ""}
               </span>}
             </div>;
           })()}
@@ -730,6 +722,16 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
             {[["topics","Topics discussed",topics,setTopics],["strengths","Strengths observed",strengths,setStrengths],["weaknesses","Areas for improvement",weaknesses,setWeaknesses],["goals","Goals & progress update",goals,setGoals],["actions","Action items / next steps",actions,setActions]].map(([id,label,val,setter]) => (
               <div className="form-group" key={id}><label className="form-label">{label}</label>
                 <RichTextField value={val} onChange={setter} placeholder="Type your notes — use the toolbar for bold, italic, bullets, or links" maxChars={2000} />
+                {/* Opt-in: pull each action-item line into the member's
+                    Tracker as a pending task on send. Off by default so
+                    Trackers don't fill with imported items the member
+                    didn't ask for. */}
+                {id === "actions" && actions && extractActionLines(actions).length > 0 && (
+                  <label style={{display:"flex",alignItems:"center",gap:6,marginTop:6,fontSize:11,color:"var(--tx2)",cursor:"pointer"}}>
+                    <input type="checkbox" checked={addAsTasks} onChange={e => setAddAsTasks(e.target.checked)} />
+                    Add these {extractActionLines(actions).length} item{extractActionLines(actions).length === 1 ? "" : "s"} to {(toEmail||"the member").split(",")[0].split("@")[0]}'s Tracker (due in 7 days)
+                  </label>
+                )}
               </div>
             ))}
           </div>
