@@ -7,6 +7,7 @@ import { sb, SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { fetchUnreadReleases, ackRelease } from "./lib/featureReleases.js";
 import { avatarStyle, initialsFromEmail as initialsForAvatar } from "./lib/avatar.js";
 import { startVersionCheck } from "./lib/versionCheck.js";
+import { startHeartbeat } from "./lib/heartbeat.js";
 import { initErrorLog } from "./lib/errorLog.js";
 import { listRoster } from "./api/roster.js";
 import { listMtd } from "./api/mtd.js";
@@ -160,68 +161,14 @@ function AppInner(){
   // Defensive cleanup so the key doesn't sit there forever.
   useEffect(()=>{ try{ localStorage.removeItem("login_riyadh_date"); }catch{} }, []);
 
-  // ─── App utilization tracking ───
-  // One row per (user, Riyadh-day). On mount and every 5 minutes we
-  // upsert: bump last_seen_at, add ~5 minutes (capped to wall-clock
-  // gap so an idle tab doesn't inflate totals), record current page
-  // in page_visits. Total writes per active user ≈ 12/hour — well
-  // under the free-plan ceiling.
-  const heartbeatRef=useRef({lastBeat:0});
-  useEffect(()=>{
-    if(!session?.access_token||!profile?.email)return;
-    const email=profile.email.toLowerCase();
-    const todayRiyadh=()=>new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Riyadh",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
-    const beat=async()=>{
-      try{
-        const now=Date.now();
-        const last=heartbeatRef.current.lastBeat||0;
-        const gapMin=last?Math.max(0,Math.min(6,Math.round((now-last)/60000))):1;
-        heartbeatRef.current.lastBeat=now;
-        const date=todayRiyadh();
-        const ua=(navigator?.userAgent||"").slice(0,200);
-        const pagePath=location.pathname.replace(/^\//,"")||"dashboard";
-        // Server-side increment via PostgREST: we read-modify-write
-        // because PostgREST doesn't expose raw SQL increment. The
-        // jsonb merge keeps existing visit counts and adds 1 to the
-        // current page.
-        const existing=await sb.query("user_activity",{
-          select:"total_minutes,page_visits,first_seen_at",
-          filters:`user_email=eq.${encodeURIComponent(email)}&date=eq.${date}`,
-          token:session.access_token,
-        }).catch(()=>[]);
-        const cur=Array.isArray(existing)&&existing[0]?existing[0]:null;
-        const visits={...(cur?.page_visits||{}),[pagePath]:((cur?.page_visits||{})[pagePath]||0)+1};
-        const totalMin=(cur?.total_minutes||0)+gapMin;
-        const body={
-          user_email:email,
-          date,
-          last_seen_at:new Date().toISOString(),
-          total_minutes:totalMin,
-          page_visits:visits,
-          last_page:pagePath,
-          user_agent:ua,
-          ...(cur?{}:{first_seen_at:new Date().toISOString()}),
-        };
-        await fetch(`${SUPABASE_URL}/rest/v1/user_activity?on_conflict=user_email,date`,{
-          method:"POST",
-          headers:{
-            "Content-Type":"application/json",
-            apikey:SUPABASE_ANON,
-            Authorization:`Bearer ${session.access_token}`,
-            Prefer:"resolution=merge-duplicates,return=minimal",
-          },
-          body:JSON.stringify(body),
-        }).catch(()=>{});
-      }catch{/* swallow — utilization is best-effort */}
-    };
-    beat(); // first beat as soon as we have a session+profile
-    const id=setInterval(beat,5*60*1000); // every 5 min
-    // Also beat on tab refocus so "currently online" doesn't go stale
-    // when a user comes back to a tab they had in the background.
-    const onFocus=()=>beat();
-    window.addEventListener("focus",onFocus);
-    return()=>{clearInterval(id);window.removeEventListener("focus",onFocus);};
-  },[session?.access_token,profile?.email,location.pathname]);
+  // App utilization heartbeat — extracted to src/lib/heartbeat.js so the
+  // shell stays focused on routing + layout. Restarts when token, email,
+  // or current path changes.
+  useEffect(() => startHeartbeat({
+    token: session?.access_token,
+    email: profile?.email,
+    getPagePath: () => location.pathname.replace(/^\//, "") || "dashboard",
+  }), [session?.access_token, profile?.email, location.pathname]);
   // Listen for session refresh from sb.query 401 handler
   useEffect(()=>{
     const handler=(e)=>{if(e.detail)setSession(e.detail);};
