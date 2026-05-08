@@ -496,11 +496,31 @@ export default function CoachingCompose({ roster, pickerCandidates, sessions, pl
                 const q = toEmail.toLowerCase();
                 const matches = candidates.filter(r => (r.email||"").toLowerCase().includes(q) || (r.display_name||"").toLowerCase().includes(q)).slice(0, 8);
                 if (!matches.length) return null;
-                return <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:"0 0 var(--radius) var(--radius)",boxShadow:"var(--shadow-lg)",maxHeight:200,overflowY:"auto"}}>
-                  {matches.map(r => <div key={r.email} onClick={()=>{setToEmail(r.email); ccUserEditedRef.current = false; setCcEmail(buildAutoCc(r.email, candidates, profile?.email, teamSvMap, leadSvMap));}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
-                    <span style={{fontWeight:500}}>{r.email}</span>
-                    <span style={{color:"var(--tx3)",fontSize:11}}>{r.display_name || nameFromEmail(r.email)}</span>
-                  </div>)}
+                // Cadence helper: "last coached / sessions in 90d" inline
+                // beside the candidate's name. Sessions list is the prop the
+                // form already receives — no extra fetch needed.
+                const cadenceFor = (email) => {
+                  const lower = (email || "").toLowerCase();
+                  const mine = sessions.filter(s => (s.member_email || "").toLowerCase() === lower);
+                  if (mine.length === 0) return { label: "never coached", color: "var(--amber)" };
+                  const lastDate = mine.reduce((m, s) => (s.session_date && s.session_date > m ? s.session_date : m), "");
+                  const days = lastDate ? Math.max(0, Math.round((Date.now() - new Date(lastDate + "T00:00:00").getTime()) / 86400000)) : null;
+                  const since = new Date(); since.setDate(since.getDate() - 90);
+                  const last90 = mine.filter(s => s.session_date && s.session_date >= since.toISOString().split("T")[0]).length;
+                  const color = days == null ? "var(--tx3)" : days >= 30 ? "var(--red)" : days >= 14 ? "var(--amber)" : "var(--green)";
+                  return { label: `${days}d ago · ${last90}× / 90d`, color };
+                };
+                return <div style={{position:"absolute",top:"100%",left:0,right:0,zIndex:10,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:"0 0 var(--radius) var(--radius)",boxShadow:"var(--shadow-lg)",maxHeight:240,overflowY:"auto"}}>
+                  {matches.map(r => {
+                    const cad = cadenceFor(r.email);
+                    return <div key={r.email} onClick={()=>{setToEmail(r.email); ccUserEditedRef.current = false; setCcEmail(buildAutoCc(r.email, candidates, profile?.email, teamSvMap, leadSvMap));}} style={{padding:"8px 12px",fontSize:13,cursor:"pointer",borderBottom:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                      <span style={{display:"flex",flexDirection:"column",minWidth:0,flex:1}}>
+                        <span style={{fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.email}</span>
+                        <span style={{color:cad.color,fontSize:10,fontWeight:600,marginTop:2}}>{cad.label}</span>
+                      </span>
+                      <span style={{color:"var(--tx3)",fontSize:11,whiteSpace:"nowrap"}}>{r.display_name || nameFromEmail(r.email)}</span>
+                    </div>;
+                  })}
                 </div>;
               })()}
             </div>

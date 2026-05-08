@@ -16,6 +16,12 @@ export default function CoachingHistory({ sessions, onDelete }) {
   const [expandedSession, setExpandedSession] = useState(null);
   const [historySearch, setHistorySearch] = useState("");
   const [historyFilterBy, setHistoryFilterBy] = useState("all");
+  // New filter dropdowns — date range, meeting type, performance rating.
+  // Empty string = no filter for that axis.
+  const [filterFrom, setFilterFrom] = useState("");
+  const [filterTo, setFilterTo] = useState("");
+  const [filterType, setFilterType] = useState("");
+  const [filterRating, setFilterRating] = useState("");
   // Click-to-sort state. Default: newest sessions first.
   const [sortKey, setSortKey] = useState("date");
   const [sortDir, setSortDir] = useState("desc");
@@ -27,6 +33,31 @@ export default function CoachingHistory({ sessions, onDelete }) {
   // Performance rating order so "Outstanding" sorts above "Needs Attention"
   // even though they're text values. Lower index = higher rating.
   const PERF_ORDER = { "Outstanding": 0, "Exceeds Expectations": 1, "Meets Expectations": 2, "Improvement Needed": 3, "Below Expectations": 3, "Needs Attention": 4 };
+
+  // Build a "follow-up needed" set: a session has open action items if its
+  // action_items field is non-empty AND no later session for the same
+  // member exists. Computed once over the full sessions list (not the
+  // filtered view) so the badge is correct even when the user filters.
+  const followUpNeeded = (() => {
+    const out = new Set();
+    const byMember = new Map();
+    for (const s of sessions) {
+      const k = (s.member_email || "").toLowerCase();
+      if (!byMember.has(k)) byMember.set(k, []);
+      byMember.get(k).push(s);
+    }
+    for (const [, list] of byMember) {
+      const sorted = [...list].sort((a, b) => (a.session_date || "").localeCompare(b.session_date || ""));
+      for (let i = 0; i < sorted.length; i++) {
+        const s = sorted[i];
+        const hasActions = !!(s.action_items && String(s.action_items).replace(/<[^>]+>/g, "").trim().length > 0);
+        if (!hasActions) continue;
+        const hasLater = i < sorted.length - 1;
+        if (!hasLater) out.add(s.id);
+      }
+    }
+    return out;
+  })();
 
   // Per-column key extractors. Returned as comparable primitives so the
   // generic sort below works for every column without bespoke logic.
@@ -43,7 +74,13 @@ export default function CoachingHistory({ sessions, onDelete }) {
   const myEmail = profile?.email?.toLowerCase() || "";
 
   const getScopedFiltered = () => {
-    const scopedSessions = isLeadOnly ? sessions.filter(s => s.sender_email?.toLowerCase() === myEmail) : historyFilterBy === "my_sessions" ? sessions.filter(s => s.sender_email?.toLowerCase() === myEmail) : sessions;
+    let scopedSessions = isLeadOnly ? sessions.filter(s => s.sender_email?.toLowerCase() === myEmail) : historyFilterBy === "my_sessions" ? sessions.filter(s => s.sender_email?.toLowerCase() === myEmail) : sessions;
+    // Apply structured filters (date range / type / rating). Empty string
+    // means "any value" for that axis.
+    if (filterFrom)   scopedSessions = scopedSessions.filter(s => (s.session_date || "") >= filterFrom);
+    if (filterTo)     scopedSessions = scopedSessions.filter(s => (s.session_date || "") <= filterTo);
+    if (filterType)   scopedSessions = scopedSessions.filter(s => s.meeting_type === filterType);
+    if (filterRating) scopedSessions = scopedSessions.filter(s => (s.performance_rating || "") === filterRating);
     const q = historySearch.toLowerCase().trim();
     if (!q) return scopedSessions;
     return scopedSessions.filter(s => {
@@ -52,6 +89,10 @@ export default function CoachingHistory({ sessions, onDelete }) {
       return (s.member_email || "").toLowerCase().includes(q) || memberName.includes(q) || (s.sender_email || "").toLowerCase().includes(q) || senderName.includes(q) || (s.email_subject || "").toLowerCase().includes(q) || (ENUM_TO_LABEL[s.meeting_type] || "").toLowerCase().includes(q);
     });
   };
+
+  const ENUM_LABELS = Object.entries(ENUM_TO_LABEL); // for the type-filter dropdown
+  const PERF_OPTIONS_FILTER = ["Outstanding", "Exceeds Expectations", "Meets Expectations", "Improvement Needed", "Needs Attention"];
+  const anyFilterActive = !!(filterFrom || filterTo || filterType || filterRating);
 
   // Filter, then sort by the selected column. Sort is non-mutating so the
   // upstream sessions array stays untouched. session_date desc is the
@@ -107,6 +148,40 @@ export default function CoachingHistory({ sessions, onDelete }) {
       <div style={{fontSize:12,color:"var(--tx3)"}}>{filtered.length} session{filtered.length!==1?"s":""}</div>
     </div>
 
+    {/* Structured filters: date range, meeting type, performance rating.
+        Empty input/select = no filter for that axis. Clear-all link
+        appears only when at least one filter is active. */}
+    <div style={{padding:"10px 16px",borderBottom:"1px solid var(--bd2)",display:"flex",gap:10,alignItems:"center",flexWrap:"wrap",fontSize:12}}>
+      <label style={{display:"flex",alignItems:"center",gap:6,color:"var(--tx3)"}}>
+        From
+        <input type="date" className="form-input" value={filterFrom} onChange={e=>setFilterFrom(e.target.value)} style={{padding:"4px 6px",fontSize:12,height:30,width:140}}/>
+      </label>
+      <label style={{display:"flex",alignItems:"center",gap:6,color:"var(--tx3)"}}>
+        To
+        <input type="date" className="form-input" value={filterTo} onChange={e=>setFilterTo(e.target.value)} style={{padding:"4px 6px",fontSize:12,height:30,width:140}}/>
+      </label>
+      <label style={{display:"flex",alignItems:"center",gap:6,color:"var(--tx3)"}}>
+        Type
+        <select className="select form-input" value={filterType} onChange={e=>setFilterType(e.target.value)} style={{padding:"4px 6px",fontSize:12,height:30,width:160}}>
+          <option value="">All types</option>
+          {ENUM_LABELS.map(([k,v]) => <option key={k} value={k}>{v}</option>)}
+        </select>
+      </label>
+      <label style={{display:"flex",alignItems:"center",gap:6,color:"var(--tx3)"}}>
+        Rating
+        <select className="select form-input" value={filterRating} onChange={e=>setFilterRating(e.target.value)} style={{padding:"4px 6px",fontSize:12,height:30,width:170}}>
+          <option value="">All ratings</option>
+          {PERF_OPTIONS_FILTER.map(r => <option key={r} value={r}>{r}</option>)}
+        </select>
+      </label>
+      {anyFilterActive && (
+        <button
+          onClick={() => { setFilterFrom(""); setFilterTo(""); setFilterType(""); setFilterRating(""); }}
+          style={{background:"none",border:"none",color:"var(--tabby-purple)",fontSize:11,fontWeight:600,cursor:"pointer",padding:"4px 0"}}
+        >Clear filters</button>
+      )}
+    </div>
+
     {filtered.length === 0 ? (historySearch
       ? <EmptyState
           title="No matches"
@@ -138,7 +213,9 @@ export default function CoachingHistory({ sessions, onDelete }) {
           return(<React.Fragment key={s.id}>
             <tr onClick={()=>setExpandedSession(isExp?null:s.id)} style={{cursor:"pointer"}}>
             <td style={{fontSize:13,whiteSpace:"nowrap"}}>{s.session_date ? new Date(s.session_date).toLocaleDateString("en-GB",{month:"short",day:"numeric",year:"numeric"}) : "—"}</td>
-            <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{ENUM_TO_LABEL[s.meeting_type]||s.meeting_type}</span></td>
+            <td><span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red-bg)":"var(--green-bg)",color:["ap_checkin","pip_checkin"].includes(s.meeting_type)?"var(--red)":"var(--green)"}}>{ENUM_TO_LABEL[s.meeting_type]||s.meeting_type}</span>
+            {followUpNeeded.has(s.id) && <span title="Action items from this session have no follow-up session" style={{marginLeft:6,fontSize:10,padding:"1px 6px",borderRadius:8,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:700,letterSpacing:.2}}>↻ Follow-up</span>}
+            </td>
             <td style={{fontWeight:500}}>{nameFromEmail(s.member_email)}</td>
             <td style={{fontSize:13,color:"var(--tx2)"}}>{nameFromEmail(s.sender_email)}</td>
             <td>{s.performance_rating ? <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,
