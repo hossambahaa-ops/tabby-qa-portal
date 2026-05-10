@@ -87,7 +87,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
   const [toEmail, setToEmail] = useState("");
   const [ccEmail, setCcEmail] = useState("");
   const [sessionDate, setSessionDate] = useState(new Date().toISOString().split("T")[0]);
-  const [meetingType, setMeetingType] = useState("1:1 Meeting");
+  const [meetingType, setMeetingType] = useState("WPR");
   const [topics, setTopics] = useState("");
   const [strengths, setStrengths] = useState("");
   const [weaknesses, setWeaknesses] = useState("");
@@ -208,7 +208,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
     setCcEmail("");
     ccUserEditedRef.current = false;
     setSessionDate(new Date().toISOString().split("T")[0]);
-    setMeetingType("1:1 Meeting");
+    setMeetingType("WPR");
     setTopics("");
     setStrengths("");
     setWeaknesses("");
@@ -311,7 +311,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
 
   // Get previous sessions for selected member
   const memberHistory = sessions.filter(s => s.member_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
-  const ENUM_TO_LABEL = {"weekly_1on1":"1:1 Meeting","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
+  const ENUM_TO_LABEL = {"weekly_1on1":"WPR","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
 
   // CC auto-fill: whenever the recipient changes (typed or picked), rebuild
   // CC from supervisor + Amanda, dropping whoever the sender is. The user

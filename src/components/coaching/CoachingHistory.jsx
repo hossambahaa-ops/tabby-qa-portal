@@ -8,7 +8,7 @@ import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import EmptyState from "../EmptyState.jsx";
 
-const ENUM_TO_LABEL = {"weekly_1on1":"1:1 Meeting","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
+const ENUM_TO_LABEL = {"weekly_1on1":"WPR","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
 
 // Coaching content fields (topics / strengths / weaknesses / goals /
 // action_items / next_steps) are stored as raw HTML by the rich-text

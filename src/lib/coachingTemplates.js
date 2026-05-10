@@ -2,23 +2,28 @@
 // Kept here so the page file stays focused on form state + handlers.
 
 export const MEETING_TYPES = [
-  "1:1 Meeting",
+  "WPR",
   "MPR",
   "Coaching Session",
-  "Weekly Check-in",
   "Action Plan Review",
   "PIP Review",
 ];
 
 // Maps the human-friendly meeting type onto the enum value the
-// coaching_sessions table expects.
+// coaching_sessions table expects. The DB enum value `weekly_1on1`
+// is unchanged — only the display label moved from "1:1 Meeting" to
+// "WPR" (Weekly Performance Review). Legacy labels still resolve to
+// their enum so any old draft / saved view keeps working.
 export const MEETING_TYPE_ENUM = {
-  "1:1 Meeting": "weekly_1on1",
+  "WPR": "weekly_1on1",
   "MPR": "performance_review",
   "Coaching Session": "ad_hoc",
-  "Weekly Check-in": "weekly_1on1",
   "Action Plan Review": "ap_checkin",
   "PIP Review": "pip_checkin",
+  // legacy label aliases — keep these so anything that still sends
+  // the old string maps to the same enum.
+  "1:1 Meeting": "weekly_1on1",
+  "Weekly Check-in": "weekly_1on1",
 };
 
 // Meeting types that show the per-week target table (AP / PIP reviews).
@@ -54,12 +59,14 @@ export const normalizePerfRating = (val) =>
   PERF_LEGACY_REMAP[val] || val;
 
 export const INTRO_MAP = {
-  "1:1 Meeting": "This is a formal summary of our weekly 1:1 meeting.",
+  "WPR": "This is a formal summary of our Weekly Performance Review.",
   "MPR": "This is a formal summary of your MPR session.",
   "Coaching Session": "This is a formal summary of your Coaching Session.",
-  "Weekly Check-in": "This is a formal summary of our Weekly Check-in.",
   "Action Plan Review": "This is a formal summary of your Action Plan Review. Please review your weekly targets and progress carefully.",
   "PIP Review": "This is a formal summary of your Performance Improvement Plan (PIP) Review. Please review your weekly targets and progress carefully.",
+  // legacy aliases so old draft state still resolves
+  "1:1 Meeting": "This is a formal summary of our Weekly Performance Review.",
+  "Weekly Check-in": "This is a formal summary of our Weekly Performance Review.",
 };
 
 // Pre-fill templates and the matching applyTemplate() helper were removed

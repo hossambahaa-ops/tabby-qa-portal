@@ -26,7 +26,10 @@ import AttendanceHealthCard from "../components/attendance/AttendanceHealthCard.
 import TeamChampions from "../components/dashboard/TeamChampions.jsx";
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
 import PendingSideTasksCard from "../components/dashboard/PendingSideTasksCard.jsx";
-import OwedCoachingsCard from "../components/dashboard/OwedCoachingsCard.jsx";
+// OwedCoachingsCard replaced by the cadence-aware CoachingCadenceCard
+// (WPR-this-week + MPR-this-month with leave exclusion + owed list).
+// import OwedCoachingsCard from "../components/dashboard/OwedCoachingsCard.jsx";
+import CoachingCadenceCard from "../components/dashboard/CoachingCadenceCard.jsx";
 import TeamOccupancyCard from "../components/dashboard/TeamOccupancyCard.jsx";
 import QASelfServiceDashboard from "../components/dashboard/QASelfServiceDashboard.jsx";
 import DailyCheckInWidget from "../components/dashboard/DailyCheckInWidget.jsx";
@@ -256,7 +259,7 @@ function DashboardPage(){
         occupancy. All three cards self-render only when the viewer is
         a lead+ and there's actually something to act on. */}
     <PendingSideTasksCard/>
-    <OwedCoachingsCard/>
+    <CoachingCadenceCard/>
     <TeamOccupancyCard/>
 
     {/* User Task Management */}
