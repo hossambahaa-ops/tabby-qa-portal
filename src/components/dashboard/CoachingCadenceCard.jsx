@@ -84,6 +84,14 @@ function workingDays(dateIsoList) {
     return dow >= 0 && dow <= 4; // 0=Sun..4=Thu
   });
 }
+// Which week of the calendar month does the Sunday `weekStartIso`
+// fall in? 1, 2, 3, 4, or 5 (months can have a partial 5th week).
+// The Tabby cadence rule (per Hossam): weeks 1-3 = WPR, week 4+ = MPR.
+// So in week 4 the team owes an MPR for that week — not a WPR.
+function weekOfMonth(weekStartIso) {
+  const day = parseInt(weekStartIso.split("-")[2], 10);
+  return Math.ceil(day / 7);
+}
 
 export default function CoachingCadenceCard() {
   const { token, profile, globalToast } = useApp();
@@ -99,7 +107,19 @@ export default function CoachingCadenceCard() {
   const [periods] = useState(() => {
     const [wStart, wEnd] = weekRangeRiyadh();
     const [mStart, mEnd] = monthRangeRiyadh();
-    return { wStart, wEnd, mStart, mEnd };
+    const wkOfMonth = weekOfMonth(wStart);
+    // Cadence rule (per Hossam):
+    //   Week 1 → MPR (covers the PRIOR month's performance)
+    //   Week 2 → WPR (#1 of this month)
+    //   Week 3 → WPR (#2 of this month)
+    //   Week 4+ → MPR (covers THIS month's performance)
+    // So MPR weeks are 1, 4, 5; WPR weeks are 2, 3.
+    const cadenceType = (wkOfMonth === 1 || wkOfMonth >= 4) ? "MPR" : "WPR";
+    // Human-readable explanation of which MPR cycle this week
+    // belongs to — matters in week 1 because the MPR there reviews
+    // the prior month, not the current one.
+    const mprCovers = wkOfMonth === 1 ? "prior month" : "this month";
+    return { wStart, wEnd, mStart, mEnd, wkOfMonth, cadenceType, mprCovers };
   });
 
   useEffect(() => {
@@ -123,12 +143,19 @@ export default function CoachingCadenceCard() {
           select: "member_email,session_date,meeting_type",
           filters: `member_email=in.(${inList})&session_date=gte.${periods.mStart}&session_date=lte.${periods.mEnd}&order=session_date.desc`,
         }).catch(() => []);
+        // Both cadence sets are now scoped to THIS WEEK's date range.
+        // Week 1's MPR (which covers the prior month) is conducted IN
+        // week 1 of the new month, so its session_date sits in the
+        // current week range — same check works for it as for the
+        // week-4 MPR. That's intentional: the cadence card just asks
+        // "was the right TYPE of session held in this week?"
         const wprSet = new Set();
         const mprSet = new Set();
         for (const s of (Array.isArray(sessions) ? sessions : [])) {
           const em = (s.member_email || "").toLowerCase();
           const inWeek = s.session_date >= periods.wStart && s.session_date <= periods.wEnd;
-          if (s.meeting_type === "weekly_1on1" && inWeek) wprSet.add(em);
+          if (!inWeek) continue;
+          if (s.meeting_type === "weekly_1on1") wprSet.add(em);
           if (s.meeting_type === "performance_review") mprSet.add(em);
         }
 
@@ -185,30 +212,38 @@ export default function CoachingCadenceCard() {
     return () => { cancelled = true; };
   }, [token, isLead, profile?.email, periods.wStart, periods.mStart]);
 
-  // Compute headline numbers for both periods.
+  // Headline numbers: ONE primary cadence per week. In weeks 1-3 the
+  // team owes a WPR; in week 4+ they owe an MPR. The other cadence is
+  // shown as a small informational sub-line below ("month so far"),
+  // not as a parallel bar — that was confusing because it implied
+  // both were due in parallel.
   const stats = useMemo(() => {
     const teamLower = team.map(r => r.email.toLowerCase());
-    const wprDenom = teamLower.filter(em => !wprExcluded.has(em));
-    const mprDenom = teamLower.filter(em => !mprExcluded.has(em));
-    const wprNum = wprDenom.filter(em => wprDone.has(em)).length;
-    const mprNum = mprDenom.filter(em => mprDone.has(em)).length;
-    const wprPct = wprDenom.length > 0 ? Math.round((wprNum / wprDenom.length) * 100) : 0;
-    const mprPct = mprDenom.length > 0 ? Math.round((mprNum / mprDenom.length) * 100) : 0;
-    const wprOwed = team.filter(r => {
+    const isMpr = periods.cadenceType === "MPR";
+    const doneSet = isMpr ? mprDone : wprDone;
+    const exclSet = isMpr ? mprExcluded : wprExcluded;
+    const denom = teamLower.filter(em => !exclSet.has(em));
+    const num = denom.filter(em => doneSet.has(em)).length;
+    const pct = denom.length > 0 ? Math.round((num / denom.length) * 100) : 0;
+    const owed = team.filter(r => {
       const em = r.email.toLowerCase();
-      return !wprExcluded.has(em) && !wprDone.has(em);
+      return !exclSet.has(em) && !doneSet.has(em);
     });
-    const mprOwed = team.filter(r => {
-      const em = r.email.toLowerCase();
-      return !mprExcluded.has(em) && !mprDone.has(em);
-    });
-    return { wprNum, wprDenom: wprDenom.length, wprPct, wprOwed, mprNum, mprDenom: mprDenom.length, mprPct, mprOwed };
-  }, [team, wprDone, mprDone, wprExcluded, mprExcluded]);
+    // Month-so-far sub-line numbers (informational, not gating).
+    const wprMonthCount = teamLower.filter(em => wprDone.has(em)).length; // QAs who got at least one WPR this month
+    const mprMonthCount = teamLower.filter(em => mprDone.has(em)).length;
+    return { num, denom: denom.length, pct, owed, wprMonthCount, mprMonthCount };
+  }, [team, wprDone, mprDone, wprExcluded, mprExcluded, periods.cadenceType]);
 
-  // Per-lead breakdown for Supervisor+. Group team members by their
-  // manager_email, compute WPR/MPR ratios per lead.
+  // Per-lead breakdown for Supervisor+. Now built around the single
+  // active cadence for this week (WPR or MPR depending on week of
+  // month) so the table column makes sense — no more "WPR / MPR"
+  // double column where one half is misleading.
   const byLead = useMemo(() => {
     if (!isSupervisor) return [];
+    const isMpr = periods.cadenceType === "MPR";
+    const doneSet = isMpr ? mprDone : wprDone;
+    const exclSet = isMpr ? mprExcluded : wprExcluded;
     const groups = new Map();
     for (const r of team) {
       const lead = (r.manager_email || "(unassigned)").toLowerCase();
@@ -217,33 +252,23 @@ export default function CoachingCadenceCard() {
     }
     return [...groups.values()].map(g => {
       const ems = g.members.map(m => m.email.toLowerCase());
-      const wDen = ems.filter(em => !wprExcluded.has(em));
-      const mDen = ems.filter(em => !mprExcluded.has(em));
-      const wNum = wDen.filter(em => wprDone.has(em)).length;
-      const mNum = mDen.filter(em => mprDone.has(em)).length;
+      const den = ems.filter(em => !exclSet.has(em));
+      const num = den.filter(em => doneSet.has(em)).length;
       return {
         lead: g.lead,
         members: g.members.length,
-        wpr: { num: wNum, den: wDen.length, pct: wDen.length ? Math.round(wNum / wDen.length * 100) : 0 },
-        mpr: { num: mNum, den: mDen.length, pct: mDen.length ? Math.round(mNum / mDen.length * 100) : 0 },
+        num, den: den.length,
+        pct: den.length ? Math.round(num / den.length * 100) : 0,
       };
-    }).sort((a, b) => a.wpr.pct - b.wpr.pct); // worst first so behind-leads pop
-  }, [team, wprDone, mprDone, wprExcluded, mprExcluded, isSupervisor]);
+    }).sort((a, b) => a.pct - b.pct); // worst first so behind-leads pop
+  }, [team, wprDone, mprDone, wprExcluded, mprExcluded, isSupervisor, periods.cadenceType]);
 
-  // Combined "still owed" — union of WPR + MPR owed, deduped, with
-  // tags showing which kind. The user picked option (b): full
-  // scrollable list, no top-N truncation. NOTE: this hook MUST be
-  // declared before any early-return guards below — otherwise the
-  // hook count varies between renders and React throws #310.
+  // Still-owed list = QAs owed for THIS WEEK's required cadence only.
+  // Sorted alphabetically. NOTE: this hook must sit alongside the
+  // others, before any conditional early returns, or React throws
+  // #310 (rendered different number of hooks).
   const owedRows = useMemo(() => {
-    const map = new Map();
-    for (const r of stats.wprOwed) map.set(r.email.toLowerCase(), { ...r, owesWpr: true, owesMpr: false });
-    for (const r of stats.mprOwed) {
-      const em = r.email.toLowerCase();
-      if (map.has(em)) map.get(em).owesMpr = true;
-      else map.set(em, { ...r, owesWpr: false, owesMpr: true });
-    }
-    return [...map.values()].sort((a, b) => (a.display_name || a.email).localeCompare(b.display_name || b.email));
+    return [...stats.owed].sort((a, b) => (a.display_name || a.email).localeCompare(b.display_name || b.email));
   }, [stats]);
 
   if (!isLead) return null;
@@ -285,22 +310,60 @@ export default function CoachingCadenceCard() {
 
   const wprWindow = `${new Date(periods.wStart + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${new Date(periods.wEnd + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
   const mprMonth = new Date(periods.mStart + "T00:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" });
+  const isMprWeek = periods.cadenceType === "MPR";
+  // Cadence-specific colour scheme so the active session type is
+  // visually distinct (amber for WPR, red for MPR).
+  const cadenceTone = isMprWeek ? "var(--red)" : "var(--amber)";
+  const cadenceBg   = isMprWeek ? "var(--red-bg)" : "var(--amber-bg)";
+  // Total leave-excluded count for the active cadence.
+  const leaveExcluded = isMprWeek ? mprExcluded.size : wprExcluded.size;
+  // Active percentage tone.
+  const pctTone = stats.pct >= 90 ? "var(--green)" : stats.pct >= 70 ? "var(--accent-text)" : stats.pct >= 50 ? "var(--amber)" : "var(--red)";
 
   return (
     <div className="card" style={{ marginBottom: 16, padding: "14px 16px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
         <span style={{ fontSize: 13, fontWeight: 800, letterSpacing: "-.2px" }}>📅 Coaching cadence</span>
         <span style={{ fontSize: 11, color: "var(--tx3)" }}>
           {team.length} member{team.length === 1 ? "" : "s"}
-          {(wprExcluded.size + mprExcluded.size) > 0 ? ` · ${Math.max(wprExcluded.size, mprExcluded.size)} on leave excluded` : ""}
+          {leaveExcluded > 0 ? ` · ${leaveExcluded} on leave excluded` : ""}
         </span>
       </div>
 
-      {periodRow("WPR", `this week · ${wprWindow}`, stats.wprNum, stats.wprDenom, stats.wprPct, stats.wprOwed.length)}
-      {periodRow("MPR", `${mprMonth}`, stats.mprNum, stats.mprDenom, stats.mprPct, stats.mprOwed.length)}
+      {/* What's required this week. The badge tells the user the
+          rule at a glance: in week 1 → MPR (prior month), weeks 2-3
+          → WPR, week 4+ → MPR (this month). */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 10, padding: "8px 12px", background: cadenceBg, borderRadius: 8, border: `1px solid ${cadenceTone}33` }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: cadenceTone, letterSpacing: ".3px", padding: "2px 8px", background: "var(--bg3)", borderRadius: 4, border: `1px solid ${cadenceTone}55` }}>
+          WEEK {periods.wkOfMonth} of {mprMonth.split(" ")[0]}
+        </span>
+        <span style={{ fontSize: 12, color: "var(--tx)", fontWeight: 600 }}>
+          {periods.cadenceType} required this week
+        </span>
+        <span style={{ fontSize: 11, color: "var(--tx3)" }}>
+          ({wprWindow}{isMprWeek ? ` · covers ${periods.mprCovers}` : ""})
+        </span>
+      </div>
 
-      {/* Per-lead breakdown for supervisors+. Collapsed by default
-          since for many supervisors the headline ratios are enough. */}
+      {/* Single progress bar for the active cadence. */}
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+        <div style={{ flex: 1, position: "relative", height: 14, background: "var(--bg)", borderRadius: 8, overflow: "hidden", border: "1px solid var(--bd2)" }}>
+          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${stats.pct}%`, background: pctTone, transition: "width .25s" }} />
+        </div>
+        <div style={{ flex: "0 0 auto", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+          <span style={{ fontSize: 16, fontWeight: 800, color: pctTone }}>{stats.num}/{stats.denom}</span>
+          <span style={{ fontSize: 12, color: "var(--tx3)", marginLeft: 6 }}>{stats.pct}%</span>
+        </div>
+      </div>
+      {stats.owed.length > 0 && (
+        <div style={{ fontSize: 11, color: "var(--tx3)", marginBottom: 4 }}>
+          {stats.owed.length} member{stats.owed.length === 1 ? "" : "s"} still owe a {periods.cadenceType} this week.
+        </div>
+      )}
+
+      {/* Per-lead breakdown for supervisors+. Single column showing
+          this week's required cadence (renames table column based on
+          whether we're in a WPR or MPR week). */}
       {isSupervisor && byLead.length > 1 && (
         <div style={{ marginTop: 10 }}>
           <button
@@ -316,19 +379,23 @@ export default function CoachingCadenceCard() {
                   <tr style={{ background: "var(--bg)" }}>
                     <th style={{ padding: "6px 10px", textAlign: "left", fontWeight: 600, color: "var(--tx3)", fontSize: 10, textTransform: "uppercase", letterSpacing: ".4px" }}>Lead</th>
                     <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 600, color: "var(--tx3)", fontSize: 10, textTransform: "uppercase", letterSpacing: ".4px" }}>QAs</th>
-                    <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 600, color: "var(--tx3)", fontSize: 10, textTransform: "uppercase", letterSpacing: ".4px" }}>WPR</th>
-                    <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 600, color: "var(--tx3)", fontSize: 10, textTransform: "uppercase", letterSpacing: ".4px" }}>MPR</th>
+                    <th style={{ padding: "6px 10px", textAlign: "right", fontWeight: 600, color: "var(--tx3)", fontSize: 10, textTransform: "uppercase", letterSpacing: ".4px" }}>{periods.cadenceType} done</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {byLead.map(g => (
-                    <tr key={g.lead} style={{ borderTop: "1px solid var(--bd2)" }}>
-                      <td style={{ padding: "5px 10px", fontWeight: 500 }}>{nameFromEmail(g.lead)}</td>
-                      <td style={{ padding: "5px 10px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{g.members}</td>
-                      <td style={{ padding: "5px 10px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: g.wpr.pct >= 70 ? "var(--green)" : g.wpr.pct >= 50 ? "var(--amber)" : "var(--red)", fontWeight: 600 }}>{g.wpr.num}/{g.wpr.den} <span style={{ fontWeight: 400, color: "var(--tx3)", fontSize: 10 }}>({g.wpr.pct}%)</span></td>
-                      <td style={{ padding: "5px 10px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: g.mpr.pct >= 70 ? "var(--green)" : g.mpr.pct >= 50 ? "var(--amber)" : "var(--red)", fontWeight: 600 }}>{g.mpr.num}/{g.mpr.den} <span style={{ fontWeight: 400, color: "var(--tx3)", fontSize: 10 }}>({g.mpr.pct}%)</span></td>
-                    </tr>
-                  ))}
+                  {byLead.map(g => {
+                    const tone = g.pct >= 90 ? "var(--green)" : g.pct >= 70 ? "var(--accent-text)" : g.pct >= 50 ? "var(--amber)" : "var(--red)";
+                    return (
+                      <tr key={g.lead} style={{ borderTop: "1px solid var(--bd2)" }}>
+                        <td style={{ padding: "5px 10px", fontWeight: 500 }}>{nameFromEmail(g.lead)}</td>
+                        <td style={{ padding: "5px 10px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{g.members}</td>
+                        <td style={{ padding: "5px 10px", textAlign: "right", fontVariantNumeric: "tabular-nums", color: tone, fontWeight: 600 }}>
+                          {g.num}/{g.den}
+                          <span style={{ fontWeight: 400, color: "var(--tx3)", fontSize: 10, marginLeft: 4 }}>({g.pct}%)</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -336,13 +403,12 @@ export default function CoachingCadenceCard() {
         </div>
       )}
 
-      {/* Still-owed list — full, scrollable. One row per QA with
-          chips showing which sessions are owed and a one-click
-          "Log →" that prefills the compose form for that QA. */}
+      {/* Still-owed list — full, scrollable. Only shows QAs missing
+          this week's required session type. */}
       {owedRows.length > 0 && (
         <div style={{ marginTop: 12 }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".4px", marginBottom: 6 }}>
-            Still owed ({owedRows.length})
+            Still owe a {periods.cadenceType} ({owedRows.length})
           </div>
           <div style={{ maxHeight: 260, overflowY: "auto", border: "1px solid var(--bd2)", borderRadius: 8 }}>
             {owedRows.map(r => (
@@ -354,13 +420,12 @@ export default function CoachingCadenceCard() {
                   {r.display_name || nameFromEmail(r.email)}
                   <span style={{ color: "var(--tx3)", marginLeft: 6, fontSize: 11 }}>{r.email.split("@")[0]}</span>
                 </span>
-                {r.owesWpr && <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 999, background: "var(--amber-bg)", color: "var(--amber)", fontWeight: 700 }}>WPR</span>}
-                {r.owesMpr && <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 999, background: "var(--red-bg)", color: "var(--red)", fontWeight: 700 }}>MPR</span>}
+                <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 999, background: cadenceBg, color: cadenceTone, fontWeight: 700 }}>{periods.cadenceType}</span>
                 <button
                   onClick={() => goLogCoaching(r.email)}
                   className="btn btn-outline btn-sm"
                   style={{ fontSize: 10, padding: "3px 8px" }}
-                  title={`Log a coaching session for ${nameFromEmail(r.email)}`}
+                  title={`Log a ${periods.cadenceType} for ${nameFromEmail(r.email)}`}
                 >Log →</button>
               </div>
             ))}
@@ -370,7 +435,7 @@ export default function CoachingCadenceCard() {
 
       {owedRows.length === 0 && (
         <div style={{ marginTop: 8, padding: "8px 10px", borderRadius: 8, background: "var(--green-bg)", color: "var(--green)", fontSize: 12, fontWeight: 600, display: "flex", alignItems: "center", gap: 6 }}>
-          <span>✅</span> All cadences caught up — no WPRs or MPRs owed for this period.
+          <span>✅</span> All caught up — every member has their {periods.cadenceType} for this week.
         </div>
       )}
     </div>
