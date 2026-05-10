@@ -542,11 +542,21 @@ function AppInner(){
               // with x-upsert:true — POST would 409 if the path exists.
               const ext=(file.name.split(".").pop()||"jpg").toLowerCase().replace(/[^a-z0-9]/g,"") || "jpg";
               const path=`${profile.id}.${ext}`;
-              const formData=new FormData();formData.append("file",file);
+              // Storage PUT expects the raw file bytes as the body.
+              // The previous version wrapped the file in FormData, which
+              // stored a multipart envelope (headers + boundary + the PNG
+              // inside) — the URL worked but the bytes weren't a valid
+              // image, so the browser rendered a broken-image icon. Sending
+              // the File directly + an explicit Content-Type fixes this.
               const upRes=await fetch(`${SUPABASE_URL}/storage/v1/object/avatars/${path}`,{
                 method:"PUT",
-                headers:{"Authorization":`Bearer ${session.access_token}`,"x-upsert":"true"},
-                body:formData,
+                headers:{
+                  "Authorization":`Bearer ${session.access_token}`,
+                  "x-upsert":"true",
+                  "Content-Type": file.type || "application/octet-stream",
+                  "Cache-Control": "max-age=3600",
+                },
+                body:file,
               });
               if(!upRes.ok){
                 const detail=await upRes.text().catch(()=>"");
