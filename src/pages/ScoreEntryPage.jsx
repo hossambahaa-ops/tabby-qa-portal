@@ -9,6 +9,7 @@ import { callEdgeFunction } from "../lib/edgeSync.js";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import PageFilters from "../components/PageFilters.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { SYSTEM_COLS, DEFAULT_MTD_COLS, COL_LABELS } from "../lib/mtdColumns.js";
 import MtdUploadModal from "../components/mtd/MtdUploadModal.jsx";
@@ -317,11 +318,12 @@ function ScoreEntryPage(){
   if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
   if (selTL) filtered = filtered.filter(r => r.qa_tl === selTL);
   if (selQA.length > 0) filtered = filtered.filter(r => selQA.includes(r.qa_email));
-  // Apply global filters
-  if (gf?.people?.length > 0) filtered = filtered.filter(r => gf.people.includes(r.qa_email?.toLowerCase()));
+  // Apply the slim global filter (Month + Domain only). Page-level
+  // selDomain/selTeam/selTL/selQA take precedence — gf.domain is just
+  // a default scope when the user hasn't picked one here. People +
+  // Teams used to live on gf but were dropped in the filter
+  // unification — they're now per-page (selQA / selTeam above).
   if (gf?.domain && !selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+gf.domain));
-  if (gf?.teams?.length > 0 && !selTeam) filtered = filtered.filter(r => { const q = rosterMap[r.qa_email?.toLowerCase()]?.queue; return q && gf.teams.includes(q); });
-  if (gf?.month && !selMonth && gf.month !== selMonth) { /* month already handled by selMonth */ }
   // Live name/email filter — works on top of all the dropdown filters.
   if (tableSearch.trim()) {
     const q = tableSearch.toLowerCase().trim();
@@ -539,56 +541,51 @@ function ScoreEntryPage(){
       />
     </div>
 
-    <div className="card" style={{marginBottom:16,position:"relative",zIndex:50,overflow:"visible"}}>
-      <div className="controls-row" style={{overflow:"visible"}}>
-        <div className="form-group" style={{flex:1,position:"relative",zIndex:5}}>
-          <label className="form-label">Month</label>
-          <SearchableSelect
-            options={months}
-            value={selMonth}
-            onChange={v=>{setSelMonth(v);setSelQA([]);setSelTL("");setSelDomain("");setSelTeam("");}}
-            placeholder="Select month"
-          />
-        </div>
-        <div className="form-group" style={{flex:1}}>
-          <label className="form-label">Domain</label>
-          <SearchableSelect
-            options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]}
-            value={selDomain}
-            onChange={v=>{setSelDomain(v);setSelQA([]);setSelTL("");setSelTeam("");}}
-            placeholder="All domains"
-          />
-        </div>
-        <div className="form-group" style={{flex:1}}>
-          <label className="form-label">Team</label>
-          <SearchableSelect
-            options={scoreTeams}
-            value={selTeam}
-            onChange={v=>{setSelTeam(v);setSelQA([]);setSelTL("");}}
-            placeholder="All teams"
-          />
-        </div>
-        <div className="form-group" style={{flex:1}}>
-          <label className="form-label">QA Lead</label>
-          <SearchableSelect
-            options={tlEmails.map(e=>({value:e,label:e+` (${nameFromEmail(e)})`}))}
-            value={selTL}
-            onChange={v=>{setSelTL(v);setSelQA([]);}}
-            placeholder={`All leads (${tlEmails.length})`}
-          />
-        </div>
-        <div className="form-group" style={{flex:1}}>
-          <label className="form-label">Specialist</label>
-          <SearchableSelect
-            options={[...new Set(filtered.map(r=>r.qa_email))].sort().map(e=>({value:e,label:e+" ("+nameFromEmail(e)+")"}))}
-            value={selQA}
-            onChange={setSelQA}
-            placeholder={`All (${filtered.length})`}
-            multi
-          />
-        </div>
-      </div>
-    </div>
+    {/* Unified PageFilters strip — same component, same spot, same
+        clear behaviour as every other page. The old card-wrapped
+        flex-row was 5 form-groups with floating labels; this puts
+        each control in one row with the standard "× Clear" at the
+        right and an inline search input that filters the table.
+
+        Bug fix: previously, picking a different Month wiped every
+        other selection (domain / team / lead / specialist). Now Month
+        only changes the time scope — the rest of the filters stick. */}
+    <PageFilters
+      onClear={() => { setSelDomain(""); setSelTeam(""); setSelTL(""); setSelQA([]); setTableSearch(""); }}
+      searchProps={{ value: tableSearch, onChange: setTableSearch, placeholder: "Search rows…" }}
+    >
+      <SearchableSelect
+        options={months}
+        value={selMonth}
+        onChange={v => setSelMonth(v)}
+        placeholder="Select month"
+      />
+      <SearchableSelect
+        options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]}
+        value={selDomain}
+        onChange={v => { setSelDomain(v); setSelTeam(""); setSelTL(""); setSelQA([]); }}
+        placeholder="All domains"
+      />
+      <SearchableSelect
+        options={scoreTeams}
+        value={selTeam}
+        onChange={v => { setSelTeam(v); setSelTL(""); setSelQA([]); }}
+        placeholder="All teams"
+      />
+      <SearchableSelect
+        options={tlEmails.map(e => ({ value: e, label: nameFromEmail(e) }))}
+        value={selTL}
+        onChange={v => { setSelTL(v); setSelQA([]); }}
+        placeholder={`All leads (${tlEmails.length})`}
+      />
+      <SearchableSelect
+        options={[...new Set(filtered.map(r => r.qa_email))].sort().map(e => ({ value: e, label: nameFromEmail(e) }))}
+        value={selQA}
+        onChange={setSelQA}
+        placeholder={`All specialists (${filtered.length})`}
+        multi
+      />
+    </PageFilters>
 
     {sorted.length === 0 ? (() => {
       // Distinguish between "no data synced at all" and "filtered down

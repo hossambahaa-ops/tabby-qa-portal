@@ -15,4 +15,8 @@ export const hasRole=(r,min)=>(ROLE_LEVEL[r]||0)>=(ROLE_LEVEL[min]||99);
 export const MONTH_IDX={Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
 export const sortMonthsDesc=(months)=>[...months].sort((a,b)=>{const[am,ay]=a.split("-");const[bm,by]=b.split("-");return(parseInt(by)||0)-(parseInt(ay)||0)||(MONTH_IDX[bm]??0)-(MONTH_IDX[am]??0);});
 
-export const defaultFilters = { domain: "", teams: [], month: "", people: [] };
+// Slimmed to the two dimensions that actually mean something on every
+// page: domain (org scope) and month (time scope). Teams + People used
+// to live here but only a handful of pages consumed them, so they're
+// now per-page filters via the new <PageFilters> strip.
+export const defaultFilters = { domain: "", month: "" };

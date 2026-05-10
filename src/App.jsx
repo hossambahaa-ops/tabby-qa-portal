@@ -76,6 +76,22 @@ const NAV_ITEMS=[
 /* ═══ APP ═══ */
 function AppInner(){
   const navigate=useNavigate();
+  // Routes where the slim Month + Domain global bar is suppressed.
+  // These pages either have no notion of monthly/domain scoping
+  // (Tracker, Admin, Audit Trail) or they handle their own scope
+  // entirely (Dashboard's role-based view, QA Profile's per-QA view,
+  // Escalations). Suppressing the bar on these routes prevents the
+  // "I changed it but nothing happened" confusion.
+  const HIDE_GLOBAL_FILTER_PAGES = React.useMemo(() => new Set([
+    "dashboard",
+    "tracker",
+    "profile",
+    "admin",
+    "audit",
+    "escalations",
+    "hr",
+    "utilization",
+  ]), []);
   const location=useLocation();
   const page=location.pathname.replace(/^\//,"") || "dashboard";
   const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);
@@ -560,8 +576,11 @@ function AppInner(){
         >Sign out</button>
       </div>
     </div>
-    {/* Global filter bar */}
-    <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} teams={[]} roster={globalRoster} profile={effectiveProfile} role={userRole}/>
+    {/* Global filter bar — slimmed to Month + Domain only.
+        Hidden on routes that don't actually consume gf, so users
+        don't see "dead controls" that change nothing. Page-level
+        filters live under <PageFilters> on each page. */}
+    {!HIDE_GLOBAL_FILTER_PAGES.has(page) && <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} role={userRole}/>}
     {/* Search overlay */}
     {showSearch&&<GlobalSearch onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
     {showTour&&<OnboardingTour onDismiss={dismissTour} role={profile?.role}/>}
