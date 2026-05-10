@@ -42,9 +42,16 @@ function LeaderboardPage() {
   // selection so the card always returns to "current = page-level month".
   useEffect(() => { setHistMonth(null); }, [selMonth]);
   const [selQaQuarterly, setSelQaQuarterly] = useState("");
-  const [selectedEmails, setSelectedEmails] = useState(new Set());
-  const [compareMode, setCompareMode] = useState(false);
-  const [focusOnly, setFocusOnly] = useState(false);
+  // Belts banner: collapsed to a one-line strip by default; clicking
+  // expands to the full per-belt grid + criteria copy. Most days you
+  // just want to see who holds them.
+  const [beltsExpanded, setBeltsExpanded] = useState(false);
+  // Pin-driven workflow replaces the old multi-select + compareMode +
+  // focusOnly trio. Pinned QAs always float to the top; "Show pinned
+  // only" filters down to them; "Compare pinned" swaps in the side-by-
+  // side compare table. One primitive (pin), two toggles.
+  const [pinnedOnly, setPinnedOnly] = useState(false);
+  const [comparingPinned, setComparingPinned] = useState(false);
   // Pinned QAs — float to top of any list, persisted per browser
   const [pinnedEmails, setPinnedEmails] = useState(() => {
     try { return new Set(JSON.parse(localStorage.getItem("lb_pinned_qas") || "[]")); } catch { return new Set(); }
@@ -222,13 +229,13 @@ function LeaderboardPage() {
     <div className="page">
       <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
         <div>
-          <div className="page-title" style={{display:"flex",alignItems:"center",gap:10,flexWrap:"wrap"}}>
-            Leaderboard
-            {lastLoadedAt && <span className="pill pill-tone-green" style={{fontSize:11,fontWeight:500,padding:"3px 9px"}} title={new Date(lastLoadedAt).toLocaleString()}>
-              <span className="pill-dot"/> Refreshed {fmtAge(lastLoadedAt)}
-            </span>}
-          </div>
-          <div className="page-subtitle">Performance rankings — {selMonth || "All months"}{pinnedEmails.size>0?` · ${pinnedEmails.size} pinned`:""}</div>
+          <div className="page-title">Leaderboard</div>
+          {/* Subtitle trimmed: the month is shown on the filter strip
+              and the pinned count lives on the table itself, so the
+              header just says what the page is. The "Refreshed Xm
+              ago" pill moved to the table card-header so it's adjacent
+              to the data it describes instead of distracting up here. */}
+          <div className="page-subtitle">Performance rankings</div>
         </div>
       </div>
 
@@ -255,6 +262,11 @@ function LeaderboardPage() {
 
       {loading ? <SkeletonPage/> : <>
 
+      {/* Stats trimmed from 4 cards to 2. "Top performer" duplicated
+          row #1 of the table directly below; "Total DSAT" is a quality-
+          control number that belongs on the QA Profile / DAM page, not
+          a leaderboard. Kept the two that actually summarize the
+          ranking: how many people are ranked + the average score. */}
       {hasRole(profile?.role,"qa_lead")&&<div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">{view==="individual"?"Ranked":"Teams"}</div>
@@ -266,58 +278,73 @@ function LeaderboardPage() {
             color={scoreColor(avgScore)} label={avgScore.toFixed(1)} sublabel={`of ${maxScore}`}
           />
         </div>
-        {topPerson && view==="individual" && <div className="stat-card">
-          <div className="stat-label">Top performer</div>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginTop:4}}>
-            <div style={{width:32,height:32,borderRadius:"50%",background:"linear-gradient(135deg,#FEF3C7,#FDE68A)",color:"#92400E",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700,fontSize:12}}>1</div>
-            <div style={{fontWeight:700,fontSize:15,letterSpacing:"-.3px"}}>{nameFromEmail(topPerson.qa_email)}</div>
-          </div>
-        </div>}
-        <div className="stat-card">
-          <div className="stat-label">Total DSAT</div>
-          <div className="stat-value" style={{color:totalDsat>0?"var(--red)":"var(--tx)"}}>{totalDsat}</div>
-        </div>
       </div>}
 
-      {/* Reigning belts panel — visible to everyone. Showcases the
-          five championship titles for the last completed month. Each
-          belt can only be held by one QA at a time and changes hands
-          when the next month closes. */}
+      {/* Reigning belts panel — collapsed by default to a one-line
+          strip showing the 5 belt holders' emojis + names. Click the
+          row to expand into the full per-belt grid + criteria copy.
+          Saves ~150px of vertical space on the default view. */}
       {titleHolders && view==="individual" && (
-        <div className="card" style={{marginBottom:20,padding:16,borderLeft:"4px solid #F59E0B",background:"linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%)"}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
-            <span style={{fontSize:16,fontWeight:800,letterSpacing:"-.3px"}}>🏆 Reigning belts</span>
+        <div className="card" style={{marginBottom:20,padding:beltsExpanded?16:"10px 14px",borderLeft:"4px solid #F59E0B",background:"linear-gradient(135deg,var(--bg2) 0%,var(--bg3) 100%)"}}>
+          <div
+            onClick={() => setBeltsExpanded(v => !v)}
+            style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer",userSelect:"none",flexWrap:"wrap"}}
+            title={beltsExpanded ? "Click to collapse" : "Click to see criteria"}
+          >
+            <span style={{fontSize:14,fontWeight:800,letterSpacing:"-.2px",whiteSpace:"nowrap"}}>🏆 Reigning belts</span>
+            {!beltsExpanded && (
+              <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",flex:1,minWidth:0}}>
+                {TITLE_KEYS.map(k => {
+                  const cat = TITLE_CATALOG[k];
+                  const h = titleHolders[k];
+                  return (
+                    <span key={k} title={`${cat.label}: ${h ? nameFromEmail(h.qa_email) + " — " + cat.metricLabel + " " + h.display : "Unclaimed"}`}
+                      style={{display:"inline-flex",alignItems:"center",gap:5,padding:"2px 8px",borderRadius:999,background:`${cat.color}1a`,border:`1px solid ${cat.color}55`,fontSize:11,whiteSpace:"nowrap"}}>
+                      <span style={{fontSize:13,lineHeight:1}}>{cat.emoji}</span>
+                      <span style={{fontWeight:600,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",maxWidth:120}}>
+                        {h ? nameFromEmail(h.qa_email) : <span style={{color:"var(--tx3)",fontStyle:"italic"}}>Unclaimed</span>}
+                      </span>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <span style={{marginLeft:"auto",color:"var(--tx3)",fontSize:12}}>{beltsExpanded ? "▼" : "▶"}</span>
           </div>
-          <div style={{fontSize:12,color:"var(--tx2)",marginBottom:14,lineHeight:1.5}}>
-            Champions of <strong style={{color:"var(--tx)"}}>{formatMonthLabel(beltMonth)}</strong>. At the end of <strong style={{color:"var(--tx)"}}>{formatMonthLabel(getCurrentCalendarMonth())}</strong> the belts are recalculated — a new champion is crowned, or the current one defends the title.
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
-            {TITLE_KEYS.map(k=>{
-              const cat = TITLE_CATALOG[k];
-              const h = titleHolders[k];
-              return (
-                <Tooltip key={k} content={<BeltHoverCard cat={cat} holder={h}/>} maxWidth={300} padding="10px 12px" wrapperStyle={{display:"flex",width:"100%"}}>
-                  <div style={{padding:"10px 12px",background:"var(--bg)",borderRadius:8,border:`1px solid ${cat.color}55`,display:"flex",alignItems:"center",gap:10,cursor:"help",width:"100%"}}>
-                    <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${cat.color}33,${cat.color}11)`,border:`1.5px solid ${cat.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,boxShadow:`0 0 0 2px ${cat.color}1f`}}>{cat.emoji}</div>
-                    <div style={{minWidth:0,flex:1}}>
-                      <div style={{fontSize:11,fontWeight:800,color:cat.color,textTransform:"uppercase",letterSpacing:".4px"}}>{cat.label}</div>
-                      {h ? (
-                        <>
-                          <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameFromEmail(h.qa_email)}</div>
-                          <div style={{fontSize:11,color:"var(--tx3)"}}>{cat.metricLabel}: {h.display}</div>
-                        </>
-                      ) : (
-                        <div style={{fontSize:12,color:"var(--tx3)",fontStyle:"italic"}}>Unclaimed this month</div>
-                      )}
-                    </div>
-                  </div>
-                </Tooltip>
-              );
-            })}
-          </div>
-          <div style={{marginTop:10,fontSize:11,color:"var(--tx3)",fontStyle:"italic"}}>
-            Hover any belt for the criteria. Belts only change hands when a month closes — the current holder keeps the title until then.
-          </div>
+          {beltsExpanded && (
+            <>
+              <div style={{fontSize:12,color:"var(--tx2)",margin:"14px 0",lineHeight:1.5}}>
+                Champions of <strong style={{color:"var(--tx)"}}>{formatMonthLabel(beltMonth)}</strong>. At the end of <strong style={{color:"var(--tx)"}}>{formatMonthLabel(getCurrentCalendarMonth())}</strong> the belts are recalculated — a new champion is crowned, or the current one defends the title.
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:12}}>
+                {TITLE_KEYS.map(k=>{
+                  const cat = TITLE_CATALOG[k];
+                  const h = titleHolders[k];
+                  return (
+                    <Tooltip key={k} content={<BeltHoverCard cat={cat} holder={h}/>} maxWidth={300} padding="10px 12px" wrapperStyle={{display:"flex",width:"100%"}}>
+                      <div style={{padding:"10px 12px",background:"var(--bg)",borderRadius:8,border:`1px solid ${cat.color}55`,display:"flex",alignItems:"center",gap:10,cursor:"help",width:"100%"}}>
+                        <div style={{width:36,height:36,borderRadius:"50%",background:`linear-gradient(135deg,${cat.color}33,${cat.color}11)`,border:`1.5px solid ${cat.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0,boxShadow:`0 0 0 2px ${cat.color}1f`}}>{cat.emoji}</div>
+                        <div style={{minWidth:0,flex:1}}>
+                          <div style={{fontSize:11,fontWeight:800,color:cat.color,textTransform:"uppercase",letterSpacing:".4px"}}>{cat.label}</div>
+                          {h ? (
+                            <>
+                              <div style={{fontSize:13,fontWeight:700,color:"var(--tx)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{nameFromEmail(h.qa_email)}</div>
+                              <div style={{fontSize:11,color:"var(--tx3)"}}>{cat.metricLabel}: {h.display}</div>
+                            </>
+                          ) : (
+                            <div style={{fontSize:12,color:"var(--tx3)",fontStyle:"italic"}}>Unclaimed this month</div>
+                          )}
+                        </div>
+                      </div>
+                    </Tooltip>
+                  );
+                })}
+              </div>
+              <div style={{marginTop:10,fontSize:11,color:"var(--tx3)",fontStyle:"italic"}}>
+                Hover any belt for the criteria. Belts only change hands when a month closes — the current holder keeps the title until then.
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -350,9 +377,11 @@ function LeaderboardPage() {
           // Leads: their team
           visibleRanked = ranked.filter(r => myTeamEmailsInd.includes(r.qa_email?.toLowerCase()) || r.qa_email?.toLowerCase() === myEmailInd);
         }
-        // Focus mode: only show selected QAs
-        if (focusOnly && selectedEmails.size > 0) {
-          visibleRanked = visibleRanked.filter(r => selectedEmails.has(r.qa_email?.toLowerCase()));
+        // "Show pinned only" — replaces the old focus-mode + multi-
+        // select. One source of truth (pinnedEmails) drives both the
+        // float-to-top and the filter-down-to-only.
+        if (pinnedOnly && pinnedEmails.size > 0) {
+          visibleRanked = visibleRanked.filter(r => pinnedEmails.has(r.qa_email?.toLowerCase()));
         }
         // Float pinned QAs to the top while preserving their relative
         // score order. The rank number shown in column # still reflects
@@ -521,8 +550,14 @@ function LeaderboardPage() {
         <div className="card">
           <div className="card-header">
             <span className="card-title">Full rankings — {selMonth}</span>
-            <div style={{display:"flex",alignItems:"center",gap:12}}>
-              <span style={{fontSize:12,color:"var(--tx3)"}}>{visibleRanked.length} specialists · Scored out of {maxScore}</span>
+            <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <span style={{fontSize:12,color:"var(--tx3)"}}>{visibleRanked.length} specialists · Scored out of {maxScore}{pinnedEmails.size>0?` · ${pinnedEmails.size} pinned`:""}</span>
+              {/* Refreshed pill moved here from the page header — sits
+                  next to the data it describes, doesn't compete with
+                  the page title every minute when it ticks. */}
+              {lastLoadedAt && <span className="pill pill-tone-green" style={{fontSize:10,fontWeight:500,padding:"2px 8px"}} title={new Date(lastLoadedAt).toLocaleString()}>
+                <span className="pill-dot"/> Refreshed {fmtAge(lastLoadedAt)}
+              </span>}
               {hasRole(profile?.role,"qa_lead")&&<button className="btn btn-outline btn-sm" onClick={()=>{
                 const kpiHeaders=Object.values(KPI_SLABS).map(k=>k.label);
                 const csv=["Rank,Specialist,Email,TL,"+kpiHeaders.join(",")+",Total"];
@@ -548,18 +583,22 @@ function LeaderboardPage() {
               </button>}
             </div>
           </div>
+          {/* Compare table is now driven by the pin set — appears above
+              the standard table when "Compare pinned" is toggled on. */}
           <LeaderboardCompareTable
-            selectedEmails={compareMode ? selectedEmails : new Set()}
+            selectedEmails={comparingPinned ? pinnedEmails : new Set()}
             ranked={ranked}
             maxScore={maxScore}
           />
           {visibleRanked.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {selMonth}.</p></div> :
           <>
-          {/* Bulk action toolbar */}
-          {selectedEmails.size > 0 && <div style={{padding:"10px 16px",marginBottom:8,background:"var(--accent-light)",borderRadius:8,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-            <span style={{fontSize:13,fontWeight:600,color:"var(--accent-text)"}}>{selectedEmails.size} selected</span>
+          {/* Pin-driven action bar — replaces the old multi-select +
+              compare-mode + focus-only trio. One primitive (pin), four
+              actions all operating on the pinned set. */}
+          {pinnedEmails.size > 0 && hasRole(profile?.role,"qa_lead") && <div style={{padding:"10px 16px",marginBottom:8,background:"var(--accent-light)",borderRadius:8,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+            <span style={{fontSize:13,fontWeight:600,color:"var(--accent-text)"}}>★ {pinnedEmails.size} pinned</span>
             <button className="btn btn-primary btn-sm" style={{fontSize:11}} onClick={()=>{
-              const emails=[...selectedEmails];
+              const emails=[...pinnedEmails];
               window.dispatchEvent(new CustomEvent("navigate",{detail:"quality"}));
               setTimeout(()=>{
                 window.dispatchEvent(new CustomEvent("qc-tab",{detail:"coaching"}));
@@ -570,21 +609,22 @@ function LeaderboardPage() {
             }}>Send Coaching</button>
             <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>{
               const csv=["Name,Email,TL,Total Score"];
-              [...selectedEmails].forEach(em=>{
+              [...pinnedEmails].forEach(em=>{
                 const row=ranked.find(r=>r.qa_email?.toLowerCase()===em);
                 if(row)csv.push(`"${nameFromEmail(row.qa_email)}",${row.qa_email},"${row.qa_tl?nameFromEmail(row.qa_tl):""}",${getTotalScore(row).toFixed(1)}`);
               });
               const blob=new Blob([csv.join("\n")],{type:"text/csv"});
               const url=URL.createObjectURL(blob);
-              const a=document.createElement("a");a.href=url;a.download=`selection-${selMonth||"latest"}.csv`;a.click();
+              const a=document.createElement("a");a.href=url;a.download=`pinned-${selMonth||"latest"}.csv`;a.click();
               URL.revokeObjectURL(url);
             }}>Export CSV</button>
-            <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setCompareMode(m=>!m)}>{compareMode?"✓ Comparing":"Compare"}</button>
-            <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setFocusOnly(f=>!f)}>{focusOnly?"✓ Focused":"Focus on these"}</button>
-            <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setSelectedEmails(new Set())}>Clear</button>
+            <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setComparingPinned(m=>!m)}>{comparingPinned?"✓ Comparing":"Compare pinned"}</button>
+            <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setPinnedOnly(f=>!f)}>{pinnedOnly?"✓ Pinned only":"Show pinned only"}</button>
+            <button className="btn btn-outline btn-sm" style={{fontSize:11,color:"var(--red)"}} onClick={()=>{setPinnedEmails(new Set());try{localStorage.setItem("lb_pinned_qas","[]");}catch{}setPinnedOnly(false);setComparingPinned(false);}}>Unpin all</button>
           </div>}
+          {/* Checkbox column removed — pin (★) is now the only way to
+              single out a QA, which drives the action bar above. */}
           <div className="table-wrap"><table><thead><tr>
-            <th style={{width:32}}><input type="checkbox" style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}} checked={visibleRanked.length>0&&visibleRanked.every(r=>selectedEmails.has(r.qa_email?.toLowerCase()))} onChange={()=>{const allSel=visibleRanked.every(r=>selectedEmails.has(r.qa_email?.toLowerCase()));setSelectedEmails(prev=>{const n=new Set(prev);visibleRanked.forEach(r=>{const e=r.qa_email?.toLowerCase();if(e){allSel?n.delete(e):n.add(e);}});return n;});}}/></th>
             <th style={{width:50}}>#</th>
             <th>Specialist</th>
             <th>TL</th>
@@ -600,9 +640,8 @@ function LeaderboardPage() {
               const kpis = getKpiScores(r);
               const total = kpis.reduce((s, k) => s + k.score, 0);
               return (<React.Fragment key={r.id || r.qa_email}>
-                {showGap && <tr><td colSpan={4 + Object.keys(KPI_SLABS).length} style={{textAlign:"center",padding:"6px",color:"var(--tx3)",fontSize:12,background:"var(--bg)"}}>···</td></tr>}
-                <tr onClick={() => setExpandedRow(isExp ? null : r.id)} style={{cursor:"pointer",background:selectedEmails.has(r.qa_email?.toLowerCase())?"var(--accent-light)":isMe?"var(--accent-light)":"transparent"}}>
-                  <td onClick={e=>e.stopPropagation()}><input type="checkbox" style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}} checked={selectedEmails.has(r.qa_email?.toLowerCase())} onChange={()=>{const em=r.qa_email?.toLowerCase();setSelectedEmails(prev=>{const n=new Set(prev);n.has(em)?n.delete(em):n.add(em);return n;});}}/></td>
+                {showGap && <tr><td colSpan={3 + Object.keys(KPI_SLABS).length} style={{textAlign:"center",padding:"6px",color:"var(--tx3)",fontSize:12,background:"var(--bg)"}}>···</td></tr>}
+                <tr onClick={() => setExpandedRow(isExp ? null : r.id)} style={{cursor:"pointer",background:pinnedEmails.has(r.qa_email?.toLowerCase())?"var(--accent-light)":isMe?"var(--accent-light)":"transparent"}}>
                   <td>{rank <= 3 ? <span style={{display:"inline-flex",alignItems:"center",justifyContent:"center",width:28,height:28,borderRadius:"50%",fontWeight:700,fontSize:12,background:rank===1?"linear-gradient(135deg,#FEF3C7,#FDE68A)":rank===2?"linear-gradient(135deg,#F3F4F6,#E5E7EB)":"linear-gradient(135deg,#FED7AA,#FDBA74)",color:rank===1?"#92400E":rank===2?"#374151":"#9A3412",boxShadow:rank===1?"0 2px 8px rgba(245,158,11,.3)":"none"}}>{rank}</span> : <span style={{color:"var(--tx3)",fontWeight:600,fontSize:13}}>{rank}</span>}</td>
                   <td><div style={{display:"flex",alignItems:"center",gap:10}}>
                     {/* Pin/star — visible always for leads+, click toggles. Pinned QAs float to the top of the list. */}
@@ -641,7 +680,7 @@ function LeaderboardPage() {
                 </tr>
 
                 {/* Expanded KPI detail */}
-                {isExp && <tr><td colSpan={9+Object.keys(KPI_SLABS).length} style={{padding:0,background:"var(--bg)"}}><div style={{padding:"16px 20px 16px 60px"}}>
+                {isExp && <tr><td colSpan={8+Object.keys(KPI_SLABS).length} style={{padding:0,background:"var(--bg)"}}><div style={{padding:"16px 20px 16px 60px"}}>
                   <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)",marginBottom:12,textTransform:"uppercase",letterSpacing:".5px"}}>KPI slab breakdown</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"12px 24px"}}>
                     {kpis.map(k => (
