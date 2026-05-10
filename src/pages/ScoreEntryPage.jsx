@@ -614,35 +614,51 @@ function ScoreEntryPage(){
       const clearAll = () => {
         setSelQA([]); setSelTL(""); setSelDomain(""); setSelTeam(""); setTableSearch("");
       };
+      const searchActive = !!(tableSearch && tableSearch.trim());
       return (
-        <div className="card"><div className="placeholder" style={{padding:"56px 24px",textAlign:"center"}}>
-          {hasFilter ? <>
-            <div style={{fontSize:36,marginBottom:10}}>🔍</div>
-            <h3 style={{fontSize:15,fontWeight:700,color:"var(--tx)",marginBottom:6}}>No matching records</h3>
-            <p style={{color:"var(--tx3)",fontSize:13,maxWidth:340,margin:"0 auto 18px"}}>
-              {selMonth} has data, but nothing matches your current filters{filterDesc}. Try clearing one or all of them.
-            </p>
-            <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
-              {/* Quick out: when the Quick filter is what's killing the
-                  results (typed a name that doesn't exist), let the user
-                  remove just that one input without losing every other
-                  selection. Falls back to "Clear all filters" when more
-                  than the search is active. */}
-              {tableSearch && tableSearch.trim() && (
-                <button className="btn btn-outline btn-sm" onClick={() => setTableSearch("")}>
-                  × Remove "{tableSearch.trim().length > 20 ? tableSearch.trim().slice(0, 20) + "…" : tableSearch.trim()}"
-                </button>
-              )}
-              <button className="btn btn-primary btn-sm" onClick={clearAll}>Clear all filters</button>
+        <div className="card">
+          {/* When the Quick filter is what killed the results, render
+              the same Quick-filter input that lives in the normal
+              table-controls row right at the top of the empty state,
+              autofocused. Lets the user backspace the bad text away
+              instead of having to find a button to click. */}
+          {searchActive && (
+            <div style={{display:"flex",gap:8,alignItems:"center",padding:"10px 12px",borderBottom:"1px solid var(--bd2)",flexWrap:"wrap"}}>
+              <div style={{position:"relative",flex:1,minWidth:200,maxWidth:380}}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{position:"absolute",left:9,top:"50%",transform:"translateY(-50%)"}}><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <input
+                  className="form-input"
+                  value={tableSearch}
+                  onChange={(e)=>setTableSearch(e.target.value)}
+                  placeholder="Quick filter (0 rows)"
+                  autoFocus
+                  ref={(el) => { if (el && document.activeElement !== el) { try { el.setSelectionRange(el.value.length, el.value.length); } catch {} } }}
+                  style={{paddingLeft:30,fontSize:12,height:32}}
+                />
+                {tableSearch && (
+                  <button onClick={()=>setTableSearch("")} title="Clear (or just backspace)" style={{position:"absolute",right:6,top:"50%",transform:"translateY(-50%)",background:"none",border:"none",cursor:"pointer",color:"var(--tx3)",fontSize:14,lineHeight:1}}>×</button>
+                )}
+              </div>
+              <span style={{fontSize:11,color:"var(--tx3)"}}>Press <kbd style={{padding:"1px 6px",borderRadius:4,border:"1px solid var(--bd)",fontSize:10,fontFamily:"var(--font)",background:"var(--bg)"}}>Backspace</kbd> to edit</span>
             </div>
-          </> : <>
-            <div style={{fontSize:36,marginBottom:10}}>📭</div>
-            <h3 style={{fontSize:15,fontWeight:700,color:"var(--tx)",marginBottom:6}}>No data for {selMonth}</h3>
-            <p style={{color:"var(--tx3)",fontSize:13,maxWidth:340,margin:"0 auto"}}>
-              The Google Sheet hasn't synced data for this month yet. Try a different month, or wait for the next hourly sync.
-            </p>
-          </>}
-        </div></div>
+          )}
+          <div className="placeholder" style={{padding:searchActive?"32px 24px":"56px 24px",textAlign:"center"}}>
+            {hasFilter ? <>
+              <div style={{fontSize:searchActive?28:36,marginBottom:10}}>🔍</div>
+              <h3 style={{fontSize:15,fontWeight:700,color:"var(--tx)",marginBottom:6}}>No matching records</h3>
+              <p style={{color:"var(--tx3)",fontSize:13,maxWidth:340,margin:"0 auto 18px"}}>
+                {selMonth} has data, but nothing matches your current filters{filterDesc}.
+              </p>
+              <button className="btn btn-outline btn-sm" onClick={clearAll}>Clear all filters</button>
+            </> : <>
+              <div style={{fontSize:36,marginBottom:10}}>📭</div>
+              <h3 style={{fontSize:15,fontWeight:700,color:"var(--tx)",marginBottom:6}}>No data for {selMonth}</h3>
+              <p style={{color:"var(--tx3)",fontSize:13,maxWidth:340,margin:"0 auto"}}>
+                The Google Sheet hasn't synced data for this month yet. Try a different month, or wait for the next hourly sync.
+              </p>
+            </>}
+          </div>
+        </div>
       );
     })() : (
       <div className="card">
