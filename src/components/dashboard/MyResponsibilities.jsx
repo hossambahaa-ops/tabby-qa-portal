@@ -60,13 +60,19 @@ export default function MyResponsibilities({ roster, onNavigate }) {
 
   const total = counts.escalations + counts.violations + counts.plansEndingSoon + counts.teamTasks;
   if (total === 0) {
+    // Healthy-day signal — collapses to a one-line strip instead of
+    // taking the full card height the populated state uses. Same
+    // marginBottom so the rhythm of the page below doesn't shift.
     return (
-      <div className="card" style={{ padding: 14, marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-        <span style={{ fontSize: 20 }}>✅</span>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700 }}>You're all caught up</div>
-          <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 2 }}>No pending escalations, violations, or plans needing review.</div>
-        </div>
+      <div style={{
+        padding: "6px 12px", marginBottom: 16,
+        display: "flex", alignItems: "center", gap: 8,
+        borderRadius: 8, background: "var(--green-bg)",
+        border: "1px solid var(--green)", color: "var(--green)",
+        fontSize: 12, fontWeight: 600,
+      }}>
+        <span style={{ fontSize: 14, lineHeight: 1 }}>✅</span>
+        <span>All caught up — no pending escalations, violations, or plans need review.</span>
       </div>
     );
   }

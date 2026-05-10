@@ -19,7 +19,9 @@ import DashboardTasks from "../components/dashboard/DashboardTasks.jsx";
 import MyResponsibilities from "../components/dashboard/MyResponsibilities.jsx";
 import AnnouncementForm from "../components/dashboard/AnnouncementForm.jsx";
 import APDetectionAlerts from "../components/dashboard/APDetectionAlerts.jsx";
-import TeamHealth from "../components/dashboard/TeamHealth.jsx";
+// TeamHealth removed in the dashboard simplification pass — its KPI
+// grid duplicated the per-QA Team members table further down the page.
+// import TeamHealth from "../components/dashboard/TeamHealth.jsx";
 import AttendanceHealthCard from "../components/attendance/AttendanceHealthCard.jsx";
 import TeamChampions from "../components/dashboard/TeamChampions.jsx";
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
@@ -29,7 +31,10 @@ import TeamOccupancyCard from "../components/dashboard/TeamOccupancyCard.jsx";
 import QASelfServiceDashboard from "../components/dashboard/QASelfServiceDashboard.jsx";
 import DailyCheckInWidget from "../components/dashboard/DailyCheckInWidget.jsx";
 import MyTrackerWidget from "../components/dashboard/MyTrackerWidget.jsx";
-import AttendanceQuickSet from "../components/dashboard/AttendanceQuickSet.jsx";
+// AttendanceQuickSet removed in the dashboard simplification pass —
+// DailyCheckInWidget below already provides attendance check-in with
+// more context (planned vs actual, mismatch warnings).
+// import AttendanceQuickSet from "../components/dashboard/AttendanceQuickSet.jsx";
 
 function DashboardPage(){
   const{profile,token,gf,globalToast}=useApp();
@@ -178,25 +183,12 @@ function DashboardPage(){
             <div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div>
           </div>
         </div>
-        <div style={{display:"flex",gap:8,flexWrap:"wrap",position:"relative",zIndex:1,alignItems:"center"}}>
-          {!isLead&&!isSupervisor&&(profile?.role==="qa"||profile?.role==="senior_qa")&&<AttendanceQuickSet myEmail={myEmail} todayAttendance={todayAttendance} token={token} globalToast={globalToast}/>}
-          <button onClick={()=>nav("leaderboard")} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(255,255,255,.12)",background:"rgba(255,255,255,.06)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",backdropFilter:"blur(4px)"}}
-            onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,.12)";e.currentTarget.style.borderColor="rgba(59,255,157,.3)";}}
-            onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.06)";e.currentTarget.style.borderColor="rgba(255,255,255,.12)";}}
-          >Leaderboard →</button>
-          <button onClick={()=>nav("profile")} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(59,255,157,.25)",background:"rgba(59,255,157,.08)",color:"#3BFF9D",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",backdropFilter:"blur(4px)"}}
-            onMouseEnter={e=>{e.currentTarget.style.background="rgba(59,255,157,.16)";e.currentTarget.style.borderColor="rgba(59,255,157,.4)";}}
-            onMouseLeave={e=>{e.currentTarget.style.background="rgba(59,255,157,.08)";e.currentTarget.style.borderColor="rgba(59,255,157,.25)";}}
-          >{isLead?"Team Profiles →":"My Profile →"}</button>
-          {isLead&&<button onClick={()=>nav("scores")} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(255,255,255,.12)",background:"rgba(255,255,255,.06)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",backdropFilter:"blur(4px)"}}
-            onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,.12)";e.currentTarget.style.borderColor="rgba(59,255,157,.3)";}}
-            onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.06)";e.currentTarget.style.borderColor="rgba(255,255,255,.12)";}}
-          >MTD →</button>}
-          {isLead&&<button onClick={()=>{nav("quality");setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:"coaching"})),100);}} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(255,255,255,.12)",background:"rgba(255,255,255,.06)",color:"#fff",fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",backdropFilter:"blur(4px)"}}
-            onMouseEnter={e=>{e.currentTarget.style.background="rgba(255,255,255,.12)";e.currentTarget.style.borderColor="rgba(59,255,157,.3)";}}
-            onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,.06)";e.currentTarget.style.borderColor="rgba(255,255,255,.12)";}}
-          >Log Coaching →</button>}
-        </div>
+        {/* Welcome banner trimmed: the Leaderboard / Profile / MTD /
+            Log Coaching buttons that used to live here duplicated the
+            sidebar navigation exactly. Removed in the dashboard
+            simplification pass. AttendanceQuickSet for QAs also
+            removed — DailyCheckInWidget below already covers it with
+            more context. */}
       </div>
       {/* KPI strip — at-a-glance personal metrics. Falls back to team
           metrics for leads who don't have their own MTD row. */}
@@ -359,8 +351,9 @@ function DashboardPage(){
         </div>
       </div>
 
-      {/* Team Health — KPI vs targets */}
-      <TeamHealth teamData={teamCurrent} allTeamEmails={allTeamEmails} qaQueue={roster.find(r=>r.email?.toLowerCase()===myEmail)?.queue||""} qaDomain={myEmail?.endsWith("@tabby.sa")?"tabby.sa":"tabby.ai"} />
+      {/* TeamHealth removed — its KPI grid duplicated the per-QA Team
+          members table further down. The team stats grid above and the
+          team members table together cover the same ground better. */}
 
       {/* Team Attendance Health — MTD show-up rate vs scheduled days */}
       {allTeamEmails.length > 0 && (
@@ -522,43 +515,14 @@ function DashboardPage(){
     {/* QA Daily Progress (for leads viewing their own data) */}
     {isLead&&myData&&<QADailyProgress dailyScores={dailyScores} myData={myData} myEmail={myEmail} roster={roster} months={months} mtd={mtd}/>}
 
-    {/* Personal stats (leads/supervisors only — QAs see the self-service dashboard above) */}
+    {/* Personal stats (leads/supervisors only — QAs see the self-service dashboard above)
+        The personal stats grid that used to live here (My score / Rank /
+        Tickets-per-day / DSAT / CSAT) was removed in the simplification
+        pass — the same numbers (Score, Rank, DSATs, CSAT) are already
+        in the KPI strip at the top of the page, and the My KPIs detail
+        card below shows the per-slab breakdown. Tickets/day is visible
+        in the team members table. No information lost. */}
     {myData&&(isLead||hasRole(profile?.role,"qa_supervisor"))?<>
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-label">My score<HelpTip text={`Your MTD performance score for ${latestMonth||"the latest month"} — combined CSAT, DSAT, productivity & coaching. Out of ${maxScore} pts.`}/></div>
-          <ProgressRing value={myData?getScore(myData):0} max={maxScore} size={56} stroke={5}
-            color={scoreColor(myData?getScore(myData):0)}
-            label={myData?getScore(myData).toFixed(1):"0"}
-            sublabel={`of ${maxScore} pts`}
-          />
-          {myPrevData&&<div style={{fontSize:12,marginTop:8,color:(getScore(myData)-getScore(myPrevData))>=0?"var(--green)":"var(--red)",fontWeight:600}}>{(getScore(myData)-getScore(myPrevData))>=0?"↑":"↓"} {Math.abs(getScore(myData)-getScore(myPrevData)).toFixed(1)} pts vs {prevMonth}</div>}
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Rank<HelpTip text="Your position on the leaderboard for this month, vs every QA in scope (filtered by domain/team if you set those filters). Sparkline shows your last few months."/></div>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-            <div className="stat-value">{myRank>0?"#"+myRank:"—"}<span style={{fontSize:14,fontWeight:400,color:"var(--tx3)"}}> / {ranked.length}</span></div>
-            {myHistory.length>=2&&<SparkLine data={myHistory.map(h=>h.score)} width={80} height={32} color={scoreColor(myData?getScore(myData):0)} />}
-          </div>
-          <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>Performance trend</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">Tickets / day<HelpTip text="Average tickets you handled per working day this month. Pulled from the live productivity feed."/></div>
-          <div className="stat-value">{myData.ticket_per_day??0}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-label">DSAT<HelpTip text="Number of dissatisfied (DSAT) survey responses tied to your tickets this month. Lower is better."/></div>
-          <div className="stat-value">{myData.dsat??0}</div>
-        </div>
-        {(()=>{const v=csatPctValue(myData.csat_pct);const s=Number(myData.csat_total||0);const show=v!=null&&s>0;return (
-        <div className="stat-card" onClick={()=>nav("csat")} style={{cursor:"pointer"}} title="View CSAT breakdown">
-          <div className="stat-label">CSAT %<HelpTip text="Customer Satisfaction percentage from CSAT surveys this month. Coloured grey when survey count is low (sample size unreliable)."/></div>
-          <div className="stat-value" style={{color:csatColor(v,s)}}>
-            {show?v.toFixed(1)+"%":"—"}
-          </div>
-          <div style={{fontSize:11,color:"var(--tx3)",marginTop:4}}>{s>0?`${myData.csat_total} surveys`:"No surveys"} · view breakdown →</div>
-        </div>);})()}
-      </div>
 
       {/* My KPI detail with slab calculation */}
       <div className="card" style={{marginBottom:20}}>
