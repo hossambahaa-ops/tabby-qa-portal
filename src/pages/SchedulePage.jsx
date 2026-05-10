@@ -648,10 +648,26 @@ function SchedulePage() {
 
   // ── Counters ──────────────────────────────────────────────────────────────
   const isCounted = (a) => !a.approval_status || a.approval_status === "approved";
+  // Per-QA monthly tally. Special-cased so that the P (Office) and H
+  // (Home) buckets only count rows where the QA themselves checked
+  // in — i.e. the row was created by the QA, not pre-filled by the
+  // lead from the plan. created_by is set to the QA's own email when
+  // they hit the Home/Office buttons in DailyCheckInWidget; lead-
+  // initiated rows have created_by = the lead's email. Other status
+  // types (AL / Paid SL / PH / OFF) are admin-set and have no
+  // self-check-in concept, so they count as-is.
   const countByStatus = (email) => {
-    const qa = attendance.filter(a => a.email?.toLowerCase() === email?.toLowerCase() && isCounted(a));
+    const lower = email?.toLowerCase();
+    const qa = attendance.filter(a => a.email?.toLowerCase() === lower && isCounted(a));
     const counts = {};
-    qa.forEach(a => { counts[a.status] = (counts[a.status] || 0) + 1; });
+    qa.forEach(a => {
+      const isAttended = a.status === "P" || a.status === "H";
+      if (isAttended) {
+        const isSelfCheckIn = (a.created_by || "").toLowerCase() === lower;
+        if (!isSelfCheckIn) return; // skip plan-only rows for P/H
+      }
+      counts[a.status] = (counts[a.status] || 0) + 1;
+    });
     return counts;
   };
   const trackerFor = (email) => {
@@ -954,7 +970,8 @@ function SchedulePage() {
                     <div style={{fontSize:11,fontWeight:600,color:d.isWeekend?"var(--tx3)":"var(--tx)"}}>{d.num}</div>
                   </th>
                 ))}
-                <th style={{textAlign:"center",minWidth:30,fontSize:10}}>P</th>
+                <th style={{textAlign:"center",minWidth:30,fontSize:10}} title="Days the QA checked in from Office (self check-in only)">P</th>
+                <th style={{textAlign:"center",minWidth:30,fontSize:10}} title="Days the QA checked in from Home (self check-in only)">H</th>
                 <th style={{textAlign:"center",minWidth:30,fontSize:10}}>AL</th>
                 <th style={{textAlign:"center",minWidth:30,fontSize:10}}>SL</th>
                 <th style={{textAlign:"center",minWidth:30,fontSize:10}}>PH</th>
@@ -1011,6 +1028,7 @@ function SchedulePage() {
                       );
                     })}
                     <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"var(--green)"}}>{counts["P"]||0}</td>
+                    <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"var(--accent-text)"}}>{counts["H"]||0}</td>
                     <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"var(--red)"}}>{counts["AL"]||0}</td>
                     <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"#B91C1C"}}>{counts["Paid SL"]||0}</td>
                     <td style={{textAlign:"center",fontSize:10,fontWeight:600,color:"#8B5CF6"}}>{counts["PH"]||0}</td>
