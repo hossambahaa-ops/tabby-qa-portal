@@ -148,9 +148,8 @@ function CoachingPage() {
         let filteredRoster=isSvC?rosterArr.filter(x=>x.email?.endsWith("@"+svDomainC)):rosterArr;
         let filteredSessions=isSvC?sessionsArr.filter(x=>x.member_email?.endsWith("@"+svDomainC)):sessionsArr;
         let filteredPlans=isSvC?plansArr.filter(x=>x.qa_email?.endsWith("@"+svDomainC)):plansArr;
+        // Slim global filter (Domain only — People + Teams dropped in unification).
         if(gf?.domain){filteredRoster=filteredRoster.filter(x=>x.email?.endsWith("@"+gf.domain));filteredSessions=filteredSessions.filter(x=>x.member_email?.endsWith("@"+gf.domain));filteredPlans=filteredPlans.filter(x=>x.qa_email?.endsWith("@"+gf.domain));}
-        if(gf?.people?.length>0){filteredRoster=filteredRoster.filter(x=>gf.people.includes(x.email?.toLowerCase()));filteredSessions=filteredSessions.filter(x=>gf.people.includes(x.member_email?.toLowerCase()));filteredPlans=filteredPlans.filter(x=>gf.people.includes(x.qa_email?.toLowerCase()));}
-        if(gf?.teams?.length>0){filteredRoster=filteredRoster.filter(x=>{const q=rosterMap[x.email?.toLowerCase()];return q&&gf.teams.includes(q);});}
         setRoster(filteredRoster);
         setSessions(filteredSessions);
         setActivePlans(filteredPlans);

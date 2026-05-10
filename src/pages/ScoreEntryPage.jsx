@@ -550,9 +550,12 @@ function ScoreEntryPage(){
         Bug fix: previously, picking a different Month wiped every
         other selection (domain / team / lead / specialist). Now Month
         only changes the time scope — the rest of the filters stick. */}
+    {/* No search input here — the "Quick filter" above the table
+        already drives tableSearch, so a second input was a duplicate.
+        × Clear in this strip wipes Domain/Team/Lead/Specialist
+        + the Quick filter text in one go. */}
     <PageFilters
       onClear={() => { setSelDomain(""); setSelTeam(""); setSelTL(""); setSelQA([]); setTableSearch(""); }}
-      searchProps={{ value: tableSearch, onChange: setTableSearch, placeholder: "Search rows…" }}
     >
       <SearchableSelect
         options={months}
@@ -619,7 +622,19 @@ function ScoreEntryPage(){
             <p style={{color:"var(--tx3)",fontSize:13,maxWidth:340,margin:"0 auto 18px"}}>
               {selMonth} has data, but nothing matches your current filters{filterDesc}. Try clearing one or all of them.
             </p>
-            <button className="btn btn-primary btn-sm" onClick={clearAll}>Clear all filters</button>
+            <div style={{display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+              {/* Quick out: when the Quick filter is what's killing the
+                  results (typed a name that doesn't exist), let the user
+                  remove just that one input without losing every other
+                  selection. Falls back to "Clear all filters" when more
+                  than the search is active. */}
+              {tableSearch && tableSearch.trim() && (
+                <button className="btn btn-outline btn-sm" onClick={() => setTableSearch("")}>
+                  × Remove "{tableSearch.trim().length > 20 ? tableSearch.trim().slice(0, 20) + "…" : tableSearch.trim()}"
+                </button>
+              )}
+              <button className="btn btn-primary btn-sm" onClick={clearAll}>Clear all filters</button>
+            </div>
           </> : <>
             <div style={{fontSize:36,marginBottom:10}}>📭</div>
             <h3 style={{fontSize:15,fontWeight:700,color:"var(--tx)",marginBottom:6}}>No data for {selMonth}</h3>

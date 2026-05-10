@@ -69,20 +69,16 @@ export const normalizeTopic = (t) => {
   return cleaned || "Uncategorized";
 };
 
-/* ═══ GLOBAL FILTER HELPERS ═══ */
-export function applyGF(rows, gf, emailField = "qa_email", rosterMap) {
+/* ═══ GLOBAL FILTER HELPERS ═══
+ * Slim global filter: only domain (org scope) and month (time scope) live
+ * on `gf` now. Teams + People used to be here too but were dropped in
+ * the filter unification — they live on the page that uses them.
+ * The `rosterMap` arg is kept for backwards compat but is no longer read.
+ */
+export function applyGF(rows, gf, emailField = "qa_email", _rosterMap) {
   if (!gf || !rows) return rows;
   let r = rows;
   if (gf.domain) r = r.filter(x => (x[emailField] || x.email || "").endsWith("@" + gf.domain));
-  if (gf.people?.length > 0) r = r.filter(x => gf.people.includes((x[emailField] || x.email || "").toLowerCase()));
-  if (gf.teams?.length > 0) {
-    const rm = rosterMap || window.__gfRoster || {};
-    r = r.filter(x => {
-      const em = (x[emailField] || x.email || "").toLowerCase();
-      const q = rm[em];
-      return q && gf.teams.includes(q);
-    });
-  }
   return r;
 }
 export function applyGFMonth(months, gf) {

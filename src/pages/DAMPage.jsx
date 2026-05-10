@@ -35,9 +35,8 @@ function DAMPage(){
     const isSvDAM=hasRole(profile?.role,"qa_supervisor")&&!isAdminDAM;
     let scopedFlags=isSvDAM?f.filter(fl=>(fl.profiles?.email||fl.qa_email||"").endsWith("@"+svDomain)):f;
     let scopedProfiles=isSvDAM?p.filter(pr=>pr.email?.endsWith("@"+svDomain)):p;
-    // Apply global filters
+    // Slim global filter (Domain only — People dropped in unification).
     if(gf?.domain){scopedFlags=scopedFlags.filter(fl=>(fl.profiles?.email||fl.qa_email||"").endsWith("@"+gf.domain));scopedProfiles=scopedProfiles.filter(pr=>pr.email?.endsWith("@"+gf.domain));}
-    if(gf?.people?.length>0)scopedFlags=scopedFlags.filter(fl=>gf.people.includes((fl.profiles?.email||fl.qa_email||"").toLowerCase()));
     setFlags(scopedFlags);setSteps(s);setProfiles(scopedProfiles);
   }catch(e){console.error(e);}setLoading(false);},[token]);
 

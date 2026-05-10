@@ -84,9 +84,8 @@ function CoachingViolationsPage() {
       const isAdmin = hasRole(profile?.role, "admin");
       const isSv = hasRole(profile?.role, "qa_supervisor") && !isAdmin;
       let filtered = isSv ? v.filter(x => x.qa_emails?.includes("@" + svDomain) || x.lead_email?.includes("@" + svDomain)) : v;
-      // Apply global filters
+      // Apply slim global filter (Domain only — People dropped in unification).
       if(gf?.domain) filtered = filtered.filter(x => x.qa_emails?.includes("@" + gf.domain));
-      if(gf?.people?.length > 0) filtered = filtered.filter(x => gf.people.some(p => x.qa_emails?.toLowerCase().includes(p)));
       setViolations(filtered);
       setProfiles(p);
       setDamRules(r);

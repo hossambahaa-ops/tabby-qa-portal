@@ -10,6 +10,7 @@ import { Icon, icons } from "../components/Icons.jsx";
 import { ProgressRing } from "../components/Charts.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import PageFilters from "../components/PageFilters.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import LeaderboardCompareTable from "../components/leaderboard/LeaderboardCompareTable.jsx";
@@ -179,7 +180,8 @@ function LeaderboardPage() {
   if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
   if (search.trim()) filtered = filtered.filter(r => r.qa_email?.toLowerCase().includes(search.toLowerCase()));
   // Apply global people filter
-  if (gf?.people?.length > 0) filtered = filtered.filter(r => gf.people.includes(r.qa_email?.toLowerCase()));
+  // gf.people / gf.teams were dropped in the filter unification —
+  // Leaderboard's selTeam + name-search input cover the same ground.
   // Rank by calculated total score
   const ranked = [...filtered].sort((a, b) => getTotalScore(b) - getTotalScore(a));
 
@@ -228,23 +230,30 @@ function LeaderboardPage() {
           </div>
           <div className="page-subtitle">Performance rankings — {selMonth || "All months"}{pinnedEmails.size>0?` · ${pinnedEmails.size} pinned`:""}</div>
         </div>
-        {hasRole(profile?.role,"qa_lead")&&<div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-          <SearchableSelect options={months} value={selMonth} onChange={v=>{setSelMonth(v);setSelDomain("");setSelTeam("");}} placeholder="Select month"/>
-          <SearchableSelect options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]} value={selDomain} onChange={v=>{setSelDomain(v);setSelTeam("");}} placeholder="All domains"/>
-        </div>}
       </div>
+
+      {/* Unified PageFilters strip — Month + Domain + Team + View
+          tabs all in one row directly under the global bar. Bug-fix
+          parity with MTD: changing Month no longer wipes Domain/Team.
+          The view-toggle (individual/team/quarterly) sits to the right
+          since it's a view switcher, not a filter. */}
+      {hasRole(profile?.role,"qa_lead") && (
+        <PageFilters
+          onClear={() => { setSelDomain(""); setSelTeam(""); setSearch(""); }}
+          searchProps={view === "individual" ? { value: search, onChange: setSearch, placeholder: "Search by name or email…" } : null}
+        >
+          <SearchableSelect options={months} value={selMonth} onChange={v => setSelMonth(v)} placeholder="Select month"/>
+          <SearchableSelect options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]} value={selDomain} onChange={v => { setSelDomain(v); setSelTeam(""); }} placeholder="All domains"/>
+          <SearchableSelect options={teams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${teams.length})`}/>
+          <div className="tabs" style={{display:"flex",gap:0}}>
+            <button className={`tab ${view==="individual"?"active":""}`} onClick={()=>setView("individual")}>Individual</button>
+            {hasRole(profile?.role,"qa_supervisor")&&<button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>}
+            <button className={`tab ${view==="quarterly"?"active":""}`} onClick={()=>setView("quarterly")}>Quarterly</button>
+          </div>
+        </PageFilters>
+      )}
 
       {loading ? <SkeletonPage/> : <>
-
-      <div style={{display:"flex",gap:12,alignItems:"center",flexWrap:"wrap",marginBottom:20}}>
-        <div className="tabs">
-          <button className={`tab ${view==="individual"?"active":""}`} onClick={()=>setView("individual")}>Individual</button>
-          {hasRole(profile?.role,"qa_supervisor")&&<button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>}
-          <button className={`tab ${view==="quarterly"?"active":""}`} onClick={()=>setView("quarterly")}>Quarterly</button>
-        </div>
-        {hasRole(profile?.role,"qa_lead")&&<SearchableSelect options={teams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${teams.length})`}/>}
-        {view==="individual" && hasRole(profile?.role,"qa_lead") && <input className="input" placeholder="Search by name or email..." value={search} onChange={e=>setSearch(e.target.value)} style={{maxWidth:220,marginLeft:"auto",fontSize:12}}/>}
-      </div>
 
       {hasRole(profile?.role,"qa_lead")&&<div className="stats-grid">
         <div className="stat-card">

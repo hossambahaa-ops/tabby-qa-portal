@@ -8,6 +8,7 @@ import { listMtd } from "../api/mtd.js";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import PageFilters from "../components/PageFilters.jsx";
 import CsatTopicMatrix from "../components/csat/CsatTopicMatrix.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
@@ -122,7 +123,8 @@ export default function CSATPage() {
   if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
   if (selTL) filtered = filtered.filter(r => r.qa_tl === selTL);
   if (selQA.length > 0) filtered = filtered.filter(r => selQA.includes(r.qa_email));
-  if (gf?.people?.length > 0) filtered = filtered.filter(r => gf.people.includes(r.qa_email?.toLowerCase()));
+  // gf.people / gf.teams were dropped in the filter unification —
+  // CSAT's selQA / selTeam dropdowns cover the same scoping.
 
   // A QA with zero surveys has no CSAT signal to report — hide them
   // from every view so the page only shows people with actual data.
@@ -331,41 +333,32 @@ export default function CSATPage() {
       <div className="page-subtitle">CSAT % and surveys — explore By QA, By Lead, or the agent × topic heatmap under By Topic.</div>
     </div>
 
-    <div className="card" style={{marginBottom:16}}>
-      <div style={{display:"flex",gap:12,flexWrap:"wrap"}}>
-        <div className="form-group" style={{minWidth:160}}>
-          <label className="form-label">Month</label>
-          <SearchableSelect options={months} value={selMonth} onChange={setSelMonth} placeholder="Select month"/>
-        </div>
-        {hasRole(profile?.role,"admin") && <div className="form-group" style={{minWidth:160}}>
-          <label className="form-label">Domain</label>
-          <SearchableSelect options={["","tabby.ai","tabby.sa"]} value={selDomain} onChange={setSelDomain} placeholder="All domains"/>
-        </div>}
-        <div className="form-group" style={{minWidth:160}}>
-          <label className="form-label">Team</label>
-          <SearchableSelect options={scoreTeams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${scoreTeams.length})`}/>
-        </div>
-        <div className="form-group" style={{minWidth:200}}>
-          <label className="form-label">Lead</label>
-          <SearchableSelect
-            options={tlEmails.map(e=>({value:e,label:nameFromEmail(e)}))}
-            value={selTL}
-            onChange={setSelTL}
-            placeholder={`All leads (${tlEmails.length})`}
-          />
-        </div>
-        <div className="form-group" style={{flex:1,minWidth:200}}>
-          <label className="form-label">Specialist</label>
-          <SearchableSelect
-            options={[...new Set(filtered.map(r=>r.qa_email))].sort().map(e=>({value:e,label:e+" ("+nameFromEmail(e)+")"}))}
-            value={selQA}
-            onChange={setSelQA}
-            placeholder={`All (${filtered.length})`}
-            multi
-          />
-        </div>
-      </div>
-    </div>
+    {/* Unified PageFilters strip — same component, same spot, same
+        clear behaviour as MTD/Leaderboard. Replaces the card-wrapped
+        5-form-group block. Specialist (multi) is the rightmost
+        dropdown so it doesn't compete with the search input. */}
+    <PageFilters
+      onClear={() => { setSelDomain(""); setSelTeam(""); setSelTL(""); setSelQA([]); }}
+    >
+      <SearchableSelect options={months} value={selMonth} onChange={setSelMonth} placeholder="Select month"/>
+      {hasRole(profile?.role,"admin") && (
+        <SearchableSelect options={["","tabby.ai","tabby.sa"]} value={selDomain} onChange={setSelDomain} placeholder="All domains"/>
+      )}
+      <SearchableSelect options={scoreTeams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${scoreTeams.length})`}/>
+      <SearchableSelect
+        options={tlEmails.map(e => ({ value: e, label: nameFromEmail(e) }))}
+        value={selTL}
+        onChange={setSelTL}
+        placeholder={`All leads (${tlEmails.length})`}
+      />
+      <SearchableSelect
+        options={[...new Set(filtered.map(r => r.qa_email))].sort().map(e => ({ value: e, label: nameFromEmail(e) }))}
+        value={selQA}
+        onChange={setSelQA}
+        placeholder={`All specialists (${filtered.length})`}
+        multi
+      />
+    </PageFilters>
 
     {filtered.length === 0 ? (
       <div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No CSAT data for {selMonth}.</p></div></div>

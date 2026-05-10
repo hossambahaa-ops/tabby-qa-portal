@@ -7,6 +7,8 @@ import { useApp } from "../lib/AppContext.jsx";
 import { fetchExpertise, fetchExpertiseMonths, fetchExpertiseConfig, saveExpertiseThreshold, recomputeExpertise, fetchCombinedExpertise, fetchCombinedExpertiseMonths, fetchCombinedPopulationCounts, recomputeCombinedExpertise, fetchCombinedThreshold, saveCombinedThreshold, renderStars, starColor, starLabel, productOf, productColor } from "../lib/expertise.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import EmptyState from "../components/EmptyState.jsx";
+import SearchableSelect from "../components/SearchableSelect.jsx";
+import PageFilters from "../components/PageFilters.jsx";
 
 const fmtScore = (v) => Number(v || 0).toFixed(2);
 
@@ -576,79 +578,80 @@ export default function ExpertisePage() {
         </div>
       )}
 
-      {/* Filters + star summary */}
-      <div className="card" style={{ padding: "12px 14px", marginBottom: 16 }}>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <select className="select form-input" style={{ fontSize: 12, padding: "6px 10px", width: "auto" }} value={selMonth} onChange={e => setSelMonth(e.target.value)}>
-            {months.map(m => <option key={m} value={m}>{m}</option>)}
-          </select>
-          {!isQAOnly && <select className="select form-input" style={{ fontSize: 12, padding: "6px 10px", width: "auto" }} value={selDomain} onChange={e => setSelDomain(e.target.value)}>
-            <option value="">All domains</option>
-            <option value="tabby.ai">tabby.ai</option>
-            <option value="tabby.sa">tabby.sa</option>
-          </select>}
-          {!isQAOnly && <select className="select form-input" style={{ fontSize: 12, padding: "6px 10px", width: "auto" }} value={selTeam} onChange={e => setSelTeam(e.target.value)}>
-            <option value="">All teams</option>
-            {teams.map(t => <option key={t} value={t}>{t}</option>)}
-          </select>}
-          <select className="select form-input" style={{ fontSize: 12, padding: "6px 10px", width: "auto" }} value={selStar} onChange={e => setSelStar(e.target.value)}>
-            <option value="">All star levels</option>
-            <option value="3">⭐⭐⭐ Triple-domain</option>
-            <option value="2">⭐⭐ Cross-domain</option>
-            <option value="1">⭐ Specialist</option>
-            <option value="0_lowperf">0★ — has data, low rank</option>
-            <option value="no_sample">Not enough sample yet</option>
-          </select>
-          <div style={{ position: "relative", minWidth: 180, flex: 1, maxWidth: 240 }}>
-            <input className="form-input" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name or email" style={{ fontSize: 12, padding: "6px 10px" }} />
-            {search && <button onClick={() => setSearch("")} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "var(--tx3)", fontSize: 14 }}>×</button>}
-          </div>
-          {/* Inline distribution histogram — same numbers as the old chip
-              strip, but the proportion is visible at a glance. Hover gives
-              the exact count + label per bar. */}
-          {(() => {
-            const bars = [
-              { key: "3", lvl: 3, label: "⭐⭐⭐", color: starColor(3), val: starCounts[3] || 0 },
-              { key: "2", lvl: 2, label: "⭐⭐",   color: starColor(2), val: starCounts[2] || 0 },
-              { key: "1", lvl: 1, label: "⭐",     color: starColor(1), val: starCounts[1] || 0 },
-              { key: "0", lvl: 0, label: "0★",     color: "var(--tx3)", val: starCounts[0] || 0 },
-              { key: "n", lvl: null, label: "n/a", color: "var(--bd)", val: starCounts.no_sample || 0 },
-            ];
-            const max = Math.max(...bars.map(b => b.val), 1);
-            return (
-              <div role="img" aria-label={`Distribution: ${bars.map(b => `${b.val} ${b.label}`).join(", ")}`} style={{ marginLeft: "auto", display: "flex", alignItems: "flex-end", gap: 6, height: 38 }}>
-                {bars.map(b => (
-                  <div
-                    key={b.key}
-                    onClick={() => {
-                      // Click a bar to filter to that bucket. Re-clicking the
-                      // active bar clears the filter.
-                      if (b.lvl == null) setSelStar(selStar === "no_sample" ? "" : "no_sample");
-                      else if (b.lvl === 0) setSelStar(selStar === "0_lowperf" ? "" : "0_lowperf");
-                      else setSelStar(String(selStar) === String(b.lvl) ? "" : String(b.lvl));
-                    }}
-                    title={`${b.val} ${b.label === "n/a" ? "QA(s) not enough sample" : b.label + " QA" + (b.val === 1 ? "" : "s")}`}
-                    style={{
-                      display: "flex", flexDirection: "column", alignItems: "center",
-                      cursor: "pointer", minWidth: 28,
-                    }}
-                  >
-                    <span style={{ fontSize: 9, fontWeight: 700, color: b.color, lineHeight: 1, marginBottom: 2, fontVariantNumeric: "tabular-nums" }}>{b.val}</span>
-                    <div style={{
-                      width: 18,
-                      height: `${Math.max(2, (b.val / max) * 22)}px`,
-                      background: b.color,
-                      borderRadius: 2,
-                      transition: "height .2s",
-                      opacity: b.val === 0 ? 0.25 : 1,
-                    }} />
-                    <span style={{ fontSize: 9, color: "var(--tx3)", marginTop: 2, lineHeight: 1 }}>{b.label}</span>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
-        </div>
+      {/* Unified PageFilters strip — same component, same spot, same
+          clear behaviour as MTD/Leaderboard/CSAT. The star-level
+          distribution histogram moved to its own compact card below
+          since it's a stat display, not a filter (though clicking a
+          bar still filters by that star tier). Native <select>s
+          replaced with SearchableSelect for visual consistency with
+          every other migrated page. */}
+      <PageFilters
+        onClear={() => { setSelDomain(""); setSelTeam(""); setSelStar(""); setSearch(""); }}
+        searchProps={{ value: search, onChange: setSearch, placeholder: "Search name or email…" }}
+      >
+        <SearchableSelect options={months} value={selMonth} onChange={setSelMonth} placeholder="Select month"/>
+        {!isQAOnly && (
+          <SearchableSelect
+            options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]}
+            value={selDomain} onChange={setSelDomain} placeholder="All domains"
+          />
+        )}
+        {!isQAOnly && (
+          <SearchableSelect options={teams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${teams.length})`}/>
+        )}
+        <SearchableSelect
+          options={[
+            { value: "3",          label: "⭐⭐⭐ Triple-domain" },
+            { value: "2",          label: "⭐⭐ Cross-domain" },
+            { value: "1",          label: "⭐ Specialist" },
+            { value: "0_lowperf",  label: "0★ — has data, low rank" },
+            { value: "no_sample",  label: "Not enough sample yet" },
+          ]}
+          value={selStar} onChange={setSelStar} placeholder="All star levels"
+        />
+      </PageFilters>
+
+      {/* Star-level distribution histogram. Click a bar to filter to
+          that bucket; click again to clear. */}
+      <div className="card" style={{ padding: "10px 14px", marginBottom: 16, display: "flex", alignItems: "center", gap: 12 }}>
+        <span style={{ color: "var(--tx3)", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: ".4px" }}>Distribution</span>
+        {(() => {
+          const bars = [
+            { key: "3", lvl: 3, label: "⭐⭐⭐", color: starColor(3), val: starCounts[3] || 0 },
+            { key: "2", lvl: 2, label: "⭐⭐",   color: starColor(2), val: starCounts[2] || 0 },
+            { key: "1", lvl: 1, label: "⭐",     color: starColor(1), val: starCounts[1] || 0 },
+            { key: "0", lvl: 0, label: "0★",     color: "var(--tx3)", val: starCounts[0] || 0 },
+            { key: "n", lvl: null, label: "n/a", color: "var(--bd)", val: starCounts.no_sample || 0 },
+          ];
+          const max = Math.max(...bars.map(b => b.val), 1);
+          return (
+            <div role="img" aria-label={`Distribution: ${bars.map(b => `${b.val} ${b.label}`).join(", ")}`} style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 38 }}>
+              {bars.map(b => (
+                <div
+                  key={b.key}
+                  onClick={() => {
+                    if (b.lvl == null) setSelStar(selStar === "no_sample" ? "" : "no_sample");
+                    else if (b.lvl === 0) setSelStar(selStar === "0_lowperf" ? "" : "0_lowperf");
+                    else setSelStar(String(selStar) === String(b.lvl) ? "" : String(b.lvl));
+                  }}
+                  title={`${b.val} ${b.label === "n/a" ? "QA(s) not enough sample" : b.label + " QA" + (b.val === 1 ? "" : "s")}`}
+                  style={{ display: "flex", flexDirection: "column", alignItems: "center", cursor: "pointer", minWidth: 28 }}
+                >
+                  <span style={{ fontSize: 9, fontWeight: 700, color: b.color, lineHeight: 1, marginBottom: 2, fontVariantNumeric: "tabular-nums" }}>{b.val}</span>
+                  <div style={{
+                    width: 18,
+                    height: `${Math.max(2, (b.val / max) * 22)}px`,
+                    background: b.color,
+                    borderRadius: 2,
+                    transition: "height .2s",
+                    opacity: b.val === 0 ? 0.25 : 1,
+                  }} />
+                  <span style={{ fontSize: 9, color: "var(--tx3)", marginTop: 2, lineHeight: 1 }}>{b.label}</span>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Leaderboard */}
