@@ -785,8 +785,12 @@ function QAProfilePage() {
 
       {/* ── MONTHLY PERFORMANCE TAB ── */}
       {activeTab === "monthly" && <>
+        {/* Evaluation History first — leads asked for the daily / weekly /
+            monthly productivity feed at the top of this tab so they see
+            the freshest data without scrolling past the MTD card. */}
+        {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} />}
         {/* Performance + Trend in 2-col */}
-        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16,marginTop:16}}>
           {/* Performance metrics with month selector */}
           <div className="card">
             <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
@@ -908,10 +912,6 @@ function QAProfilePage() {
 
         {/* Expertise — admin-only pilot. CSAT-driven topic mastery, follows the same selected month. Full-width below. */}
         {hasRole(profile?.role, "admin") && <ExpertiseProfileCard qaEmail={selectedQA} month={selMonth || latestMtd?.month} />}
-
-        {/* Evaluation History — Daily / Weekly / Monthly aggregates,
-            sourced from productivity_history (new feed, May 2026+). */}
-        {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} />}
       </>}
       {/* Super-admin MTD adjustment modal — mounted at the page root so
           the portal lift in Modal.jsx isn't fighting any parent transform. */}
