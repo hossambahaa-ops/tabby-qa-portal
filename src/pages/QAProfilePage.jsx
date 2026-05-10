@@ -16,6 +16,7 @@ import ExpertiseProfileCard from "../components/ExpertiseProfileCard.jsx";
 import Badges from "../components/Badges.jsx";
 import TitleBelt from "../components/TitleBelt.jsx";
 import AttendanceHealthCard from "../components/attendance/AttendanceHealthCard.jsx";
+import MtdAdjustModal from "../components/qaProfile/MtdAdjustModal.jsx";
 import { computeTitleHolders, holdersByEmail, getLastCompletedMonth, getCurrentCalendarMonth, monthBefore } from "../lib/titles.js";
 import { ATT_MAP } from "../lib/attendance.js";
 
@@ -38,6 +39,12 @@ function QAProfilePage() {
     roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
     loading, allQAs, qaLeadSet, refreshDailyScores, refreshMtd,
   } = useQaProfileData(token, profile);
+
+  // Super-admin-only inline editor for the headline KPI columns on a
+  // single mtd_scores row. RLS rejects the PATCH for everyone else, so
+  // we hide the trigger from non-super-admins to avoid confusion.
+  const isSuperAdmin = hasRole(profile?.role, "super_admin");
+  const [adjustingMtd, setAdjustingMtd] = useState(null);
 
   const [selectedQA, setSelectedQA] = useUrlState("qa", "");
   // Compare with another QA — shows a side-by-side delta strip in the
@@ -782,11 +789,33 @@ function QAProfilePage() {
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
           {/* Performance metrics with month selector */}
           <div className="card">
-            <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
               <span className="card-title">Performance</span>
-              {qaMtd.length > 0 && <select className="select form-input" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={selMonth||latestMtd?.month||""} onChange={e=>setSelMonth(e.target.value)}>
-                {qaMtd.map(m=><option key={m.month} value={m.month}>{m.month}</option>)}
-              </select>}
+              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                {qaMtd.length > 0 && <select className="select form-input" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={selMonth||latestMtd?.month||""} onChange={e=>setSelMonth(e.target.value)}>
+                  {qaMtd.map(m=><option key={m.month} value={m.month}>{m.month}</option>)}
+                </select>}
+                {/* Super-admin: adjust the displayed month's MTD KPIs.
+                    The save overwrites the synced columns directly so the
+                    new value flows through every consumer (Leaderboard,
+                    Dashboard, Profile) without a separate "official"
+                    flag. */}
+                {isSuperAdmin && (() => {
+                  const m = selMonth ? qaMtd.find(x=>x.month===selMonth) : latestMtd;
+                  if (!m) return null;
+                  return (
+                    <button
+                      type="button"
+                      className="btn btn-outline btn-sm"
+                      onClick={() => setAdjustingMtd(m)}
+                      title="Edit headline KPIs for this month — super-admin only"
+                      style={{fontSize:11,padding:"4px 10px",color:"var(--tabby-purple)",borderColor:"var(--tabby-purple)"}}
+                    >
+                      ✎ Adjust
+                    </button>
+                  );
+                })()}
+              </div>
             </div>
             {(()=>{
               const m = selMonth ? qaMtd.find(x=>x.month===selMonth) : latestMtd;
@@ -884,6 +913,15 @@ function QAProfilePage() {
             sourced from productivity_history (new feed, May 2026+). */}
         {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} />}
       </>}
+      {/* Super-admin MTD adjustment modal — mounted at the page root so
+          the portal lift in Modal.jsx isn't fighting any parent transform. */}
+      {adjustingMtd && (
+        <MtdAdjustModal
+          row={adjustingMtd}
+          onClose={() => setAdjustingMtd(null)}
+          onSaved={() => { refreshMtd?.(); }}
+        />
+      )}
     </div>
   );
 }
