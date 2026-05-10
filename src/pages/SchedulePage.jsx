@@ -268,8 +268,15 @@ function SchedulePage() {
   });
   const days = Array.from({length: daysInMonth}, (_, i) => {
     const d = new Date(year, month - 1, i + 1);
-    return { num: i + 1, date: d, dayName: d.toLocaleDateString("en-US", {weekday: "short"}), isWeekend: d.getDay() === 5 || d.getDay() === 6 };
+    const dateIso = `${year}-${String(month).padStart(2,"0")}-${String(i + 1).padStart(2,"0")}`;
+    return { num: i + 1, date: d, dateIso, dayName: d.toLocaleDateString("en-US", {weekday: "short"}), isWeekend: d.getDay() === 5 || d.getDay() === 6 };
   });
+  // Riyadh-local YYYY-MM-DD for "today". Computed once per render so
+  // every DayCell shares the same reference value (memo comparator
+  // checks ===).
+  const todayIso = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
 
   const getAtt = (email, dayNum) => {
     const dateStr = `${selMonth}-${String(dayNum).padStart(2,"0")}`;
@@ -1006,6 +1013,8 @@ function SchedulePage() {
                           key={d.num}
                           em={em}
                           dayNum={d.num}
+                          dateIso={d.dateIso}
+                          todayIso={todayIso}
                           isWeekend={d.isWeekend}
                           att={att}
                           isEditing={isEditing}
