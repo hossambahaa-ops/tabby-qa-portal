@@ -230,6 +230,22 @@ export default function CoachingCadenceCard() {
     }).sort((a, b) => a.wpr.pct - b.wpr.pct); // worst first so behind-leads pop
   }, [team, wprDone, mprDone, wprExcluded, mprExcluded, isSupervisor]);
 
+  // Combined "still owed" — union of WPR + MPR owed, deduped, with
+  // tags showing which kind. The user picked option (b): full
+  // scrollable list, no top-N truncation. NOTE: this hook MUST be
+  // declared before any early-return guards below — otherwise the
+  // hook count varies between renders and React throws #310.
+  const owedRows = useMemo(() => {
+    const map = new Map();
+    for (const r of stats.wprOwed) map.set(r.email.toLowerCase(), { ...r, owesWpr: true, owesMpr: false });
+    for (const r of stats.mprOwed) {
+      const em = r.email.toLowerCase();
+      if (map.has(em)) map.get(em).owesMpr = true;
+      else map.set(em, { ...r, owesWpr: false, owesMpr: true });
+    }
+    return [...map.values()].sort((a, b) => (a.display_name || a.email).localeCompare(b.display_name || b.email));
+  }, [stats]);
+
   if (!isLead) return null;
   if (loading) return null;
   if (team.length === 0) return null;
@@ -269,19 +285,6 @@ export default function CoachingCadenceCard() {
 
   const wprWindow = `${new Date(periods.wStart + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })} – ${new Date(periods.wEnd + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" })}`;
   const mprMonth = new Date(periods.mStart + "T00:00:00").toLocaleDateString("en-GB", { month: "long", year: "numeric" });
-  // Combined "still owed" — union of WPR + MPR owed, deduped, with
-  // tags showing which kind. The user picked option (b): full
-  // scrollable list, no top-N truncation.
-  const owedRows = useMemo(() => {
-    const map = new Map();
-    for (const r of stats.wprOwed) map.set(r.email.toLowerCase(), { ...r, owesWpr: true, owesMpr: false });
-    for (const r of stats.mprOwed) {
-      const em = r.email.toLowerCase();
-      if (map.has(em)) map.get(em).owesMpr = true;
-      else map.set(em, { ...r, owesWpr: false, owesMpr: true });
-    }
-    return [...map.values()].sort((a, b) => (a.display_name || a.email).localeCompare(b.display_name || b.email));
-  }, [stats]);
 
   return (
     <div className="card" style={{ marginBottom: 16, padding: "14px 16px" }}>
