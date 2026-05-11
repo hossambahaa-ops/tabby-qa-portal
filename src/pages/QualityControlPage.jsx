@@ -6,9 +6,11 @@ import DAMPage from "./DAMPage.jsx";
 import CoachingViolationsPage from "./CoachingViolationsPage.jsx";
 import CoachingPage from "./CoachingPage.jsx";
 import ActionPlanPage from "./ActionPlanPage.jsx";
+import CandidatesPanel from "../components/actionplan/CandidatesPanel.jsx";
 
 const TABS = [
   { key: "violations", label: "Violations" },
+  { key: "candidates", label: "Candidates" },
   { key: "plans", label: "AP / PIP" },
   { key: "coaching", label: "Coaching" },
   { key: "dam", label: "DAM Flags" },
@@ -26,6 +28,7 @@ function QualityControlPage() {
       else if (t === "violations") setTab("violations");
       else if (t === "coaching") setTab("coaching");
       else if (t === "plans") setTab("plans");
+      else if (t === "candidates") setTab("candidates");
     };
     window.addEventListener("qc-tab", handler);
     return () => window.removeEventListener("qc-tab", handler);
@@ -46,6 +49,7 @@ function QualityControlPage() {
       </div>
       {tab === "dam" && <DAMPage />}
       {tab === "violations" && <CoachingViolationsPage />}
+      {tab === "candidates" && <CandidatesPanel />}
       {tab === "coaching" && <CoachingPage />}
       {tab === "plans" && <ActionPlanPage />}
     </div>
