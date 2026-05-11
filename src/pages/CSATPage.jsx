@@ -116,6 +116,30 @@ export default function CSATPage() {
   }, [token, gf?.month, gf?.teams]);
 
   const monthData = data.filter(r => r.month === selMonth);
+  // Literal previous calendar month for the selected month (e.g.
+  // "Apr-2026" → "Mar-2026"). We use the calendar prev — not just
+  // `months[1]` — so a missing intermediate month doesn't silently
+  // make the comparison span 2 months. If parsing fails, prev is
+  // null and the delta column just renders "—".
+  const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const prevMonth = (() => {
+    if (!selMonth) return null;
+    const [m, y] = selMonth.split("-");
+    const idx = MON.indexOf(m);
+    if (idx < 0 || !y) return null;
+    const d = new Date(parseInt(y), idx - 1, 1);
+    return `${MON[d.getMonth()]}-${d.getFullYear()}`;
+  })();
+  // Map qa_email (lowercased) → previous-month CSAT % (number) so we
+  // can compute the per-QA delta without re-scanning data per row.
+  const prevByEmail = {};
+  if (prevMonth) {
+    data.filter(r => r.month === prevMonth).forEach(r => {
+      const v = csatPctValue(r.csat_pct);
+      const s = Number(r.csat_total || 0);
+      if (v != null && s > 0) prevByEmail[r.qa_email?.toLowerCase()] = { v, s };
+    });
+  }
   const rosterMap = {}; roster.forEach(r => { rosterMap[r.email?.toLowerCase()] = r; });
   // Skip compound LOBs ("CCU, Escalation, Dispute") that occasionally
   // sneak in from the roster CSV — they're never a real team.
@@ -197,15 +221,59 @@ export default function CSATPage() {
         l.surveys += surveys;
       }
     });
-    return Object.values(map).map(l => ({
-      ...l,
-      csat: l.weight > 0 ? l.weightedSum / l.weight : (l.simpleCount > 0 ? l.simpleSum / l.simpleCount : null),
-    })).sort((a, b) => {
+    // Prev-month weighted CSAT per lead — same formula as current,
+    // restricted to last month's rows. Lets us drop a "Δ vs prev"
+    // column next to each lead's CSAT %.
+    const prevByTl = {};
+    if (prevMonth) {
+      data.filter(r => r.month === prevMonth).forEach(r => {
+        const tl = (r.qa_tl || "unknown").toLowerCase();
+        if (!prevByTl[tl]) prevByTl[tl] = { w: 0, n: 0, simpleSum: 0, simpleCount: 0 };
+        const a = prevByTl[tl];
+        const score = csatPctValue(r.csat_pct);
+        if (score == null) return;
+        const surveys = Number(r.csat_total || 0);
+        a.simpleSum += score; a.simpleCount++;
+        if (surveys > 0) { a.w += score * surveys; a.n += surveys; }
+      });
+    }
+    return Object.values(map).map(l => {
+      const tlKey = (l.tl || "unknown").toLowerCase();
+      const p = prevByTl[tlKey];
+      const prevCsat = p ? (p.n > 0 ? p.w / p.n : (p.simpleCount > 0 ? p.simpleSum / p.simpleCount : null)) : null;
+      return {
+        ...l,
+        csat: l.weight > 0 ? l.weightedSum / l.weight : (l.simpleCount > 0 ? l.simpleSum / l.simpleCount : null),
+        prevCsat,
+      };
+    }).sort((a, b) => {
       const ca = b.csat ?? -1, cb = a.csat ?? -1;
       if (ca !== cb) return ca - cb;
       return (b.surveys || 0) - (a.surveys || 0);
     });
   })();
+
+  // Render helper for the Δ cell — keeps the JSX below readable.
+  // Returns a <td> with an arrow + signed delta in pts, coloured
+  // green/red/gray. "—" when either side is missing.
+  const renderDelta = (cur, prev, { padding = "4px 8px" } = {}) => {
+    if (cur == null || prev == null) {
+      return <td style={{ textAlign: "right", fontSize: 12, color: "var(--tx3)", padding, fontVariantNumeric: "tabular-nums" }}>—</td>;
+    }
+    const d = cur - prev;
+    const abs = Math.abs(d);
+    // Treat sub-0.05pt swings as flat — avoids "↑ 0.0 pts" noise from
+    // rounding when the underlying CSAT was effectively unchanged.
+    const flat = abs < 0.05;
+    const arrow = flat ? "→" : d > 0 ? "↑" : "↓";
+    const color = flat ? "var(--tx3)" : d > 0 ? "var(--green)" : "var(--red)";
+    return (
+      <td style={{ textAlign: "right", fontSize: 12, fontWeight: 600, color, padding, fontVariantNumeric: "tabular-nums" }}
+          title={`Current ${cur.toFixed(1)}% vs prev ${prev.toFixed(1)}%`}>
+        {arrow} {abs.toFixed(1)} pts
+      </td>
+    );
+  };
 
   const toggleLeadRow = async (lead) => {
     const tlKey = (lead.tl || "unknown").toLowerCase();
@@ -415,6 +483,7 @@ export default function CSATPage() {
                   <th>TL</th>
                   <th style={{textAlign:"right",width:80}}>Surveys</th>
                   <th style={{textAlign:"right",width:90}}>CSAT %</th>
+                  <th style={{textAlign:"right",width:100}} title={prevMonth?`Change vs ${prevMonth}`:"No previous month available"}>Δ vs prev</th>
                 </tr>
               </thead>
               <tbody>
@@ -463,9 +532,10 @@ export default function CSATPage() {
                       <td style={{fontSize:11.5,color:"var(--tx2)",padding:"4px 8px",whiteSpace:"nowrap"}} title={r.qa_tl||""}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
                       <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)",padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{r.csat_total ?? "—"}</td>
                       {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,fontSize:12.5,color:csatColor(v,s),padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
+                      {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const cur=(v!=null&&s>0)?v:null;const p=prevByEmail[r.qa_email?.toLowerCase()];return renderDelta(cur, p?.v ?? null);})()}
                     </tr>
                     {isExpanded && <tr>
-                      <td colSpan={5} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
+                      <td colSpan={6} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
                         {isLoading ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>Loading topics…</div>
                          : !t || t.length === 0 ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
                          : <table style={{width:"100%",marginTop:4,borderCollapse:"collapse"}}>
@@ -499,6 +569,7 @@ export default function CSATPage() {
                   <th style={{textAlign:"right",width:70}}>QAs</th>
                   <th style={{textAlign:"right",width:80}}>Surveys</th>
                   <th style={{textAlign:"right",width:90}}>CSAT %</th>
+                  <th style={{textAlign:"right",width:100}} title={prevMonth?`Change vs ${prevMonth}`:"No previous month available"}>Δ vs prev</th>
                 </tr>
               </thead>
               <tbody>
@@ -526,9 +597,10 @@ export default function CSATPage() {
                       <td style={{textAlign:"right",fontWeight:600,fontSize:12,padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{l.count}</td>
                       <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)",padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{l.surveys || "—"}</td>
                       {(()=>{const s=Number(l.surveys||0);const show=l.csat!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,fontSize:12.5,color:csatColor(l.csat,s),padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{show?l.csat.toFixed(1)+"%":"—"}</td>;})()}
+                      {renderDelta(l.csat ?? null, l.prevCsat ?? null)}
                     </tr>
                     {isExpanded && <tr>
-                      <td colSpan={5} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
+                      <td colSpan={6} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
                         {isLoading ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>Loading topics…</div>
                          : !t || t.length === 0 ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
                          : <table style={{width:"100%",marginTop:4,borderCollapse:"collapse"}}>
