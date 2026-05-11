@@ -92,24 +92,30 @@ function ActionPlanPage() {
       //    month only (today's in-progress month is skipped). The
       //    view returns rows for every month in mtd_scores; we filter
       //    here to the prior-month label so the Detection tab shows
-      //    "actionable now" cohort by default. Active-plan QAs are
-      //    excluded so they don't double-up. Dismissed candidates
+      //    "actionable now" cohort by default. Dismissed candidates
       //    (per pip_ap_candidate_dismissals) hidden too.
+      //
+      //    Per Hossam: QAs WITH an active AP/PIP STILL appear in the
+      //    list, but their row carries a nudge ("already on
+      //    [AP|PIP]") so the lead doesn't open a duplicate by
+      //    mistake. The existingPlan info is attached to the
+      //    detection so the UI can render the nudge + a link.
       const now = new Date();
       const priorD = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
       const priorMonthLabel = `${MON[priorD.getMonth()]}-${priorD.getFullYear()}`;
-      const activeEmails = new Set(
-        planRows.filter(p => p.status === "active" || p.status === "pending_review")
-          .map(p => (p.qa_email || "").toLowerCase())
-      );
+      const activePlanByEmail = new Map();
+      for (const p of planRows) {
+        if (p.status === "active" || p.status === "pending_review") {
+          activePlanByEmail.set((p.qa_email || "").toLowerCase(), p);
+        }
+      }
       const candDismissed = new Set(
         (candDismissals || []).map(d => `${(d.qa_email || "").toLowerCase()}|${d.month}`)
       );
       const damDetectedEmails = new Set(damDetections.map(d => (d.email || "").toLowerCase()));
       const monthEndDetections = (candidateRows || [])
         .filter(c => c.month === priorMonthLabel)
-        .filter(c => !activeEmails.has((c.qa_email || "").toLowerCase()))
         .filter(c => !candDismissed.has(`${(c.qa_email || "").toLowerCase()}|${c.month}`))
         // Don't duplicate a QA who's already in the DAM-flag list
         .filter(c => !damDetectedEmails.has((c.qa_email || "").toLowerCase()))
@@ -117,6 +123,8 @@ function ActionPlanPage() {
           const kpiReasons = (c.failing_kpis || [])
             .map(k => `${k.kpi} ${Number(k.value).toFixed(1)}${k.unit} (target ${k.target}${k.unit})`)
             .join(", ");
+          // Nudge if this QA already has an active AP/PIP in flight.
+          const existing = activePlanByEmail.get((c.qa_email || "").toLowerCase()) || null;
           // plan_type values from the view:
           //   'pip'           → EGY occurrence 1 (NEW PIP)
           //   'pip_extension' → EGY occurrence 2 or 3 (extension of an
@@ -161,6 +169,16 @@ function ActionPlanPage() {
             isHrInvestigation: !!c.is_hr_investigation,
             domain: c.domain,
             verbalWarningRequired: c.occurrence === 1, // verbal step is occ-1 only per DAM
+            // Existing-plan nudge — surfaced as an info badge in
+            // APDetectionTab so the lead doesn't open a duplicate
+            // plan. The buttons stay clickable; this is informational,
+            // not a hard block.
+            existingPlan: existing ? {
+              id: existing.id,
+              type: existing.type,
+              status: existing.status,
+              end_date: existing.end_date,
+            } : null,
           };
         });
 

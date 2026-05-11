@@ -72,6 +72,23 @@ export default function APDetectionTab({
                 ))}
               </div>
 
+              {/* Nudge: this QA already has an active AP/PIP. Shown
+                  ABOVE the DAM action label so the lead sees it
+                  first and doesn't open a duplicate. Doesn't block
+                  — they may still want to file a new one if the
+                  rules say so, but they'll do it deliberately. */}
+              {d.existingPlan && (
+                <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--amber-bg)", borderRadius: 6, fontSize: 12, color: "var(--amber)", border: "1px solid var(--amber)", fontWeight: 500, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  📌
+                  <span style={{ color: "var(--tx)" }}>
+                    Already on an active <strong>{(d.existingPlan.type || "AP").toUpperCase()}</strong>
+                    {d.existingPlan.end_date && (
+                      <> · ends <strong>{new Date(d.existingPlan.end_date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</strong></>
+                    )}
+                  </span>
+                  <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--tx3)" }}>Consider extending instead of opening a new plan.</span>
+                </div>
+              )}
               {/* Per-DAM action label — exact string from the
                   dam_escalation_steps table. Includes the verbal
                   warning prefix at occurrence 1, written/final
