@@ -98,7 +98,6 @@ function AppInner(){
   const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);
   const[sidebarOpen,setSidebarOpen]=useState(false);
   const[sidebarCollapsed,setSidebarCollapsed]=useState(()=>localStorage.getItem("sb_collapsed")==="true");
-  const[viewAsRole,setViewAsRole]=useState("");
   // ── View as a specific user (super_admin only) ──
   // viewAsUser holds the FULL profile we're impersonating; null = off.
   // Persisted in sessionStorage so a page reload keeps the impersonation
@@ -368,18 +367,16 @@ function AppInner(){
   // ── Hooks that MUST run before any early return (Rules of Hooks) ──
   const globalToast=useGlobalToast();
   const realRole=profile?.role||"qa";
-  // Priority for effective identity:
-  //   1. viewAsUser  → full identity swap (email, role, domain, team_id, etc.)
-  //   2. viewAsRole  → keep my email/name but pretend my role is X
-  //   3. real profile
-  // viewAsUser takes precedence so picking a real user gives the
-  // closest possible "see exactly what they see" view.
-  const userRole=viewAsUser?.role||viewAsRole||realRole;
-  const effectiveProfile=viewAsUser
-    ? {...profile,...viewAsUser}
-    : viewAsRole
-      ? {...profile,role:viewAsRole}
-      : profile;
+  // Effective identity for the session — viewAsUser fully swaps the
+  // profile fields children read through AppContext (email, role,
+  // domain, team_id, etc.) so a super-admin can step into any user's
+  // session and see exactly what they would see. null = own session.
+  const userRole=viewAsUser?.role||realRole;
+  const effectiveProfile=viewAsUser?{...profile,...viewAsUser}:profile;
+  // Convenience flag — read by display elements in the topbar/sidebar
+  // so they render the impersonated identity (avatar, name, role,
+  // domain badge) instead of the admin's real profile.
+  const impersonating=!!viewAsUser;
   // Show role-specific onboarding tour once per user
   useEffect(()=>{
     if(!profile?.email)return;
@@ -504,15 +501,15 @@ function AppInner(){
       <div className="sidebar-mobile-footer">
         <div className="sidebar-mobile-user">
           <div className="sidebar-mobile-avatar">
-            {profile?.avatar_url
-              ? <img src={profile.avatar_url} alt=""/>
-              : <span style={{...avatarStyle(profile?.email),display:"inline-flex",alignItems:"center",justifyContent:"center",width:"100%",height:"100%",borderRadius:"50%",fontSize:13,fontWeight:700}}>{initialsForAvatar(profile?.email)||"U"}</span>}
+            {effectiveProfile?.avatar_url
+              ? <img src={effectiveProfile.avatar_url} alt=""/>
+              : <span style={{...avatarStyle(effectiveProfile?.email),display:"inline-flex",alignItems:"center",justifyContent:"center",width:"100%",height:"100%",borderRadius:"50%",fontSize:13,fontWeight:700}}>{initialsForAvatar(effectiveProfile?.email)||"U"}</span>}
           </div>
           <div className="sidebar-mobile-user-info">
-            <div className="sidebar-mobile-user-name">{nameFromEmail(profile?.email)||"User"}</div>
+            <div className="sidebar-mobile-user-name">{nameFromEmail(effectiveProfile?.email)||"User"}</div>
             <div className="sidebar-mobile-user-meta">
-              <span className={`role-badge role-${viewAsRole||profile?.role}`}>{safe(ROLE_LABELS[viewAsRole||profile?.role])||"QA"}</span>
-              <span className="sidebar-mobile-user-domain">{safe(profile?.domain)}</span>
+              <span className={`role-badge role-${effectiveProfile?.role}`}>{safe(ROLE_LABELS[effectiveProfile?.role])||"QA"}</span>
+              <span className="sidebar-mobile-user-domain">{safe(effectiveProfile?.domain)}</span>
             </div>
           </div>
         </div>
@@ -527,16 +524,24 @@ function AppInner(){
       </div>
     </aside>
     <div className="main-content">
-      {/* View-as banner — surfaces above the topbar whenever
-          impersonation (role-only or full-user) is active so it's
-          impossible to forget you're not in your own session. */}
+      {/* View-as banner — surfaces above the topbar while a
+          super-admin is impersonating another user so it's impossible
+          to forget you're not in your own session. The Exit button
+          drops back to the admin's real profile. */}
       {viewAsUser && <div className="view-as-bar" style={{background:"var(--tabby-purple)"}}>
         <span>👤 Viewing as <strong>{nameFromEmail(viewAsUser.email)}</strong> · <span style={{opacity:.85}}>{viewAsUser.email}</span> · <span style={{opacity:.85}}>{safe(ROLE_LABELS[viewAsUser.role])||viewAsUser.role}</span></span>
-        <button onClick={()=>setViewAsUserPersist(null)} style={{background:"#fff",color:"var(--tabby-purple)",border:"none",borderRadius:4,padding:"2px 8px",fontSize:11,cursor:"pointer",fontFamily:"var(--font)",fontWeight:600}}>Exit</button>
-      </div>}
-      {viewAsRole && !viewAsUser && <div className="view-as-bar">
-        <span>👁 Viewing as <strong>{safe(ROLE_LABELS[viewAsRole])}</strong></span>
-        <button onClick={()=>setViewAsRole("")} style={{background:"var(--amber)",color:"#fff",border:"none",borderRadius:4,padding:"2px 8px",fontSize:11,cursor:"pointer",fontFamily:"var(--font)"}}>Exit</button>
+        <button onClick={()=>{
+          // Audit the exit so the trail captures both ends of the
+          // impersonation window (start log written at picker click).
+          try{
+            sb.query("activity_log",{
+              token:session?.access_token,
+              method:"POST",
+              body:{actor_email:profile?.email,action:"view_as_user_stop",target_type:"profiles",target_id:viewAsUser.id||null,details:`Stopped viewing as ${viewAsUser.email}`},
+            }).catch(()=>{});
+          }catch{}
+          setViewAsUserPersist(null);
+        }} style={{background:"#fff",color:"var(--tabby-purple)",border:"none",borderRadius:4,padding:"2px 8px",fontSize:11,cursor:"pointer",fontFamily:"var(--font)",fontWeight:600}}>Exit</button>
       </div>}
 <div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Icon d={icons.menu} size={22}/></button><div className="topbar-title" style={{display:"flex",alignItems:"center",gap:6}}>{(()=>{const item=NAV_ITEMS.find(n=>n.key===page);const section=item?.section||NAV_ITEMS.slice(0,NAV_ITEMS.indexOf(item)).reverse().find(n=>n.section)?.section;return section?<><span style={{color:"var(--tx3)",fontSize:13}}>{section}</span><span style={{color:"var(--tx3)",fontSize:11}}>›</span><span>{item?.label||"Dashboard"}</span></>:<span>{item?.label||"Dashboard"}</span>;})()}</div>
       <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
@@ -556,25 +561,16 @@ function AppInner(){
         <button className="notif-btn topbar-dm-toggle" onClick={()=>setDarkMode(!darkMode)} title={darkMode?"Light mode":"Dark mode"} aria-label={darkMode?"Switch to light mode":"Switch to dark mode"}>
           <Icon d={darkMode?"M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z":"M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"} size={18}/>
         </button>
-        {/* View-as dropdown for super admin */}
-        {realRole==="super_admin"&&!viewAsRole&&!viewAsUser&&<select className="topbar-viewas" value={viewAsRole} onChange={e=>setViewAsRole(e.target.value)} style={{fontSize:11,padding:"4px 8px",borderRadius:6,border:"1px solid var(--bd)",background:"var(--bg3)",fontFamily:"var(--font)",color:"var(--tx2)",cursor:"pointer"}}>
-          <option value="">View as role...</option>
-          <option value="qa">QA</option>
-          <option value="qa_lead">QA Lead</option>
-          <option value="qa_supervisor">QA Supervisor</option>
-          <option value="admin">Admin</option>
-        </select>}
         {/* View-as-user picker — super-admin only. Opens a small
             popover with a searchable list of every active profile so
             the admin can step into any specific user's session
-            (identity-level impersonation, not just role). Read-only
-            in spirit — every action is still attributed to the real
-            admin in activity_log. */}
+            (identity-level impersonation). Every start/stop is logged
+            to activity_log against the real admin's email. */}
         {realRole==="super_admin"&&!viewAsUser&&<div style={{position:"relative"}}>
           <button onClick={async()=>{
             if(allProfiles.length===0){
               try{
-                const rows=await sb.query("profiles",{token:session?.access_token,select:"id,email,display_name,role,domain,operational_domain,team_id",filters:"order=email.asc&limit=500"});
+                const rows=await sb.query("profiles",{token:session?.access_token,select:"id,email,display_name,role,domain,operational_domain,team_id,avatar_url",filters:"order=email.asc&limit=500"});
                 setAllProfiles(Array.isArray(rows)?rows:[]);
               }catch(e){console.error("Load profiles:",e);}
             }
@@ -604,7 +600,6 @@ function AppInner(){
                   return filtered.map(p=>(
                     <button key={p.id} onClick={()=>{
                       setViewAsUserPersist(p);
-                      setViewAsRole(""); // clear role-only mode if active
                       setViewAsPickerOpen(false);
                       setViewAsSearch("");
                       // Audit trail — every impersonation start is logged
@@ -633,12 +628,16 @@ function AppInner(){
           </>}
         </div>}
         <div className="topbar-user-section" style={{display:"flex",alignItems:"center",gap:10,marginLeft:8,paddingLeft:12,borderLeft:"1px solid var(--bd)"}}>
-          <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0,cursor:"pointer",position:"relative"}} title="Change profile picture" onClick={()=>document.getElementById("avatar-upload")?.click()}>
-            {profile?.avatar_url ? <img src={profile.avatar_url} alt="" style={{width:32,height:32,objectFit:"cover",borderRadius:"50%"}}/> :
-            <div style={{width:32,height:32,borderRadius:"50%",...avatarStyle(profile?.email),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{initialsForAvatar(profile?.email)||"U"}</div>}
+          <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0,cursor:impersonating?"default":"pointer",position:"relative"}} title={impersonating?"Avatar change disabled while impersonating":"Change profile picture"} onClick={()=>{ if(!impersonating) document.getElementById("avatar-upload")?.click(); }}>
+            {effectiveProfile?.avatar_url ? <img src={effectiveProfile.avatar_url} alt="" style={{width:32,height:32,objectFit:"cover",borderRadius:"50%"}}/> :
+            <div style={{width:32,height:32,borderRadius:"50%",...avatarStyle(effectiveProfile?.email),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{initialsForAvatar(effectiveProfile?.email)||"U"}</div>}
           </div>
           <input id="avatar-upload" type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
             const file=e.target.files?.[0]; if(!file){return;}
+            // Belt-and-braces: even though the click target is disabled
+            // while impersonating, refuse the upload here too so the
+            // input can't be triggered another way (DevTools, AT, etc.).
+            if(impersonating){globalToast("error","Stop viewing as another user before changing your avatar.");e.target.value="";return;}
             if(!file.type?.startsWith("image/")){globalToast("error","Please select an image file");e.target.value="";return;}
             if(file.size>2*1024*1024){globalToast("error","Image must be under 2MB");e.target.value="";return;}
             try{
@@ -681,11 +680,11 @@ function AppInner(){
             e.target.value="";
           }}/>
           <div style={{display:"flex",flexDirection:"column",lineHeight:1.2}}>
-            <span style={{fontSize:13,fontWeight:600,color:"var(--tx)",letterSpacing:"-.2px"}}>{nameFromEmail(profile?.email)||"User"}</span>
-            <span className={`role-badge role-${viewAsRole||profile?.role}`} style={{fontSize:9,padding:"1px 6px",alignSelf:"flex-start"}}>{safe(ROLE_LABELS[viewAsRole||profile?.role])||"QA"}{viewAsRole?" (viewing)":""}</span>
+            <span style={{fontSize:13,fontWeight:600,color:"var(--tx)",letterSpacing:"-.2px"}}>{nameFromEmail(effectiveProfile?.email)||"User"}</span>
+            <span className={`role-badge role-${effectiveProfile?.role}`} style={{fontSize:9,padding:"1px 6px",alignSelf:"flex-start"}}>{safe(ROLE_LABELS[effectiveProfile?.role])||"QA"}</span>
           </div>
         </div>
-        <span className="topbar-domain-badge" style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:safe(profile?.domain)==="tabby.sa"?"rgba(234,88,12,.1)":"rgba(79,70,229,.1)",color:safe(profile?.domain)==="tabby.sa"?"#EA580C":"#4F46E5",fontWeight:600}}>{safe(profile?.domain)}</span>
+        <span className="topbar-domain-badge" style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:safe(effectiveProfile?.domain)==="tabby.sa"?"rgba(234,88,12,.1)":"rgba(79,70,229,.1)",color:safe(effectiveProfile?.domain)==="tabby.sa"?"#EA580C":"#4F46E5",fontWeight:600}}>{safe(effectiveProfile?.domain)}</span>
         <button className="topbar-signout-btn" onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{background:"none",border:"1px solid var(--bd)",borderRadius:8,padding:"5px 12px",fontSize:11,color:"var(--tx3)",cursor:"pointer",fontFamily:"var(--font)",fontWeight:500,transition:"all .2s"}}
           onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--red)";e.currentTarget.style.color="var(--red)";}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--bd)";e.currentTarget.style.color="var(--tx3)";}}
