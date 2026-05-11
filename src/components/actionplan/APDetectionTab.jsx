@@ -72,24 +72,45 @@ export default function APDetectionTab({
                 ))}
               </div>
 
-              {/* Per DAM: every action is paired with a verbal
-                  warning. Surface that as a small reminder badge
-                  next to the action buttons so the lead sees the
-                  prerequisite step. */}
-              {d.verbalWarningRequired && (
-                <div style={{ marginTop: 10, padding: "6px 10px", background: "var(--bg)", borderRadius: 6, fontSize: 11, color: "var(--tx2)", border: "1px dashed var(--bd)" }}>
-                  📣 Per DAM: deliver a <strong style={{ color: "var(--tx)" }}>verbal warning</strong> with this {(d.planType || "ap").toUpperCase()}.
-                  {d.needsReview && <span style={{ marginLeft: 8, color: "var(--amber)", fontWeight: 600 }}>🔶 KSA · supervisor / manager review required (prior AP context)</span>}
+              {/* Per-DAM action label — exact string from the
+                  dam_escalation_steps table. Includes the verbal
+                  warning prefix at occurrence 1, written/final
+                  warning + deduction days at later occurrences. */}
+              {d.damActionLabel && (
+                <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--bg)", borderRadius: 6, fontSize: 12, color: "var(--tx)", border: "1px solid var(--bd)" }}>
+                  <strong style={{ color: "var(--tx2)", fontSize: 10, textTransform: "uppercase", letterSpacing: ".4px" }}>DAM occurrence {d.occurrence}:</strong>
+                  <span style={{ marginLeft: 8, fontWeight: 600 }}>{d.damActionLabel}</span>
+                  {d.deductionDays > 0 && (
+                    <span style={{ marginLeft: 8, fontSize: 11, color: "var(--red)" }}>· {d.deductionDays} day{d.deductionDays === 1 ? "" : "s"} deduction</span>
+                  )}
+                  {d.isHrInvestigation && (
+                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 700, color: "var(--red)" }}>⚠ HR escalation</span>
+                  )}
+                  {d.needsReview && !d.isHrInvestigation && (
+                    <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 600, color: "var(--amber)" }}>🔶 Supervisor / manager review required</span>
+                  )}
                 </div>
               )}
               <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-                <button className="btn btn-primary btn-sm" onClick={() => startCreate(d.email, d.planType || "pip")} style={d.planType === "pip" ? { background: "var(--red)", color: "#fff" } : {}}>
-                  <Icon d={d.planType === "pip" ? icons.dam : icons.plan} size={14} />Create {(d.planType || "pip").toUpperCase()}
-                </button>
-                {/* EGY escape hatch — if PIP is recommended (failed
-                    prior AP or recurring KPI), give the lead a way
+                {/* Create button only when there's an app-side plan
+                    to create (planType != null). For HR Investigation
+                    / Termination / KSA warning-only steps the lead
+                    actions are outside the app — dismiss after
+                    handling. */}
+                {d.planType ? (
+                  <button className="btn btn-primary btn-sm" onClick={() => startCreate(d.email, d.planType)} style={d.planType === "pip" ? { background: "var(--red)", color: "#fff" } : {}}>
+                    <Icon d={d.planType === "pip" ? icons.dam : icons.plan} size={14} />
+                    Create {d.planType.toUpperCase()}{d.pipActionType === "extension" ? " (extension)" : ""}
+                  </button>
+                ) : (
+                  <div style={{ fontSize: 11, color: "var(--tx3)", fontStyle: "italic", padding: "6px 0" }}>
+                    No app plan — handle the DAM action above, then dismiss this row.
+                  </div>
+                )}
+                {/* EGY escape hatch — if PIP is recommended, give the lead a way
                     to choose AP instead. KSA never gets PIP, so the
-                    button is hidden there. */}
+                    button is hidden there. Also hidden when planType
+                    is null (HR-level, no plan applicable). */}
                 {d.planType === "pip" && d.domain === "tabby.ai" && (
                   <button className="btn btn-outline btn-sm" onClick={() => startCreate(d.email, "ap")}>
                     Create AP instead

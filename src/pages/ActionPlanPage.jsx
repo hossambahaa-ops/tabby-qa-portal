@@ -64,9 +64,12 @@ function ActionPlanPage() {
         sb.query("dam_flags", { select: "id,profile_id,rule_id,occurrence_number,status,notes,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)", filters: "order=triggered_at.desc", token }).catch(() => []),
         dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps", { select: "id,rule_id,occurrence,action,includes_pip,pip_action", token }).catch(() => [])),
         // Month-end KPI candidates view — Calibration/RTR/Occupancy
-        // thresholds with recurrence + prior-failed-AP escalation.
+        // thresholds. Per-occurrence escalation follows the DAM step
+        // table (dam_action_label, plan_type, deduction_days,
+        // is_hr_investigation). KSA override at occurrence 1 only:
+        // "Verbal Warning + AP" instead of just "Verbal Warning".
         sb.query("pip_ap_candidates_v", {
-          select: "qa_email,month,domain,qa_tl,failing_kpis,had_failed_ap_recently,recurring_same_kpi,recommended_action,needs_review,cal_pct,rtr_pct,occ_pct",
+          select: "qa_email,month,domain,qa_tl,failing_kpis,occurrence,plan_type,dam_action_label,deduction_days,is_hr_investigation,needs_review,had_failed_ap_recently,recurring_same_kpi,cal_pct,rtr_pct,occ_pct",
           filters: "order=month.desc,qa_email.asc",
           token,
         }).catch(() => []),
@@ -111,21 +114,31 @@ function ActionPlanPage() {
         // Don't duplicate a QA who's already in the DAM-flag list
         .filter(c => !damDetectedEmails.has((c.qa_email || "").toLowerCase()))
         .map(c => {
-          const recPIP = c.recommended_action === "pip";
           const kpiReasons = (c.failing_kpis || [])
             .map(k => `${k.kpi} ${Number(k.value).toFixed(1)}${k.unit} (target ${k.target}${k.unit})`)
             .join(", ");
-          const why = [];
-          if (c.had_failed_ap_recently) why.push("failed AP in last 60 days");
-          if (c.recurring_same_kpi) why.push("same KPI failed prior month");
-          const whyStr = why.length ? ` — ${why.join(" + ")}` : "";
-          // Per DAM: action is always paired with a verbal warning.
-          const verbalPrefix = "Verbal warning + ";
+          // plan_type values from the view:
+          //   'pip'           → EGY occurrence 1 (NEW PIP)
+          //   'pip_extension' → EGY occurrence 2 or 3 (extension of an
+          //                     existing PIP per DAM; in the app we
+          //                     still open the create-PIP flow since
+          //                     extending a closed plan isn't a thing)
+          //   'ap'            → KSA occurrence 1 (override per Hossam)
+          //   'none'          → no app-side plan (EGY occ 4 = HR
+          //                     Investigation; KSA occ ≥ 2 = warnings
+          //                     + deductions handled outside system)
+          // Map to a button planType the existing UI understands:
+          const buttonPlanType =
+            c.plan_type === "ap" ? "ap"
+            : c.plan_type === "pip" || c.plan_type === "pip_extension" ? "pip"
+            : null; // null → no Create button
           return {
             email: c.qa_email,
             name: nameFromEmail(c.qa_email),
-            reason: `Month-end (${c.month}): ${kpiReasons}${whyStr}. Action per DAM: ${verbalPrefix}${recPIP ? "PIP" : "AP"}.`,
-            severity: c.needs_review ? "critical" : recPIP ? "critical" : "warning",
+            reason: `Month-end (${c.month}): ${kpiReasons}. DAM occurrence ${c.occurrence}: ${c.dam_action_label}.`,
+            severity: c.is_hr_investigation || c.occurrence >= 4 ? "critical"
+                      : c.plan_type === "pip" || c.plan_type === "pip_extension" ? "critical"
+                      : "warning",
             totalScore: 0,
             kpis: (c.failing_kpis || []).map(k => ({
               key: k.kpi.toLowerCase(),
@@ -136,12 +149,18 @@ function ActionPlanPage() {
             latestMonth: c.month,
             tl: c.qa_tl,
             damFlagId: null,
-            planType: c.recommended_action,
-            pipActionType: "new",
+            // planType drives the existing Create button. null = hide.
+            planType: buttonPlanType,
+            pipActionType: c.plan_type === "pip_extension" ? "extension" : "new",
             source: "month-end",
             needsReview: c.needs_review,
-            verbalWarningRequired: true,
+            // DAM step context for the row's badge + label.
+            occurrence: c.occurrence,
+            damActionLabel: c.dam_action_label,
+            deductionDays: c.deduction_days || 0,
+            isHrInvestigation: !!c.is_hr_investigation,
             domain: c.domain,
+            verbalWarningRequired: c.occurrence === 1, // verbal step is occ-1 only per DAM
           };
         });
 
