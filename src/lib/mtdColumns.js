@@ -25,7 +25,7 @@ export const DEFAULT_MTD_COLS = [
 export const COL_LABELS = {
   sbs: "SBS", non_sbs: "Non-SBS", dsat: "DSAT", late_count: "Late count", never_count: "Never count",
   valid_count: "Valid count", invalid_count: "Invalid count", side_tasks_duration_mins: "Side tasks (mins)",
-  coaching_sessions: "Coaching sessions", total_coachings_by_coaching_created_date: "Total coachings (by coaching date)",
+  coaching_sessions: "Coachings", total_coachings_by_coaching_created_date: "Total coachings (by coaching date)",
   total_coachings_by_eval_created_date: "Total coachings (by eval date)", total_ontime_coachings: "On-time coachings",
   coaching_eligibility_count: "Coaching eligibility", not_coached: "Not coached", rtr_count: "RTR count",
   avg_rtr_score: "RTR score", observed_coaching_count: "Observed coaching count",

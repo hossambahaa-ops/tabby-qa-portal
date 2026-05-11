@@ -68,7 +68,7 @@ export default function CoachingTimeline({ sessions = [], mtd = [] }) {
   return (
     <div className="card" style={{ marginBottom: 16 }}>
       <div className="card-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span className="card-title">Coaching timeline · {sessions.length} session{sessions.length === 1 ? "" : "s"}{observed > 0 ? ` · ${observed} observed` : ""}</span>
+        <span className="card-title">Coaching timeline · {sessions.length} coaching{sessions.length === 1 ? "" : "s"}{observed > 0 ? ` · ${observed} observed` : ""}</span>
         <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "var(--tx2)", cursor: "pointer", fontWeight: 500 }}>
           <input type="checkbox" checked={showEff} onChange={e => setShowEff(e.target.checked)} />
           Show effectiveness

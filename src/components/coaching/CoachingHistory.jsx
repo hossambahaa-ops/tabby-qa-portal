@@ -186,10 +186,10 @@ export default function CoachingHistory({ sessions, onDelete }) {
         <input className="form-input" placeholder="Search by QA name, QA Lead, or email..." value={historySearch} onChange={e=>setHistorySearch(e.target.value)} style={{paddingLeft:34,height:36,fontSize:13}}/>
       </div>
       {hasRole(profile?.role,"qa_supervisor")&&<div style={{display:"flex",gap:4}}>
-        <button className={`btn btn-sm ${historyFilterBy==="all"?"btn-primary":"btn-outline"}`} onClick={()=>setHistoryFilterBy("all")} style={{fontSize:11}}>All sessions</button>
-        <button className={`btn btn-sm ${historyFilterBy==="my_sessions"?"btn-primary":"btn-outline"}`} onClick={()=>setHistoryFilterBy("my_sessions")} style={{fontSize:11}}>My sessions</button>
+        <button className={`btn btn-sm ${historyFilterBy==="all"?"btn-primary":"btn-outline"}`} onClick={()=>setHistoryFilterBy("all")} style={{fontSize:11}}>All coachings</button>
+        <button className={`btn btn-sm ${historyFilterBy==="my_sessions"?"btn-primary":"btn-outline"}`} onClick={()=>setHistoryFilterBy("my_sessions")} style={{fontSize:11}}>My coachings</button>
       </div>}
-      <div style={{fontSize:12,color:"var(--tx3)"}}>{filtered.length} session{filtered.length!==1?"s":""}</div>
+      <div style={{fontSize:12,color:"var(--tx3)"}}>{filtered.length} coaching{filtered.length!==1?"s":""}</div>
     </div>
 
     {/* Structured filters: date range, meeting type, performance rating.
@@ -229,13 +229,13 @@ export default function CoachingHistory({ sessions, onDelete }) {
     {filtered.length === 0 ? (historySearch
       ? <EmptyState
           title="No matches"
-          description={`No sessions match "${historySearch}". Try a different keyword or clear the search.`}
+          description={`No coachings match "${historySearch}". Try a different keyword or clear the search.`}
           icon="M21 21l-4.35-4.35M16 11a5 5 0 11-10 0 5 5 0 0110 0z"
           cta={{ label: "Clear search", onClick: () => setHistorySearch("") }}
         />
       : <EmptyState
-          title="No coaching sessions yet"
-          description={hasRole(profile?.role, "qa_lead") ? "Log your first session to start tracking your team's growth." : "Your lead hasn't logged any sessions yet."}
+          title="No coachings yet"
+          description={hasRole(profile?.role, "qa_lead") ? "Log your first coaching to start tracking your team's growth." : "Your lead hasn't logged any coachings yet."}
           icon="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
           cta={hasRole(profile?.role, "qa_lead") ? { label: "Switch to Schedule tab →", onClick: () => window.dispatchEvent(new CustomEvent("qc-tab", { detail: "schedule" })) } : undefined}
         />
@@ -278,7 +278,7 @@ export default function CoachingHistory({ sessions, onDelete }) {
             {hasRole(profile?.role,"super_admin")&&<td>
               <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async(e)=>{
                 e.stopPropagation();
-                confirmAsk("Delete coaching session?","This will permanently delete this session log.",async()=>{
+                confirmAsk("Delete coaching?","This will permanently delete this coaching log.",async()=>{
                 const snapshot = {...s};
                 try{
                   await sb.query("coaching_sessions",{token,method:"DELETE",filters:`id=eq.${s.id}`});

@@ -647,7 +647,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
           {/* Previous sessions for this member */}
           {toEmail && memberHistory.length > 0 && <div style={{marginTop:16,padding:"12px 14px",background:"var(--bg)",borderRadius:8}}>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:8}}>
-              <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)"}}>Previous sessions ({memberHistory.length})</div>
+              <div style={{fontSize:12,fontWeight:600,color:"var(--tx2)"}}>Previous coachings ({memberHistory.length})</div>
               {/* Duplicate-from-last — copies the most recent session's
                   meeting type + content fields into the current draft so
                   the lead doesn't restart from a blank page every time.
@@ -882,7 +882,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
 
             <div style={{marginTop:20,paddingTop:16,borderTop:"1px solid var(--bd2)"}}>
               <button className="btn btn-primary" onClick={generateAndSend} disabled={loading || gmailChecking} style={{width:"100%",justifyContent:"center",padding:"12px"}}>
-                {loading ? "Sending via Gmail..." : gmailChecking ? "Checking Gmail..." : !gmailAuthorized ? <><Icon d={icons.coaching} size={16}/>Connect Gmail & send</> : <><Icon d={icons.coaching} size={16}/>Send email & log session</>}
+                {loading ? "Sending via Gmail..." : gmailChecking ? "Checking Gmail..." : !gmailAuthorized ? <><Icon d={icons.coaching} size={16}/>Connect Gmail & send</> : <><Icon d={icons.coaching} size={16}/>Send email & log coaching</>}
               </button>
               <div style={{display:"flex",gap:8,marginTop:8}}>
                 <button className="btn btn-outline btn-sm" style={{flex:1}} onClick={()=>{
