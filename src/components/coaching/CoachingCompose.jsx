@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import DOMPurify from "dompurify";
 import { sb, SUPABASE_URL, SUPABASE_ANON } from "../../lib/supabase.js";
-import { safeError, logActivity } from "../../lib/utils.js";
+import { safeError, logActivity, nameFromEmail } from "../../lib/utils.js";
 import { listPlans } from "../../api/plans.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
@@ -224,13 +224,6 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
 
   const isTargetType = TARGET_TYPES.includes(meetingType);
 
-  const nameFromEmail = (email) => {
-    if (!email) return "—";
-    return email.split("@")[0].split(".").map(p => {
-      const clean = p.replace(/[\d]+$/, "");
-      return clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : "";
-    }).filter(Boolean).join(" ");
-  };
 
   // Date formatter is shared with the email builder.
   const fmtDate = fmtCoachingDate;
@@ -611,7 +604,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
                         <span style={{fontWeight:500,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{r.email}</span>
                         <span style={{color:cad.color,fontSize:10,fontWeight:600,marginTop:2}}>{cad.label}</span>
                       </span>
-                      <span style={{color:"var(--tx3)",fontSize:11,whiteSpace:"nowrap"}}>{r.display_name || nameFromEmail(r.email)}</span>
+                      <span style={{color:"var(--tx3)",fontSize:11,whiteSpace:"nowrap"}}>{nameFromEmail(r.email)}</span>
                     </div>;
                   })}
                 </div>;

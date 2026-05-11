@@ -40,13 +40,6 @@ function CoachingViolationsPage() {
   const [sendingDigest, setSendingDigest] = useState(false);
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
-  const nameFromEmail = (email) => {
-    if (!email) return "—";
-    return email.split("@")[0].split(".").map(p => {
-      const c = p.replace(/[\d]+$/, "");
-      return c ? c.charAt(0).toUpperCase() + c.slice(1) : "";
-    }).filter(Boolean).join(" ");
-  };
 
   // Delete a single violation (admin / super_admin only — gated by DB
   // policy cv_delete + the UI button visibility below). Wrapped in the

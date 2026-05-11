@@ -52,7 +52,7 @@ export default function APCreateForm({
               return <div style={{ position: "absolute", top: "100%", left: 0, right: 0, zIndex: 10, background: "var(--bg3)", border: "1px solid var(--bd)", borderRadius: "0 0 var(--radius) var(--radius)", boxShadow: "var(--shadow-lg)", maxHeight: 200, overflowY: "auto" }}>
                 {matches.map(r => <div key={r.email} onClick={() => handleQaEmailChange(r.email)} style={{ padding: "8px 12px", fontSize: 13, cursor: "pointer", borderBottom: "1px solid var(--bd2)", display: "flex", justifyContent: "space-between", alignItems: "center" }} onMouseEnter={e => e.currentTarget.style.background = "var(--bg)"} onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
                   <span style={{ fontWeight: 500 }}>{r.email}</span>
-                  <span style={{ color: "var(--tx3)", fontSize: 11 }}>{r.display_name || nameFromEmail(r.email)}</span>
+                  <span style={{ color: "var(--tx3)", fontSize: 11 }}>{nameFromEmail(r.email)}</span>
                 </div>)}
               </div>;
             })()}

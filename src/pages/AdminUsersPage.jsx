@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { hasRole, ROLE_LABELS, ROLE_LEVEL } from "../lib/constants.js";
 import { sb, SUPABASE_URL, dataCache } from "../lib/supabase.js";
 import { callEdgeFunction } from "../lib/edgeSync.js";
-import { safeError, logActivity } from "../lib/utils.js";
+import { safeError, logActivity, nameFromEmail } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
@@ -33,7 +33,7 @@ function AdminUsersPage({teams}){
   const isSuperAdmin=hasRole(profile?.role,"super_admin");
 
   const deleteUser=async(u)=>{
-    confirmAsk("Delete user?",`Permanently delete ${u.display_name||u.email}? This removes their profile, auth account, tokens, team memberships, sessions, and DAM flags. This cannot be undone.`,async()=>{
+    confirmAsk("Delete user?",`Permanently delete ${nameFromEmail(u.email)}? This removes their profile, auth account, tokens, team memberships, sessions, and DAM flags. This cannot be undone.`,async()=>{
       setDeletingId(u.id);
       try{
         // callEdgeFunction auto-refreshes the JWT via sb.auth.getSession()
@@ -46,7 +46,7 @@ function AdminUsersPage({teams}){
         if (!r.ok) { globalToast("error", r.error || "Failed to delete user"); setDeletingId(null); return; }
         setUsers(prev=>prev.filter(x=>x.id!==u.id));
         setSelected(prev=>{const n=new Set(prev);n.delete(u.id);return n;});
-        globalToast("success",`${u.display_name||u.email} deleted`);
+        globalToast("success",`${nameFromEmail(u.email)} deleted`);
         logActivity(token,profile?.email,"user_deleted","profiles",u.id,`Deleted: ${u.email}`);
       }catch(e){globalToast("error",safeError(e));}
       setDeletingId(null);
@@ -171,7 +171,7 @@ function AdminUsersPage({teams}){
         <td style={{width:32,padding:"8px 4px 8px 12px"}}>
           <input type="checkbox" checked={isSelected} onChange={()=>toggleSelect(u.id)} style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}}/>
         </td>
-        <td style={{fontWeight:500}}>{u.display_name||"—"}</td>
+        <td style={{fontWeight:500}}>{nameFromEmail(u.email)}</td>
         <td style={{color:"var(--tx2)",fontSize:13}}>{u.email}</td>
         <td>{isEditing?<SearchableSelect options={Object.entries(ROLE_LABELS).map(([k,v])=>({value:k,label:v}))} value={editRole} onChange={setEditRole} placeholder="Select role"/>:<span className={`role-badge role-${u.role}`}>{ROLE_LABELS[u.role]}</span>}</td>
         <td><span className={`domain-badge domain-${u.domain==="tabby.ai"?"ai":"sa"}`}>{u.domain}</span></td>

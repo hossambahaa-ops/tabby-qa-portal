@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
-import { nameFromEmail } from "../lib/utils.js";
+import { nameFromEmail, initialsFromEmail } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -191,14 +191,6 @@ function LeaderboardPage() {
   // Leaderboard's selTeam + name-search input cover the same ground.
   // Rank by calculated total score
   const ranked = [...filtered].sort((a, b) => getTotalScore(b) - getTotalScore(a));
-
-  // nameFromEmail is imported from lib/utils. The local re-implementation
-  // that lived here was deleted 2026-05-08 — identical behaviour.
-  const initialsFromEmail = (email) => {
-    const name = nameFromEmail(email);
-    const parts = name.split(" ");
-    return ((parts[0]?.[0] || "") + (parts[parts.length - 1]?.[0] || "")).toUpperCase();
-  };
 
   const teamData = (() => {
     const tlMap = {};

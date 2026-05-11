@@ -91,14 +91,6 @@ function EscalationsPage() {
   const myEmail = profile?.email?.toLowerCase();
   const myRole = profile?.role || "qa";
 
-  const nameFromEmail = (email) => {
-    if (!email) return "—";
-    return email.split("@")[0].split(".").map(p => {
-      const c = p.replace(/[\d]+$/, "");
-      return c ? c.charAt(0).toUpperCase() + c.slice(1) : "";
-    }).filter(Boolean).join(" ");
-  };
-
   const getRouting = () => smartRoute(aboutPerson, roster, supervisors, allProfiles);
 
   const load = useCallback(async () => {

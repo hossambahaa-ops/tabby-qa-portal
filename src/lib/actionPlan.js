@@ -110,7 +110,7 @@ export const computeDetections = ({ mtdRows, existingPlans, dismissalRows, damFl
 
     flagged.push({
       email: flag.profiles?.email || flag.qa_email || email,
-      name: flag.profiles?.display_name || nameFromEmail(email),
+      name: nameFromEmail(flag.profiles?.email || email),
       reason: `DAM: ${ruleName} (${behaviorType}) — Occurrence #${flag.occurrence_number}: ${pipAction}`,
       severity: flag.occurrence_number >= 3 ? "critical" : flag.occurrence_number >= 2 ? "warning" : "notice",
       totalScore, kpis, latestMonth,

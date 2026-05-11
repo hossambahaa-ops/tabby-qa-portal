@@ -6,6 +6,7 @@ import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc } from "./lib/cons
 import { sb, SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { fetchUnreadReleases, ackRelease } from "./lib/featureReleases.js";
 import { avatarStyle, initialsFromEmail as initialsForAvatar } from "./lib/avatar.js";
+import { nameFromEmail } from "./lib/utils.js";
 import { startVersionCheck } from "./lib/versionCheck.js";
 import { startHeartbeat } from "./lib/heartbeat.js";
 import { initErrorLog } from "./lib/errorLog.js";
@@ -421,7 +422,7 @@ function AppInner(){
       <TabbyPulseWordmark height={38} uid="tpw-desktop-only" style={{color:"#fff",marginBottom:20}}/>
       <h2 style={{color:"#fff",fontSize:20,fontWeight:700,letterSpacing:"-.3px",marginBottom:8,lineHeight:1.3}}>Desktop Only</h2>
       <p style={{color:"rgba(255,255,255,.48)",fontSize:14,lineHeight:1.65,maxWidth:270,marginBottom:28}}>Tabby Pulse is optimised for desktop use. Please open it on your laptop or PC.</p>
-      <p style={{color:"rgba(255,255,255,.3)",fontSize:12,marginBottom:20}}>Signed in as&nbsp;<strong style={{color:"rgba(255,255,255,.55)"}}>{profile?.display_name||profile?.email}</strong></p>
+      <p style={{color:"rgba(255,255,255,.3)",fontSize:12,marginBottom:20}}>Signed in as&nbsp;<strong style={{color:"rgba(255,255,255,.55)"}}>{nameFromEmail(profile?.email)}</strong></p>
       <button onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{padding:"10px 28px",borderRadius:12,border:"1px solid rgba(255,255,255,.14)",background:"rgba(255,255,255,.07)",color:"rgba(255,255,255,.65)",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"var(--font)",touchAction:"manipulation",WebkitTapHighlightColor:"transparent"}}>Sign out</button>
     </div>
   );
@@ -477,7 +478,7 @@ function AppInner(){
               : <span style={{...avatarStyle(profile?.email),display:"inline-flex",alignItems:"center",justifyContent:"center",width:"100%",height:"100%",borderRadius:"50%",fontSize:13,fontWeight:700}}>{initialsForAvatar(profile?.email)||"U"}</span>}
           </div>
           <div className="sidebar-mobile-user-info">
-            <div className="sidebar-mobile-user-name">{safe(profile?.display_name)||"User"}</div>
+            <div className="sidebar-mobile-user-name">{nameFromEmail(profile?.email)||"User"}</div>
             <div className="sidebar-mobile-user-meta">
               <span className={`role-badge role-${viewAsRole||profile?.role}`}>{safe(ROLE_LABELS[viewAsRole||profile?.role])||"QA"}</span>
               <span className="sidebar-mobile-user-domain">{safe(profile?.domain)}</span>
@@ -575,7 +576,7 @@ function AppInner(){
             e.target.value="";
           }}/>
           <div style={{display:"flex",flexDirection:"column",lineHeight:1.2}}>
-            <span style={{fontSize:13,fontWeight:600,color:"var(--tx)",letterSpacing:"-.2px"}}>{safe(profile?.display_name)||"User"}</span>
+            <span style={{fontSize:13,fontWeight:600,color:"var(--tx)",letterSpacing:"-.2px"}}>{nameFromEmail(profile?.email)||"User"}</span>
             <span className={`role-badge role-${viewAsRole||profile?.role}`} style={{fontSize:9,padding:"1px 6px",alignSelf:"flex-start"}}>{safe(ROLE_LABELS[viewAsRole||profile?.role])||"QA"}{viewAsRole?" (viewing)":""}</span>
           </div>
         </div>
@@ -644,7 +645,7 @@ function AppInner(){
             <span style={{fontSize:16,fontWeight:700}}>Announcement</span>
             {pendingAnnouncements.length>1&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:10,background:"rgba(255,255,255,.15)",fontWeight:600}}>{pendingAnnouncements.length} messages</span>}
           </div>
-          <div style={{fontSize:12,color:"rgba(255,255,255,.6)"}}>From: {safe(pendingAnnouncements[0].sent_by).split("@")[0].split(".").map(p=>p.charAt(0).toUpperCase()+p.slice(1)).join(" ")} · {new Date(pendingAnnouncements[0].created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.6)"}}>From: {nameFromEmail(pendingAnnouncements[0].sent_by)} · {new Date(pendingAnnouncements[0].created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
         </div>
         {/* Body */}
         <div style={{padding:"24px"}}>

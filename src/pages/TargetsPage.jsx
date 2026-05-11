@@ -55,11 +55,6 @@ function TargetsPage() {
   const isAdmin = hasRole(profile?.role, "admin");
   const myEmail = profile?.email?.toLowerCase() || "";
 
-  const nameFromEmail = (email) => {
-    if (!email) return "—";
-    return email.split("@")[0].split(".").map(p => { const c = p.replace(/[\d]+$/, ""); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ""; }).filter(Boolean).join(" ");
-  };
-
   const load = useCallback(async () => {
     try {
       const [t, tm, r, pr] = await Promise.all([

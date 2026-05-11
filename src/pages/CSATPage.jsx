@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb } from "../lib/supabase.js";
-import { csatPctValue, csatColor, normalizeTopic } from "../lib/utils.js";
+import { csatPctValue, csatColor, normalizeTopic, nameFromEmail } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -18,15 +18,6 @@ import { useUrlState } from "../lib/useUrlState.jsx";
 // context menu, etc.).
 const goToProfile = (qaEmail) => {
   window.location.hash = `#/profile?qa=${encodeURIComponent(qaEmail)}`;
-};
-
-const nameFromEmail = (email) => {
-  if (!email) return "—";
-  const local = email.split("@")[0];
-  return local.split(".").map(p => {
-    const c = p.replace(/[\d]+$/, "");
-    return c ? c.charAt(0).toUpperCase() + c.slice(1) : "";
-  }).filter(Boolean).join(" ");
 };
 
 export default function CSATPage() {

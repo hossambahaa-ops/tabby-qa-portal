@@ -119,12 +119,6 @@ function QAProfilePage() {
     if (!loading && isQA && myEmail && !selectedQA) setSelectedQA(myEmail);
   }, [loading, isQA, myEmail, selectedQA, setSelectedQA]);
 
-  const nameFromEmail = (email) => {
-    if (!email) return "—";
-    const local = email.split("@")[0];
-    return local.split(".").map(p => { const c = p.replace(/[\d]+$/, ""); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ""; }).filter(Boolean).join(" ");
-  };
-
   // Scope: QAs see only themselves, leads see their team, supervisors+ see all
   const visibleQAs = (() => {
     if (isQA) return allQAs.filter(r => r.email?.toLowerCase() === myEmail);

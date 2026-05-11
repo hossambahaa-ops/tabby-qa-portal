@@ -1,14 +1,6 @@
 import React from "react";
 import EmptyState from "../EmptyState.jsx";
-
-const nameFromEmail = (email) => {
-  if (!email) return "—";
-  const local = email.split("@")[0];
-  return local.split(".").map(p => {
-    const c = p.replace(/[\d]+$/, "");
-    return c ? c.charAt(0).toUpperCase() + c.slice(1) : "";
-  }).filter(Boolean).join(" ");
-};
+import { nameFromEmail } from "../../lib/utils.js";
 
 // Short topic label: split on " - " ("Category - Subcategory") and show
 // the subcategory if present so the rotated header stays legible. Full

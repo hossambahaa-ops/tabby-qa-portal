@@ -6,15 +6,7 @@ import { listProfiles } from "../api/profiles.js";
 import { listPlans, listPlanWeeks } from "../api/plans.js";
 import { getScore } from "./dashboardScore.js";
 import { useAutoRefresh } from "./hooks.jsx";
-
-const nameFromEmailLocal = (email) => {
-  if (!email) return "—";
-  const local = email.split("@")[0];
-  return local.split(".").map(p => {
-    const c = p.replace(/[\d]+$/, "");
-    return c ? c.charAt(0).toUpperCase() + c.slice(1) : "";
-  }).filter(Boolean).join(" ");
-};
+import { nameFromEmail } from "./utils.js";
 
 // Bulk loader for the home dashboard. Pulls MTD (last 6 months), roster,
 // profiles, DAM flags, plans, plan weeks, dismissals, escalation steps,
@@ -198,7 +190,7 @@ export function useDashboardData(token, profile) {
           const pipAction = step.pip_action || step.action || "AP required";
           flagged.push({
             email: flag.profiles?.email || flag.qa_email || email,
-            name: flag.profiles?.display_name || nameFromEmailLocal(email),
+            name: nameFromEmail(flag.profiles?.email || email),
             score,
             reason: `DAM: ${ruleName} — #${flag.occurrence_number}: ${pipAction}`,
             slab0Count: 0,

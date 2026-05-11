@@ -13,6 +13,7 @@ import TrackerTimeline from "../components/tracker/TrackerTimeline.jsx";
 import TrackerDetailPanel from "../components/tracker/TrackerDetailPanel.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import EmptyState from "../components/EmptyState.jsx";
+import { nameFromEmail } from "../lib/utils.js";
 import PlaceholderPage from "./PlaceholderPage.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 
@@ -269,7 +270,7 @@ export default function TrackerPage() {
         </select>
         <div style={{ minWidth: 220 }}>
           <SearchableSelect
-            options={[{ value: "", label: "All assignees" }, ...profiles.map(p => ({ value: p.email.toLowerCase(), label: p.display_name || p.email }))]}
+            options={[{ value: "", label: "All assignees" }, ...profiles.map(p => ({ value: p.email.toLowerCase(), label: nameFromEmail(p.email) }))]}
             value={fAssignee}
             onChange={setFAssignee}
             placeholder="All assignees"

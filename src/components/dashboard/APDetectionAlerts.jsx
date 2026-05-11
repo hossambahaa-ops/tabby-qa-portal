@@ -3,6 +3,7 @@ import { hasRole } from "../../lib/constants.js";
 import { sb } from "../../lib/supabase.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
+import { nameFromEmail } from "../../lib/utils.js";
 import Modal from "../Modal.jsx";
 
 function APDetectionAlerts({ apDetections, setApDetections, apDismissals, setApDismissals, months }){
@@ -13,8 +14,6 @@ function APDetectionAlerts({ apDetections, setApDetections, apDismissals, setApD
 
   const isLead = hasRole(profile?.role,"qa_lead");
   const nav = (page) => window.dispatchEvent(new CustomEvent("navigate",{detail:page}));
-
-  const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
 
   const scoreColor=(v)=>v>=55*0.7?"var(--green)":v>=55*0.4?"var(--amber)":"var(--red)";
 

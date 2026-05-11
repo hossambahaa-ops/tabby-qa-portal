@@ -133,15 +133,6 @@ function ScoreEntryPage(){
     })();
   }, [token, gf?.domain, gf?.month, gf?.teams, reloadKey]);
 
-  const nameFromEmail = (email) => {
-    if (!email) return "—";
-    const local = email.split("@")[0];
-    return local.split(".").map(p => {
-      const clean = p.replace(/[\d]+$/, "");
-      return clean ? clean.charAt(0).toUpperCase() + clean.slice(1) : "";
-    }).filter(Boolean).join(" ");
-  };
-
   // Format percentage values — handles "94.46%", 0.9446, 1.345, "1", etc.
   const fmtPct = (val) => {
     if (val === null || val === undefined || val === "") return "—";

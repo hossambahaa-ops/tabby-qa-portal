@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
 import { hasRole, ROLE_LABELS, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
-import { nameFromEmail, safeError, logActivity, csatPctValue, csatColor, emailsMatchLoose } from "../lib/utils.js";
+import { nameFromEmail, initialsFromEmail, safeError, logActivity, csatPctValue, csatColor, emailsMatchLoose } from "../lib/utils.js";
 import { parseRawD, KPI_SLABS_D, calcSlabD, getScore, MAX_SCORE, scoreColor, scoreBg } from "../lib/dashboardScore.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { useDashboardData } from "../lib/useDashboardData.jsx";
@@ -55,7 +55,6 @@ function DashboardPage(){
   const canAnnounce=hasRole(profile?.role,"senior_qa");
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
-  const nameFromEmailLocal=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
   const fmt=(val)=>{if(val===null||val===undefined||val==="")return"—";const s=String(val).trim();if(s.includes("%"))return s;const n=parseFloat(s.replace(",","."));if(isNaN(n))return s;if(n>=0&&n<=2)return(n*100).toFixed(1)+"%";if(n>2&&!Number.isInteger(n))return n.toFixed(1)+"%";return String(val);};
 
   const maxScore = MAX_SCORE;
@@ -178,10 +177,10 @@ function DashboardPage(){
         <div style={{display:"flex",gap:14,alignItems:"center"}}>
           <div style={{width:48,height:48,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:"2px solid rgba(255,255,255,.2)"}}>
             {profile?.avatar_url ? <img src={profile.avatar_url} alt="" style={{width:48,height:48,objectFit:"cover"}}/> :
-            <div style={{width:48,height:48,background:"linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-light))",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700}}>{(profile?.display_name||"U").split(" ").map(p=>p[0]).join("").slice(0,2).toUpperCase()}</div>}
+            <div style={{width:48,height:48,background:"linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-light))",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700}}>{initialsFromEmail(profile?.email)||"U"}</div>}
           </div>
           <div>
-            <h2>Welcome back, {profile?.display_name?.split(" ")[0]||"there"}</h2>
+            <h2>Welcome back, {nameFromEmail(profile?.email).split(" ")[0]||"there"}</h2>
             <p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p>
             <div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div>
           </div>
@@ -481,7 +480,7 @@ function DashboardPage(){
             const stHours = r.side_tasks_duration_mins ? (r.side_tasks_duration_mins / 60).toFixed(1) : "—";
             return (<tr key={r.id}>
             <td style={{fontWeight:500,color:i<3?"var(--amber)":"var(--tx3)"}}>{i+1}</td>
-            <td style={{fontWeight:500}}>{nameFromEmailLocal(r.qa_email)}</td>
+            <td style={{fontWeight:500}}>{nameFromEmail(r.qa_email)}</td>
             <td style={{textAlign:"right"}}><span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:scoreBg(getScore(r)),color:scoreColor(getScore(r))}}>{getScore(r).toFixed(1)} / {maxScore}</span></td>
             <td style={{textAlign:"right"}}>{fmt(r.occupancy_pct)}</td>
             <td style={{textAlign:"right",color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day??0}</td>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
 import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
-import { nameFromEmail as nameFromEmailUtil, safeError, logActivity } from "../lib/utils.js";
+import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
@@ -56,14 +56,6 @@ function TeamManagementPage(){
       filters: "order=ran_at.desc&limit=1",
     }).then(rows => { if (Array.isArray(rows) && rows.length > 0) setLastSync(rows[0]); }).catch(() => {});
   }, [token]);
-
-  const nameFromEmail = (email) => {
-    if (!email) return "—";
-    return email.split("@")[0].split(".").map(p => {
-      const c = p.replace(/[\d]+$/, "");
-      return c ? c.charAt(0).toUpperCase() + c.slice(1) : "";
-    }).filter(Boolean).join(" ");
-  };
 
   const leads = users.filter(u => hasRole(u.role, "qa_lead"));
   const supervisors = users.filter(u => hasRole(u.role, "qa_supervisor"));
@@ -135,9 +127,9 @@ function TeamManagementPage(){
       if (!byLead.has(t.lead_id)) {
         byLead.set(t.lead_id, {
           leadId: t.lead_id,
-          leadName: t.profiles?.display_name || nameFromEmail(t.profiles?.email),
+          leadName: nameFromEmail(t.profiles?.email),
           leadEmail: (t.profiles?.email || "").toLowerCase(),
-          supervisorName: t.sup?.display_name || (t.sup?.email ? nameFromEmail(t.sup.email) : null),
+          supervisorName: t.sup?.email ? nameFromEmail(t.sup.email) : null,
           supervisorEmail: t.sup?.email || null,
           teamsByName: new Map(),
         });
@@ -301,7 +293,7 @@ function TeamManagementPage(){
                             <div style={{ fontSize: 11, color: "var(--tx3)", fontStyle: "italic", padding: "4px 0" }}>No QAs yet on this team.</div>
                           ) : (
                             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 6 }}>
-                              {tg.members.sort((a, b) => (a.display_name || a.email).localeCompare(b.display_name || b.email)).map(m => {
+                              {tg.members.sort((a, b) => nameFromEmail(a.email).localeCompare(nameFromEmail(b.email))).map(m => {
                                 const dom = (m.email || "").endsWith("@tabby.sa") ? "sa" : "ai";
                                 return (
                                   <div key={m.email} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 10px", background: "var(--bg3)", borderRadius: 6, fontSize: 12 }}>
@@ -309,7 +301,7 @@ function TeamManagementPage(){
                                       {nameFromEmail(m.email).split(" ").map(p => p[0]).join("").toUpperCase().slice(0, 2)}
                                     </div>
                                     <div style={{ minWidth: 0, flex: 1 }}>
-                                      <div style={{ fontWeight: 500, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{m.display_name || nameFromEmail(m.email)}</div>
+                                      <div style={{ fontWeight: 500, fontSize: 12, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nameFromEmail(m.email)}</div>
                                       <div style={{ fontSize: 10, color: "var(--tx3)" }}>{m.email}</div>
                                     </div>
                                     <span className={`domain-badge domain-${dom}`} style={{ fontSize: 9 }}>{dom}</span>

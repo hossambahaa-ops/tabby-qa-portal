@@ -5,6 +5,7 @@ import { listProfiles } from "../api/profiles.js";
 import { listViolations } from "../api/violations.js";
 import { listEscalations } from "../api/escalations.js";
 import { useApp } from "../lib/AppContext.jsx";
+import { nameFromEmail } from "../lib/utils.js";
 
 function GlobalSearch({ onNavigate, onClose }) {
   const{token}=useApp();
@@ -26,7 +27,7 @@ function GlobalSearch({ onNavigate, onClose }) {
           listEscalations({ token, select: "id,category,about_person,status", filters: `or=(about_person.ilike.%${q}%,category.ilike.%${q}%)&limit=5` }),
         ]);
         const all = [
-          ...profiles.map(p => ({ id: p.id, type: "profile", label: p.display_name || p.email, sub: `${ROLE_LABELS[p.role]} · ${p.email}`, page: "profile" })),
+          ...profiles.map(p => ({ id: p.id, type: "profile", label: nameFromEmail(p.email), sub: `${ROLE_LABELS[p.role]} · ${p.email}`, page: "profile" })),
           ...violations.map(v => ({ id: v.id, type: "violation", label: v.violation_type, sub: v.qa_emails?.split("\n")[0], page: "quality" })),
           ...damFlags.map(f => ({ id: f.id, type: "dam", label: f.dam_rules?.name || "DAM Flag", sub: f.qa_email, page: "quality" })),
           ...escalations.map(e => ({ id: e.id, type: "escalation", label: e.category, sub: e.about_person || "—", page: "escalations" })),

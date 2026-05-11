@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { hasRole } from "../../lib/constants.js";
 import { sb } from "../../lib/supabase.js";
-import { logActivity } from "../../lib/utils.js";
+import { logActivity, nameFromEmail } from "../../lib/utils.js";
 import SearchableSelect from "../SearchableSelect.jsx";
 import SlideOver from "../SlideOver.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
@@ -12,12 +12,6 @@ function AnnouncementForm({ roster, onClose, open = true }) {
   const { profile, token, globalToast } = useApp();
   const [annForm, setAnnForm] = useState({ title: "", message: "", priority: "normal", target_type: "my_team", target_value: "" });
   const [sending, setSending] = useState(false);
-
-  const nameFromEmail = (email) => {
-    if (!email) return "—";
-    const local = email.split("@")[0];
-    return local.split(".").map(p => { const c = p.replace(/[\d]+$/, ""); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ""; }).filter(Boolean).join(" ");
-  };
 
   const reset = () => setAnnForm({ title: "", message: "", priority: "normal", target_type: "my_team", target_value: "" });
 

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { hasRole, ROLE_LABELS } from "../../lib/constants.js";
 import { sb, dataCache } from "../../lib/supabase.js";
-import { safeError, logActivity } from "../../lib/utils.js";
+import { safeError, logActivity, nameFromEmail } from "../../lib/utils.js";
 import { listTasks } from "../../api/tasks.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
@@ -36,8 +36,6 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
   const myEmail = profile?.email?.toLowerCase();
-
-  const nameFromEmail=(email)=>{if(!email)return"—";const local=email.split("@")[0];return local.split(".").map(p=>{const c=p.replace(/[\d]+$/,"");return c?c.charAt(0).toUpperCase()+c.slice(1):"";}).filter(Boolean).join(" ");};
 
   // Load user tasks. Scope expands for leads/admins so team tasks are visible.
   const loadTasks=useCallback(async()=>{try{
@@ -449,7 +447,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
                   if(!seen.has(leadEm)){
                     seen.add(leadEm);
                     const p=appProfiles.find(x=>x.email?.toLowerCase()===leadEm);
-                    opts.push({value:leadEm,label:`${p?.display_name||nameFromEmail(leadEm)} — QA Lead`});
+                    opts.push({value:leadEm,label:`${nameFromEmail(leadEm)} — QA Lead`});
                   }
                 });
                 roster.forEach(r=>{
@@ -467,7 +465,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
                   if(em===myEm)return;
                   if(isAmanda&&em==="imad.moussa@tabby.ai")return;
                   seen.add(em);
-                  opts.push({value:em,label:`${p.display_name||nameFromEmail(em)} — ${ROLE_LABELS[p.role]||p.role}`});
+                  opts.push({value:em,label:`${nameFromEmail(em)} — ${ROLE_LABELS[p.role]||p.role}`});
                 });
                 roster.forEach(r=>{
                   const em=r.email?.toLowerCase();if(!em||seen.has(em))return;
@@ -696,7 +694,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
                   roster.forEach(r=>{const em=r.email?.toLowerCase();if(!em||seen.has(em))return;const mgr=r.manager_email?.toLowerCase()||"";if(myLeads.has(mgr)||myLeads.has(mgr.split("@")[0])){seen.add(em);opts.push({value:em,label:`${nameFromEmail(em)} — ${r.queue||"QA"}`});}});
                 } else if(hasRole(myRole,"admin")){
                   const isAmanda=myEm==="amanda.souza@tabby.ai";
-                  appProfiles.forEach(p=>{const em=p.email?.toLowerCase();if(!em||seen.has(em)||em===myEm)return;if(isAmanda&&em==="imad.moussa@tabby.ai")return;seen.add(em);opts.push({value:em,label:`${p.display_name||nameFromEmail(em)} — ${ROLE_LABELS[p.role]||p.role}`});});
+                  appProfiles.forEach(p=>{const em=p.email?.toLowerCase();if(!em||seen.has(em)||em===myEm)return;if(isAmanda&&em==="imad.moussa@tabby.ai")return;seen.add(em);opts.push({value:em,label:`${nameFromEmail(em)} — ${ROLE_LABELS[p.role]||p.role}`});});
                   roster.forEach(r=>{const em=r.email?.toLowerCase();if(!em||seen.has(em))return;if(isAmanda&&em==="imad.moussa@tabby.ai")return;seen.add(em);opts.push({value:em,label:`${nameFromEmail(em)} — ${r.queue||"QA"}`});});
                 }
                 return opts.sort((a,b)=>a.label.localeCompare(b.label));

@@ -268,7 +268,7 @@ export default function CoachingCadenceCard() {
   // others, before any conditional early returns, or React throws
   // #310 (rendered different number of hooks).
   const owedRows = useMemo(() => {
-    return [...stats.owed].sort((a, b) => (a.display_name || a.email).localeCompare(b.display_name || b.email));
+    return [...stats.owed].sort((a, b) => nameFromEmail(a.email).localeCompare(nameFromEmail(b.email)));
   }, [stats]);
 
   if (!isLead) return null;
@@ -417,7 +417,7 @@ export default function CoachingCadenceCard() {
                 style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderBottom: "1px solid var(--bd2)", fontSize: 12 }}
               >
                 <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: 500 }}>
-                  {r.display_name || nameFromEmail(r.email)}
+                  {nameFromEmail(r.email)}
                   <span style={{ color: "var(--tx3)", marginLeft: 6, fontSize: 11 }}>{r.email.split("@")[0]}</span>
                 </span>
                 <span style={{ fontSize: 10, padding: "1px 7px", borderRadius: 999, background: cadenceBg, color: cadenceTone, fontWeight: 700 }}>{periods.cadenceType}</span>

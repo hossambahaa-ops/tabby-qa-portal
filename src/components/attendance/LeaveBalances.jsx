@@ -1,12 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { SUPABASE_URL, SUPABASE_ANON } from "../../lib/supabase.js";
 import { hasRole } from "../../lib/constants.js";
-
-const nameFromEmail = (email) => {
-  if (!email) return "—";
-  const local = email.split("@")[0];
-  return local.split(".").map(p => { const c = p.replace(/[\d]+$/, ""); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ""; }).filter(Boolean).join(" ");
-};
+import { nameFromEmail } from "../../lib/utils.js";
 
 function BalanceBar({ used, total, color }) {
   const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;

@@ -1,11 +1,6 @@
 import React, { useState } from "react";
 import { ATT_MAP } from "../../lib/attendance.js";
-
-const nameFromEmail = (email) => {
-  if (!email) return "—";
-  const local = email.split("@")[0];
-  return local.split(".").map(p => { const c = p.replace(/[\d]+$/, ""); return c ? c.charAt(0).toUpperCase() + c.slice(1) : ""; }).filter(Boolean).join(" ");
-};
+import { nameFromEmail } from "../../lib/utils.js";
 
 const fmtDate = (dateStr) => {
   if (!dateStr) return "—";
