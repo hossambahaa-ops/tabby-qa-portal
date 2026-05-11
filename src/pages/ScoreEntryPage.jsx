@@ -57,9 +57,20 @@ function ScoreEntryPage(){
   // layout the user asked for — single "Evaluations" / "Coachings"
   // columns that fan out on click. Persisted to localStorage so the
   // user's preferred expanded state survives a refresh.
+  //
+  // Defensive init: a missing key OR a parsed object that lacks one of
+  // the two flags both fall back to "collapsed" for that flag — so an
+  // empty {} or a partial { evals: false } from a prior build can't
+  // leave both groups silently expanded.
   const [groupsCollapsed, setGroupsCollapsed] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("mtd_groups_collapsed")) || { evals: true, coachings: true }; }
-    catch { return { evals: true, coachings: true }; }
+    try {
+      const parsed = JSON.parse(localStorage.getItem("mtd_groups_collapsed"));
+      const obj = (parsed && typeof parsed === "object") ? parsed : {};
+      return {
+        evals: typeof obj.evals === "boolean" ? obj.evals : true,
+        coachings: typeof obj.coachings === "boolean" ? obj.coachings : true,
+      };
+    } catch { return { evals: true, coachings: true }; }
   });
   useEffect(() => { localStorage.setItem("mtd_groups_collapsed", JSON.stringify(groupsCollapsed)); }, [groupsCollapsed]);
   // Density + column visibility — saved per-user in localStorage so the
