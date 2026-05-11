@@ -80,13 +80,24 @@ export default function APDetectionTab({
               {d.existingPlan && (
                 <div style={{ marginTop: 10, padding: "8px 10px", background: "var(--amber-bg)", borderRadius: 6, fontSize: 12, color: "var(--amber)", border: "1px solid var(--amber)", fontWeight: 500, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   📌
-                  <span style={{ color: "var(--tx)" }}>
+                  <span style={{ color: "var(--tx)", flex: 1, minWidth: 0 }}>
                     Already on an active <strong>{(d.existingPlan.type || "AP").toUpperCase()}</strong>
                     {d.existingPlan.end_date && (
                       <> · ends <strong>{new Date(d.existingPlan.end_date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</strong></>
                     )}
+                    {/* Partial-overlap context — which KPIs the plan
+                        already covers vs which are new this month. */}
+                    {(d.existingPlan.coveredKpiNames?.length > 0 || d.existingPlan.newKpiNames?.length > 0) && (
+                      <div style={{ marginTop: 4, fontSize: 11, color: "var(--tx2)", fontWeight: 400 }}>
+                        {d.existingPlan.coveredKpiNames?.length > 0 && (
+                          <span>Covered by plan: <strong style={{ color: "var(--tx)" }}>{d.existingPlan.coveredKpiNames.join(", ")}</strong>. </span>
+                        )}
+                        {d.existingPlan.newKpiNames?.length > 0 && (
+                          <span>Not covered: <strong style={{ color: "var(--red)" }}>{d.existingPlan.newKpiNames.join(", ")}</strong> — needs a new intervention.</span>
+                        )}
+                      </div>
+                    )}
                   </span>
-                  <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--tx3)" }}>Consider extending instead of opening a new plan.</span>
                 </div>
               )}
               {/* Per-DAM action label — exact string from the

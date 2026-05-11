@@ -104,10 +104,30 @@ function ActionPlanPage() {
       const priorD = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
       const priorMonthLabel = `${MON[priorD.getMonth()]}-${priorD.getFullYear()}`;
+      // Map of qa_email → active plan + the short-code KPI set it
+      // already targets. Used both for the nudge badge AND for
+      // suppressing rows where the candidate's failing KPIs are
+      // already fully covered by the active plan (no point flagging
+      // someone again for the same metric their AP/PIP is working on).
+      const normKpi = (s) => {
+        const x = String(s || "").toLowerCase();
+        if (x.startsWith("cal") || x.includes("calibration")) return "cal";
+        if (x === "rtr" || x.startsWith("rtr") || x.includes("rtr")) return "rtr";
+        if (x.startsWith("occ") || x.includes("occupancy")) return "occ";
+        return null;
+      };
       const activePlanByEmail = new Map();
       for (const p of planRows) {
         if (p.status === "active" || p.status === "pending_review") {
-          activePlanByEmail.set((p.qa_email || "").toLowerCase(), p);
+          let targetsObj = p.targets;
+          if (typeof targetsObj === "string") {
+            try { targetsObj = JSON.parse(targetsObj); } catch { targetsObj = null; }
+          }
+          const metrics = Array.isArray(targetsObj?.metrics) ? targetsObj.metrics : [];
+          const coveredKpis = new Set(
+            metrics.map(m => normKpi(m.kpi_key) || normKpi(m.raw_key) || normKpi(m.label)).filter(Boolean)
+          );
+          activePlanByEmail.set((p.qa_email || "").toLowerCase(), { plan: p, coveredKpis });
         }
       }
       const candDismissed = new Set(
@@ -119,12 +139,41 @@ function ActionPlanPage() {
         .filter(c => !candDismissed.has(`${(c.qa_email || "").toLowerCase()}|${c.month}`))
         // Don't duplicate a QA who's already in the DAM-flag list
         .filter(c => !damDetectedEmails.has((c.qa_email || "").toLowerCase()))
+        // Suppress rows where the QA's active AP/PIP already covers
+        // ALL the KPIs that triggered this candidate — that's a
+        // genuine duplicate and would only add noise. Partially-
+        // overlapping cases stay (the lead still needs to act on the
+        // KPIs the plan doesn't address).
+        .filter(c => {
+          const existing = activePlanByEmail.get((c.qa_email || "").toLowerCase());
+          if (!existing) return true;
+          const failingShort = new Set(
+            (c.failing_kpis || []).map(k => normKpi(k.kpi)).filter(Boolean)
+          );
+          if (failingShort.size === 0) return true;
+          // Any failing KPI NOT covered by the plan → keep the row.
+          for (const k of failingShort) if (!existing.coveredKpis.has(k)) return true;
+          // Otherwise (fully covered) → suppress.
+          return false;
+        })
         .map(c => {
           const kpiReasons = (c.failing_kpis || [])
             .map(k => `${k.kpi} ${Number(k.value).toFixed(1)}${k.unit} (target ${k.target}${k.unit})`)
             .join(", ");
           // Nudge if this QA already has an active AP/PIP in flight.
-          const existing = activePlanByEmail.get((c.qa_email || "").toLowerCase()) || null;
+          // Rows where the plan FULLY covers the failing KPIs are
+          // already suppressed above, so anything reaching here is a
+          // partial-overlap case — the badge will say which KPIs are
+          // new vs already-covered.
+          const existingMeta = activePlanByEmail.get((c.qa_email || "").toLowerCase()) || null;
+          const existing = existingMeta?.plan || null;
+          const planCovered = existingMeta?.coveredKpis || new Set();
+          const newFailingKpiNames = (c.failing_kpis || [])
+            .filter(k => !planCovered.has(normKpi(k.kpi)))
+            .map(k => k.kpi);
+          const coveredFailingKpiNames = (c.failing_kpis || [])
+            .filter(k => planCovered.has(normKpi(k.kpi)))
+            .map(k => k.kpi);
           // plan_type values from the view:
           //   'pip'           → EGY occurrence 1 (NEW PIP)
           //   'pip_extension' → EGY occurrence 2 or 3 (extension of an
@@ -178,6 +227,8 @@ function ActionPlanPage() {
               type: existing.type,
               status: existing.status,
               end_date: existing.end_date,
+              coveredKpiNames: coveredFailingKpiNames,
+              newKpiNames: newFailingKpiNames,
             } : null,
           };
         });
