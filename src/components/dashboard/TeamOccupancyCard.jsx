@@ -7,11 +7,22 @@ import { listTeamTargets } from "../../api/teamTargets.js";
 import { loadTeamForViewer } from "../../lib/teamScope.js";
 
 // Compact "Team occupancy" view for QA Lead+. Shows each direct
-// report's most-recent occupancy and what it would become if their
-// pending side-task minutes get approved.
+// report's RECENT occupancy (7-day average, EXCLUDING today's partial
+// day) and what it would become if their pending side-task minutes
+// get approved.
 //
-// Same projection formula EvalHistory uses on the per-QA Daily card:
-//   projected = current + (pending_side_minutes / shift_minutes × 100)
+// Why exclude today: productivity_history rows for today are partial
+// — a QA who's only logged the first 2 hours of their day shows up
+// at ~25% occupancy and drags the team headline number into the
+// floor. Averaging over the prior 7 days gives an "honest recent
+// average" without the today's-not-done-yet noise.
+//
+// Projection formula (unchanged):
+//   projected = avg_current + (pending_side_minutes / shift_minutes × 100)
+//
+// pending_side_minutes is a SNAPSHOT, not an accumulation — each
+// day's row stores the total currently pending at that day's end.
+// We take the most recent row's pending (excl today) as the source.
 //
 // Shift minutes default to 8 h × 60 = 480, but team_targets'
 // daily_working_hours overrides per QA / queue / domain (the same
@@ -24,13 +35,21 @@ import { loadTeamForViewer } from "../../lib/teamScope.js";
 //     lead's QA list. Behind-leads sort to the top (lowest projected
 //     first) so the supervisor's eye lands on what's hurting.
 //
-// Every QA name is clickable → navigates straight to QA Profile.
+// Every QA email is clickable → navigates straight to QA Profile.
 //
 // Renders nothing for non-leads or when the team has no recent
 // productivity_history rows.
 
 const DEFAULT_SHIFT_MIN = 480;
 const LOOKBACK_DAYS = 7;
+
+// Riyadh-local YYYY-MM-DD for "today" — the date we EXCLUDE from
+// the 7-day average since it's a partial day in progress.
+function todayRiyadhIso() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());
+}
 
 const occColor = (pct) => {
   if (pct >= 90) return "var(--green)";
@@ -81,8 +100,12 @@ export default function TeamOccupancyCard() {
         if (team.length === 0) { if (!cancelled) setLoading(false); return; }
         const teamEmails = team.map(r => r.email.toLowerCase());
 
-        // 2. Latest productivity_history row per QA in the last 7 days
-        //    (one round trip; reduce client-side).
+        // 2. Pull productivity_history rows for the last 7 days, then
+        //    DROP today's row client-side. Server filter would need a
+        //    timezone-aware "< Riyadh today" expression which PostgREST
+        //    doesn't accept cleanly — easier to over-fetch by one day
+        //    and discard the today row in JS.
+        const todayIso = todayRiyadhIso();
         const fromDate = new Date();
         fromDate.setDate(fromDate.getDate() - LOOKBACK_DAYS);
         const isoFrom = fromDate.toISOString().split("T")[0];
@@ -92,10 +115,16 @@ export default function TeamOccupancyCard() {
           select: "qa_email,date,occupancy_pct,pending_side_minutes,side_task_minutes",
           filters: `qa_email=in.(${inList})&date=gte.${isoFrom}&order=date.desc`,
         }).catch(() => []);
-        const latestPerQa = new Map();
+        // Group rows by QA, excluding today's date. For each QA we
+        // collect every prior-day row in window so we can compute the
+        // 7-day average occupancy. pending is a snapshot column, so
+        // we keep the most-recent prior-day row's pending value.
+        const perQa = new Map();
         for (const r of (Array.isArray(phRows) ? phRows : [])) {
+          if (r.date >= todayIso) continue; // skip today's partial row
           const k = (r.qa_email || "").toLowerCase();
-          if (!latestPerQa.has(k)) latestPerQa.set(k, r);
+          if (!perQa.has(k)) perQa.set(k, []);
+          perQa.get(k).push(r);
         }
 
         // 3. Team-targets (daily_working_hours per QA / queue / Default).
@@ -111,22 +140,30 @@ export default function TeamOccupancyCard() {
           return tgt?.target_value ? Number(tgt.target_value) * 60 : DEFAULT_SHIFT_MIN;
         };
 
-        // 4. Build the per-QA row with current + projected occupancy.
-        //    Members with no recent productivity_history row are dropped.
-        //    Preserve manager_email so the supervisor view can group by lead.
+        // 4. Build the per-QA row using the 7-day avg occupancy
+        //    (excluding today). pending is taken from the most recent
+        //    prior-day row since the snapshot column stores the
+        //    cumulative pending as of that day's end.
+        //    Members with no prior-day rows in window are dropped.
         const out = team.map(r => {
           const lower = r.email.toLowerCase();
-          const ph = latestPerQa.get(lower);
-          if (!ph) return null;
+          const rows = perQa.get(lower);
+          if (!rows || rows.length === 0) return null;
           const shiftMin = findShiftMin(r.email, r.queue);
-          const current = Number(ph.occupancy_pct ?? 0);
-          const pendingMin = Number(ph.pending_side_minutes || 0);
+          // Avg occupancy across all prior-day rows in window
+          const occs = rows.map(x => Number(x.occupancy_pct ?? 0));
+          const current = occs.reduce((s, n) => s + n, 0) / occs.length;
+          // Most recent prior-day pending snapshot (rows are sorted
+          // by date.desc from the server query above)
+          const pendingMin = Number(rows[0].pending_side_minutes || 0);
           const lift = shiftMin > 0 ? (pendingMin / shiftMin) * 100 : 0;
           const projected = current + lift;
           return {
             email: r.email, display_name: r.display_name, name: nameFromEmail(r.email),
             manager_email: (r.manager_email || "").toLowerCase(),
-            date: ph.date, current, pendingMin, projected, delta: lift, shiftMin,
+            // Window descriptor — shown in the "As of" column
+            asOfStart: rows[rows.length - 1].date, asOfEnd: rows[0].date, daysInWindow: rows.length,
+            current, pendingMin, projected, delta: lift, shiftMin,
           };
         }).filter(Boolean);
 
@@ -201,14 +238,17 @@ export default function TeamOccupancyCard() {
   );
 
   // Renders one QA row. Same shape used in both flat (lead) and
-  // nested (supervisor → lead → QA) views. The QA name is a link
-  // → /profile?qa=email so the lead can drill in with one click.
+  // nested (supervisor → lead → QA) views. Email is the primary
+  // label — display-name guesses were unreliable per Hossam, and
+  // the email is the stable identifier. Clicking opens that QA's
+  // profile.
+  const fmtShortDate = (iso) => iso ? new Date(iso + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—";
   const qaRow = (r, opts = {}) => (
     <tr key={r.email} style={opts.indent ? { background: "rgba(106,44,121,0.04)" } : undefined}>
       <td style={{ fontWeight: 500, paddingLeft: opts.indent ? 24 : undefined }}>
         <button
           onClick={() => goToProfile(r.email)}
-          title={`Open ${r.name}'s QA Profile`}
+          title={`Open ${r.email}'s QA Profile`}
           style={{
             background: "none", border: "none", padding: 0, cursor: "pointer",
             color: "var(--tabby-purple)", fontFamily: "var(--font)", fontSize: 12,
@@ -217,11 +257,11 @@ export default function TeamOccupancyCard() {
           }}
           onMouseEnter={e => e.currentTarget.style.textDecorationColor = "var(--tabby-purple)"}
           onMouseLeave={e => e.currentTarget.style.textDecorationColor = "transparent"}
-        >{r.name}</button>
-        <div style={{ fontSize: 10, color: "var(--tx3)" }}>{r.email}</div>
+        >{r.email}</button>
       </td>
-      <td style={{ textAlign: "right", color: "var(--tx3)", fontSize: 11, whiteSpace: "nowrap" }}>
-        {r.date ? new Date(r.date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "—"}
+      <td style={{ textAlign: "right", color: "var(--tx3)", fontSize: 11, whiteSpace: "nowrap" }}
+          title={r.asOfStart && r.asOfEnd ? `Window: ${r.asOfStart} → ${r.asOfEnd} · ${r.daysInWindow} days` : ""}>
+        {r.asOfEnd ? `${fmtShortDate(r.asOfStart)} – ${fmtShortDate(r.asOfEnd)}` : "—"}
       </td>
       <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums", fontWeight: 600, color: occColor(r.current) }}>
         {`${r.current.toFixed(1)}%`}
@@ -285,7 +325,7 @@ export default function TeamOccupancyCard() {
                         >
                           <td style={{ fontWeight: 700 }}>
                             <span style={{ display: "inline-block", width: 14, color: "var(--tx3)", fontSize: 10 }}>{isOpen ? "▼" : "▶"}</span>
-                            {nameFromEmail(g.lead) || g.lead}
+                            {g.lead}
                             <span style={{ marginLeft: 8, fontSize: 11, color: "var(--tx3)", fontWeight: 500 }}>{g.count} QA{g.count === 1 ? "" : "s"}</span>
                           </td>
                           <td style={{ textAlign: "right", color: "var(--tx3)", fontSize: 11 }}>—</td>
@@ -330,7 +370,7 @@ export default function TeamOccupancyCard() {
             </div>
           )}
           <div style={{ padding: "0 16px 12px", fontSize: 10, color: "var(--tx3)", fontStyle: "italic" }}>
-            "If approved" projects what each QA's occupancy would become if their pending side-task minutes were approved today (current occupancy + pending minutes / shift minutes × 100). Shift length resolved from team_targets.daily_working_hours, defaulting to 8 h. Click any QA name to open their profile.
+            "Current" is the average of each QA's daily occupancy across the last 7 days, EXCLUDING today (today's partial day would otherwise pull the headline number down). "If approved" adds pending side-task minutes on top (pending / shift × 100). Shift length resolved from team_targets.daily_working_hours, defaulting to 8 h. Click any email to open their profile.
           </div>
         </>
       )}
