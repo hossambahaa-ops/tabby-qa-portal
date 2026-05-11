@@ -6,11 +6,13 @@ import DAMPage from "./DAMPage.jsx";
 import CoachingViolationsPage from "./CoachingViolationsPage.jsx";
 import CoachingPage from "./CoachingPage.jsx";
 import ActionPlanPage from "./ActionPlanPage.jsx";
-import CandidatesPanel from "../components/actionplan/CandidatesPanel.jsx";
+// Performance Candidates rolled into AP/PIP → Detection tab instead
+// of a standalone Quality Control tab. CandidatesPanel.jsx kept on
+// disk for now in case it's useful as a fallback view, but it's not
+// imported here.
 
 const TABS = [
   { key: "violations", label: "Violations" },
-  { key: "candidates", label: "Candidates" },
   { key: "plans", label: "AP / PIP" },
   { key: "coaching", label: "Coaching" },
   { key: "dam", label: "DAM Flags" },
@@ -28,7 +30,9 @@ function QualityControlPage() {
       else if (t === "violations") setTab("violations");
       else if (t === "coaching") setTab("coaching");
       else if (t === "plans") setTab("plans");
-      else if (t === "candidates") setTab("candidates");
+      // "candidates" event now lands on the AP/PIP tab where the
+      // Detection sub-tab surfaces month-end candidates.
+      else if (t === "candidates") setTab("plans");
     };
     window.addEventListener("qc-tab", handler);
     return () => window.removeEventListener("qc-tab", handler);
@@ -49,7 +53,6 @@ function QualityControlPage() {
       </div>
       {tab === "dam" && <DAMPage />}
       {tab === "violations" && <CoachingViolationsPage />}
-      {tab === "candidates" && <CandidatesPanel />}
       {tab === "coaching" && <CoachingPage />}
       {tab === "plans" && <ActionPlanPage />}
     </div>

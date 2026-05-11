@@ -72,10 +72,29 @@ export default function APDetectionTab({
                 ))}
               </div>
 
-              <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+              {/* Per DAM: every action is paired with a verbal
+                  warning. Surface that as a small reminder badge
+                  next to the action buttons so the lead sees the
+                  prerequisite step. */}
+              {d.verbalWarningRequired && (
+                <div style={{ marginTop: 10, padding: "6px 10px", background: "var(--bg)", borderRadius: 6, fontSize: 11, color: "var(--tx2)", border: "1px dashed var(--bd)" }}>
+                  📣 Per DAM: deliver a <strong style={{ color: "var(--tx)" }}>verbal warning</strong> with this {(d.planType || "ap").toUpperCase()}.
+                  {d.needsReview && <span style={{ marginLeft: 8, color: "var(--amber)", fontWeight: 600 }}>🔶 KSA · supervisor / manager review required (prior AP context)</span>}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                 <button className="btn btn-primary btn-sm" onClick={() => startCreate(d.email, d.planType || "pip")} style={d.planType === "pip" ? { background: "var(--red)", color: "#fff" } : {}}>
                   <Icon d={d.planType === "pip" ? icons.dam : icons.plan} size={14} />Create {(d.planType || "pip").toUpperCase()}
                 </button>
+                {/* EGY escape hatch — if PIP is recommended (failed
+                    prior AP or recurring KPI), give the lead a way
+                    to choose AP instead. KSA never gets PIP, so the
+                    button is hidden there. */}
+                {d.planType === "pip" && d.domain === "tabby.ai" && (
+                  <button className="btn btn-outline btn-sm" onClick={() => startCreate(d.email, "ap")}>
+                    Create AP instead
+                  </button>
+                )}
                 {hasRole(profile?.role, "super_admin") ?
                   <button className="btn btn-outline btn-sm" onClick={() => dismissDetectionDB(d.email, "")}>Dismiss</button> :
                   <button className="btn btn-outline btn-sm" onClick={() => { setDismissModalAP(d); setDismissReasonAP(""); }}>Dismiss</button>

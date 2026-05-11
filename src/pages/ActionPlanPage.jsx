@@ -54,7 +54,7 @@ function ActionPlanPage() {
   // ── Data loading ──
   const load = useCallback(async () => {
     try {
-      const [planRows, weekRows, mtdRows, rosterRows, profRows, dismissalRows, damFlags, damSteps] = await Promise.all([
+      const [planRows, weekRows, mtdRows, rosterRows, profRows, dismissalRows, damFlags, damSteps, candidateRows, candDismissals] = await Promise.all([
         listPlans({ token }),
         listPlanWeeks({ token }),
         listMtd({ token }),
@@ -63,6 +63,14 @@ function ActionPlanPage() {
         sb.query("ap_dismissals", { select: "*", filters: "order=created_at.desc", token }).catch(() => []),
         sb.query("dam_flags", { select: "id,profile_id,rule_id,occurrence_number,status,notes,profiles!dam_flags_profile_id_fkey(email,display_name),dam_rules(name,behavior_type)", filters: "order=triggered_at.desc", token }).catch(() => []),
         dataCache.fetch("dam_escalation_steps",()=>sb.query("dam_escalation_steps", { select: "id,rule_id,occurrence,action,includes_pip,pip_action", token }).catch(() => [])),
+        // Month-end KPI candidates view — Calibration/RTR/Occupancy
+        // thresholds with recurrence + prior-failed-AP escalation.
+        sb.query("pip_ap_candidates_v", {
+          select: "qa_email,month,domain,qa_tl,failing_kpis,had_failed_ap_recently,recurring_same_kpi,recommended_action,needs_review,cal_pct,rtr_pct,occ_pct",
+          filters: "order=month.desc,qa_email.asc",
+          token,
+        }).catch(() => []),
+        sb.query("pip_ap_candidate_dismissals", { select: "qa_email,month,reason", token }).catch(() => []),
       ]);
       setPlans(planRows);
       setWeeks(weekRows);
@@ -70,12 +78,76 @@ function ActionPlanPage() {
       setRoster(rosterRows);
       setProfiles(profRows);
 
-      // ── Auto-detection engine (DAM-driven) ──
-      setDetections(computeDetections({
+      // ── DAM-driven detections (real-time incident flags) ──
+      const damDetections = computeDetections({
         mtdRows, existingPlans: planRows, dismissalRows,
         damFlagRows: damFlags, damStepRows: damSteps,
         sortMonthsDesc, nameFromEmail,
-      }));
+      });
+
+      // ── Month-end KPI candidates — for the most recent CLOSED
+      //    month only (today's in-progress month is skipped). The
+      //    view returns rows for every month in mtd_scores; we filter
+      //    here to the prior-month label so the Detection tab shows
+      //    "actionable now" cohort by default. Active-plan QAs are
+      //    excluded so they don't double-up. Dismissed candidates
+      //    (per pip_ap_candidate_dismissals) hidden too.
+      const now = new Date();
+      const priorD = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const priorMonthLabel = `${MON[priorD.getMonth()]}-${priorD.getFullYear()}`;
+      const activeEmails = new Set(
+        planRows.filter(p => p.status === "active" || p.status === "pending_review")
+          .map(p => (p.qa_email || "").toLowerCase())
+      );
+      const candDismissed = new Set(
+        (candDismissals || []).map(d => `${(d.qa_email || "").toLowerCase()}|${d.month}`)
+      );
+      const damDetectedEmails = new Set(damDetections.map(d => (d.email || "").toLowerCase()));
+      const monthEndDetections = (candidateRows || [])
+        .filter(c => c.month === priorMonthLabel)
+        .filter(c => !activeEmails.has((c.qa_email || "").toLowerCase()))
+        .filter(c => !candDismissed.has(`${(c.qa_email || "").toLowerCase()}|${c.month}`))
+        // Don't duplicate a QA who's already in the DAM-flag list
+        .filter(c => !damDetectedEmails.has((c.qa_email || "").toLowerCase()))
+        .map(c => {
+          const recPIP = c.recommended_action === "pip";
+          const kpiReasons = (c.failing_kpis || [])
+            .map(k => `${k.kpi} ${Number(k.value).toFixed(1)}${k.unit} (target ${k.target}${k.unit})`)
+            .join(", ");
+          const why = [];
+          if (c.had_failed_ap_recently) why.push("failed AP in last 60 days");
+          if (c.recurring_same_kpi) why.push("same KPI failed prior month");
+          const whyStr = why.length ? ` — ${why.join(" + ")}` : "";
+          // Per DAM: action is always paired with a verbal warning.
+          const verbalPrefix = "Verbal warning + ";
+          return {
+            email: c.qa_email,
+            name: nameFromEmail(c.qa_email),
+            reason: `Month-end (${c.month}): ${kpiReasons}${whyStr}. Action per DAM: ${verbalPrefix}${recPIP ? "PIP" : "AP"}.`,
+            severity: c.needs_review ? "critical" : recPIP ? "critical" : "warning",
+            totalScore: 0,
+            kpis: (c.failing_kpis || []).map(k => ({
+              key: k.kpi.toLowerCase(),
+              label: k.kpi,
+              rawPct: Number(k.value),
+              slab: { slab: 0, label: "Below" },
+            })),
+            latestMonth: c.month,
+            tl: c.qa_tl,
+            damFlagId: null,
+            planType: c.recommended_action,
+            pipActionType: "new",
+            source: "month-end",
+            needsReview: c.needs_review,
+            verbalWarningRequired: true,
+            domain: c.domain,
+          };
+        });
+
+      // Merge: DAM real-time flags first, then month-end candidates.
+      // Same shape so APDetectionTab renders both with the same UI.
+      setDetections([...damDetections, ...monthEndDetections]);
     } catch (e) { console.error("AP/PIP load:", e); }
     setLoading(false);
   }, [token]);
