@@ -47,6 +47,21 @@ function ScoreEntryPage(){
   // Click-to-sort on the By QA table. Default = performance descending,
   // matching the previous static sort. Two-state cycle: desc ↔ asc.
   const [qaSort, setQaSort] = useState({ key: "performance", dir: "desc" });
+  // Same pattern for the By Lead aggregation table. Previously the
+  // lead view was a hard-coded sort on avg(performance) desc with no
+  // user control. Mirroring qaSort keeps the keyboard model consistent
+  // across the two views.
+  const [leadSort, setLeadSort] = useState({ key: "performance", dir: "desc" });
+  // Collapsible column groups on the By QA table. The defaults
+  // (evaluations + coachings both collapsed) match the new headline
+  // layout the user asked for — single "Evaluations" / "Coachings"
+  // columns that fan out on click. Persisted to localStorage so the
+  // user's preferred expanded state survives a refresh.
+  const [groupsCollapsed, setGroupsCollapsed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("mtd_groups_collapsed")) || { evals: true, coachings: true }; }
+    catch { return { evals: true, coachings: true }; }
+  });
+  useEffect(() => { localStorage.setItem("mtd_groups_collapsed", JSON.stringify(groupsCollapsed)); }, [groupsCollapsed]);
   // Density + column visibility — saved per-user in localStorage so the
   // table remembers their preferred layout across visits.
   const [tableDense, setTableDense] = useState(() => localStorage.getItem("mtd_table_dense") === "true");
@@ -344,6 +359,11 @@ function ScoreEntryPage(){
       case "sbs":             return r.sbs ?? null;
       case "non_sbs":         return r.non_sbs ?? null;
       case "dsat":            return r.dsat ?? null;
+      // Synthetic keys for the collapsed column groups — sort the
+      // combined "Evaluations" column by total evals (SBS+Non-SBS+
+      // DSAT) and the combined "Coachings" column by session count.
+      case "__evals__":       return (r.sbs || 0) + (r.non_sbs || 0) + (r.dsat || 0);
+      case "__coachings__":   return r.coaching_sessions ?? null;
       case "late":            return r.late_count ?? null;
       case "never":           return r.never_count ?? null;
       case "valid":           return r.valid_count ?? null;
@@ -453,7 +473,57 @@ function ScoreEntryPage(){
       <span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>{((r.final_performance||0)*100).toFixed(1)}%</span>
     },
   ];
-  const visibleColumns = MTD_COLUMNS.filter(c => !hiddenCols.has(c.k));
+  // Two collapsible groups. EVAL_KEYS / COACH_KEYS list the underlying
+  // MTD_COLUMNS that fold into each synthetic header column. The
+  // synthetic column is sortable (via __evals__ / __coachings__ in
+  // qaSortVal) and renders a chevron next to the label so the
+  // affordance ("click to expand") is obvious.
+  const EVAL_KEYS = new Set(["sbs", "non_sbs", "dsat"]);
+  const COACH_KEYS = new Set(["sessions", "ontime_count", "eligible", "not_coached", "late", "never", "valid", "invalid"]);
+  const toggleGroup = (g) => setGroupsCollapsed(prev => ({ ...prev, [g]: !prev[g] }));
+  // Build the actual rendered column list by walking MTD_COLUMNS in
+  // order. When a column belongs to a collapsed group, swap the FIRST
+  // hit for the synthetic group column and skip its siblings.
+  const baseColumns = MTD_COLUMNS.filter(c => !hiddenCols.has(c.k));
+  const visibleColumns = (() => {
+    const evalsCol = {
+      k: "__evals__",
+      label: groupsCollapsed.evals ? "Evaluations ▸" : "Evaluations ▾",
+      align: "right",
+      // Collapsed: show combined count of SBS+Non-SBS+DSAT so the
+      // column carries a meaningful number, not just a label. Header
+      // click expands the group rather than sorting — sorting still
+      // works via the body's accessor, just on a normal click of the
+      // sort chevron via toggleQaSort.
+      render: r => {
+        const total = (r.sbs || 0) + (r.non_sbs || 0) + (r.dsat || 0);
+        return total > 0 ? total : "—";
+      },
+      isGroupHeader: "evals",
+    };
+    const coachCol = {
+      k: "__coachings__",
+      label: groupsCollapsed.coachings ? "Coachings ▸" : "Coachings ▾",
+      align: "right",
+      render: r => r.coaching_sessions ?? "—",
+      isGroupHeader: "coachings",
+    };
+    const out = [];
+    let evalsInserted = false;
+    let coachingsInserted = false;
+    for (const c of baseColumns) {
+      if (groupsCollapsed.evals && EVAL_KEYS.has(c.k)) {
+        if (!evalsInserted) { out.push(evalsCol); evalsInserted = true; }
+        continue;
+      }
+      if (groupsCollapsed.coachings && COACH_KEYS.has(c.k)) {
+        if (!coachingsInserted) { out.push(coachCol); coachingsInserted = true; }
+        continue;
+      }
+      out.push(c);
+    }
+    return out;
+  })();
   const applyPreset = (preset) => {
     if (preset === "all") setHiddenCols(new Set());
     else setHiddenCols(new Set(MTD_COLUMNS.filter(c => !c.presets.includes(preset)).map(c => c.k)));
@@ -516,7 +586,7 @@ function ScoreEntryPage(){
     <div style={{marginBottom: 12}}>
       <SavedViews
         pageKey="mtd"
-        currentFilters={{selMonth, selDomain, selTeam, selTL, selQA, mtdView, qaSort, tableDense, tableSearch, hiddenCols: [...hiddenCols]}}
+        currentFilters={{selMonth, selDomain, selTeam, selTL, selQA, mtdView, qaSort, leadSort, groupsCollapsed, tableDense, tableSearch, hiddenCols: [...hiddenCols]}}
         onApply={(f) => {
           if ('selMonth' in f) setSelMonth(f.selMonth || "");
           if ('selDomain' in f) setSelDomain(f.selDomain || "");
@@ -525,6 +595,8 @@ function ScoreEntryPage(){
           if ('selQA' in f) setSelQA(Array.isArray(f.selQA) ? f.selQA : []);
           if ('mtdView' in f) setMtdView(f.mtdView || "qa");
           if ('qaSort' in f && f.qaSort) setQaSort(f.qaSort);
+          if ('leadSort' in f && f.leadSort) setLeadSort(f.leadSort);
+          if ('groupsCollapsed' in f && f.groupsCollapsed) setGroupsCollapsed(f.groupsCollapsed);
           if ('tableDense' in f) setTableDense(!!f.tableDense);
           if ('tableSearch' in f) setTableSearch(f.tableSearch || "");
           if ('hiddenCols' in f) setHiddenCols(new Set(Array.isArray(f.hiddenCols) ? f.hiddenCols : []));
@@ -755,12 +827,12 @@ function ScoreEntryPage(){
                   {visibleColumns.map(c => (
                     <th
                       key={c.k}
-                      onClick={() => toggleQaSort(c.k)}
-                      title={`Sort by ${c.label}`}
-                      className={`sortable${qaSort.key === c.k ? " is-sorted" : ""}`}
-                      style={{ textAlign: c.align || "right", whiteSpace: "nowrap", ...(c.style || {}) }}
+                      onClick={() => c.isGroupHeader ? toggleGroup(c.isGroupHeader) : toggleQaSort(c.k)}
+                      title={c.isGroupHeader ? `Click to ${groupsCollapsed[c.isGroupHeader] ? "expand" : "collapse"}` : `Sort by ${c.label}`}
+                      className={c.isGroupHeader ? "" : `sortable${qaSort.key === c.k ? " is-sorted" : ""}`}
+                      style={{ textAlign: c.align || "right", whiteSpace: "nowrap", cursor: "pointer", ...(c.style || {}), ...(c.isGroupHeader ? { background: "var(--bg2)", color: "var(--tabby-purple)", fontWeight: 700 } : {}) }}
                     >
-                      {c.label}{qaSortArrow(c.k)}
+                      {c.label}{c.isGroupHeader ? "" : qaSortArrow(c.k)}
                     </th>
                   ))}
                 </tr>
@@ -829,29 +901,88 @@ function ScoreEntryPage(){
           });
           const avg=(arr)=>arr.length?arr.reduce((a,b)=>a+b,0)/arr.length:0;
           const leadCsat=(l)=>l.csat_weight>0?l.csat_weighted_sum/l.csat_weight:(l.csat_simple_count>0?l.csat_simple_sum/l.csat_simple_count:null);
-          const leads=Object.values(leadMap).sort((a,b)=>avg(b.performance)-avg(a.performance));
+          // Click-to-sort on the lead table. Default is avg performance
+          // desc (the previous static sort); any column can be clicked
+          // to override. Two-state cycle on the active column (desc ↔
+          // asc); a click on a different column always starts at desc.
+          const leadSortVal = (l, k) => {
+            switch (k) {
+              case "lead":         return nameFromEmail(l.tl || "").toLowerCase();
+              case "qas":          return l.count;
+              case "csat":         return leadCsat(l);
+              case "surveys":      return l.csat_total ?? null;
+              case "sbs":          return l.sbs;
+              case "non_sbs":      return l.non_sbs;
+              case "dsat":         return l.dsat;
+              case "sessions":     return l.sessions;
+              case "ontime":       return l.ontime;
+              case "not_coached":  return l.not_coached;
+              case "rtr":          return l.rtr;
+              case "avg_rtr":      return avg(l.rtr_scores);
+              case "obs":          return l.obs;
+              case "calib":        return l.calib;
+              case "completion":   return avg(l.completion);
+              case "tickets":      return avg(l.tickets);
+              case "occupancy":    return avg(l.occupancy);
+              case "days":         return l.days;
+              case "st_time":      return l.st_mins;
+              case "performance":  return avg(l.performance);
+              default:             return null;
+            }
+          };
+          const leadCols = [
+            { k: "lead",        label: "Lead",            align: "left", style: { minWidth: 160 } },
+            { k: "qas",         label: "QAs" },
+            { k: "csat",        label: "CSAT %" },
+            { k: "surveys",     label: "Surveys" },
+            { k: "sbs",         label: "SBS" },
+            { k: "non_sbs",     label: "Non-SBS" },
+            { k: "dsat",        label: "DSAT" },
+            { k: "sessions",    label: "Sessions" },
+            { k: "ontime",      label: "On-time" },
+            { k: "not_coached", label: "Not coached" },
+            { k: "rtr",         label: "RTR" },
+            { k: "avg_rtr",     label: "Avg RTR" },
+            { k: "obs",         label: "Obs." },
+            { k: "calib",       label: "Calib." },
+            { k: "completion",  label: "Avg Completion" },
+            { k: "tickets",     label: "Avg Tickets/d" },
+            { k: "occupancy",   label: "Avg Occupancy" },
+            { k: "days",        label: "Total Days" },
+            { k: "st_time",     label: "ST Time" },
+            { k: "performance", label: "Avg Performance" },
+          ];
+          const leads = Object.values(leadMap).sort((a, b) => {
+            const av = leadSortVal(a, leadSort.key);
+            const bv = leadSortVal(b, leadSort.key);
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            if (typeof av === "string") {
+              const c = av.localeCompare(bv);
+              return leadSort.dir === "asc" ? c : -c;
+            }
+            return leadSort.dir === "asc" ? av - bv : bv - av;
+          });
+          const toggleLeadSort = (k) => setLeadSort(prev => {
+            if (prev.key !== k) return { key: k, dir: "desc" };
+            if (prev.dir === "desc") return { key: k, dir: "asc" };
+            return { key: "performance", dir: "desc" };
+          });
+          const leadSortArrow = (k) => leadSort.key === k ? (leadSort.dir === "asc" ? " ▲" : " ▼") : "";
           return <div className="table-wrap table-wrap-sticky"><table>
             <thead><tr>
-              <th style={{minWidth:160}}>Lead</th>
-              <th style={{textAlign:"right"}}>QAs</th>
-              <th style={{textAlign:"right"}}>CSAT %</th>
-              <th style={{textAlign:"right"}}>Surveys</th>
-              <th style={{textAlign:"right"}}>SBS</th>
-              <th style={{textAlign:"right"}}>Non-SBS</th>
-              <th style={{textAlign:"right"}}>DSAT</th>
-              <th style={{textAlign:"right"}}>Sessions</th>
-              <th style={{textAlign:"right"}}>On-time</th>
-              <th style={{textAlign:"right"}}>Not coached</th>
-              <th style={{textAlign:"right"}}>RTR</th>
-              <th style={{textAlign:"right"}}>Avg RTR</th>
-              <th style={{textAlign:"right"}}>Obs.</th>
-              <th style={{textAlign:"right"}}>Calib.</th>
-              <th style={{textAlign:"right"}}>Avg Completion</th>
-              <th style={{textAlign:"right"}}>Avg Tickets/d</th>
-              <th style={{textAlign:"right"}}>Avg Occupancy</th>
-              <th style={{textAlign:"right"}}>Total Days</th>
-              <th style={{textAlign:"right"}}>ST Time</th>
-              <th style={{textAlign:"right"}}>Avg Performance</th>
+              {leadCols.map(c => (
+                <th
+                  key={c.k}
+                  onClick={() => toggleLeadSort(c.k)}
+                  title={`Sort by ${c.label}`}
+                  className={`sortable${leadSort.key === c.k ? " is-sorted" : ""}`}
+                  style={{ textAlign: c.align || "right", cursor: "pointer", whiteSpace: "nowrap", ...(c.style || {}) }}
+                >
+                  {c.label}{leadSortArrow(c.k)}
+                </th>
+              ))}
             </tr></thead>
             <tbody>
               {leads.map(l=>{
