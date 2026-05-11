@@ -549,15 +549,35 @@ function ActionPlanPage() {
   };
 
   // ── Dismiss detection (persisted to DB) ──
+  // Month-end KPI candidates and DAM real-time flags live in
+  // different tables. Route the dismissal to the right one so it
+  // actually filters the row out next load.
   const dismissDetectionDB = async (email, reason) => {
     try {
-      await sb.query("ap_dismissals", { token, method: "POST", body: {
-        qa_email: email,
-        dismissed_by: profile?.email,
-        reason: reason || "Dismissed by super admin",
-        month: mtd.length ? sortMonthsDesc([...new Set(mtd.map(r => r.month))])[0] : "",
-        detection_info: detections.find(d => d.email === email)?.reason || "",
-      }});
+      const det = detections.find(d => d.email === email);
+      if (det?.source === "month-end") {
+        // Upsert on the (qa_email, month) PK — re-dismissing the same
+        // row (e.g. after an event-driven reload races a second click)
+        // shouldn't throw a duplicate-key error.
+        await sb.query("pip_ap_candidate_dismissals", {
+          token, method: "POST",
+          headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+          body: {
+            qa_email: email,
+            month: det.latestMonth,
+            dismissed_by: profile?.email,
+            reason: reason || "Dismissed by super admin",
+          },
+        });
+      } else {
+        await sb.query("ap_dismissals", { token, method: "POST", body: {
+          qa_email: email,
+          dismissed_by: profile?.email,
+          reason: reason || "Dismissed by super admin",
+          month: mtd.length ? sortMonthsDesc([...new Set(mtd.map(r => r.month))])[0] : "",
+          detection_info: det?.reason || "",
+        }});
+      }
       setDetections(prev => prev.filter(d => d.email !== email));
       globalToast("success", "Detection dismissed for " + nameFromEmail(email));
     } catch (e) { globalToast("error", safeError(e)); }
