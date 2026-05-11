@@ -7,15 +7,16 @@ import { listTeamTargets } from "../../api/teamTargets.js";
 import { loadTeamForViewer } from "../../lib/teamScope.js";
 
 // Compact "Team occupancy" view for QA Lead+. Shows each direct
-// report's RECENT occupancy (7-day average, EXCLUDING today's partial
+// report's MONTH-TO-DATE average occupancy (EXCLUDING today's partial
 // day) and what it would become if their pending side-task minutes
 // get approved.
 //
 // Why exclude today: productivity_history rows for today are partial
 // — a QA who's only logged the first 2 hours of their day shows up
 // at ~25% occupancy and drags the team headline number into the
-// floor. Averaging over the prior 7 days gives an "honest recent
-// average" without the today's-not-done-yet noise.
+// floor. Averaging across the calendar month so far (1st of month
+// through yesterday) gives the honest "how is the team doing this
+// month" picture without the today's-not-done-yet noise.
 //
 // Projection formula (unchanged):
 //   projected = avg_current + (pending_side_minutes / shift_minutes × 100)
@@ -41,14 +42,18 @@ import { loadTeamForViewer } from "../../lib/teamScope.js";
 // productivity_history rows.
 
 const DEFAULT_SHIFT_MIN = 480;
-const LOOKBACK_DAYS = 7;
 
 // Riyadh-local YYYY-MM-DD for "today" — the date we EXCLUDE from
-// the 7-day average since it's a partial day in progress.
+// the month-to-date average since it's a partial day in progress.
 function todayRiyadhIso() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit", day: "2-digit",
   }).format(new Date());
+}
+// First day of the current Riyadh month, YYYY-MM-01.
+function monthStartRiyadhIso() {
+  const today = todayRiyadhIso();
+  return today.slice(0, 7) + "-01";
 }
 
 const occColor = (pct) => {
@@ -100,15 +105,13 @@ export default function TeamOccupancyCard() {
         if (team.length === 0) { if (!cancelled) setLoading(false); return; }
         const teamEmails = team.map(r => r.email.toLowerCase());
 
-        // 2. Pull productivity_history rows for the last 7 days, then
-        //    DROP today's row client-side. Server filter would need a
-        //    timezone-aware "< Riyadh today" expression which PostgREST
-        //    doesn't accept cleanly — easier to over-fetch by one day
-        //    and discard the today row in JS.
+        // 2. Pull productivity_history rows from the 1st of this Riyadh
+        //    month through today, then DROP today's row client-side.
+        //    Server filter would need a timezone-aware "< Riyadh today"
+        //    expression which PostgREST doesn't accept cleanly — easier
+        //    to over-fetch by one day and discard the today row in JS.
         const todayIso = todayRiyadhIso();
-        const fromDate = new Date();
-        fromDate.setDate(fromDate.getDate() - LOOKBACK_DAYS);
-        const isoFrom = fromDate.toISOString().split("T")[0];
+        const isoFrom = monthStartRiyadhIso();
         const inList = teamEmails.map(e => `"${e}"`).join(",");
         const phRows = await sb.query("productivity_history", {
           token,
@@ -140,7 +143,7 @@ export default function TeamOccupancyCard() {
           return tgt?.target_value ? Number(tgt.target_value) * 60 : DEFAULT_SHIFT_MIN;
         };
 
-        // 4. Build the per-QA row using the 7-day avg occupancy
+        // 4. Build the per-QA row using the month-to-date avg occupancy
         //    (excluding today). pending is taken from the most recent
         //    prior-day row since the snapshot column stores the
         //    cumulative pending as of that day's end.
@@ -370,7 +373,7 @@ export default function TeamOccupancyCard() {
             </div>
           )}
           <div style={{ padding: "0 16px 12px", fontSize: 10, color: "var(--tx3)", fontStyle: "italic" }}>
-            "Current" is the average of each QA's daily occupancy across the last 7 days, EXCLUDING today (today's partial day would otherwise pull the headline number down). "If approved" adds pending side-task minutes on top (pending / shift × 100). Shift length resolved from team_targets.daily_working_hours, defaulting to 8 h. Click any email to open their profile.
+            "Current" is the average of each QA's daily occupancy from the 1st of this month through yesterday — month-to-date, EXCLUDING today (today's partial day would otherwise pull the headline number down). "If approved" adds pending side-task minutes on top (pending / shift × 100). Shift length resolved from team_targets.daily_working_hours, defaulting to 8 h. Click any email to open their profile.
           </div>
         </>
       )}
