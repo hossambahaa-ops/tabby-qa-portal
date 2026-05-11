@@ -518,13 +518,18 @@ function ScoreEntryPage(){
     let evalsInserted = false;
     let coachingsInserted = false;
     for (const c of baseColumns) {
-      if (groupsCollapsed.evals && EVAL_KEYS.has(c.k)) {
+      if (EVAL_KEYS.has(c.k)) {
+        // Synthetic header is ALWAYS inserted at the group's first
+        // child position — that's the only stable click target users
+        // have to collapse the group again. When the group is
+        // expanded, we also push the individual sub-columns after it;
+        // when collapsed, we skip the children entirely.
         if (!evalsInserted) { out.push(evalsCol); evalsInserted = true; }
-        continue;
+        if (groupsCollapsed.evals) continue;
       }
-      if (groupsCollapsed.coachings && COACH_KEYS.has(c.k)) {
+      if (COACH_KEYS.has(c.k)) {
         if (!coachingsInserted) { out.push(coachCol); coachingsInserted = true; }
-        continue;
+        if (groupsCollapsed.coachings) continue;
       }
       out.push(c);
     }
