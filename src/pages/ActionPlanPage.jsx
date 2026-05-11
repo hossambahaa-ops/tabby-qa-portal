@@ -18,6 +18,7 @@ import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
 import { listPlans, listPlanWeeks } from "../api/plans.js";
+import { loadTeamForViewer } from "../lib/teamScope.js";
 
 function ActionPlanPage() {
   const{token,profile,globalToast}=useApp();
@@ -30,6 +31,10 @@ function ActionPlanPage() {
   const [roster, setRoster] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [detections, setDetections] = useState([]);
+  // Role-scoped allow-list of QA emails — drives the Detection list so
+  // a lead only sees their direct reports and a supervisor only sees
+  // their reports' QAs. `null` = unrestricted (admin / auditor view).
+  const [scopeEmails, setScopeEmails] = useState(null);
   const [expandedPlan, setExpandedPlan] = useState(null);
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
@@ -242,6 +247,25 @@ function ActionPlanPage() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
+
+  // Resolve the viewer's team for Detection scoping. Admin-tier roles
+  // (manager / hod / admin / super_admin) and auditor see the whole
+  // org and skip the lookup. Re-runs when impersonation flips the
+  // effective profile.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!token || !profile?.email) { setScopeEmails(new Set()); return; }
+      if (hasRole(profile?.role, "manager") || profile?.role === "auditor") {
+        setScopeEmails(null);
+        return;
+      }
+      const team = await loadTeamForViewer({ token, profile });
+      if (cancelled) return;
+      setScopeEmails(new Set((team || []).map(r => (r.email || "").toLowerCase()).filter(Boolean)));
+    })();
+    return () => { cancelled = true; };
+  }, [token, profile?.email, profile?.role]);
 
   // Generate suggested targets for the currently-selected QA using shared MTD data.
   const generateTargets = (qaEmail, kpiKeys) =>
@@ -605,6 +629,19 @@ function ActionPlanPage() {
   const activePlans = visiblePlans.filter(p => p.status === "active" || p.status === "pending_review");
   const historyPlans = visiblePlans.filter(p => p.status !== "active" && p.status !== "pending_review");
 
+  // Detection scoping — same intent as visiblePlans but using the
+  // hierarchy-walked team set from teamScope so supervisors only see
+  // their reports' QAs (not the whole domain). `scopeEmails === null`
+  // means unrestricted (admin / auditor / org-wide).
+  const visibleDetections = scopeEmails === null ? detections : detections.filter(d => {
+    const e = (d.email || "").toLowerCase();
+    if (scopeEmails.has(e)) return true;
+    // Belt-and-braces: leads also see rows where the TL field points
+    // at them directly (handles stale roster vs profile mismatches).
+    if ((d.tl || "").toLowerCase() === myEmail) return true;
+    return false;
+  });
+
   const getWeeksForPlan = (planId) => weeks.filter(w => w.plan_id === planId).sort((a, b) => a.week_number - b.week_number);
 
   // ── Calculate plan progress ──
@@ -636,7 +673,7 @@ function ActionPlanPage() {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:12}}>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <span style={{padding:"4px 12px",borderRadius:20,background:"var(--primary-light)",color:"var(--primary-text,var(--tabby-purple))",fontSize:12,fontWeight:600}}>{activePlans.length} active</span>
-          {detections.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--amber-bg)",color:"var(--amber)",fontSize:12,fontWeight:600}}>{detections.length} detected</span>}
+          {visibleDetections.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--amber-bg)",color:"var(--amber)",fontSize:12,fontWeight:600}}>{visibleDetections.length} detected</span>}
         </div>
         <button className="btn btn-primary" onClick={() => startCreate("", "ap")}>
           <Icon d={icons.plus} size={16} />New plan
@@ -648,7 +685,7 @@ function ActionPlanPage() {
           Active ({activePlans.length})
         </button>
         <button className={`tab-btn ${tab === "detection" ? "active" : ""}`} onClick={() => setTab("detection")}>
-          Detection {detections.length > 0 && <span style={{ marginLeft: 4, padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 700, background: "var(--red-bg)", color: "var(--red)" }}>{detections.length}</span>}
+          Detection {visibleDetections.length > 0 && <span style={{ marginLeft: 4, padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 700, background: "var(--red-bg)", color: "var(--red)" }}>{visibleDetections.length}</span>}
         </button>
         {showCreateForm && <button className={`tab-btn ${tab === "create" ? "active" : ""}`} onClick={() => setTab("create")}>
           Create plan
@@ -660,7 +697,7 @@ function ActionPlanPage() {
 
       {/* ═══ DETECTION TAB ═══ */}
       {tab === "detection" && <APDetectionTab
-        detections={detections}
+        detections={visibleDetections}
         startCreate={startCreate}
         dismissDetectionDB={dismissDetectionDB}
         nameFromEmail={nameFromEmail}
