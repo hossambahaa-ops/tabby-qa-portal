@@ -52,19 +52,14 @@ function ScoreEntryPage(){
   // user control. Mirroring qaSort keeps the keyboard model consistent
   // across the two views.
   const [leadSort, setLeadSort] = useState({ key: "performance", dir: "desc" });
-  // Collapsible column groups on the By QA table. The defaults
-  // (evaluations + coachings both collapsed) match the new headline
-  // layout the user asked for — single "Evaluations" / "Coachings"
-  // columns that fan out on click. Persisted to localStorage so the
-  // user's preferred expanded state survives a refresh.
-  //
-  // Defensive init: a missing key OR a parsed object that lacks one of
-  // the two flags both fall back to "collapsed" for that flag — so an
-  // empty {} or a partial { evals: false } from a prior build can't
-  // leave both groups silently expanded.
+  // Collapsible column groups on the By QA table. Defaults to
+  // collapsed for both Evaluations and Coachings — that's the
+  // headline layout the user asked for; click the column header to
+  // expand the group. Persisted under a versioned key so any stale
+  // pre-rollout value is ignored.
   const [groupsCollapsed, setGroupsCollapsed] = useState(() => {
     try {
-      const parsed = JSON.parse(localStorage.getItem("mtd_groups_collapsed"));
+      const parsed = JSON.parse(localStorage.getItem("mtd_groups_v3"));
       const obj = (parsed && typeof parsed === "object") ? parsed : {};
       return {
         evals: typeof obj.evals === "boolean" ? obj.evals : true,
@@ -72,7 +67,7 @@ function ScoreEntryPage(){
       };
     } catch { return { evals: true, coachings: true }; }
   });
-  useEffect(() => { localStorage.setItem("mtd_groups_collapsed", JSON.stringify(groupsCollapsed)); }, [groupsCollapsed]);
+  useEffect(() => { localStorage.setItem("mtd_groups_v3", JSON.stringify(groupsCollapsed)); }, [groupsCollapsed]);
   // Density + column visibility — saved per-user in localStorage so the
   // table remembers their preferred layout across visits.
   const [tableDense, setTableDense] = useState(() => localStorage.getItem("mtd_table_dense") === "true");
