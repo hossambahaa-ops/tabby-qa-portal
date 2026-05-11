@@ -11,6 +11,14 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import PageFilters from "../components/PageFilters.jsx";
 import CsatTopicMatrix from "../components/csat/CsatTopicMatrix.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import { useUrlState } from "../lib/useUrlState.jsx";
+
+// Navigate to a QA's profile. Same hash-router pattern used by every
+// other clickable QA name in the app (Occupancy card, Score Entry
+// context menu, etc.).
+const goToProfile = (qaEmail) => {
+  window.location.hash = `#/profile?qa=${encodeURIComponent(qaEmail)}`;
+};
 
 const nameFromEmail = (email) => {
   if (!email) return "—";
@@ -27,12 +35,16 @@ export default function CSATPage() {
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState([]);
-  const [selMonth, setSelMonth] = useState("");
-  const [selDomain, setSelDomain] = useState("");
-  const [selTeam, setSelTeam] = useState("");
-  const [selTL, setSelTL] = useState("");
+  // Filter state — persistent ones go through useUrlState so refresh
+  // keeps your context and the URL is shareable. selQA stays local
+  // since it's a multi-select with potentially many emails (too noisy
+  // in the URL). Same pattern as Score Entry / Leaderboard.
+  const [selMonth, setSelMonth] = useUrlState("month", "");
+  const [selDomain, setSelDomain] = useUrlState("domain", "");
+  const [selTeam, setSelTeam] = useUrlState("team", "");
+  const [selTL, setSelTL] = useUrlState("lead", "");
   const [selQA, setSelQA] = useState([]);
-  const [csatView, setCsatView] = useState("qa"); // qa | lead | topic
+  const [csatView, setCsatView] = useUrlState("view", "qa"); // qa | lead | topic
   const [expandedEmail, setExpandedEmail] = useState(null);
   const [expandedLead, setExpandedLead] = useState(null);
   const [topics, setTopics] = useState({}); // key: `${email}__${month}`
@@ -330,13 +342,18 @@ export default function CSATPage() {
       <div className="page-title" style={{display:"flex",alignItems:"center",gap:10}}>
         <Icon d={icons.leaderboard} size={22}/>CSAT
       </div>
-      <div className="page-subtitle">CSAT % and surveys — explore By QA, By Lead, or the agent × topic heatmap under By Topic.</div>
+      {/* Generic subtitle ("explore By QA / By Lead / By Topic") was
+          removed in the simplification pass — the view-switcher
+          segmented control inside the filter strip already shows the
+          three available views, so the subtitle was just noise. */}
     </div>
 
-    {/* Unified PageFilters strip — same component, same spot, same
-        clear behaviour as MTD/Leaderboard. Replaces the card-wrapped
-        5-form-group block. Specialist (multi) is the rightmost
-        dropdown so it doesn't compete with the search input. */}
+    {/* Unified PageFilters strip — filters on the left, the
+        View segmented control (By QA / By Lead / By Topic) on
+        the right. Mirrors the Individual / By team lead /
+        Quarterly switcher on Leaderboard so users learn one
+        pattern. Replaces the previous card-header view buttons
+        which were easy to miss tucked inside the table card. */}
     <PageFilters
       onClear={() => { setSelDomain(""); setSelTeam(""); setSelTL(""); setSelQA([]); }}
     >
@@ -358,6 +375,11 @@ export default function CSATPage() {
         placeholder={`All specialists (${filtered.length})`}
         multi
       />
+      <div className="tabs" style={{display:"flex",gap:0}}>
+        <button className={`tab ${csatView==="qa"?"active":""}`} onClick={()=>setCsatView("qa")}>By QA</button>
+        <button className={`tab ${csatView==="lead"?"active":""}`} onClick={()=>setCsatView("lead")}>By Lead</button>
+        <button className={`tab ${csatView==="topic"?"active":""}`} onClick={()=>setCsatView("topic")}>By Topic</button>
+      </div>
     </PageFilters>
 
     {filtered.length === 0 ? (
@@ -366,12 +388,11 @@ export default function CSATPage() {
       <div className="card">
         <div className="card-header">
           <span className="card-title">CSAT — {selMonth}</span>
+          {/* The 3-button view switcher moved into the PageFilters
+              strip above. Only the topic-view's "Min surveys" input
+              and the per-row click hint stay here, since they are
+              specific to whichever view is active. */}
           <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <div style={{display:"flex",borderRadius:8,border:"1px solid var(--bd)",overflow:"hidden"}}>
-              <button onClick={()=>setCsatView("qa")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:csatView==="qa"?"var(--tabby-purple)":"transparent",color:csatView==="qa"?"#fff":"var(--tx3)"}}>By QA</button>
-              <button onClick={()=>setCsatView("lead")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:csatView==="lead"?"var(--tabby-purple)":"transparent",color:csatView==="lead"?"#fff":"var(--tx3)"}}>By Lead</button>
-              <button onClick={()=>setCsatView("topic")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:csatView==="topic"?"var(--tabby-purple)":"transparent",color:csatView==="topic"?"#fff":"var(--tx3)"}}>By Topic</button>
-            </div>
             {csatView === "topic" ? (
               <label style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--tx3)"}}>
                 Min surveys
@@ -415,12 +436,27 @@ export default function CSATPage() {
                       <td style={{textAlign:"center",padding:"4px 0"}}>
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s",color:"var(--tx3)",opacity:.6}}><path d="M6 9l6 6 6-6"/></svg>
                       </td>
-                      <td style={{padding:"4px 8px"}} title={r.qa_email}>
+                      <td style={{padding:"4px 8px"}} title={`Open ${r.qa_email}'s QA Profile`}>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
                           <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,letterSpacing:".3px"}}>
                             {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
                           </div>
-                          <div style={{fontWeight:500,fontSize:12.5,whiteSpace:"nowrap"}}>{nameFromEmail(r.qa_email)}</div>
+                          {/* QA name → QA Profile. stopPropagation so the
+                              click doesn't also fire the row-expand
+                              toggle. Same pattern as the Occupancy card. */}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); goToProfile(r.qa_email); }}
+                            style={{
+                              background: "none", border: "none", padding: 0, cursor: "pointer",
+                              color: "var(--tabby-purple)", fontFamily: "var(--font)",
+                              fontWeight: 500, fontSize: 12.5, whiteSpace: "nowrap",
+                              textAlign: "left", textDecoration: "underline",
+                              textDecorationColor: "transparent", textUnderlineOffset: 2,
+                              transition: "text-decoration-color .15s",
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.textDecorationColor = "var(--tabby-purple)"}
+                            onMouseLeave={e => e.currentTarget.style.textDecorationColor = "transparent"}
+                          >{nameFromEmail(r.qa_email)}</button>
                         </div>
                       </td>
                       <td style={{fontSize:11.5,color:"var(--tx2)",padding:"4px 8px",whiteSpace:"nowrap"}} title={r.qa_tl||""}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
