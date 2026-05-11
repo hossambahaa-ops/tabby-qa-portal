@@ -78,10 +78,27 @@ export default function CandidatesPanel() {
       ));
       const monthsInView = sortMonthsDesc([...new Set(cArr.map(r => r.month).filter(Boolean))]);
       setAllMonths(monthsInView);
-      // Default to the most recent month in the data (which is also
-      // the most recent CLOSED month since the view only sees what's
-      // already in mtd_scores).
-      if (!selMonth && monthsInView.length > 0) setSelMonth(monthsInView[0]);
+      // Default to the LAST CLOSED month, not the most recent month
+      // in the view. The view computes for every month present in
+      // mtd_scores including the current in-progress one — defaulting
+      // there would show a half-formed cohort that hasn't actually
+      // hit month-end. The rule is "5th of every month for the prior
+      // closed month", so the natural default is current month - 1.
+      if (!selMonth && monthsInView.length > 0) {
+        const todayRiyadh = new Intl.DateTimeFormat("en-CA", {
+          timeZone: "Asia/Riyadh", year: "numeric", month: "2-digit",
+        }).format(new Date());
+        const [y, m] = todayRiyadh.split("-").map(Number);
+        const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        // m is 1-12; prior month = m-1, year wraps to y-1 if Jan.
+        const priorM = m === 1 ? 12 : m - 1;
+        const priorY = m === 1 ? y - 1 : y;
+        const priorLabel = `${MON[priorM - 1]}-${priorY}`;
+        // Use prior month if it's in the data, otherwise fall back to
+        // the latest month present (small dataset / new team).
+        if (monthsInView.includes(priorLabel)) setSelMonth(priorLabel);
+        else setSelMonth(monthsInView[0]);
+      }
     } catch (e) { console.error("CandidatesPanel:", e); }
     setLoading(false);
   };
