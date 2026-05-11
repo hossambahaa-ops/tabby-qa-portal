@@ -441,21 +441,31 @@ export default function CSATPage() {
                           <div style={{width:22,height:22,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:600,letterSpacing:".3px"}}>
                             {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
                           </div>
-                          {/* QA name → QA Profile. stopPropagation so the
-                              click doesn't also fire the row-expand
-                              toggle. Same pattern as the Occupancy card. */}
+                          {/* QA name → QA Profile. Uses standard text
+                              colour with a purple underline so the
+                              name stays readable when the row is
+                              expanded (which flips the background to
+                              --accent-light, a near-purple that was
+                              washing out the previous tabby-purple
+                              text). The underline thickens on hover
+                              to keep the click affordance obvious.
+                              stopPropagation so the click doesn't
+                              also fire the row-expand toggle. */}
                           <button
                             onClick={(e) => { e.stopPropagation(); goToProfile(r.qa_email); }}
                             style={{
                               background: "none", border: "none", padding: 0, cursor: "pointer",
-                              color: "var(--tabby-purple)", fontFamily: "var(--font)",
-                              fontWeight: 500, fontSize: 12.5, whiteSpace: "nowrap",
-                              textAlign: "left", textDecoration: "underline",
-                              textDecorationColor: "transparent", textUnderlineOffset: 2,
-                              transition: "text-decoration-color .15s",
+                              color: "var(--tx)", fontFamily: "var(--font)",
+                              fontWeight: 600, fontSize: 12.5, whiteSpace: "nowrap",
+                              textAlign: "left",
+                              textDecoration: "underline",
+                              textDecorationColor: "var(--tabby-purple)",
+                              textDecorationThickness: 1,
+                              textUnderlineOffset: 2,
+                              transition: "text-decoration-thickness .15s",
                             }}
-                            onMouseEnter={e => e.currentTarget.style.textDecorationColor = "var(--tabby-purple)"}
-                            onMouseLeave={e => e.currentTarget.style.textDecorationColor = "transparent"}
+                            onMouseEnter={e => { e.currentTarget.style.textDecorationThickness = "2px"; }}
+                            onMouseLeave={e => { e.currentTarget.style.textDecorationThickness = "1px"; }}
                           >{nameFromEmail(r.qa_email)}</button>
                         </div>
                       </td>
