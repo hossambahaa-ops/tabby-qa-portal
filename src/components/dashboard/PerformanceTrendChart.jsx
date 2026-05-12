@@ -13,6 +13,13 @@ import React, { useMemo, useState } from "react";
 export default function PerformanceTrendChart({ mtd, months, teamEmails, monthsShown = 6 }) {
   // Aggregate into one data point per month. Done in useMemo so the
   // chart doesn't re-compute on every hover state change.
+  //
+  // The old chart layered a DSAT line on top, but mtd.dsat is the
+  // QA's monitored-DSAT count (i.e. how many DSATs the QA was the
+  // resolver on) — not a "team health" signal that pairs cleanly
+  // with avg perf. Dropped it. CSAT % is a more meaningful second
+  // line; included alongside perf so leads can read both trends at
+  // once.
   const teamData = useMemo(() => {
     const trendMonths = (months || []).slice(0, monthsShown).reverse();
     const setEmails = new Set((teamEmails || []).map(e => (e || "").toLowerCase()));
@@ -20,12 +27,23 @@ export default function PerformanceTrendChart({ mtd, months, teamEmails, monthsS
       const monthRows = (mtd || []).filter(r => r.month === mo && setEmails.has((r.qa_email || "").toLowerCase()));
       const perfs = monthRows.map(r => parseFloat(r.final_performance) || 0).filter(v => v > 0);
       const avgPerf = perfs.length ? perfs.reduce((a, b) => a + b, 0) / perfs.length : 0;
-      const totalDsat = monthRows.reduce((a, r) => a + (r.dsat || 0), 0);
+      // Survey-weighted CSAT % across the team's MTD rows.
+      let csatWeightSum = 0, csatWeight = 0;
+      for (const r of monthRows) {
+        const surveys = Number(r.csat_total) || 0;
+        if (surveys <= 0) continue;
+        const pctRaw = String(r.csat_pct || "").replace("%", "").trim();
+        const pct = parseFloat(pctRaw);
+        if (!isFinite(pct)) continue;
+        csatWeightSum += pct * surveys;
+        csatWeight += surveys;
+      }
+      const teamCsat = csatWeight > 0 ? csatWeightSum / csatWeight : null;
       return {
         month: mo,
         label: mo.split("-")[0].slice(0, 3),
         avgPerf: avgPerf * 100,
-        dsat: totalDsat,
+        csat: teamCsat,                 // null when no surveys this month
         count: monthRows.length,
       };
     });
@@ -40,21 +58,23 @@ export default function PerformanceTrendChart({ mtd, months, teamEmails, monthsS
   const padL = 44, padR = 12, padT = 14, padB = 28;
 
   const maxPerf = Math.max(...teamData.map(d => d.avgPerf), 1);
-  const maxDsat = Math.max(...teamData.map(d => d.dsat), 1);
-
+  // CSAT axis is anchored to 100% — easier to read "we sit at X%".
+  // Skip months with null CSAT (no surveys) when drawing the CSAT line.
   const xFor = (i) => padL + i * (chartW - padL - padR) / (teamData.length - 1);
   const yPerf = (v) => padT + (chartH - padT - padB) * (1 - v / maxPerf);
-  const yDsat = (v) => padT + (chartH - padT - padB) * (1 - v / maxDsat);
+  const yCsat = (v) => padT + (chartH - padT - padB) * (1 - v / 100);
 
   const perfPoints = teamData.map((d, i) => ({ x: xFor(i), y: yPerf(d.avgPerf), ...d }));
-  const dsatPoints = teamData.map((d, i) => ({ x: xFor(i), y: yDsat(d.dsat), ...d }));
+  const csatPoints = teamData
+    .map((d, i) => d.csat == null ? null : ({ x: xFor(i), y: yCsat(d.csat), ...d }))
+    .filter(Boolean);
 
   // Smooth path via simple monotonic-cubic-ish approximation: alternate
   // L commands with slight midpoint nudge. Plain L is fine for 6 points
   // visually; saves the bezier complexity here.
   const linePath = (pts) => pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(" ");
   const perfLine = linePath(perfPoints);
-  const dsatLine = linePath(dsatPoints);
+  const csatLine = csatPoints.length >= 2 ? linePath(csatPoints) : null;
   // Closed polygon for the area fill under the perf line.
   const perfArea = `${perfLine} L${perfPoints[perfPoints.length - 1].x.toFixed(1)} ${chartH - padB} L${perfPoints[0].x.toFixed(1)} ${chartH - padB} Z`;
 
@@ -63,7 +83,7 @@ export default function PerformanceTrendChart({ mtd, months, teamEmails, monthsS
   const colWidth = (chartW - padL - padR) / Math.max(teamData.length - 1, 1);
 
   const focused = hover != null ? perfPoints[hover] : null;
-  const focusedDsat = hover != null ? dsatPoints[hover] : null;
+  const focusedCsat = hover != null && teamData[hover]?.csat != null ? teamData[hover].csat : null;
 
   return (
     <div style={{ position: "relative", overflowX: "auto" }}>
@@ -103,9 +123,11 @@ export default function PerformanceTrendChart({ mtd, months, teamEmails, monthsS
           <animate attributeName="opacity" from="0" to="1" dur="0.6s" fill="freeze"/>
         </path>
 
-        {/* DSAT (dashed) — drawn before perf line so perf reads on top */}
-        <path d={dsatLine} fill="none" stroke="var(--amber)" strokeOpacity="0.8"
-              strokeWidth="1.5" strokeDasharray="4 4" strokeLinecap="round"/>
+        {/* CSAT % (dashed) — drawn before perf so perf reads on top */}
+        {csatLine && (
+          <path d={csatLine} fill="none" stroke="var(--blue)" strokeOpacity="0.8"
+                strokeWidth="1.75" strokeDasharray="4 4" strokeLinecap="round"/>
+        )}
 
         {/* Performance line */}
         <path d={perfLine} fill="none" stroke="var(--chart-perf)" strokeWidth="2.5"
@@ -122,10 +144,10 @@ export default function PerformanceTrendChart({ mtd, months, teamEmails, monthsS
           </g>
         ))}
 
-        {/* DSAT points */}
-        {dsatPoints.map((p, i) => p.dsat > 0 && (
-          <circle key={`dp-${i}`} cx={p.x} cy={p.y} r={hover === i ? 5 : 3}
-            fill="var(--amber)" stroke="var(--bg)" strokeWidth="1.5"
+        {/* CSAT points (smaller) */}
+        {csatPoints.map((p, i) => (
+          <circle key={`cp-${i}`} cx={p.x} cy={p.y} r={3}
+            fill="var(--blue)" stroke="var(--bg)" strokeWidth="1.5"
             style={{ transition: "r .15s" }}/>
         ))}
 
@@ -179,8 +201,8 @@ export default function PerformanceTrendChart({ mtd, months, teamEmails, monthsS
           <div style={{ display: "flex", justifyContent: "space-between", color: "var(--chart-perf)", fontWeight: 600 }}>
             <span>Avg perf</span><span>{focused.avgPerf.toFixed(1)}%</span>
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--amber)", fontWeight: 600 }}>
-            <span>DSAT</span><span>{focusedDsat?.dsat ?? 0}</span>
+          <div style={{ display: "flex", justifyContent: "space-between", color: "var(--blue)", fontWeight: 600 }}>
+            <span>Team CSAT</span><span>{focusedCsat != null ? focusedCsat.toFixed(1) + "%" : "—"}</span>
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", color: "var(--tx3)", marginTop: 2 }}>
             <span>QAs</span><span>{focused.count}</span>
@@ -195,8 +217,8 @@ export default function PerformanceTrendChart({ mtd, months, teamEmails, monthsS
           Avg Performance
         </span>
         <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 14, height: 0, borderTop: "2px dashed var(--amber)", display: "inline-block" }}/>
-          Total DSAT
+          <span style={{ width: 14, height: 0, borderTop: "2px dashed var(--blue)", display: "inline-block" }}/>
+          Team CSAT %
         </span>
       </div>
     </div>
