@@ -2390,48 +2390,68 @@ html.dark table th { background: transparent !important; color: rgba(236,239,246
 html.dark table td { border-bottom: 1px solid rgba(255,255,255,.04) !important; }
 html.dark table tbody tr:hover td { background: rgba(255,255,255,.04) !important; }
 
-/* Sticky-left columns on tables: blend with the card's glass surface
-   so they look of-a-piece. MTD By-QA pins TWO columns (checkbox +
-   specialist), so both nth-child(1) and nth-child(2) need the same
-   treatment — otherwise column 2 stays solid and looks like a slab.
-   Headers use a slightly stronger opacity than body cells so the row
-   beneath the thead can't bleed through the SPECIALIST title. The
+/* Sticky table headers (all .table-wrap-sticky, not just sticky-left
+   ones): force a SOLID background and a real bottom border so the
+   first body row can't bleed into the header text — backdrop-filter
+   blurs but doesn't fully obscure, which is what produced the
+   "SPECIALIST overlapping Pola Emad" look. Bump z-index well above
+   the body cells too. */
+html:not(.dark) .table-wrap-sticky thead th {
+  background: #F5F4F2 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom: 1px solid rgba(31,29,36,.10) !important;
+  box-shadow: 0 2px 6px rgba(31,29,36,.04) !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  z-index: 5 !important;
+}
+html.dark .table-wrap-sticky thead th {
+  background: #1A1825 !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow: 0 2px 6px rgba(0,0,0,.25) !important;
+  padding-top: 12px !important;
+  padding-bottom: 12px !important;
+  z-index: 5 !important;
+}
+
+/* Sticky-left columns: glass body cells + solid headers. MTD By-QA
+   pins TWO columns (checkbox + specialist); both get the same
+   treatment so column 2 doesn't look like a different slab. The
    inset right-edge shadow lives only on the LAST sticky column so
    we don't double-shadow between columns 1 and 2. */
-html:not(.dark) .table-sticky-first thead th:nth-child(1),
-html:not(.dark) .table-sticky-first thead th:nth-child(2),
 html:not(.dark) .table-sticky-first tbody td:nth-child(1),
 html:not(.dark) .table-sticky-first tbody td:nth-child(2) {
-  background: rgba(255,255,255,.6) !important;
+  background: rgba(255,255,255,.7) !important;
   backdrop-filter: blur(22px) saturate(160%);
   -webkit-backdrop-filter: blur(22px) saturate(160%);
   box-shadow: none !important;
 }
 html:not(.dark) .table-sticky-first thead th:nth-child(1),
 html:not(.dark) .table-sticky-first thead th:nth-child(2) {
-  background: rgba(255,255,255,.85) !important;
+  z-index: 6 !important;  /* above both the sticky thead and sticky-left body */
 }
 html:not(.dark) .table-sticky-first thead th:nth-child(2),
 html:not(.dark) .table-sticky-first tbody td:nth-child(2) {
-  box-shadow: inset -1px 0 0 rgba(31,29,36,.08) !important;
+  box-shadow: inset -1px 0 0 rgba(31,29,36,.10) !important;
 }
 
-html.dark .table-sticky-first thead th:nth-child(1),
-html.dark .table-sticky-first thead th:nth-child(2),
 html.dark .table-sticky-first tbody td:nth-child(1),
 html.dark .table-sticky-first tbody td:nth-child(2) {
-  background: rgba(20,18,30,.55) !important;
+  background: rgba(20,18,30,.65) !important;
   backdrop-filter: blur(22px) saturate(160%);
   -webkit-backdrop-filter: blur(22px) saturate(160%);
   box-shadow: none !important;
 }
 html.dark .table-sticky-first thead th:nth-child(1),
 html.dark .table-sticky-first thead th:nth-child(2) {
-  background: rgba(20,18,30,.88) !important;
+  z-index: 6 !important;
 }
 html.dark .table-sticky-first thead th:nth-child(2),
 html.dark .table-sticky-first tbody td:nth-child(2) {
-  box-shadow: inset -1px 0 0 rgba(255,255,255,.06) !important;
+  box-shadow: inset -1px 0 0 rgba(255,255,255,.08) !important;
 }
 
 /* ── 14. Selection / focus ── */
