@@ -24,7 +24,7 @@ export const ProgressRing = ({ value, max, size = 64, stroke = 5, color = "var(-
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
       <svg width={size} height={size} style={{ transform: "rotate(-90deg)", flexShrink: 0 }}>
-        <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="var(--bd2)" strokeWidth={stroke} />
+        <circle cx={size/2} cy={size/2} r={r} fill="none" className="progress-ring-track" strokeWidth={stroke} />
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
           strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
           style={{ transition: "stroke-dashoffset 1s cubic-bezier(.4,0,.2,1)" }} />

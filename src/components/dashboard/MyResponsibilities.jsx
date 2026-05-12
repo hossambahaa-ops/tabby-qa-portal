@@ -82,34 +82,70 @@ export default function MyResponsibilities({ roster, onNavigate }) {
     if (tab) setTimeout(() => window.dispatchEvent(new CustomEvent("qc-tab", { detail: tab })), 100);
   };
 
-  const tile = (label, value, sub, tone, onClick) => (
-    <div
+  // Tone-tinted glass tile. Replaces the boxed sub-cards with a
+  // softer "data point" treatment: subtle background wash matching the
+  // tone, left-edge accent bar, big number, optional sub line, and an
+  // unobtrusive chevron that hints at click-through. Hover lifts the
+  // tile a notch and brightens the wash.
+  const tile = (icon, label, value, sub, tone, toneRgb, onClick) => (
+    <button
+      type="button"
       onClick={onClick}
+      disabled={!onClick}
+      className="attn-tile"
       style={{
-        padding: "12px 14px", borderRadius: 10, background: "var(--bg)",
-        cursor: onClick ? "pointer" : "default", border: "1px solid var(--bd2)",
-        transition: "all .15s ease",
+        display: "flex", flexDirection: "column", gap: 4,
+        padding: "14px 16px", borderRadius: 14,
+        background: `rgba(${toneRgb}, .08)`,
+        border: `1px solid rgba(${toneRgb}, .25)`,
+        position: "relative", overflow: "hidden",
+        cursor: onClick ? "pointer" : "default",
+        transition: "transform .15s var(--ease), background .15s ease, border-color .15s ease",
+        textAlign: "left", color: "var(--tx)",
+        fontFamily: "var(--font)",
       }}
-      onMouseEnter={e => { if (onClick) e.currentTarget.style.borderColor = "var(--tabby-purple)"; }}
-      onMouseLeave={e => { if (onClick) e.currentTarget.style.borderColor = "var(--bd2)"; }}
+      onMouseEnter={e => {
+        if (!onClick) return;
+        e.currentTarget.style.background = `rgba(${toneRgb}, .14)`;
+        e.currentTarget.style.borderColor = `rgba(${toneRgb}, .45)`;
+        e.currentTarget.style.transform = "translateY(-2px)";
+      }}
+      onMouseLeave={e => {
+        if (!onClick) return;
+        e.currentTarget.style.background = `rgba(${toneRgb}, .08)`;
+        e.currentTarget.style.borderColor = `rgba(${toneRgb}, .25)`;
+        e.currentTarget.style.transform = "translateY(0)";
+      }}
     >
-      <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 800, color: value > 0 ? tone : "var(--tx3)", marginTop: 4, lineHeight: 1 }}>{value}</div>
-      {sub && <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 4 }}>{sub}</div>}
-    </div>
+      {/* Left-edge accent stripe — visually links the tile to its tone */}
+      <span aria-hidden="true" style={{
+        position: "absolute", left: 0, top: 8, bottom: 8, width: 3,
+        background: tone, borderRadius: "0 3px 3px 0",
+        opacity: value > 0 ? 1 : 0.35,
+      }}/>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, color: tone, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".5px" }}>
+        <span style={{ fontSize: 14, lineHeight: 1 }}>{icon}</span>
+        <span style={{ color: "var(--tx2)" }}>{label}</span>
+      </div>
+      <div style={{ fontSize: 28, fontWeight: 800, color: value > 0 ? tone : "var(--tx3)", lineHeight: 1, fontVariantNumeric: "tabular-nums", marginTop: 2 }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 2 }}>{sub}</div>}
+      {onClick && value > 0 && (
+        <span aria-hidden="true" style={{ position: "absolute", top: 14, right: 14, color: tone, fontSize: 12, opacity: .55, fontWeight: 700 }}>›</span>
+      )}
+    </button>
   );
 
   return (
-    <div className="card" style={{ padding: 16, marginBottom: 16 }}>
-      <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
+    <div className="card" style={{ padding: 18, marginBottom: 16 }}>
+      <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
         Needs your attention
         <span style={{ fontSize: 10, padding: "2px 8px", borderRadius: 999, background: "var(--amber-bg)", color: "var(--amber)", fontWeight: 700, textTransform: "none", letterSpacing: 0 }}>{total}</span>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
-        {tile("Open escalations", counts.escalations, counts.escalations > 0 ? "Routed to you" : null, "var(--red)", nav("escalations"))}
-        {tile("Pending violations", counts.violations, counts.violations > 0 ? "Need review" : null, "var(--amber)", nav("quality", "violations"))}
-        {tile("Plans ending soon", counts.plansEndingSoon, `${counts.plansActive} active total`, "var(--amber)", nav("quality", "plans"))}
-        {tile("Team tasks open", counts.teamTasks, "Across direct reports", "var(--tabby-purple)", nav("dashboard"))}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 10 }}>
+        {tile("⚡", "Open escalations",  counts.escalations,    counts.escalations > 0 ? "Routed to you" : null,        "var(--red)",          "255,107,107", nav("escalations"))}
+        {tile("⚠",  "Pending violations", counts.violations,     counts.violations > 0 ? "Need review" : null,           "var(--amber)",        "255,177,59",  nav("quality", "violations"))}
+        {tile("📅", "Plans ending soon",  counts.plansEndingSoon, `${counts.plansActive} active total`,                   "var(--tabby-purple)", "106,44,121",  nav("quality", "plans"))}
+        {tile("✓",  "Team tasks open",    counts.teamTasks,      "Across direct reports",                                  "var(--tabby-purple-light)", "139,77,153", nav("dashboard"))}
       </div>
     </div>
   );

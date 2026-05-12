@@ -24,6 +24,7 @@ import APDetectionAlerts from "../components/dashboard/APDetectionAlerts.jsx";
 // import TeamHealth from "../components/dashboard/TeamHealth.jsx";
 import AttendanceHealthCard from "../components/attendance/AttendanceHealthCard.jsx";
 // TeamChampions moved off the dashboard — admin-only widget lives on the Expertise page now.
+import PerformanceTrendChart from "../components/dashboard/PerformanceTrendChart.jsx";
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
 import PendingSideTasksCard from "../components/dashboard/PendingSideTasksCard.jsx";
 // OwedCoachingsCard replaced by the cadence-aware CoachingCadenceCard
@@ -360,39 +361,8 @@ function DashboardPage(){
       {/* Score Trend Chart */}
       {months.length>=2&&<div className="card" style={{marginBottom:20}}>
         <div className="card-header"><span className="card-title">Performance trend</span><span style={{fontSize:12,color:"var(--tx3)"}}>{months.length} months</span></div>
-        <div style={{padding:"16px 16px 8px"}}>
-          {(()=>{
-            const trendMonths=months.slice(0,6).reverse();
-            const teamData=trendMonths.map(mo=>{
-              const monthRows=mtd.filter(r=>r.month===mo&&allTeamEmails.includes(r.qa_email?.toLowerCase()));
-              const perfs=monthRows.map(r=>parseFloat(r.final_performance)||0).filter(v=>v>0);
-              const avgPerf=perfs.length?perfs.reduce((a,b)=>a+b,0)/perfs.length:0;
-              const totalDsat=monthRows.reduce((a,r)=>a+(r.dsat||0),0);
-              const avgOcc=monthRows.map(r=>parseFloat(r.occupancy_pct)||0).filter(v=>v>0);
-              return{month:mo,label:mo.split("-")[0].slice(0,3),avgPerf:avgPerf*100,dsat:totalDsat,avgOcc:avgOcc.length?avgOcc.reduce((a,b)=>a+b,0)/avgOcc.length:0,count:monthRows.length};
-            });
-            const maxPerf=Math.max(...teamData.map(d=>d.avgPerf),1);
-            const maxDsat=Math.max(...teamData.map(d=>d.dsat),1);
-            const chartH=120;const chartW=Math.max(400,trendMonths.length*80);
-            const perfPoints=teamData.map((d,i)=>{const x=40+i*(chartW-60)/(trendMonths.length-1||1);const y=chartH-10-(d.avgPerf/maxPerf)*(chartH-30);return{x,y,...d};});
-            const dsatPoints=teamData.map((d,i)=>{const x=40+i*(chartW-60)/(trendMonths.length-1||1);const y=chartH-10-(d.dsat/maxDsat)*(chartH-30);return{x,y,...d};});
-            const perfLine=perfPoints.map((p,i)=>`${i===0?"M":"L"}${p.x} ${p.y}`).join(" ");
-            const dsatLine=dsatPoints.map((p,i)=>`${i===0?"M":"L"}${p.x} ${p.y}`).join(" ");
-            return <div style={{overflowX:"auto"}}>
-              <svg width={chartW} height={chartH+30} viewBox={`0 0 ${chartW} ${chartH+30}`}>
-                {[0,25,50,75,100].map(v=>{const y=chartH-10-(v/maxPerf)*(chartH-30);return <g key={v}><line x1="35" y1={y} x2={chartW-10} y2={y} stroke="var(--bd)" strokeWidth="0.5" strokeDasharray="4"/><text x="30" y={y+4} textAnchor="end" fill="var(--tx3)" fontSize="9">{v}%</text></g>})}
-                <path d={perfLine} fill="none" stroke="var(--chart-perf)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                {perfPoints.map((p,i)=><g key={i}><circle cx={p.x} cy={p.y} r="4" fill="var(--chart-perf)" stroke="var(--bg3)" strokeWidth="2"/><text x={p.x} y={p.y-10} textAnchor="middle" fill="var(--chart-perf)" fontSize="10" fontWeight="700">{p.avgPerf.toFixed(1)}%</text></g>)}
-                <path d={dsatLine} fill="none" stroke="var(--amber)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="4"/>
-                {dsatPoints.map((p,i)=><g key={i}><circle cx={p.x} cy={p.y} r="3" fill="var(--amber)" stroke="var(--bg3)" strokeWidth="1.5"/>{p.dsat>0&&<text x={p.x} y={p.y-9} textAnchor="middle" fill="var(--amber)" fontSize="10" fontWeight="700">{p.dsat}</text>}</g>)}
-                {perfPoints.map((p,i)=><text key={i} x={p.x} y={chartH+18} textAnchor="middle" fill="var(--tx3)" fontSize="10" fontWeight="500">{p.label}</text>)}
-              </svg>
-              <div style={{display:"flex",gap:16,justifyContent:"center",marginTop:4,fontSize:11}}>
-                <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:3,borderRadius:2,background:"var(--chart-perf)",display:"inline-block"}}/>Avg Performance</span>
-                <span style={{display:"flex",alignItems:"center",gap:4}}><span style={{width:12,height:3,borderRadius:2,background:"var(--amber)",display:"inline-block",borderTop:"1px dashed var(--amber)"}}/>Total DSAT</span>
-              </div>
-            </div>;
-          })()}
+        <div style={{padding:"8px 16px 8px"}}>
+          <PerformanceTrendChart mtd={mtd} months={months} teamEmails={allTeamEmails} monthsShown={6}/>
         </div>
       </div>}
 

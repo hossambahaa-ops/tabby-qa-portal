@@ -491,13 +491,16 @@ tr { transition: background .15s cubic-bezier(.4,0,.2,1); }
 /* ══ CLEAN ANIMATIONS SYSTEM ══ */
 /* ═══════════════════════════════════════ */
 
-/* ── Page entrance ── */
+/* ── Page entrance — gentler ease-out + tiny scale + slight vertical
+   travel. ease-out-expo (cubic-bezier(.16,1,.3,1)) decelerates more
+   smoothly than the standard ease-out, so pages "land" instead of
+   "snapping". */
 @keyframes pageIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; transform: translateY(12px) scale(.985); filter: blur(2px); }
+  to   { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
 }
-.page { animation: pageIn .35s var(--ease) both; }
-.page-animate { animation: pageIn .35s var(--ease) both; }
+.page { animation: pageIn .45s cubic-bezier(.16,1,.3,1) both; }
+.page-animate { animation: pageIn .45s cubic-bezier(.16,1,.3,1) both; }
 
 /* ── Card entrance with stagger ── */
 @keyframes cardSlideUp {
@@ -886,7 +889,25 @@ body:has(.view-as-bar) .sidebar { filter: saturate(.85); }
 .search-result-type { font-size: 9px; padding: 2px 8px; border-radius: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
 
 /* Dark mode — Tabby branded */
-.dark { --bg: #0F0D14; --bg2: #181522; --bg3: #211D30; --tx: #F5F3F8; --tx2: #B8B0C8; --tx3: #7E7694; --bd: #332D48; --bd2: #2A2540; --accent-light: #0D3320; --accent-text: #3BFF9D; --primary-light: #251838; --primary-text: #C9A0D8; --sidebar-bg: #0A0814; --green-bg: #0D2E1A; --amber-bg: #2E2410; --red-bg: #2E1010; --chart-perf: #3BFF9D; }
+.dark {
+  --bg: #0F0D14; --bg2: #181522; --bg3: #211D30;
+  --tx: #F5F3F8; --tx2: #B8B0C8; --tx3: #7E7694;
+  --bd: #332D48; --bd2: #2A2540;
+  --primary-light: #251838; --primary-text: #C9A0D8;
+  --sidebar-bg: #0A0814;
+  /* Status foregrounds — the light-mode values (#B22020 / #8C4E00 / etc.)
+     are way too dark to read on the dark glass surfaces. These are the
+     brightened variants that clear AA against the dark backdrop. */
+  --red:   #FF6B6B; --red-bg:   #2E1010;
+  --amber: #FFB13B; --amber-bg: #2E2410;
+  --green: #5EEAA4; --green-bg: #0D2E1A;
+  --teal:  #5EE0D8; --teal-bg:  #0D2D29;
+  --blue:  #6FA3FF; --blue-bg:  #0D1A33;
+  --chart-perf: #3BFF9D;
+  /* Avatar/initial circles: softer than the previous neon green so they
+     don't shout against the muted dark glass cards. */
+  --accent-light: #1B2030; --accent-text: #9EBDFF;
+}
 .dark .topbar { background: rgba(15,13,20,.9) !important; border-color: rgba(255,255,255,.06); }
 .dark .card { background: var(--bg3); border-color: var(--bd2); }
 .dark .card:hover { box-shadow: 0 4px 24px rgba(106,44,121,.1); }
@@ -2128,21 +2149,27 @@ html.dark .stat-card:hover {
 html:not(.dark) .topbar { background: rgba(255,255,255,.45) !important; }
 html.dark .topbar { background: rgba(15,13,20,.55) !important; }
 
-/* ── 5. Sidebar: tinted glass so it feels of-a-piece, but solid enough
-   that the nav rail isn't see-through and confusing. */
+/* ── 5. Sidebar: tinted glass. Lower opacity + stronger blur than the
+   first pass so the aurora actually shows through. The text is heavy
+   enough that legibility holds even at 35-55% surface opacity. */
 html:not(.dark) .sidebar {
-  background: rgba(255,255,255,.55) !important;
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  border-right: 1px solid rgba(255,255,255,.75) !important;
+  background: rgba(255,255,255,.40) !important;
+  backdrop-filter: blur(32px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
+  border-right: 1px solid rgba(255,255,255,.5) !important;
   color: #1F1D24;
 }
 html.dark .sidebar {
-  background: rgba(15,13,20,.75) !important;
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  background: rgba(15,13,20,.55) !important;
+  backdrop-filter: blur(32px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(180%) !important;
   border-right: 1px solid rgba(255,255,255,.06) !important;
 }
+/* Sidebar header / footer dividers blend with the new translucency. */
+html:not(.dark) .sidebar .sidebar-header,
+html:not(.dark) .sidebar-mobile-footer { border-color: rgba(31,29,36,.08) !important; }
+html.dark .sidebar .sidebar-header,
+html.dark .sidebar-mobile-footer { border-color: rgba(255,255,255,.06) !important; }
 
 /* Sidebar text legibility on the tinted glass */
 html:not(.dark) .sidebar .sidebar-brand { color: #1F1D24; }
@@ -2363,11 +2390,26 @@ html.dark table th { background: transparent !important; color: rgba(236,239,246
 html.dark table td { border-bottom: 1px solid rgba(255,255,255,.04) !important; }
 html.dark table tbody tr:hover td { background: rgba(255,255,255,.04) !important; }
 
-/* Sticky first column on tables: keep readable over hover */
+/* Sticky first column on tables: blend with the card's glass surface
+   so it looks of-a-piece, but stay opaque enough to obscure content
+   that scrolls behind it horizontally. backdrop-filter on the cell
+   gives it the same frosted feel as the parent card. Subtle inset
+   right-edge shadow signals "this is pinned" without a hard colour
+   block. */
 html:not(.dark) .table-sticky-first thead th:nth-child(1),
-html:not(.dark) .table-sticky-first tbody td:nth-child(1) { background: rgba(255,255,255,.65) !important; }
+html:not(.dark) .table-sticky-first tbody td:nth-child(1) {
+  background: rgba(255,255,255,.5) !important;
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: inset -1px 0 0 rgba(31,29,36,.08) !important;
+}
 html.dark .table-sticky-first thead th:nth-child(1),
-html.dark .table-sticky-first tbody td:nth-child(1) { background: rgba(20,18,30,.75) !important; }
+html.dark .table-sticky-first tbody td:nth-child(1) {
+  background: rgba(20,18,30,.45) !important;
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: inset -1px 0 0 rgba(255,255,255,.06) !important;
+}
 
 /* ── 14. Selection / focus ── */
 ::selection { background: var(--tabby-purple) !important; color: #FFF !important; }
@@ -2380,4 +2422,10 @@ html.dark .table-sticky-first tbody td:nth-child(1) { background: rgba(20,18,30,
 /* ── 16. Body fallback color so prerender / SSR isn't a flash of black ── */
 html:not(.dark) body { color: #1F1D24; }
 html.dark body { color: #ECEFF6; }
+
+/* ── 17. ProgressRing track — was using var(--bd2) which is too dark
+   on the dark glass cards (almost invisible). Use a translucent
+   neutral so the empty portion of the ring reads in both themes. */
+html:not(.dark) .progress-ring-track { stroke: rgba(31,29,36,.14); }
+html.dark .progress-ring-track { stroke: rgba(255,255,255,.18); }
 
