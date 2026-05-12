@@ -44,6 +44,15 @@ const TEMPLATES = [
     message: "Everyone — please welcome [name] who joins us as [role]. \n\nReporting to: \nStart date: \n\nSay hi when you get a chance!" },
 ];
 
+// Allowed enums on the announcements table — kept in sync with the
+// DB CHECK constraints so a stale draft from an older build can't
+// trip them. Any value outside the set is clamped to the default.
+const PRIORITY_VALUES   = ["normal", "important", "urgent"];
+const BODY_FORMAT_VALUES = ["plain", "html"];
+const DISMISS_VALUES     = ["modal", "banner"];
+const TARGET_TYPE_VALUES = ["all", "domain", "team", "individual", "my_team", "individuals"];
+const clampEnum = (v, allowed, fallback) => allowed.includes(v) ? v : fallback;
+
 function AnnouncementForm({ roster, onClose, open = true }) {
   const { profile, token, globalToast } = useApp();
   const myEmail = (profile?.email || "").toLowerCase();
@@ -61,10 +70,19 @@ function AnnouncementForm({ roster, onClose, open = true }) {
     send_at: "",              // empty = send now
     expires_at: "",           // empty = never
   };
+  // Sanitize on hydrate so drafts written by older builds (which
+  // could land "" into priority/dismiss_mode) can't poison the form.
+  const sanitize = (f) => ({
+    ...f,
+    priority: clampEnum(f.priority, PRIORITY_VALUES, "normal"),
+    body_format: clampEnum(f.body_format, BODY_FORMAT_VALUES, "plain"),
+    dismiss_mode: clampEnum(f.dismiss_mode, DISMISS_VALUES, "modal"),
+    target_type: clampEnum(f.target_type, TARGET_TYPE_VALUES, "my_team"),
+  });
   const [annForm, setAnnForm] = useState(() => {
     try {
       const raw = localStorage.getItem(DRAFT_KEY(myEmail));
-      if (raw) return { ...blankForm, ...JSON.parse(raw) };
+      if (raw) return sanitize({ ...blankForm, ...JSON.parse(raw) });
     } catch {}
     return blankForm;
   });
@@ -117,17 +135,17 @@ function AnnouncementForm({ roster, onClose, open = true }) {
       globalToast("error", "Select at least one person"); return;
     }
     setSending(true);
-    // Common payload bits. Defensive defaults: any of the enum-ish
-    // fields landing empty (e.g. user toggled the dropdown off) would
-    // fail the DB check constraint, so fall back to the safe option.
+    // Strict-clamp each enum field to the DB's allowed set. Catches
+    // empty strings AND any unexpected value (e.g. from an older draft
+    // or future option that we removed) — both would fail the CHECK.
     const baseBody = {
       title: annForm.title,
       message: annForm.message,
-      priority: annForm.priority || "normal",
+      priority: clampEnum(annForm.priority, PRIORITY_VALUES, "normal"),
       sent_by: profile?.email,
       requires_ack: annForm.requires_ack !== false,
-      body_format: annForm.body_format || "plain",
-      dismiss_mode: annForm.dismiss_mode || "modal",
+      body_format: clampEnum(annForm.body_format, BODY_FORMAT_VALUES, "plain"),
+      dismiss_mode: clampEnum(annForm.dismiss_mode, DISMISS_VALUES, "modal"),
       send_at: annForm.send_at ? new Date(annForm.send_at).toISOString() : null,
       expires_at: annForm.expires_at ? new Date(annForm.expires_at).toISOString() : null,
       published: true,
