@@ -37,7 +37,9 @@ export const ProgressRing = ({ value, max, size = 64, stroke = 5, color = "var(-
   );
 };
 
-// Mini Bar Chart — simple vertical bars for trend data
+// Mini Bar Chart — vertical bars for trend data. Latest bar is solid
+// in the accent colour with a soft top glow; prior bars step up in
+// opacity so the eye reads them as a progression toward "now".
 export const MiniBarChart = ({ data, height = 48, color = "var(--tabby-green)", showLabels = false }) => {
   if (!data || data.length === 0) return null;
   const max = Math.max(...data.map(d => d.value), 1);
@@ -45,17 +47,24 @@ export const MiniBarChart = ({ data, height = 48, color = "var(--tabby-green)", 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <div style={{ display: "flex", alignItems: "flex-end", gap: 3, height }}>
-        {data.map((d, i) => (
-          <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
-            <div style={{
-              width: "100%", maxWidth: barW, borderRadius: 3,
-              height: `${Math.max((d.value / max) * height, 3)}px`,
-              background: i === data.length - 1 ? color : "var(--bd)",
-              transition: "height .6s cubic-bezier(.4,0,.2,1)",
-              opacity: 0.4 + (i / data.length) * 0.6,
-            }} title={`${d.label}: ${d.value}`} />
-          </div>
-        ))}
+        {data.map((d, i) => {
+          const isLatest = i === data.length - 1;
+          return (
+            <div key={i} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+              <div style={{
+                width: "100%", maxWidth: barW, borderRadius: "3px 3px 2px 2px",
+                height: `${Math.max((d.value / max) * height, 3)}px`,
+                background: isLatest
+                  ? `linear-gradient(180deg, ${color}, color-mix(in srgb, ${color} 65%, transparent))`
+                  : "currentColor",
+                color: isLatest ? undefined : "var(--tx3)",
+                opacity: isLatest ? 1 : 0.18 + (i / data.length) * 0.30,
+                transition: "height .6s cubic-bezier(.4,0,.2,1), opacity .3s",
+                boxShadow: isLatest ? `0 0 10px ${color}` : "none",
+              }} title={`${d.label}: ${d.value}`} />
+            </div>
+          );
+        })}
       </div>
       {showLabels && <div style={{ display: "flex", gap: 3 }}>
         {data.map((d, i) => (
@@ -68,17 +77,40 @@ export const MiniBarChart = ({ data, height = 48, color = "var(--tabby-green)", 
   );
 };
 
-// Spark Line — inline trend line
+// Spark Line — inline trend line with a gradient area-fill under the
+// curve, glow on the stroke, and a slightly larger end-point dot so
+// the "latest value" reads at a glance. Matches the PerformanceTrend
+// chart treatment.
 export const SparkLine = ({ data, width = 100, height = 28, color = "var(--tabby-green)" }) => {
   if (!data || data.length < 2) return null;
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
-  const points = data.map((v, i) => `${(i / (data.length - 1)) * width},${height - ((v - min) / range) * (height - 4) - 2}`).join(" ");
+  const pad = 3;
+  const yFor = (v) => height - ((v - min) / range) * (height - pad * 2) - pad;
+  const xFor = (i) => (i / (data.length - 1)) * width;
+  const points = data.map((v, i) => `${xFor(i).toFixed(1)},${yFor(v).toFixed(1)}`).join(" ");
+  const linePath = "M" + points.split(" ").join(" L");
+  // Closed polygon for area fill — drops to baseline at start + end.
+  const areaPath = `${linePath} L${width.toFixed(1)} ${height - pad} L0 ${height - pad} Z`;
+  const lastX = xFor(data.length - 1);
+  const lastY = yFor(data[data.length - 1]);
+  // Unique gradient id so multiple sparklines on a page don't collide.
+  const gid = `spark-${Math.random().toString(36).slice(2, 8)}`;
   return (
-    <svg width={width} height={height} style={{ display: "block" }}>
-      <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" opacity=".8" />
-      <circle cx={(data.length - 1) / (data.length - 1) * width} cy={height - ((data[data.length-1] - min) / range) * (height - 4) - 2} r="3" fill={color} />
+    <svg width={width} height={height} style={{ display: "block", overflow: "visible" }}>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%"   stopColor={color} stopOpacity="0.40"/>
+          <stop offset="100%" stopColor={color} stopOpacity="0"/>
+        </linearGradient>
+      </defs>
+      <path d={areaPath} fill={`url(#${gid})`}/>
+      <path d={linePath} fill="none" stroke={color} strokeWidth="2"
+            strokeLinecap="round" strokeLinejoin="round"
+            style={{ filter: `drop-shadow(0 0 4px ${color})` }}/>
+      <circle cx={lastX} cy={lastY} r="3.5" fill={color}
+              style={{ filter: `drop-shadow(0 0 6px ${color})` }}/>
     </svg>
   );
 };
