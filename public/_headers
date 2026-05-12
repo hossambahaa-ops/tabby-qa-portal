@@ -15,3 +15,22 @@
 # Long cache for hashed build assets — filename changes on every build
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
+
+# Never edge-cache HTML. The in-app "New version available — Reload"
+# banner polls /index.html for the latest bundle hash; if Cloudflare's
+# edge serves a stale HTML, the hash never changes and the banner
+# never fires. CDN-Cache-Control targets the CDN specifically;
+# Cache-Control: no-store also tells the browser to revalidate.
+/
+  Cache-Control: no-store
+  CDN-Cache-Control: no-store
+
+/index.html
+  Cache-Control: no-store
+  CDN-Cache-Control: no-store
+
+# Service worker must also revalidate every load so SW updates ship
+# within a tab's lifetime instead of being pinned to the cached copy.
+/sw.js
+  Cache-Control: no-store
+  CDN-Cache-Control: no-store

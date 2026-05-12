@@ -81,9 +81,19 @@ export const startVersionCheck = ({ onUpdateAvailable, onForce } = {}) => {
   };
 
   // Run once shortly after page load so we catch a deploy that landed
-  // while the tab was loading. Then poll on the regular cadence.
-  setTimeout(tick, 30 * 1000);
+  // while the tab was loading. 5s is enough to let the app finish booting
+  // (so the banner doesn't fight the splash) but short enough that a user
+  // returning to a stale tab sees the prompt almost immediately.
+  setTimeout(tick, 5 * 1000);
   timer = setInterval(tick, CHECK_INTERVAL_MS);
 
-  return () => { if (timer) clearInterval(timer); };
+  // Also re-check when the tab regains focus — common case: user
+  // alt-tabs away while I'm deploying, comes back to a stale bundle.
+  const onFocus = () => { if (document.visibilityState === "visible") tick(); };
+  document.addEventListener("visibilitychange", onFocus);
+
+  return () => {
+    if (timer) clearInterval(timer);
+    document.removeEventListener("visibilitychange", onFocus);
+  };
 };
