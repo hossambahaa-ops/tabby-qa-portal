@@ -2028,3 +2028,328 @@ body[data-density="cozy"] .stats-grid { gap: 24px; }
   from { transform: translateX(-100%); }
   to   { transform: translateX(100%); }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   GLASS / iOS THEME — applied app-wide
+   ────────────────────────────────────────────────────────────────────────
+   Layered aurora gradient backdrop, frosted-glass cards (backdrop-blur),
+   gradient icon tiles, soft purple-tinted shadows. Both light and dark
+   modes covered. Sits at the BOTTOM of the file so it wins specificity
+   races against the earlier theme rules; if anything ever needs to be
+   rolled back, deleting this single block reverts the look.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Aurora backdrop on the page surface ──
+   Fixed attachment so the gradient stays put while content scrolls.
+   #root carries the page body which is what we want — html/body alone
+   wouldn't paint behind the React tree on every browser. */
+html, body, #root {
+  background: transparent !important;
+}
+body {
+  position: relative;
+}
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 900px 700px at 5% 0%, rgba(255,180,220,.40), transparent 55%),
+    radial-gradient(ellipse 800px 700px at 95% 10%, rgba(180,200,255,.40), transparent 55%),
+    radial-gradient(ellipse 1000px 800px at 50% 100%, rgba(180,255,210,.30), transparent 55%),
+    #F4F0FA;
+}
+html.dark body::before {
+  background:
+    radial-gradient(ellipse 900px 700px at 5% 0%, rgba(180,80,200,.30), transparent 55%),
+    radial-gradient(ellipse 800px 700px at 95% 10%, rgba(60,180,200,.22), transparent 55%),
+    radial-gradient(ellipse 1000px 800px at 50% 100%, rgba(180,255,200,.10), transparent 55%),
+    #08060F;
+}
+
+/* ── 2. App shell needs to be transparent so the aurora shows through. */
+.app-layout,
+.main-content,
+.page,
+.page-animate {
+  background: transparent !important;
+}
+
+/* ── 3. Cards: frosted glass.
+   Note: 55% opacity over the aurora gives a soft white-ish surface in
+   light mode. 4% in dark gives a barely-there frost. backdrop-filter
+   is the magic; -webkit- prefix kept for Safari. */
+.card,
+.stat-card {
+  border-radius: 20px !important;
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  transition: transform .15s var(--ease), box-shadow .2s ease;
+}
+html:not(.dark) .card,
+html:not(.dark) .stat-card {
+  background: rgba(255,255,255,.55) !important;
+  border: 1px solid rgba(255,255,255,.7) !important;
+  box-shadow:
+    0 10px 30px rgba(60,40,120,.10),
+    inset 0 1px 0 rgba(255,255,255,.8) !important;
+}
+html.dark .card,
+html.dark .stat-card {
+  background: rgba(255,255,255,.04) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow:
+    0 10px 30px rgba(0,0,0,.4),
+    inset 0 1px 0 rgba(255,255,255,.05) !important;
+}
+.card:hover,
+.stat-card:hover { transform: translateY(-1px); }
+html:not(.dark) .card:hover,
+html:not(.dark) .stat-card:hover {
+  box-shadow:
+    0 18px 40px rgba(60,40,120,.16),
+    inset 0 1px 0 rgba(255,255,255,.8) !important;
+}
+html.dark .card:hover,
+html.dark .stat-card:hover {
+  box-shadow:
+    0 18px 40px rgba(0,0,0,.55),
+    inset 0 1px 0 rgba(255,255,255,.07) !important;
+}
+
+/* ── 4. Topbar: glass over aurora ── */
+.topbar {
+  backdrop-filter: blur(24px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+  border-bottom: 1px solid rgba(255,255,255,.08) !important;
+}
+html:not(.dark) .topbar { background: rgba(255,255,255,.45) !important; }
+html.dark .topbar { background: rgba(15,13,20,.55) !important; }
+
+/* ── 5. Sidebar: tinted glass so it feels of-a-piece, but solid enough
+   that the nav rail isn't see-through and confusing. */
+html:not(.dark) .sidebar {
+  background: rgba(255,255,255,.55) !important;
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-right: 1px solid rgba(255,255,255,.75) !important;
+  color: #1F1D24;
+}
+html.dark .sidebar {
+  background: rgba(15,13,20,.75) !important;
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border-right: 1px solid rgba(255,255,255,.06) !important;
+}
+
+/* Sidebar text legibility on the tinted glass */
+html:not(.dark) .sidebar .sidebar-brand { color: #1F1D24; }
+html:not(.dark) .sidebar .sidebar-section { color: #5E5A65; }
+html:not(.dark) .sidebar .nav-item { color: #45414B; }
+html:not(.dark) .sidebar .nav-item:hover { background: rgba(106,44,121,.08); color: #1F1D24; }
+html:not(.dark) .sidebar .nav-item.active {
+  background: linear-gradient(135deg, rgba(106,44,121,.20), rgba(106,44,121,.10)) !important;
+  color: var(--tabby-purple) !important;
+  box-shadow: inset 0 0 0 1px rgba(106,44,121,.25) !important;
+}
+
+/* ── 6. Welcome banner: keep its purple gradient but bigger radius + soft glow. */
+.welcome-banner {
+  border-radius: 24px !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow: 0 18px 50px rgba(60,40,120,.18) !important;
+}
+html.dark .welcome-banner h2 {
+  background: linear-gradient(90deg, #FFFFFF, #C9A0FF 85%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── 7. Buttons ──
+   btn-primary keeps the brand purple but gets a softer gradient + glow.
+   btn-outline becomes glass.  */
+.btn { border-radius: 12px !important; }
+.btn-primary {
+  background: linear-gradient(135deg, var(--tabby-purple-light), var(--tabby-purple)) !important;
+  border: 1px solid rgba(255,255,255,.15) !important;
+  color: #fff !important;
+  box-shadow: 0 6px 18px rgba(106,44,121,.35) !important;
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-dark)) !important;
+  box-shadow: 0 10px 24px rgba(106,44,121,.45) !important;
+}
+.btn-outline {
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+html:not(.dark) .btn-outline {
+  background: rgba(255,255,255,.55) !important;
+  border: 1px solid rgba(255,255,255,.7) !important;
+  color: #1F1D24 !important;
+}
+html:not(.dark) .btn-outline:hover {
+  background: rgba(255,255,255,.75) !important;
+  border-color: rgba(106,44,121,.35) !important;
+  color: var(--tabby-purple) !important;
+}
+html.dark .btn-outline {
+  background: rgba(255,255,255,.04) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  color: #ECEFF6 !important;
+}
+html.dark .btn-outline:hover {
+  background: rgba(255,255,255,.08) !important;
+  border-color: rgba(139,77,153,.5) !important;
+  color: var(--tabby-purple-light) !important;
+}
+
+/* ── 8. Inputs / textareas / selects: glass ── */
+.form-input,
+.input,
+.select,
+input[type="text"],
+input[type="email"],
+input[type="number"],
+input[type="search"],
+input[type="date"],
+input[type="datetime-local"],
+textarea,
+select {
+  border-radius: 10px !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: border-color .15s, box-shadow .15s;
+}
+html:not(.dark) .form-input,
+html:not(.dark) .input,
+html:not(.dark) .select,
+html:not(.dark) textarea,
+html:not(.dark) select {
+  background: rgba(255,255,255,.55) !important;
+  border: 1px solid rgba(255,255,255,.75) !important;
+  color: #1F1D24 !important;
+}
+html.dark .form-input,
+html.dark .input,
+html.dark .select,
+html.dark textarea,
+html.dark select {
+  background: rgba(255,255,255,.04) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  color: #ECEFF6 !important;
+}
+.form-input:focus,
+.input:focus,
+.select:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--tabby-purple) !important;
+  box-shadow: 0 0 0 3px rgba(106,44,121,.18) !important;
+  outline: none !important;
+}
+
+/* ── 9. Modals / dialogs: stronger glass so the backdrop blur reads ── */
+[role="dialog"] > div,
+.modal {
+  border-radius: 24px !important;
+  backdrop-filter: blur(40px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(40px) saturate(180%) !important;
+}
+html:not(.dark) [role="dialog"] > div,
+html:not(.dark) .modal {
+  background: rgba(255,255,255,.75) !important;
+  border: 1px solid rgba(255,255,255,.85) !important;
+  box-shadow: 0 30px 80px rgba(60,40,120,.25) !important;
+}
+html.dark [role="dialog"] > div,
+html.dark .modal {
+  background: rgba(20,18,30,.85) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow: 0 30px 80px rgba(0,0,0,.55) !important;
+}
+
+/* ── 10. Notification dropdown, SearchableSelect popover: glass ── */
+.notif-dropdown,
+.search-results {
+  border-radius: 16px !important;
+  backdrop-filter: blur(28px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(160%) !important;
+}
+html:not(.dark) .notif-dropdown,
+html:not(.dark) .search-results {
+  background: rgba(255,255,255,.75) !important;
+  border: 1px solid rgba(255,255,255,.85) !important;
+  box-shadow: 0 24px 60px rgba(60,40,120,.20) !important;
+}
+html.dark .notif-dropdown,
+html.dark .search-results {
+  background: rgba(20,18,30,.85) !important;
+  border: 1px solid rgba(255,255,255,.08) !important;
+  box-shadow: 0 24px 60px rgba(0,0,0,.55) !important;
+}
+
+/* ── 11. Tabs / tab-bar pill containers: glass ── */
+.tabs, .tab-bar {
+  border-radius: 12px !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+html:not(.dark) .tabs,
+html:not(.dark) .tab-bar {
+  background: rgba(255,255,255,.5) !important;
+  border: 1px solid rgba(255,255,255,.6);
+}
+html.dark .tabs,
+html.dark .tab-bar {
+  background: rgba(255,255,255,.04) !important;
+  border: 1px solid rgba(255,255,255,.06);
+}
+.tab.active, .tab-btn.active { border-radius: 10px !important; }
+
+/* ── 12. Page filters strip (sticky bar under topbar) ── */
+html:not(.dark) .global-filter-bar,
+html:not(.dark) div[style*="border-bottom"][style*="var(--bd2)"][style*="flex-wrap"] {
+  background: rgba(255,255,255,.45) !important;
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-bottom-color: rgba(255,255,255,.6) !important;
+}
+html.dark .global-filter-bar,
+html.dark div[style*="border-bottom"][style*="var(--bd2)"][style*="flex-wrap"] {
+  background: rgba(15,13,20,.55) !important;
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border-bottom-color: rgba(255,255,255,.06) !important;
+}
+
+/* ── 13. Tables: rows readable on glass cards ── */
+html:not(.dark) table th { background: transparent !important; color: #45414B !important; border-bottom: 1px solid rgba(31,29,36,.08) !important; }
+html:not(.dark) table td { border-bottom: 1px solid rgba(31,29,36,.06) !important; }
+html:not(.dark) table tbody tr:hover td { background: rgba(255,255,255,.45) !important; }
+
+html.dark table th { background: transparent !important; color: rgba(236,239,246,.55) !important; border-bottom: 1px solid rgba(255,255,255,.08) !important; }
+html.dark table td { border-bottom: 1px solid rgba(255,255,255,.04) !important; }
+html.dark table tbody tr:hover td { background: rgba(255,255,255,.04) !important; }
+
+/* Sticky first column on tables: keep readable over hover */
+html:not(.dark) .table-sticky-first thead th:nth-child(1),
+html:not(.dark) .table-sticky-first tbody td:nth-child(1) { background: rgba(255,255,255,.65) !important; }
+html.dark .table-sticky-first thead th:nth-child(1),
+html.dark .table-sticky-first tbody td:nth-child(1) { background: rgba(20,18,30,.75) !important; }
+
+/* ── 14. Selection / focus ── */
+::selection { background: var(--tabby-purple) !important; color: #FFF !important; }
+
+/* ── 15. Skeleton placeholders look better on glass when slightly tinted ── */
+.skeleton, .skeleton-line, .skeleton-box {
+  border-radius: 8px;
+}
+
+/* ── 16. Body fallback color so prerender / SSR isn't a flash of black ── */
+html:not(.dark) body { color: #1F1D24; }
+html.dark body { color: #ECEFF6; }
+

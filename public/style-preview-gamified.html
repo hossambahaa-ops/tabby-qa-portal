@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tabby Pulse — Gamified preview (light + dark)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0F0D14; color: #F5F3F8; font-family: 'Inter Tight', system-ui, sans-serif; padding: 24px; }
+    .pick-bar { position: sticky; top: 0; background: #0F0D14; padding: 14px 0 18px; margin-bottom: 28px; border-bottom: 1px solid #1A1820; z-index: 50; }
+    .pick-bar h1 { font-size: 20px; font-weight: 700; }
+    .pick-bar p { color: rgba(245,243,248,.55); font-size: 13px; margin-top: 4px; max-width: 60ch; }
+    .style-section { max-width: 1100px; margin: 0 auto 60px; border-radius: 18px; overflow: hidden; border: 1px solid #1A1820; }
+    .style-section > header { padding: 14px 22px; background: #0E0D14; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1A1820; }
+    .style-section > header h2 { font-size: 16px; font-weight: 700; }
+    .style-section > header .tag { font-size: 10px; padding: 3px 10px; border-radius: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; background: rgba(255,213,87,.18); color: #FFD557; }
+    .demo-meta { padding: 12px 22px; background: #0E0D14; font-size: 12px; color: rgba(245,243,248,.55); border-top: 1px solid #1A1820; }
+
+    /* ═══════════════════════ Shared gamified shapes ════════════════════════ */
+    .demo { padding: 28px; font-family: 'Inter Tight', sans-serif; }
+    .welcome { padding: 22px; border-radius: 18px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; }
+    .welcome h3 { font-size: 24px; font-weight: 800; letter-spacing: -.5px; }
+    .welcome p { font-size: 12px; margin-top: 4px; }
+    .badge { display: inline-flex; align-items: center; gap: 10px; padding: 6px 14px; border-radius: 30px; font-size: 12px; font-weight: 700; }
+    .badge-icon { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #FFD557, #FF8C00); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 4px 12px rgba(255,140,0,.35); }
+    .xp-bar { width: 240px; }
+    .xp-row { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 4px; }
+    .xp-track { height: 8px; border-radius: 4px; overflow: hidden; }
+    .xp-fill { height: 100%; background: linear-gradient(90deg, #FFD557, #FF8C00); border-radius: 4px; box-shadow: 0 0 12px rgba(255,140,0,.45); }
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+    .stat-card { border-radius: 14px; padding: 16px; position: relative; overflow: hidden; }
+    .stat-label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; font-weight: 700; }
+    .stat-value { font-size: 30px; font-weight: 800; letter-spacing: -1px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+    .stat-trend { font-size: 11px; margin-top: 4px; font-weight: 700; }
+    .achievement { position: absolute; top: 8px; right: 8px; font-size: 16px; }
+    .table-card { border-radius: 16px; padding: 18px; }
+    .table-card h4 { font-size: 14px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-weight: 600; padding: 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+    td { padding: 12px 0; font-variant-numeric: tabular-nums; }
+    .rank-cell { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; font-weight: 800; font-size: 12px; margin-right: 8px; vertical-align: middle; }
+    .rank-cell.gold { background: linear-gradient(135deg, #FFD557, #FF8C00); color: #1A0820; box-shadow: 0 3px 10px rgba(255,140,0,.4); }
+    .mini-bar { display: inline-block; width: 60px; height: 6px; border-radius: 3px; vertical-align: middle; margin-left: 6px; overflow: hidden; }
+    .mini-bar > span { display: block; height: 100%; background: linear-gradient(90deg, #3BFF9D, #0F9D74); }
+    .pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+
+    /* ═══════════════════════ LIGHT MODE ════════════════════════
+       Selectors use .demo.light (compound, same element) instead of
+       .light .demo (descendant), because the HTML carries both classes
+       on the same div. The previous descendant version silently never
+       matched — the demo inherited the page's dark body background
+       and white body text, so "Welcome back" rendered as white text
+       on the light welcome card. */
+    .demo.light { background: #E5E2DF; color: #1F1D24; }
+    .light .welcome { background: linear-gradient(135deg, #F1EEEB, #E5E2DF); border: 1px solid #C8C4C0; box-shadow: 0 2px 8px rgba(106,44,121,.06); }
+    .light .welcome p { color: #45414B; }                       /* was #5E5A65 — punchier */
+    .light .badge { background: rgba(255,213,87,.22); border: 1px solid rgba(255,140,0,.45); color: #4A1B56; font-weight: 700; }
+    .light .xp-row { color: #45414B; }
+    .light .xp-row strong { color: #7A3F00; }                   /* was #FF8C00 — readable amber-brown ~6:1 */
+    .light .xp-track { background: rgba(0,0,0,.08); }
+    .light .stat-card { background: #F1EEEB; border: 1px solid #D4D0CD; box-shadow: 0 1px 3px rgba(106,44,121,.04); }
+    .light .stat-card.gold { background: linear-gradient(135deg, #FFF1C8, #FFD98A 80%); border-color: #E5A800; box-shadow: 0 4px 14px rgba(255,140,0,.18); }
+    .light .stat-label { color: #45414B; }                      /* was #5E5A65 */
+    .light .stat-card.gold .stat-label { color: #6B3D00; }      /* was #8B5A00 */
+    .light .stat-trend { color: #086B4E; font-weight: 700; }
+    .light .table-card { background: #F1EEEB; border: 1px solid #D4D0CD; box-shadow: 0 1px 3px rgba(106,44,121,.04); }
+    .light th { color: #45414B; border-bottom: 1px solid #C8C4C0; }
+    .light td { border-bottom: 1px solid #E0DCD9; }
+    .light tbody tr:last-child td { border-bottom: none; }
+    .light .rank-cell { background: rgba(106,44,121,.14); color: #4A1B56; }
+    .light .mini-bar { background: rgba(0,0,0,.08); }
+    .light .pill { background: #086B4E; color: #FFFFFF; }       /* was gradient → solid dark green, 5.8:1 */
+    .light .pill.champion { background: linear-gradient(135deg, #E5A800, #B96D00); color: #FFFFFF; box-shadow: 0 2px 6px rgba(185,109,0,.3); }
+    .light .pill.danger { background: rgba(178,32,32,.14); color: #8B1818; border: 1px solid rgba(178,32,32,.3); }
+
+    /* ═══════════════════════ DARK MODE ════════════════════════ */
+    .demo.dark { background: linear-gradient(180deg, #0E0820, #14081E); color: #FFFFFF; }
+    .dark .welcome { background: linear-gradient(135deg, rgba(106,44,121,.35), rgba(34,16,64,.6)); border: 1px solid rgba(180,120,255,.18); }
+    .dark .welcome p { color: rgba(255,255,255,.6); }
+    .dark .badge { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.12); color: #FFFFFF; }
+    .dark .xp-row { color: rgba(255,255,255,.65); }
+    .dark .xp-row strong { color: #FFD557; }
+    .dark .xp-track { background: rgba(255,255,255,.08); }
+    .dark .stat-card { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+    .dark .stat-card.gold { background: linear-gradient(135deg, rgba(255,213,87,.18), rgba(255,140,0,.08)); border-color: rgba(255,213,87,.4); }
+    .dark .stat-label { color: rgba(255,255,255,.6); }
+    .dark .stat-trend { color: #3BFF9D; }
+    .dark .table-card { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); }
+    .dark th { color: rgba(255,255,255,.6); border-bottom: 1px solid rgba(255,255,255,.08); }
+    .dark td { border-bottom: 1px solid rgba(255,255,255,.05); }
+    .dark tbody tr:last-child td { border-bottom: none; }
+    .dark .rank-cell { background: rgba(255,213,87,.15); color: #FFD557; }
+    .dark .mini-bar { background: rgba(255,255,255,.08); }
+    .dark .pill { background: linear-gradient(135deg, #3BFF9D, #00BB6E); color: #003822; }
+    .dark .pill.champion { background: linear-gradient(135deg, #FFD557, #FF8C00); color: #1A0820; }
+    .dark .pill.danger { background: rgba(255,115,115,.18); color: #FF7373; border: 1px solid rgba(255,115,115,.3); }
+
+    @media (max-width: 720px) { .stats-grid { grid-template-columns: 1fr 1fr; } .welcome { flex-direction: column; align-items: flex-start; } .xp-bar { width: 100%; } }
+  </style>
+</head>
+<body>
+  <div class="pick-bar">
+    <h1>Gamified style — light vs dark</h1>
+    <p>Same content side-by-side. If both feel right, I'll apply it across the real app and theme it so a user's light/dark toggle just works.</p>
+  </div>
+
+  <!-- ─── LIGHT ─── -->
+  <section class="style-section">
+    <header><h2>9 · Gamified — Light mode</h2><span class="tag">Belts / XP</span></header>
+    <div class="demo light">
+      <div class="welcome">
+        <div>
+          <div class="badge"><span class="badge-icon">🥇</span> Level 4 · QA Lead</div>
+          <h3 style="margin-top:10px">Welcome back, Hossam</h3>
+          <p>2 wins this month · Team is up 0.3 pts</p>
+        </div>
+        <div class="xp-bar">
+          <div class="xp-row"><span>Team XP</span><span><strong>8.4</strong> / 11</span></div>
+          <div class="xp-track"><div class="xp-fill" style="width:76%"></div></div>
+          <div class="xp-row" style="margin-top:4px"><span>2.6 pts to next belt</span><span>76%</span></div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card gold"><span class="achievement">🏆</span><div class="stat-label">Team score</div><div class="stat-value">8.4</div><div class="stat-trend">+0.3 vs Apr ▲</div></div>
+        <div class="stat-card"><div class="stat-label">CSAT</div><div class="stat-value">94.2%</div><div class="stat-trend">+1.1 ▲</div></div>
+        <div class="stat-card"><div class="stat-label">Rank</div><div class="stat-value">#2</div><div class="stat-trend">↑ 1 place</div></div>
+        <div class="stat-card"><div class="stat-label">DSAT</div><div class="stat-value" style="color:#B22020">3</div><div class="stat-trend" style="color:#B22020">+2 ▼</div></div>
+      </div>
+      <div class="table-card">
+        <h4>🏁 Team standings — May 2026</h4>
+        <table>
+          <thead><tr><th>Rank</th><th>Specialist</th><th>Score</th><th>Progress</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><span class="rank-cell gold">1</span></td><td><strong>Sara Mohamed</strong></td><td>9.8</td><td>96%<span class="mini-bar"><span style="width:96%"></span></span></td><td><span class="pill champion">CHAMPION</span></td></tr>
+            <tr><td><span class="rank-cell">2</span></td><td><strong>Ahmed Rashid</strong></td><td>9.1</td><td>92%<span class="mini-bar"><span style="width:92%"></span></span></td><td><span class="pill">ON FIRE</span></td></tr>
+            <tr><td><span class="rank-cell">3</span></td><td><strong>Mariam Gad</strong></td><td>8.7</td><td>87%<span class="mini-bar"><span style="width:87%"></span></span></td><td><span class="pill">STRONG</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="demo-meta">Warm-neutral light surface · gold gradient on top performer · purple Level badge · green progress bars · same shapes as dark, palette adapted for legibility.</div>
+  </section>
+
+  <!-- ─── DARK ─── -->
+  <section class="style-section">
+    <header><h2>9 · Gamified — Dark mode</h2><span class="tag">Belts / XP</span></header>
+    <div class="demo dark">
+      <div class="welcome">
+        <div>
+          <div class="badge"><span class="badge-icon">🥇</span> Level 4 · QA Lead</div>
+          <h3 style="margin-top:10px">Welcome back, Hossam</h3>
+          <p>2 wins this month · Team is up 0.3 pts</p>
+        </div>
+        <div class="xp-bar">
+          <div class="xp-row"><span>Team XP</span><span><strong>8.4</strong> / 11</span></div>
+          <div class="xp-track"><div class="xp-fill" style="width:76%"></div></div>
+          <div class="xp-row" style="margin-top:4px"><span>2.6 pts to next belt</span><span>76%</span></div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card gold"><span class="achievement">🏆</span><div class="stat-label">Team score</div><div class="stat-value">8.4</div><div class="stat-trend">+0.3 vs Apr ▲</div></div>
+        <div class="stat-card"><div class="stat-label">CSAT</div><div class="stat-value">94.2%</div><div class="stat-trend">+1.1 ▲</div></div>
+        <div class="stat-card"><div class="stat-label">Rank</div><div class="stat-value">#2</div><div class="stat-trend">↑ 1 place</div></div>
+        <div class="stat-card"><div class="stat-label">DSAT</div><div class="stat-value" style="color:#FFD557">3</div><div class="stat-trend" style="color:#FF7373">+2 ▼</div></div>
+      </div>
+      <div class="table-card">
+        <h4>🏁 Team standings — May 2026</h4>
+        <table>
+          <thead><tr><th>Rank</th><th>Specialist</th><th>Score</th><th>Progress</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><span class="rank-cell gold">1</span></td><td><strong>Sara Mohamed</strong></td><td>9.8</td><td>96%<span class="mini-bar"><span style="width:96%"></span></span></td><td><span class="pill champion">CHAMPION</span></td></tr>
+            <tr><td><span class="rank-cell">2</span></td><td><strong>Ahmed Rashid</strong></td><td>9.1</td><td>92%<span class="mini-bar"><span style="width:92%"></span></span></td><td><span class="pill">ON FIRE</span></td></tr>
+            <tr><td><span class="rank-cell">3</span></td><td><strong>Mariam Gad</strong></td><td>8.7</td><td>87%<span class="mini-bar"><span style="width:87%"></span></span></td><td><span class="pill">STRONG</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="demo-meta">Same shapes, palette flipped to deep purple background · gold/orange highlight stays bright · keeps the leaderboard energy at night.</div>
+  </section>
+
+</body>
+</html>

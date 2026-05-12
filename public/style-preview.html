@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tabby Pulse — Style Preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Source+Serif+Pro:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    /* ───────── Page chrome ───────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0F0D14; color: #F5F3F8; font-family: system-ui, sans-serif; padding: 24px; }
+    .pick-bar { position: sticky; top: 0; background: #0F0D14; padding: 12px 0 16px; margin-bottom: 24px; border-bottom: 1px solid #332D48; z-index: 50; }
+    .pick-bar h1 { font-size: 18px; font-weight: 700; margin-bottom: 4px; }
+    .pick-bar p { color: rgba(245,243,248,.55); font-size: 13px; max-width: 60ch; }
+    .pick-bar a { color: #3BFF9D; text-decoration: none; }
+    .style-section {
+      max-width: 1100px; margin: 0 auto 48px;
+      border: 1px solid #332D48; border-radius: 14px; overflow: hidden;
+      background: #181522;
+    }
+    .style-section > header {
+      padding: 14px 20px; background: #211D30; display: flex; justify-content: space-between; align-items: center;
+      border-bottom: 1px solid #332D48;
+    }
+    .style-section > header h2 { font-size: 16px; font-weight: 700; letter-spacing: -.2px; }
+    .style-section > header .tag { font-size: 10px; background: rgba(59,255,157,.14); color: #3BFF9D; padding: 3px 10px; border-radius: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; }
+    .demo { padding: 24px; }
+    .demo + .demo-meta { padding: 12px 20px; background: rgba(255,255,255,.02); font-size: 12px; color: rgba(245,243,248,.55); border-top: 1px solid #332D48; }
+    .demo-meta code { background: #211D30; padding: 1px 6px; border-radius: 4px; font-size: 11px; color: rgba(245,243,248,.75); }
+
+    /* ═════════════════════════════════════════════════════════════════════ */
+    /* STYLE 0 — CURRENT (Tabby Pulse today)                                  */
+    /* ═════════════════════════════════════════════════════════════════════ */
+    .s0 .demo { background: #C2BFBD; color: #26242A; font-family: 'Plus Jakarta Sans', sans-serif; }
+    .s0 .welcome { padding: 28px; border-radius: 16px; background: linear-gradient(135deg, #4A1B56, #6A2C79); color: #FFF; margin-bottom: 20px; }
+    .s0 .welcome h3 { font-size: 24px; font-weight: 700; letter-spacing: -.5px; }
+    .s0 .welcome p  { font-size: 13px; opacity: .65; margin-top: 4px; }
+    .s0 .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-top: 20px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,.1); }
+    .s0 .kpi { display: flex; flex-direction: column; gap: 4px; }
+    .s0 .kpi-label { font-size: 11px; color: rgba(255,255,255,.55); text-transform: uppercase; letter-spacing: .5px; font-weight: 600; }
+    .s0 .kpi-value { font-size: 22px; font-weight: 700; }
+    .s0 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+    .s0 .stat-card { background: #CECBC9; border: 1px solid #ABA7A4; border-radius: 16px; padding: 24px; }
+    .s0 .stat-label { font-size: 11px; color: #7C7882; font-weight: 600; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+    .s0 .stat-value { font-size: 28px; font-weight: 800; letter-spacing: -1px; }
+    .s0 .stat-icon { float: right; width: 40px; height: 40px; border-radius: 12px; background: #BEB4C2; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .s0 .table-card { background: #CECBC9; border: 1px solid #ABA7A4; border-radius: 16px; padding: 24px; }
+    .s0 .table-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+    .s0 table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .s0 th { text-align: left; font-weight: 600; color: #545058; padding: 8px 12px; border-bottom: 1px solid #ABA7A4; font-size: 12px; }
+    .s0 td { padding: 10px 12px; border-bottom: 1px solid #ABA7A4; }
+    .s0 .pill { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; background: #D8F0E2; color: #086B4E; }
+
+    /* ═════════════════════════════════════════════════════════════════════ */
+    /* STYLE 1 — LINEAR / VERCEL                                              */
+    /* ═════════════════════════════════════════════════════════════════════ */
+    .s1 .demo { background: #FAFAFA; color: #0A0A0A; font-family: 'Inter Tight', sans-serif; }
+    .s1 .welcome { padding: 20px 24px; border: 1px solid #E5E5E5; border-radius: 6px; margin-bottom: 16px; background: #FFFFFF; }
+    .s1 .welcome h3 { font-size: 24px; font-weight: 700; letter-spacing: -.6px; }
+    .s1 .welcome p  { font-size: 13px; color: #737373; margin-top: 2px; }
+    .s1 .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; margin-top: 20px; background: #E5E5E5; border: 1px solid #E5E5E5; border-radius: 6px; overflow: hidden; }
+    .s1 .kpi { padding: 14px 16px; background: #FFFFFF; }
+    .s1 .kpi-label { font-size: 11px; color: #737373; font-weight: 500; letter-spacing: 0; text-transform: none; margin-bottom: 4px; }
+    .s1 .kpi-value { font-size: 22px; font-weight: 600; letter-spacing: -.6px; font-family: 'JetBrains Mono', monospace; }
+    .s1 .kpi-delta { display: inline-block; margin-top: 4px; font-size: 11px; color: #16A34A; font-family: 'JetBrains Mono', monospace; }
+    .s1 .stats-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+    .s1 .stat-card { background: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 6px; padding: 16px; }
+    .s1 .stat-card.lg { grid-row: span 2; }
+    .s1 .stat-label { font-size: 11px; color: #737373; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+    .s1 .stat-value { font-size: 28px; font-weight: 600; letter-spacing: -1px; font-family: 'JetBrains Mono', monospace; }
+    .s1 .stat-icon { width: 18px; height: 18px; border-radius: 3px; background: #0A0A0A; color: #FAFAFA; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; }
+    .s1 .table-card { background: #FFFFFF; border: 1px solid #E5E5E5; border-radius: 6px; padding: 16px; }
+    .s1 .table-card h4 { font-size: 12px; font-weight: 500; color: #737373; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+    .s1 table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .s1 th { text-align: left; font-weight: 500; color: #737373; padding: 8px 0; border-bottom: 1px solid #E5E5E5; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+    .s1 td { padding: 10px 0; border-bottom: 1px solid #F5F5F5; font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+    .s1 td:first-child { font-family: 'Inter Tight', sans-serif; font-weight: 500; }
+    .s1 .pill { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: #DCFCE7; color: #166534; font-family: 'JetBrains Mono', monospace; }
+
+    /* ═════════════════════════════════════════════════════════════════════ */
+    /* STYLE 2 — NOTION / STRIPE (calm, document-like)                        */
+    /* ═════════════════════════════════════════════════════════════════════ */
+    .s2 .demo { background: #FFFFFF; color: #1F1D24; font-family: 'Inter', sans-serif; }
+    .s2 .welcome { padding-bottom: 24px; border-bottom: 1px solid #EFEDE9; margin-bottom: 24px; }
+    .s2 .welcome h3 { font-family: 'Source Serif Pro', serif; font-size: 32px; font-weight: 700; letter-spacing: -.5px; }
+    .s2 .welcome p  { font-size: 14px; color: #777078; margin-top: 6px; max-width: 60ch; line-height: 1.6; }
+    .s2 .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 32px; margin-top: 28px; }
+    .s2 .kpi { display: flex; flex-direction: column; gap: 4px; }
+    .s2 .kpi-label { font-size: 11px; color: #777078; letter-spacing: 0; text-transform: none; font-weight: 500; }
+    .s2 .kpi-value { font-family: 'Source Serif Pro', serif; font-size: 26px; font-weight: 600; letter-spacing: -.5px; }
+    .s2 .kpi-delta { font-size: 12px; color: #1A8754; font-weight: 500; }
+    .s2 .section-label { font-size: 11px; color: #777078; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; margin: 24px 0 12px; }
+    .s2 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid #EFEDE9; }
+    .s2 .stat-card { padding: 16px 0; border-bottom: 1px solid #EFEDE9; padding-right: 24px; }
+    .s2 .stat-card + .stat-card { padding-left: 24px; border-left: 1px solid #EFEDE9; }
+    .s2 .stat-label { font-size: 12px; color: #777078; margin-bottom: 8px; }
+    .s2 .stat-value { font-family: 'Source Serif Pro', serif; font-size: 28px; font-weight: 600; letter-spacing: -.5px; }
+    .s2 .stat-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #1A8754; margin-right: 6px; vertical-align: middle; }
+    .s2 .table-card { margin-top: 24px; }
+    .s2 .table-card h4 { font-family: 'Source Serif Pro', serif; font-size: 18px; font-weight: 600; margin-bottom: 12px; }
+    .s2 table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    .s2 th { text-align: left; font-weight: 500; color: #777078; padding: 8px 8px 8px 0; border-bottom: 1px solid #EFEDE9; font-size: 12px; }
+    .s2 td { padding: 14px 8px 14px 0; border-bottom: 1px solid #F5F2EE; }
+    .s2 .pill { color: #1A8754; font-weight: 600; }
+
+    /* ═════════════════════════════════════════════════════════════════════ */
+    /* STYLE 3 — POSTHOG / PLAUSIBLE (technical, garage-built)                */
+    /* ═════════════════════════════════════════════════════════════════════ */
+    .s3 .demo { background: #F9F4E8; color: #1D1F27; font-family: 'IBM Plex Mono', monospace; }
+    .s3 .welcome { padding: 20px; border: 2px solid #1D1F27; border-radius: 0; margin-bottom: 16px; background: #FFFFFF; position: relative; box-shadow: 4px 4px 0 #1D1F27; }
+    .s3 .welcome h3 { font-size: 22px; font-weight: 700; letter-spacing: -.3px; }
+    .s3 .welcome p  { font-size: 13px; color: #57606A; margin-top: 4px; }
+    .s3 .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; padding-top: 16px; border-top: 1px dashed #1D1F27; }
+    .s3 .kpi-label { font-size: 11px; color: #57606A; text-transform: uppercase; font-weight: 600; }
+    .s3 .kpi-value { font-size: 22px; font-weight: 700; }
+    .s3 .kpi-delta { display: inline-block; margin-top: 4px; font-size: 11px; padding: 1px 6px; background: #F8DF55; color: #1D1F27; border: 1px solid #1D1F27; font-weight: 700; }
+    .s3 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+    .s3 .stat-card { background: #FFFFFF; border: 2px solid #1D1F27; border-radius: 0; padding: 16px; box-shadow: 4px 4px 0 #1D1F27; }
+    .s3 .stat-label { font-size: 11px; color: #57606A; text-transform: uppercase; margin-bottom: 8px; font-weight: 600; }
+    .s3 .stat-value { font-size: 28px; font-weight: 700; letter-spacing: -.5px; }
+    .s3 .stat-tag { display: inline-block; margin-top: 8px; font-size: 11px; padding: 1px 6px; background: #F8DF55; color: #1D1F27; border: 1px solid #1D1F27; font-weight: 700; }
+    .s3 .table-card { background: #FFFFFF; border: 2px solid #1D1F27; border-radius: 0; padding: 16px; box-shadow: 4px 4px 0 #1D1F27; }
+    .s3 .table-card h4 { font-size: 14px; font-weight: 700; margin-bottom: 12px; text-transform: uppercase; }
+    .s3 table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .s3 th { text-align: left; font-weight: 700; padding: 6px 8px 6px 0; border-bottom: 2px solid #1D1F27; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+    .s3 td { padding: 8px 8px 8px 0; border-bottom: 1px dashed #1D1F27; }
+    .s3 .pill { display: inline-block; padding: 1px 6px; font-size: 11px; font-weight: 700; background: #C7EBD8; color: #086B4E; border: 1px solid #086B4E; }
+
+    /* ═════════════════════════════════════════════════════════════════════ */
+    /* STYLE 4 — GLASS / iOS (premium, ambient)                               */
+    /* ═════════════════════════════════════════════════════════════════════ */
+    .s4 .demo { background: radial-gradient(ellipse at top left, #FFEAF2, #F0E6FF 35%, #E6F0FF 70%, #EAFFF8); color: #1F1D24; font-family: 'Inter Tight', sans-serif; padding: 28px; }
+    .s4 .welcome { padding: 24px; border-radius: 22px; background: rgba(255,255,255,.55); border: 1px solid rgba(255,255,255,.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); box-shadow: 0 12px 40px rgba(60,40,120,.08); margin-bottom: 20px; }
+    .s4 .welcome h3 { font-size: 26px; font-weight: 700; letter-spacing: -.5px; }
+    .s4 .welcome p  { font-size: 13px; color: rgba(31,29,36,.6); margin-top: 4px; }
+    .s4 .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 18px; padding-top: 18px; border-top: 1px solid rgba(31,29,36,.08); }
+    .s4 .kpi-label { font-size: 11px; color: rgba(31,29,36,.55); }
+    .s4 .kpi-value { font-size: 24px; font-weight: 700; letter-spacing: -.4px; }
+    .s4 .kpi-delta { font-size: 11px; color: #16A34A; font-weight: 600; }
+    .s4 .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 20px; }
+    .s4 .stat-card { background: rgba(255,255,255,.55); border: 1px solid rgba(255,255,255,.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 18px; padding: 20px; box-shadow: 0 8px 24px rgba(60,40,120,.06); }
+    .s4 .stat-label { font-size: 11px; color: rgba(31,29,36,.55); margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+    .s4 .stat-value { font-size: 30px; font-weight: 700; letter-spacing: -.8px; }
+    .s4 .stat-icon { width: 32px; height: 32px; border-radius: 10px; background: linear-gradient(135deg, #6A2C79, #BEB4C2); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; box-shadow: 0 4px 12px rgba(106,44,121,.25); }
+    .s4 .table-card { background: rgba(255,255,255,.55); border: 1px solid rgba(255,255,255,.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border-radius: 18px; padding: 20px; box-shadow: 0 8px 24px rgba(60,40,120,.06); }
+    .s4 .table-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 14px; }
+    .s4 table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .s4 th { text-align: left; font-weight: 500; color: rgba(31,29,36,.55); padding: 8px 0; border-bottom: 1px solid rgba(31,29,36,.08); font-size: 11px; }
+    .s4 td { padding: 10px 0; border-bottom: 1px solid rgba(31,29,36,.05); }
+    .s4 .pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; background: rgba(22,163,74,.12); color: #16A34A; }
+
+    @media (max-width: 720px) {
+      .style-section .demo > div { font-size: 13px; }
+      .kpi-strip, .stats-grid { grid-template-columns: 1fr 1fr !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="pick-bar">
+    <h1>Style preview — Tabby Pulse</h1>
+    <p>Same mock dashboard, five looks. Pick one and tell me which (or "stick with current"). Open the app side-by-side at <a href="/">/</a> to compare with the real one.</p>
+  </div>
+
+  <!-- ───────────────────────────────────────────────────────── -->
+  <!-- 0. CURRENT                                                  -->
+  <!-- ───────────────────────────────────────────────────────── -->
+  <section class="style-section s0">
+    <header><h2>0 · Current (Tabby Pulse today)</h2><span class="tag">Baseline</span></header>
+    <div class="demo">
+      <div class="welcome">
+        <h3>Welcome back, Hossam</h3>
+        <p>Here's your team overview for May-2026.</p>
+        <div class="kpi-strip">
+          <div class="kpi"><span class="kpi-label">Team avg score</span><span class="kpi-value">8.4 / 11</span></div>
+          <div class="kpi"><span class="kpi-label">Team CSAT</span><span class="kpi-value">94.2%</span></div>
+          <div class="kpi"><span class="kpi-label">Rank</span><span class="kpi-value">#2 / 8</span></div>
+          <div class="kpi"><span class="kpi-label">DSATs</span><span class="kpi-value">3</span></div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-label">My team</div><div class="stat-value">12</div></div>
+        <div class="stat-card"><div class="stat-icon">📊</div><div class="stat-label">Team avg score</div><div class="stat-value">8.4</div></div>
+        <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-label">Pending DAM flags</div><div class="stat-value">2</div></div>
+      </div>
+      <div class="table-card">
+        <h4>My team — May-2026</h4>
+        <table>
+          <thead><tr><th>#</th><th>Specialist</th><th>Score</th><th>Occupancy</th><th>CSAT</th></tr></thead>
+          <tbody>
+            <tr><td>1</td><td>Sara Mohamed</td><td><span class="pill">9.8 / 11</span></td><td>96.2%</td><td>97.1%</td></tr>
+            <tr><td>2</td><td>Ahmed Rashid</td><td><span class="pill">9.1 / 11</span></td><td>94.8%</td><td>92.4%</td></tr>
+            <tr><td>3</td><td>Mariam Gad</td><td><span class="pill">8.7 / 11</span></td><td>93.1%</td><td>95.8%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="demo-meta">Plus Jakarta Sans · 16px card radius · soft shadows · purple gradient hero · emoji icons · warm-grey background.</div>
+  </section>
+
+  <!-- ───────────────────────────────────────────────────────── -->
+  <!-- 1. LINEAR / VERCEL                                          -->
+  <!-- ───────────────────────────────────────────────────────── -->
+  <section class="style-section s1">
+    <header><h2>1 · Linear / Vercel</h2><span class="tag">Engineered, minimal</span></header>
+    <div class="demo">
+      <div class="welcome">
+        <h3>Welcome back, Hossam</h3>
+        <p>Here's your team overview for May-2026.</p>
+        <div class="kpi-strip">
+          <div class="kpi"><div class="kpi-label">Team avg score</div><div class="kpi-value">8.4</div><div class="kpi-delta">+0.3</div></div>
+          <div class="kpi"><div class="kpi-label">Team CSAT</div><div class="kpi-value">94.2%</div><div class="kpi-delta">+1.1</div></div>
+          <div class="kpi"><div class="kpi-label">Rank</div><div class="kpi-value">#2</div><div class="kpi-delta">↑1</div></div>
+          <div class="kpi"><div class="kpi-label">DSATs</div><div class="kpi-value">3</div><div class="kpi-delta" style="color:#DC2626">+2</div></div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label"><span class="stat-icon">⊞</span> My team</div><div class="stat-value">12</div></div>
+        <div class="stat-card"><div class="stat-label">Team avg score</div><div class="stat-value">8.4</div></div>
+        <div class="stat-card"><div class="stat-label">Pending DAM</div><div class="stat-value">2</div></div>
+      </div>
+      <div class="table-card">
+        <h4>My team / May-2026</h4>
+        <table>
+          <thead><tr><th>Specialist</th><th>Score</th><th>Occ</th><th>CSAT</th><th></th></tr></thead>
+          <tbody>
+            <tr><td>Sara Mohamed</td><td>9.8</td><td>96.2</td><td>97.1</td><td><span class="pill">PASS</span></td></tr>
+            <tr><td>Ahmed Rashid</td><td>9.1</td><td>94.8</td><td>92.4</td><td><span class="pill">PASS</span></td></tr>
+            <tr><td>Mariam Gad</td><td>8.7</td><td>93.1</td><td>95.8</td><td><span class="pill">PASS</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="demo-meta">Inter Tight + JetBrains Mono for numbers · 6px radius · 1px borders, no shadows · monochrome · single hot green accent.</div>
+  </section>
+
+  <!-- ───────────────────────────────────────────────────────── -->
+  <!-- 2. NOTION / STRIPE                                          -->
+  <!-- ───────────────────────────────────────────────────────── -->
+  <section class="style-section s2">
+    <header><h2>2 · Notion / Stripe Dashboard</h2><span class="tag">Calm, document-like</span></header>
+    <div class="demo">
+      <div class="welcome">
+        <h3>Welcome back, Hossam</h3>
+        <p>Here's your team overview for May 2026. Twelve specialists, three on plan, two with new DAM flags awaiting review.</p>
+        <div class="kpi-strip">
+          <div class="kpi"><div class="kpi-label">Team avg score</div><div class="kpi-value">8.4</div><div class="kpi-delta">+0.3 vs Apr</div></div>
+          <div class="kpi"><div class="kpi-label">Team CSAT</div><div class="kpi-value">94.2%</div><div class="kpi-delta">+1.1 vs Apr</div></div>
+          <div class="kpi"><div class="kpi-label">Rank</div><div class="kpi-value">#2</div><div class="kpi-delta">↑ 1 position</div></div>
+          <div class="kpi"><div class="kpi-label">DSATs</div><div class="kpi-value">3</div><div class="kpi-delta" style="color:#A02828">+2 vs Apr</div></div>
+        </div>
+      </div>
+      <div class="section-label">Team snapshot</div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">My team</div><div class="stat-value">12</div></div>
+        <div class="stat-card"><div class="stat-label">Team avg score</div><div class="stat-value"><span class="stat-dot"></span>8.4</div></div>
+        <div class="stat-card"><div class="stat-label">Pending DAM flags</div><div class="stat-value">2</div></div>
+      </div>
+      <div class="table-card">
+        <h4>My team — May 2026</h4>
+        <table>
+          <thead><tr><th>Specialist</th><th>Score</th><th>Occupancy</th><th>CSAT</th></tr></thead>
+          <tbody>
+            <tr><td>Sara Mohamed</td><td><span class="pill">9.8</span></td><td>96.2%</td><td>97.1%</td></tr>
+            <tr><td>Ahmed Rashid</td><td><span class="pill">9.1</span></td><td>94.8%</td><td>92.4%</td></tr>
+            <tr><td>Mariam Gad</td><td><span class="pill">8.7</span></td><td>93.1%</td><td>95.8%</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="demo-meta">Source Serif + Inter · no cards, rules between sections · tiny coloured dot indicators · feels editorial.</div>
+  </section>
+
+  <!-- ───────────────────────────────────────────────────────── -->
+  <!-- 3. POSTHOG / PLAUSIBLE                                      -->
+  <!-- ───────────────────────────────────────────────────────── -->
+  <section class="style-section s3">
+    <header><h2>3 · Posthog / Plausible</h2><span class="tag">Technical, opinionated</span></header>
+    <div class="demo">
+      <div class="welcome">
+        <h3>Welcome back, Hossam</h3>
+        <p>Team overview · May-2026 · 12 specialists</p>
+        <div class="kpi-strip">
+          <div class="kpi"><div class="kpi-label">TEAM SCORE</div><div class="kpi-value">8.4</div><span class="kpi-delta">+0.3</span></div>
+          <div class="kpi"><div class="kpi-label">CSAT</div><div class="kpi-value">94.2%</div><span class="kpi-delta">+1.1</span></div>
+          <div class="kpi"><div class="kpi-label">RANK</div><div class="kpi-value">#2</div><span class="kpi-delta">↑1</span></div>
+          <div class="kpi"><div class="kpi-label">DSAT</div><div class="kpi-value">3</div><span class="kpi-delta" style="background:#FFC0C0">+2</span></div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">MY TEAM</div><div class="stat-value">12</div><span class="stat-tag">+1 since Apr</span></div>
+        <div class="stat-card"><div class="stat-label">AVG SCORE</div><div class="stat-value">8.4</div><span class="stat-tag">target 8.0</span></div>
+        <div class="stat-card"><div class="stat-label">DAM FLAGS</div><div class="stat-value">2</div><span class="stat-tag" style="background:#FFC0C0">2 unreviewed</span></div>
+      </div>
+      <div class="table-card">
+        <h4>My team — May-2026</h4>
+        <table>
+          <thead><tr><th>SPECIALIST</th><th>SCORE</th><th>OCC</th><th>CSAT</th><th>STATUS</th></tr></thead>
+          <tbody>
+            <tr><td>Sara Mohamed</td><td>9.8</td><td>96.2</td><td>97.1</td><td><span class="pill">PASS</span></td></tr>
+            <tr><td>Ahmed Rashid</td><td>9.1</td><td>94.8</td><td>92.4</td><td><span class="pill">PASS</span></td></tr>
+            <tr><td>Mariam Gad</td><td>8.7</td><td>93.1</td><td>95.8</td><td><span class="pill">PASS</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="demo-meta">IBM Plex Mono everywhere · sharp corners · 2px black border + 4px offset shadow · bright yellow/cream palette · brutalist edge.</div>
+  </section>
+
+  <!-- ───────────────────────────────────────────────────────── -->
+  <!-- 4. GLASS / iOS                                              -->
+  <!-- ───────────────────────────────────────────────────────── -->
+  <section class="style-section s4">
+    <header><h2>4 · Glass / iOS</h2><span class="tag">Premium, ambient</span></header>
+    <div class="demo">
+      <div class="welcome">
+        <h3>Welcome back, Hossam</h3>
+        <p>Here's your team overview for May 2026.</p>
+        <div class="kpi-strip">
+          <div class="kpi"><div class="kpi-label">Team avg score</div><div class="kpi-value">8.4</div><div class="kpi-delta">↑ 0.3</div></div>
+          <div class="kpi"><div class="kpi-label">Team CSAT</div><div class="kpi-value">94.2%</div><div class="kpi-delta">↑ 1.1</div></div>
+          <div class="kpi"><div class="kpi-label">Rank</div><div class="kpi-value">#2</div><div class="kpi-delta">↑ 1</div></div>
+          <div class="kpi"><div class="kpi-label">DSATs</div><div class="kpi-value">3</div><div class="kpi-delta" style="color:#DC2626">↑ 2</div></div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label"><span class="stat-icon">⌘</span> My team</div><div class="stat-value">12</div></div>
+        <div class="stat-card"><div class="stat-label"><span class="stat-icon">↗</span> Team avg score</div><div class="stat-value">8.4</div></div>
+        <div class="stat-card"><div class="stat-label"><span class="stat-icon">!</span> Pending DAM</div><div class="stat-value">2</div></div>
+      </div>
+      <div class="table-card">
+        <h4>My team — May 2026</h4>
+        <table>
+          <thead><tr><th>Specialist</th><th>Score</th><th>Occupancy</th><th>CSAT</th></tr></thead>
+          <tbody>
+            <tr><td>Sara Mohamed</td><td>9.8</td><td>96.2%</td><td><span class="pill">97.1%</span></td></tr>
+            <tr><td>Ahmed Rashid</td><td>9.1</td><td>94.8%</td><td><span class="pill">92.4%</span></td></tr>
+            <tr><td>Mariam Gad</td><td>8.7</td><td>93.1%</td><td><span class="pill">95.8%</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="demo-meta">Gradient mesh background · frosted-glass cards (backdrop-blur) · soft purple shadows · 18px radius · feels like a Mac app.</div>
+  </section>
+
+</body>
+</html>

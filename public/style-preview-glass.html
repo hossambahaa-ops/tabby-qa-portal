@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tabby Pulse — Glass / iOS preview (light + dark)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0F0D14; color: #F5F3F8; font-family: 'Inter Tight', system-ui, sans-serif; padding: 24px; }
+    .pick-bar { position: sticky; top: 0; background: #0F0D14; padding: 14px 0 18px; margin-bottom: 28px; border-bottom: 1px solid #1A1820; z-index: 50; }
+    .pick-bar h1 { font-size: 20px; font-weight: 700; }
+    .pick-bar p { color: rgba(245,243,248,.55); font-size: 13px; margin-top: 4px; max-width: 60ch; }
+    .style-section { max-width: 1100px; margin: 0 auto 60px; border-radius: 18px; overflow: hidden; border: 1px solid #1A1820; }
+    .style-section > header { padding: 14px 22px; background: #0E0D14; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #1A1820; }
+    .style-section > header h2 { font-size: 16px; font-weight: 700; }
+    .style-section > header .tag { font-size: 10px; padding: 3px 10px; border-radius: 20px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; background: rgba(180,120,255,.18); color: #C9A0FF; }
+    .demo-meta { padding: 12px 22px; background: #0E0D14; font-size: 12px; color: rgba(245,243,248,.55); border-top: 1px solid #1A1820; }
+
+    /* ═══════════════════════ Shared shapes ════════════════════════ */
+    .demo { padding: 28px; font-family: 'Inter Tight', sans-serif; min-height: 700px; }
+    .welcome { padding: 24px; border-radius: 22px; margin-bottom: 20px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+    .welcome h3 { font-size: 28px; font-weight: 700; letter-spacing: -.6px; line-height: 1.15; }
+    .welcome p { font-size: 13px; margin-top: 6px; }
+    .kpi-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-top: 20px; padding-top: 20px; }
+    .kpi-label { font-size: 11px; margin-bottom: 6px; }
+    .kpi-value { font-size: 26px; font-weight: 700; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
+    .kpi-delta { font-size: 11px; margin-top: 4px; font-weight: 600; }
+    .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
+    .stat-card { border-radius: 20px; padding: 22px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); transition: transform .2s, box-shadow .2s; }
+    .stat-card:hover { transform: translateY(-2px); }
+    .stat-label { font-size: 11px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+    .stat-icon { width: 32px; height: 32px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; color: #fff; }
+    .stat-value { font-size: 32px; font-weight: 700; letter-spacing: -.8px; font-variant-numeric: tabular-nums; }
+    .table-card { border-radius: 22px; padding: 22px; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
+    .table-card h4 { font-size: 16px; font-weight: 700; margin-bottom: 16px; letter-spacing: -.3px; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { text-align: left; font-weight: 500; padding: 8px 0; font-size: 11px; text-transform: uppercase; letter-spacing: .3px; }
+    td { padding: 12px 0; font-variant-numeric: tabular-nums; }
+    td strong { font-weight: 600; }
+    .pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+    .avatar { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%; font-weight: 700; font-size: 12px; margin-right: 10px; vertical-align: middle; box-shadow: 0 2px 8px rgba(106,44,121,.25); }
+
+    /* ═══════════════════════════════════════════════════════════════════ */
+    /* LIGHT MODE — pastel aurora mesh + frosted-white cards               */
+    /* ═══════════════════════════════════════════════════════════════════ */
+    .demo.light {
+      background:
+        radial-gradient(ellipse 700px 500px at 10% 0%, rgba(255,180,220,.55), transparent 60%),
+        radial-gradient(ellipse 600px 500px at 90% 10%, rgba(180,200,255,.55), transparent 60%),
+        radial-gradient(ellipse 800px 600px at 50% 100%, rgba(180,255,210,.45), transparent 60%),
+        #F4F0FA;
+      color: #1F1D24;
+    }
+    .demo.light .welcome {
+      background: rgba(255,255,255,.55);
+      border: 1px solid rgba(255,255,255,.85);
+      box-shadow: 0 14px 40px rgba(60,40,120,.10), inset 0 1px 0 rgba(255,255,255,.8);
+    }
+    .demo.light .welcome p { color: #5E5A65; }
+    .demo.light .kpi-strip { border-top: 1px solid rgba(31,29,36,.08); }
+    .demo.light .kpi { padding: 14px; border-radius: 14px; background: rgba(255,255,255,.55); border: 1px solid rgba(255,255,255,.75); }
+    .demo.light .kpi-label { color: #5E5A65; }
+    .demo.light .kpi-delta { color: #086B4E; }
+    .demo.light .kpi-delta.down { color: #B22020; }
+    .demo.light .stat-card {
+      background: rgba(255,255,255,.55);
+      border: 1px solid rgba(255,255,255,.85);
+      box-shadow: 0 10px 28px rgba(60,40,120,.08), inset 0 1px 0 rgba(255,255,255,.7);
+    }
+    .demo.light .stat-card:hover { box-shadow: 0 16px 40px rgba(60,40,120,.14), inset 0 1px 0 rgba(255,255,255,.7); }
+    .demo.light .stat-label { color: #5E5A65; }
+    .demo.light .stat-icon.purple { background: linear-gradient(135deg, #6A2C79, #C9A0FF); box-shadow: 0 4px 12px rgba(106,44,121,.3); }
+    .demo.light .stat-icon.green  { background: linear-gradient(135deg, #086B4E, #2BD882); box-shadow: 0 4px 12px rgba(8,107,78,.3); }
+    .demo.light .stat-icon.amber  { background: linear-gradient(135deg, #8B5A00, #FFB13B); box-shadow: 0 4px 12px rgba(139,90,0,.3); }
+    .demo.light .table-card {
+      background: rgba(255,255,255,.55);
+      border: 1px solid rgba(255,255,255,.85);
+      box-shadow: 0 10px 28px rgba(60,40,120,.08), inset 0 1px 0 rgba(255,255,255,.7);
+    }
+    .demo.light th { color: #5E5A65; border-bottom: 1px solid rgba(31,29,36,.08); }
+    .demo.light td { border-bottom: 1px solid rgba(31,29,36,.06); }
+    .demo.light tbody tr:last-child td { border-bottom: none; }
+    .demo.light .pill { background: rgba(8,107,78,.14); color: #086B4E; }
+    .demo.light .pill.danger { background: rgba(178,32,32,.14); color: #8B1818; }
+    .demo.light .avatar { background: linear-gradient(135deg, #C9A0FF, #6A2C79); color: #fff; }
+
+    /* ═══════════════════════════════════════════════════════════════════ */
+    /* DARK MODE — deep purple aurora + frosted-glass cards                */
+    /* ═══════════════════════════════════════════════════════════════════ */
+    .demo.dark {
+      background:
+        radial-gradient(ellipse 700px 500px at 10% 0%, rgba(180,80,200,.40), transparent 55%),
+        radial-gradient(ellipse 600px 500px at 90% 10%, rgba(60,180,200,.30), transparent 55%),
+        radial-gradient(ellipse 800px 600px at 50% 100%, rgba(180,255,200,.18), transparent 55%),
+        #08060F;
+      color: #ECEFF6;
+    }
+    .demo.dark .welcome {
+      background: rgba(255,255,255,.06);
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 14px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,.05);
+    }
+    .demo.dark .welcome h3 {
+      background: linear-gradient(90deg, #FFFFFF, #C9A0FF 80%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .demo.dark .welcome p { color: rgba(236,239,246,.6); }
+    .demo.dark .kpi-strip { border-top: 1px solid rgba(255,255,255,.08); }
+    .demo.dark .kpi { padding: 14px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
+    .demo.dark .kpi-label { color: rgba(236,239,246,.55); }
+    .demo.dark .kpi-delta { color: #5EEAA4; }
+    .demo.dark .kpi-delta.down { color: #FF7373; }
+    .demo.dark .stat-card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 10px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
+    }
+    .demo.dark .stat-card:hover { box-shadow: 0 16px 40px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.06); }
+    .demo.dark .stat-label { color: rgba(236,239,246,.55); }
+    .demo.dark .stat-icon.purple { background: linear-gradient(135deg, #8B4D99, #C9A0FF); box-shadow: 0 4px 14px rgba(106,44,121,.45); }
+    .demo.dark .stat-icon.green  { background: linear-gradient(135deg, #086B4E, #5EEAA4); box-shadow: 0 4px 14px rgba(8,107,78,.45); }
+    .demo.dark .stat-icon.amber  { background: linear-gradient(135deg, #B96D00, #FFD557); box-shadow: 0 4px 14px rgba(185,109,0,.4); }
+    .demo.dark .table-card {
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 10px 28px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.04);
+    }
+    .demo.dark th { color: rgba(236,239,246,.55); border-bottom: 1px solid rgba(255,255,255,.08); }
+    .demo.dark td { border-bottom: 1px solid rgba(255,255,255,.05); }
+    .demo.dark tbody tr:last-child td { border-bottom: none; }
+    .demo.dark .pill { background: rgba(94,234,164,.14); color: #5EEAA4; border: 1px solid rgba(94,234,164,.2); }
+    .demo.dark .pill.danger { background: rgba(255,115,115,.16); color: #FF9D9D; border: 1px solid rgba(255,115,115,.3); }
+    .demo.dark .avatar { background: linear-gradient(135deg, #6A2C79, #C9A0FF); color: #fff; }
+
+    @media (max-width: 720px) {
+      .kpi-strip, .stats-grid { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="pick-bar">
+    <h1>Glass / iOS style — light vs dark</h1>
+    <p>Same Tabby mock content in both themes. Multi-layer aurora gradient backdrop + frosted-glass cards (backdrop-blur 24px). Feels like a Mac app or Apple WWDC dashboard.</p>
+  </div>
+
+  <!-- ─── LIGHT ─── -->
+  <section class="style-section">
+    <header><h2>Glass / iOS — Light mode</h2><span class="tag">Pastel aurora · frosted glass</span></header>
+    <div class="demo light">
+      <div class="welcome">
+        <h3>Welcome back, Hossam</h3>
+        <p>Here's your team overview for May 2026.</p>
+        <div class="kpi-strip">
+          <div class="kpi"><div class="kpi-label">Team avg score</div><div class="kpi-value">8.4</div><div class="kpi-delta">↑ 0.3 pts</div></div>
+          <div class="kpi"><div class="kpi-label">Team CSAT</div><div class="kpi-value">94.2%</div><div class="kpi-delta">↑ 1.1</div></div>
+          <div class="kpi"><div class="kpi-label">Rank</div><div class="kpi-value">#2</div><div class="kpi-delta">↑ 1 place</div></div>
+          <div class="kpi"><div class="kpi-label">DSATs</div><div class="kpi-value">3</div><div class="kpi-delta down">↑ 2</div></div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label"><span class="stat-icon purple">⌘</span> My team</div><div class="stat-value">12</div></div>
+        <div class="stat-card"><div class="stat-label"><span class="stat-icon green">↗</span> Team avg score</div><div class="stat-value">8.4</div></div>
+        <div class="stat-card"><div class="stat-label"><span class="stat-icon amber">!</span> Pending DAM</div><div class="stat-value">2</div></div>
+      </div>
+      <div class="table-card">
+        <h4>My team — May 2026</h4>
+        <table>
+          <thead><tr><th>Specialist</th><th style="text-align:right">Score</th><th style="text-align:right">Occupancy</th><th style="text-align:right">CSAT</th></tr></thead>
+          <tbody>
+            <tr><td><span class="avatar">SM</span><strong>Sara Mohamed</strong></td><td style="text-align:right">9.8</td><td style="text-align:right">96.2%</td><td style="text-align:right"><span class="pill">97.1%</span></td></tr>
+            <tr><td><span class="avatar">AR</span><strong>Ahmed Rashid</strong></td><td style="text-align:right">9.1</td><td style="text-align:right">94.8%</td><td style="text-align:right"><span class="pill">92.4%</span></td></tr>
+            <tr><td><span class="avatar">MG</span><strong>Mariam Gad</strong></td><td style="text-align:right">8.7</td><td style="text-align:right">93.1%</td><td style="text-align:right"><span class="pill">95.8%</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="demo-meta">Pastel pink / blue / mint aurora · white-tinted cards at 55% opacity with 24px backdrop blur · soft purple drop-shadow · gradient icon tiles · WCAG AA on every text/bg pair.</div>
+  </section>
+
+  <!-- ─── DARK ─── -->
+  <section class="style-section">
+    <header><h2>Glass / iOS — Dark mode</h2><span class="tag">Deep aurora · frosted glass</span></header>
+    <div class="demo dark">
+      <div class="welcome">
+        <h3>Welcome back, Hossam</h3>
+        <p>Here's your team overview for May 2026.</p>
+        <div class="kpi-strip">
+          <div class="kpi"><div class="kpi-label">Team avg score</div><div class="kpi-value">8.4</div><div class="kpi-delta">↑ 0.3 pts</div></div>
+          <div class="kpi"><div class="kpi-label">Team CSAT</div><div class="kpi-value">94.2%</div><div class="kpi-delta">↑ 1.1</div></div>
+          <div class="kpi"><div class="kpi-label">Rank</div><div class="kpi-value">#2</div><div class="kpi-delta">↑ 1 place</div></div>
+          <div class="kpi"><div class="kpi-label">DSATs</div><div class="kpi-value">3</div><div class="kpi-delta down">↑ 2</div></div>
+        </div>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label"><span class="stat-icon purple">⌘</span> My team</div><div class="stat-value">12</div></div>
+        <div class="stat-card"><div class="stat-label"><span class="stat-icon green">↗</span> Team avg score</div><div class="stat-value">8.4</div></div>
+        <div class="stat-card"><div class="stat-label"><span class="stat-icon amber">!</span> Pending DAM</div><div class="stat-value">2</div></div>
+      </div>
+      <div class="table-card">
+        <h4>My team — May 2026</h4>
+        <table>
+          <thead><tr><th>Specialist</th><th style="text-align:right">Score</th><th style="text-align:right">Occupancy</th><th style="text-align:right">CSAT</th></tr></thead>
+          <tbody>
+            <tr><td><span class="avatar">SM</span><strong>Sara Mohamed</strong></td><td style="text-align:right">9.8</td><td style="text-align:right">96.2%</td><td style="text-align:right"><span class="pill">97.1%</span></td></tr>
+            <tr><td><span class="avatar">AR</span><strong>Ahmed Rashid</strong></td><td style="text-align:right">9.1</td><td style="text-align:right">94.8%</td><td style="text-align:right"><span class="pill">92.4%</span></td></tr>
+            <tr><td><span class="avatar">MG</span><strong>Mariam Gad</strong></td><td style="text-align:right">8.7</td><td style="text-align:right">93.1%</td><td style="text-align:right"><span class="pill">95.8%</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="demo-meta">Deep purple + cyan aurora over near-black · white-tinted glass at 4% opacity · gradient-text "Welcome back" headline · iOS-style icon tiles · same shapes as light, palette flipped.</div>
+  </section>
+
+</body>
+</html>
