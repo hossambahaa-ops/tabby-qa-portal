@@ -2390,68 +2390,91 @@ html.dark table th { background: transparent !important; color: rgba(236,239,246
 html.dark table td { border-bottom: 1px solid rgba(255,255,255,.04) !important; }
 html.dark table tbody tr:hover td { background: rgba(255,255,255,.04) !important; }
 
-/* Sticky table headers (all .table-wrap-sticky, not just sticky-left
-   ones): force a SOLID background and a real bottom border so the
-   first body row can't bleed into the header text — backdrop-filter
-   blurs but doesn't fully obscure, which is what produced the
-   "SPECIALIST overlapping Pola Emad" look. Bump z-index well above
-   the body cells too. */
-html:not(.dark) .table-wrap-sticky thead th {
-  background: #F5F4F2 !important;
+/* === FROZEN COLUMNS — app-wide treatment ===
+   Frozen rows/columns must look SOLID, not glassy. backdrop-filter
+   blurs but doesn't fully obscure the scrolling content underneath,
+   which produced the "SPECIALIST overlapping Pola Emad" look on the
+   MTD table. Every sticky cell across the app now reads as a
+   distinct, non-translucent band.
+
+   Page-specific INLINE backgrounds (e.g. AttendancePlanGrid's weekend
+   tint) are preserved — this block only ADDS the polish (border,
+   padding, shadow, z-index) and overrides the glass body cells on
+   the MTD By-QA table.
+
+   Two delivery paths are handled here:
+     A) Class-based (.table-wrap-sticky / .table-sticky-first) — MTD,
+        CSAT pages.
+     B) Inline `style={{ position: "sticky" }}` — Schedule, Attendance,
+        CSAT topic matrix. Targeted via attribute selectors so React's
+        inline background is preserved. */
+
+/* — Sticky thead headers — polish only, don't touch background */
+.table-wrap-sticky thead th,
+thead th[style*="position: sticky"],
+thead th[style*="position:sticky"],
+thead[style*="position: sticky"] th,
+thead[style*="position:sticky"] th {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border-bottom: 1px solid rgba(31,29,36,.10) !important;
-  box-shadow: 0 2px 6px rgba(31,29,36,.04) !important;
+  border-bottom: 1px solid var(--bd) !important;
   padding-top: 12px !important;
   padding-bottom: 12px !important;
   z-index: 5 !important;
 }
-html.dark .table-wrap-sticky thead th {
-  background: #1A1825 !important;
+html:not(.dark) .table-wrap-sticky thead th,
+html:not(.dark) thead th[style*="position: sticky"],
+html:not(.dark) thead th[style*="position:sticky"],
+html:not(.dark) thead[style*="position: sticky"] th,
+html:not(.dark) thead[style*="position:sticky"] th {
+  box-shadow: 0 2px 6px rgba(31,29,36,.05) !important;
+}
+html.dark .table-wrap-sticky thead th,
+html.dark thead th[style*="position: sticky"],
+html.dark thead th[style*="position:sticky"],
+html.dark thead[style*="position: sticky"] th,
+html.dark thead[style*="position:sticky"] th {
+  box-shadow: 0 2px 6px rgba(0,0,0,.3) !important;
+}
+
+/* — Sticky-left body cells — solid (no glass, no blur).
+   Class-based (.table-sticky-first) gets forced to var(--bg3); inline
+   sticky body cells keep their own inline background but lose any
+   backdrop-filter inherited from the glass theme. */
+.table-sticky-first tbody td:nth-child(1),
+.table-sticky-first tbody td:nth-child(2) {
+  background: var(--bg3) !important;
+}
+tbody td[style*="position: sticky"],
+tbody td[style*="position:sticky"],
+.table-sticky-first tbody td:nth-child(1),
+.table-sticky-first tbody td:nth-child(2) {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border-bottom: 1px solid rgba(255,255,255,.08) !important;
-  box-shadow: 0 2px 6px rgba(0,0,0,.25) !important;
-  padding-top: 12px !important;
-  padding-bottom: 12px !important;
-  z-index: 5 !important;
 }
 
-/* Sticky-left columns: glass body cells + solid headers. MTD By-QA
-   pins TWO columns (checkbox + specialist); both get the same
-   treatment so column 2 doesn't look like a different slab. The
-   inset right-edge shadow lives only on the LAST sticky column so
-   we don't double-shadow between columns 1 and 2. */
-html:not(.dark) .table-sticky-first tbody td:nth-child(1),
-html:not(.dark) .table-sticky-first tbody td:nth-child(2) {
-  background: rgba(255,255,255,.7) !important;
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
-  box-shadow: none !important;
+/* — Hover / selection on the MTD sticky-left cells so the row tint
+   reads on the pinned column too. */
+.table-sticky-first tbody tr:hover td:nth-child(1),
+.table-sticky-first tbody tr:hover td:nth-child(2) {
+  background: var(--bg) !important;
 }
-html:not(.dark) .table-sticky-first thead th:nth-child(1),
-html:not(.dark) .table-sticky-first thead th:nth-child(2) {
-  z-index: 6 !important;  /* above both the sticky thead and sticky-left body */
-}
-html:not(.dark) .table-sticky-first thead th:nth-child(2),
-html:not(.dark) .table-sticky-first tbody td:nth-child(2) {
-  box-shadow: inset -1px 0 0 rgba(31,29,36,.10) !important;
+.table-sticky-first tbody tr.is-selected td:nth-child(1),
+.table-sticky-first tbody tr.is-selected td:nth-child(2) {
+  background: var(--primary-light) !important;
 }
 
-html.dark .table-sticky-first tbody td:nth-child(1),
-html.dark .table-sticky-first tbody td:nth-child(2) {
-  background: rgba(20,18,30,.65) !important;
-  backdrop-filter: blur(22px) saturate(160%);
-  -webkit-backdrop-filter: blur(22px) saturate(160%);
-  box-shadow: none !important;
+/* — Right-edge shadow on the LAST pinned column signals "frozen". */
+.table-sticky-first tbody td:nth-child(2),
+.table-sticky-first thead th:nth-child(2) {
+  box-shadow: inset -1px 0 0 var(--bd) !important;
 }
-html.dark .table-sticky-first thead th:nth-child(1),
-html.dark .table-sticky-first thead th:nth-child(2) {
+
+/* — z-index: sticky-left HEADERs must paint above both the sticky-top
+   thead and the sticky-left body cells. */
+.table-sticky-first thead th:nth-child(1),
+.table-sticky-first thead th:nth-child(2) {
   z-index: 6 !important;
-}
-html.dark .table-sticky-first thead th:nth-child(2),
-html.dark .table-sticky-first tbody td:nth-child(2) {
-  box-shadow: inset -1px 0 0 rgba(255,255,255,.08) !important;
 }
 
 /* ── 14. Selection / focus ── */
