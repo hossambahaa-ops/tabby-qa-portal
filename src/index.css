@@ -1536,6 +1536,64 @@ label, summary, select {
   }
   /* Visible scroll hint on the right edge of any scrollable card */
   .card { scroll-snap-type: x proximity; }
+
+  /* View-as banner: long email + role + Exit button overflowed on
+     narrow viewports. Wrap content, tighten font, shrink Exit. */
+  .view-as-bar {
+    flex-wrap: wrap;
+    padding: 8px 12px !important;
+    font-size: 12px !important;
+    text-align: left;
+    justify-content: flex-start !important;
+    gap: 6px !important;
+  }
+  .view-as-bar > span {
+    flex: 1 1 100%;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .view-as-bar > button { flex-shrink: 0; }
+
+  /* Tabs: items were squishing to fit instead of allowing horizontal
+     scroll because the parent had overflow-x:auto but children had no
+     flex-shrink:0. Forces them to keep their natural width and the
+     overflow on the parent kicks in. */
+  .tabs .tab, .tab-bar .tab-btn { flex-shrink: 0; }
+  .tabs, .tab-bar {
+    scrollbar-width: none;        /* Firefox: hide ugly scrollbar */
+  }
+  .tabs::-webkit-scrollbar,
+  .tab-bar::-webkit-scrollbar { display: none; }
+
+  /* NotificationBell dropdown: desktop offset of right:-40px pushed
+     the dropdown 40px past the viewport on small phones. Pin it
+     to the viewport edges with a small inset. */
+  .notif-dropdown {
+    position: fixed !important;
+    top: 56px !important;           /* below topbar */
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-width: calc(100vw - 24px) !important;
+    max-height: calc(100vh - 80px) !important;
+  }
+
+  /* Topbar safety: if buttons don't fit, scroll horizontally rather
+     than overflow. The hamburger / title stay pinned at the start; the
+     icon group can scroll. */
+  .topbar {
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+  .topbar::-webkit-scrollbar { display: none; }
+  .topbar { scrollbar-width: none; }
+  .topbar-title {
+    min-width: 0;
+    flex-shrink: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 
 /* ── Sidebar mobile footer — hidden on desktop ── */
