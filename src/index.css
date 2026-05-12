@@ -2390,24 +2390,47 @@ html.dark table th { background: transparent !important; color: rgba(236,239,246
 html.dark table td { border-bottom: 1px solid rgba(255,255,255,.04) !important; }
 html.dark table tbody tr:hover td { background: rgba(255,255,255,.04) !important; }
 
-/* Sticky first column on tables: blend with the card's glass surface
-   so it looks of-a-piece, but stay opaque enough to obscure content
-   that scrolls behind it horizontally. backdrop-filter on the cell
-   gives it the same frosted feel as the parent card. Subtle inset
-   right-edge shadow signals "this is pinned" without a hard colour
-   block. */
+/* Sticky-left columns on tables: blend with the card's glass surface
+   so they look of-a-piece. MTD By-QA pins TWO columns (checkbox +
+   specialist), so both nth-child(1) and nth-child(2) need the same
+   treatment — otherwise column 2 stays solid and looks like a slab.
+   Headers use a slightly stronger opacity than body cells so the row
+   beneath the thead can't bleed through the SPECIALIST title. The
+   inset right-edge shadow lives only on the LAST sticky column so
+   we don't double-shadow between columns 1 and 2. */
 html:not(.dark) .table-sticky-first thead th:nth-child(1),
-html:not(.dark) .table-sticky-first tbody td:nth-child(1) {
-  background: rgba(255,255,255,.5) !important;
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+html:not(.dark) .table-sticky-first thead th:nth-child(2),
+html:not(.dark) .table-sticky-first tbody td:nth-child(1),
+html:not(.dark) .table-sticky-first tbody td:nth-child(2) {
+  background: rgba(255,255,255,.6) !important;
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  box-shadow: none !important;
+}
+html:not(.dark) .table-sticky-first thead th:nth-child(1),
+html:not(.dark) .table-sticky-first thead th:nth-child(2) {
+  background: rgba(255,255,255,.85) !important;
+}
+html:not(.dark) .table-sticky-first thead th:nth-child(2),
+html:not(.dark) .table-sticky-first tbody td:nth-child(2) {
   box-shadow: inset -1px 0 0 rgba(31,29,36,.08) !important;
 }
+
 html.dark .table-sticky-first thead th:nth-child(1),
-html.dark .table-sticky-first tbody td:nth-child(1) {
-  background: rgba(20,18,30,.45) !important;
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+html.dark .table-sticky-first thead th:nth-child(2),
+html.dark .table-sticky-first tbody td:nth-child(1),
+html.dark .table-sticky-first tbody td:nth-child(2) {
+  background: rgba(20,18,30,.55) !important;
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  box-shadow: none !important;
+}
+html.dark .table-sticky-first thead th:nth-child(1),
+html.dark .table-sticky-first thead th:nth-child(2) {
+  background: rgba(20,18,30,.88) !important;
+}
+html.dark .table-sticky-first thead th:nth-child(2),
+html.dark .table-sticky-first tbody td:nth-child(2) {
   box-shadow: inset -1px 0 0 rgba(255,255,255,.06) !important;
 }
 
