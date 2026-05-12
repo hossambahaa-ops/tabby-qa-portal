@@ -35,9 +35,13 @@ export function useFreshness(token, refreshKey = 0) {
         filters: "order=synced_at.desc&limit=1",
         token,
       }).catch(() => []),
+      // csat_by_topic was never given a synced_at column — the table
+      // tracks freshness via the auto-maintained updated_at trigger.
+      // Querying synced_at threw "column does not exist" 500s on
+      // every Dashboard mount.
       sb.query("csat_by_topic", {
-        select: "synced_at",
-        filters: "order=synced_at.desc&limit=1",
+        select: "updated_at",
+        filters: "order=updated_at.desc&limit=1",
         token,
       }).catch(() => []),
     ]).then(([daily, mtd, csat]) => {
@@ -45,7 +49,7 @@ export function useFreshness(token, refreshKey = 0) {
         setTs({
           daily: daily?.[0]?.synced_at || null,
           mtd:   mtd?.[0]?.synced_at   || null,
-          csat:  csat?.[0]?.synced_at  || null,
+          csat:  csat?.[0]?.updated_at  || null,
         });
       }
     });
