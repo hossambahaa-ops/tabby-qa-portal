@@ -26,7 +26,7 @@ export default function MyResponsibilities({ roster, onNavigate }) {
     (async () => {
       const [openEsc, pendingViol, activePlans, openTeamTasks, newFb] = await Promise.all([
         listEscalations({ token, select: "id,status,routed_to", filters: `routed_to=eq.${profile.email}&status=eq.open` }),
-        listViolations({ token, select: "id,status,lead_email,qa_emails", filters: isAdmin ? "status=eq.pending" : `lead_email=eq.${myEmail}&status=eq.pending` }),
+        listViolations({ token, select: "id,status,lead_email,qa_email", filters: isAdmin ? "status=eq.pending" : `lead_email=eq.${myEmail}&status=eq.pending` }),
         listPlans({ token, select: "id,qa_email,type,status,end_date,tl_email", filters: isAdmin ? "status=eq.active" : `tl_email=eq.${profile.email}&status=eq.active` }),
         listTasks({ token, select: "id,status,assigned_to", filters: "status=neq.done" }),
         isAdmin

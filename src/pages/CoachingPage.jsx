@@ -155,10 +155,10 @@ function CoachingPage() {
         const isAdminC=hasRole(profile?.role,"admin");
         const isSvC=hasRole(profile?.role,"qa_supervisor")&&!isAdminC;
         let filteredRoster=isSvC?rosterArr.filter(x=>x.email?.endsWith("@"+svDomainC)):rosterArr;
-        let filteredSessions=isSvC?sessionsArr.filter(x=>x.member_email?.endsWith("@"+svDomainC)):sessionsArr;
+        let filteredSessions=isSvC?sessionsArr.filter(x=>x.qa_email?.endsWith("@"+svDomainC)):sessionsArr;
         let filteredPlans=isSvC?plansArr.filter(x=>x.qa_email?.endsWith("@"+svDomainC)):plansArr;
         // Slim global filter (Domain only — People + Teams dropped in unification).
-        if(gf?.domain){filteredRoster=filteredRoster.filter(x=>x.email?.endsWith("@"+gf.domain));filteredSessions=filteredSessions.filter(x=>x.member_email?.endsWith("@"+gf.domain));filteredPlans=filteredPlans.filter(x=>x.qa_email?.endsWith("@"+gf.domain));}
+        if(gf?.domain){filteredRoster=filteredRoster.filter(x=>x.email?.endsWith("@"+gf.domain));filteredSessions=filteredSessions.filter(x=>x.qa_email?.endsWith("@"+gf.domain));filteredPlans=filteredPlans.filter(x=>x.qa_email?.endsWith("@"+gf.domain));}
         setRoster(filteredRoster);
         setSessions(filteredSessions);
         setActivePlans(filteredPlans);

@@ -140,8 +140,8 @@ export default function CoachingCadenceCard() {
         //    both the WPR week (subset of month) and the MPR month.
         const sessions = await sb.query("coaching_sessions", {
           token,
-          select: "member_email,session_date,meeting_type",
-          filters: `member_email=in.(${inList})&session_date=gte.${periods.mStart}&session_date=lte.${periods.mEnd}&order=session_date.desc`,
+          select: "qa_email,session_date,meeting_type",
+          filters: `qa_email=in.(${inList})&session_date=gte.${periods.mStart}&session_date=lte.${periods.mEnd}&order=session_date.desc`,
         }).catch(() => []);
         // Both cadence sets are now scoped to THIS WEEK's date range.
         // Week 1's MPR (which covers the prior month) is conducted IN
@@ -152,7 +152,7 @@ export default function CoachingCadenceCard() {
         const wprSet = new Set();
         const mprSet = new Set();
         for (const s of (Array.isArray(sessions) ? sessions : [])) {
-          const em = (s.member_email || "").toLowerCase();
+          const em = (s.qa_email || "").toLowerCase();
           const inWeek = s.session_date >= periods.wStart && s.session_date <= periods.wEnd;
           if (!inWeek) continue;
           if (s.meeting_type === "weekly_1on1") wprSet.add(em);

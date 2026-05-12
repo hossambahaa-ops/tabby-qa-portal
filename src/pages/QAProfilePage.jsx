@@ -151,7 +151,7 @@ function QAProfilePage() {
   })();
   // Use the latest month that has data (first in chronologically sorted array)
   const latestMtd = qaMtd.length > 0 ? qaMtd[0] : null;
-  const qaSessions = sessions.filter(s => matchQA(s.member_email)).slice(0, 10);
+  const qaSessions = sessions.filter(s => matchQA(s.qa_email)).slice(0, 10);
   const qaPlans = plans.filter(p => matchQA(p.qa_email));
   const qaTasks = tasks.filter(t => matchQA(t.assigned_to) || (matchQA(t.created_by) && !t.assigned_to));
   // When the viewer is looking at their own profile, hide DAM flags that

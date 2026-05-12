@@ -6,7 +6,7 @@ import { useApp } from "../lib/AppContext.jsx";
 // Landing page for the "I've read this" link in coaching emails. The
 // QA receiving the email clicks → the link opens the portal at
 // /#/coaching/ack/<session_id>. This route then:
-//   1. Confirms the signed-in user matches the session's member_email
+//   1. Confirms the signed-in user matches the session's qa_email
 //   2. Inserts a row into coaching_session_acks (RLS enforces the same
 //      check server-side via the insert_self policy)
 //   3. Shows a confirmation, with a link back to the QA Profile
@@ -27,7 +27,7 @@ export default function CoachingAckPage() {
         // 1. Look up the session so we can show context + verify ownership.
         const rows = await sb.query("coaching_sessions", {
           token,
-          select: "id,member_email,sender_email,session_date,meeting_type,email_subject",
+          select: "id,qa_email,sender_email,session_date,meeting_type,email_subject",
           filters: `id=eq.${id}`,
         }).catch(() => []);
         const sess = Array.isArray(rows) && rows[0] ? rows[0] : null;
@@ -35,7 +35,7 @@ export default function CoachingAckPage() {
           if (!cancelled) setState({ loading: false, error: "We couldn't find this coaching session — the link may be expired.", alreadyAcked: false, session: null });
           return;
         }
-        if ((sess.member_email || "").toLowerCase() !== profile.email.toLowerCase()) {
+        if ((sess.qa_email || "").toLowerCase() !== profile.email.toLowerCase()) {
           if (!cancelled) setState({ loading: false, error: "This acknowledgement link belongs to a different teammate. You're signed in as " + profile.email + ".", alreadyAcked: false, session: sess });
           return;
         }
@@ -51,13 +51,13 @@ export default function CoachingAckPage() {
           return;
         }
 
-        // 3. Insert the ack. RLS policy validates member_email = the
+        // 3. Insert the ack. RLS policy validates qa_email = the
         //    signed-in user's email server-side too, so spoofing the
         //    session_id of someone else's email is harmless.
         const { error } = await sb.query("coaching_session_acks", {
           token,
           method: "POST",
-          body: { session_id: id, member_email: profile.email },
+          body: { session_id: id, qa_email: profile.email },
         }).then(d => ({ error: null, data: d })).catch(e => ({ error: e?.message || String(e), data: null }));
 
         if (error) {

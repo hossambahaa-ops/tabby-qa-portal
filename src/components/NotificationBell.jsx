@@ -63,11 +63,11 @@ function NotificationBell({ onNavigate }) {
           // Feedback responses to MY feedback (any role)
           sb.query("feedback", { select: "id,category,status,admin_response,created_at", filters: `user_email=eq.${profile?.email}&status=neq.new&order=created_at.desc&limit=5`, token }).catch(() => []),
           // Coaching sessions where I'm the member (for QAs)
-          listCoachingSessions({ token, select: "id,meeting_type,sender_email,session_date,created_at", filters: `member_email=eq.${profile?.email}&order=created_at.desc&limit=5` }),
+          listCoachingSessions({ token, select: "id,meeting_type,sender_email,session_date,created_at", filters: `qa_email=eq.${profile?.email}&order=created_at.desc&limit=5` }),
         ];
         // QA Lead gets violations for THEIR team only, DAM flags, and their APs
         if (isLead && !isSv) {
-          queries.push(listViolations({ token, select: "id,violation_type,qa_emails,lead_email,created_at", filters: `lead_email=eq.${myEmail}&status=eq.pending&order=created_at.desc&limit=10` }));
+          queries.push(listViolations({ token, select: "id,violation_type,qa_email,lead_email,created_at", filters: `lead_email=eq.${myEmail}&status=eq.pending&order=created_at.desc&limit=10` }));
           queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
           queries.push(listPlans({ token, select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: `tl_email=eq.${myEmail}&status=eq.active&order=created_at.desc&limit=10` }));
         }
@@ -75,7 +75,7 @@ function NotificationBell({ onNavigate }) {
         // matters: violations / dam_flags / plans must always sit at
         // results[5] / [6] / [7] regardless of which role-branch ran.
         if (isSv) {
-          queries.push(listViolations({ token, select: "id,violation_type,qa_emails,lead_email,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10" }));
+          queries.push(listViolations({ token, select: "id,violation_type,qa_email,lead_email,created_at", filters: "status=eq.pending&order=created_at.desc&limit=10" }));
           queries.push(sb.query("dam_flags", { select: "id,qa_email,status,created_at,dam_rules(name)", filters: "status=eq.pending&order=created_at.desc&limit=10", token }).catch(() => []));
           queries.push(listPlans({ token, select: "id,qa_email,type,status,end_date,tl_email,created_at", filters: "status=eq.active&order=created_at.desc&limit=10" }));
         }
@@ -153,7 +153,7 @@ function NotificationBell({ onNavigate }) {
           ...escalations.map(e => ({ id: "e-"+e.id, type: "escalation", title: `Escalation: ${e.category}`, sub: "Anonymous submission", time: e.created_at, page: "escalations" })),
           ...myFeedback.filter(f => f.admin_response).map(f => ({ id: "fb-"+f.id, type: "feedback", title: `Feedback response: ${f.category}`, sub: `Status: ${f.status}`, time: f.created_at, page: "dashboard" })),
           ...(!isLead && !isSv ? (myCoaching || []) : []).map(c => ({ id: "c-"+c.id, type: "coaching", title: `Coaching logged: ${c.meeting_type || "Coaching"}`, sub: c.sender_email ? `From ${c.sender_email.split("@")[0]}` : "—", time: c.created_at, page: "profile" })),
-          ...violations.map(v => ({ id: "v-"+v.id, type: "violation", title: `Violation: ${v.violation_type}`, sub: v.qa_emails?.split("\n")[0], time: v.created_at, page: "quality", qcTab: "violations" })),
+          ...violations.map(v => ({ id: "v-"+v.id, type: "violation", title: `Violation: ${v.violation_type}`, sub: v.qa_email?.split("\n")[0], time: v.created_at, page: "quality", qcTab: "violations" })),
           ...damFlags.map(f => ({ id: "d-"+f.id, type: "dam", title: `DAM: ${f.dam_rules?.name || "Flag"}`, sub: f.qa_email || "—", time: f.created_at, page: "quality", qcTab: "dam" })),
           ...myTeamPendingAtt.map(a => ({
             id: "att-" + a.id,

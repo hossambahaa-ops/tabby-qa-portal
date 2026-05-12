@@ -41,12 +41,12 @@ export default function OwedCoachingsCard() {
         const inList = teamEmails.map(e => `"${e}"`).join(",");
         const sessions = await sb.query("coaching_sessions", {
           token,
-          select: "member_email,session_date",
-          filters: `member_email=in.(${inList})&order=session_date.desc&limit=1000`,
+          select: "qa_email,session_date",
+          filters: `qa_email=in.(${inList})&order=session_date.desc&limit=1000`,
         }).catch(() => []);
         const lastByMember = new Map();
         for (const s of (Array.isArray(sessions) ? sessions : [])) {
-          const k = (s.member_email || "").toLowerCase();
+          const k = (s.qa_email || "").toLowerCase();
           if (!lastByMember.has(k) && s.session_date) lastByMember.set(k, s.session_date);
         }
 

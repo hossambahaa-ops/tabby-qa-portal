@@ -50,11 +50,11 @@ function CoachingViolationsPage() {
   const deleteViolation = (v) => {
     confirmAsk(
       "Delete violation?",
-      `Permanently delete this ${v.violation_type} violation for ${(v.qa_emails || "").split("\n").map(e => nameFromEmail(e)).filter(Boolean).join(", ") || "this QA"}? This cannot be undone.`,
+      `Permanently delete this ${v.violation_type} violation for ${(v.qa_email || "").split("\n").map(e => nameFromEmail(e)).filter(Boolean).join(", ") || "this QA"}? This cannot be undone.`,
       async () => {
         try {
           await sb.query("coaching_violations", { token, method: "DELETE", filters: `id=eq.${v.id}` });
-          logActivity(token, profile?.email, "violation_deleted", "coaching_violations", v.id, `Type: ${v.violation_type}, QA: ${v.qa_emails}`);
+          logActivity(token, profile?.email, "violation_deleted", "coaching_violations", v.id, `Type: ${v.violation_type}, QA: ${v.qa_email}`);
           dataCache.invalidate();
           await load();
           globalToast("success", "Violation deleted");
@@ -76,9 +76,9 @@ function CoachingViolationsPage() {
       const svDomain = profile?.operational_domain || profile?.domain || "tabby.ai";
       const isAdmin = hasRole(profile?.role, "admin");
       const isSv = hasRole(profile?.role, "qa_supervisor") && !isAdmin;
-      let filtered = isSv ? v.filter(x => x.qa_emails?.includes("@" + svDomain) || x.lead_email?.includes("@" + svDomain)) : v;
+      let filtered = isSv ? v.filter(x => x.qa_email?.includes("@" + svDomain) || x.lead_email?.includes("@" + svDomain)) : v;
       // Apply slim global filter (Domain only — People dropped in unification).
-      if(gf?.domain) filtered = filtered.filter(x => x.qa_emails?.includes("@" + gf.domain));
+      if(gf?.domain) filtered = filtered.filter(x => x.qa_email?.includes("@" + gf.domain));
       setViolations(filtered);
       setProfiles(p);
       setDamRules(r);
@@ -128,7 +128,7 @@ function CoachingViolationsPage() {
       if (reviewStatus === "valid") {
         if (!selDamRule) { globalToast("error", "Select a DAM rule to create the flag"); setLoading(false); return; }
 
-        const qaEmailsList = reviewModal.qa_emails.split("\n").map(e => e.trim()).filter(Boolean);
+        const qaEmailsList = reviewModal.qa_email.split("\n").map(e => e.trim()).filter(Boolean);
         let flagsCreated = 0;
 
         for (const qaEmail of qaEmailsList) {
@@ -177,10 +177,10 @@ function CoachingViolationsPage() {
         });
 
         globalToast("success", `Marked as valid — ${flagsCreated} DAM flag(s) created`);
-        logActivity(token, profile?.email, "violation_valid", "coaching_violations", reviewModal.id, `QA: ${reviewModal.qa_emails}, Type: ${reviewModal.violation_type}`);
+        logActivity(token, profile?.email, "violation_valid", "coaching_violations", reviewModal.id, `QA: ${reviewModal.qa_email}, Type: ${reviewModal.violation_type}`);
       } else {
         globalToast("success", "Marked as invalid");
-        logActivity(token, profile?.email, "violation_invalid", "coaching_violations", reviewModal.id, `QA: ${reviewModal.qa_emails}, Type: ${reviewModal.violation_type}`);
+        logActivity(token, profile?.email, "violation_invalid", "coaching_violations", reviewModal.id, `QA: ${reviewModal.qa_email}, Type: ${reviewModal.violation_type}`);
       }
 
       setReviewModal(null);
@@ -259,7 +259,7 @@ function CoachingViolationsPage() {
                 return (
                   <tr key={v.id} onClick={() => openReview(v)} style={{cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <td style={{ fontWeight: 500, fontSize: 13 }}>
-                      {v.qa_emails?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
+                      {v.qa_email?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
                     </td>
                     <td style={{ fontSize: 13, color: "var(--tx2)" }}>
                       {v.lead_email?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
@@ -322,7 +322,7 @@ function CoachingViolationsPage() {
                 return (
                   <tr key={v.id} onClick={() => openReview(v)} style={{cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <td style={{ fontWeight: 500, fontSize: 13 }}>
-                      {v.qa_emails?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
+                      {v.qa_email?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
                     </td>
                     <td>
                       <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 12, fontWeight: 600, background: vc.bg, color: vc.color }}>
@@ -390,7 +390,7 @@ function CoachingViolationsPage() {
               style={{ color: "var(--tabby-purple)", borderColor: "var(--tabby-purple)" }}
               title="Open Coaching → Compose with this violation pre-filled"
               onClick={() => {
-                const qa = (reviewModal.qa_emails || "").split(/[,\n]/).map(e => e.trim()).filter(Boolean)[0] || "";
+                const qa = (reviewModal.qa_email || "").split(/[,\n]/).map(e => e.trim()).filter(Boolean)[0] || "";
                 const ruleName = suggestedRule?.name || reviewModal.violation_type;
                 const weaknesses = `<ul><li>${ruleName} on ${reviewModal.violation_date || ""}</li></ul>`;
                 const topics = reviewModal.coaching_link
@@ -422,7 +422,7 @@ function CoachingViolationsPage() {
         >
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, fontSize: 13 }}>
-              <div><span style={{ color: "var(--tx3)" }}>QA: </span><strong>{reviewModal.qa_emails?.split("\n").map(e => nameFromEmail(e)).join(", ")}</strong></div>
+              <div><span style={{ color: "var(--tx3)" }}>QA: </span><strong>{reviewModal.qa_email?.split("\n").map(e => nameFromEmail(e)).join(", ")}</strong></div>
               <div><span style={{ color: "var(--tx3)" }}>Type: </span><strong>{reviewModal.violation_type}</strong></div>
               <div><span style={{ color: "var(--tx3)" }}>Date: </span>{reviewModal.violation_date || "—"}</div>
               <div><span style={{ color: "var(--tx3)" }}>Lead: </span>{reviewModal.lead_email?.split("\n").map(e => nameFromEmail(e)).join(", ")}</div>

@@ -22,13 +22,13 @@ function GlobalSearch({ onNavigate, onClose }) {
         const q = query.toLowerCase();
         const [profiles, violations, damFlags, escalations] = await Promise.all([
           listProfiles({ token, filters: `or=(email.ilike.%${q}%,display_name.ilike.%${q}%)&limit=5`, cache: false }),
-          listViolations({ token, select: "id,qa_emails,violation_type,status", filters: `qa_emails.ilike.%${q}%&limit=5` }),
+          listViolations({ token, select: "id,qa_email,violation_type,status", filters: `qa_email.ilike.%${q}%&limit=5` }),
           sb.query("dam_flags", { select: "id,qa_email,dam_rules(name)", filters: `qa_email.ilike.%${q}%&limit=5`, token }).catch(() => []),
           listEscalations({ token, select: "id,category,about_person,status", filters: `or=(about_person.ilike.%${q}%,category.ilike.%${q}%)&limit=5` }),
         ]);
         const all = [
           ...profiles.map(p => ({ id: p.id, type: "profile", label: nameFromEmail(p.email), sub: `${ROLE_LABELS[p.role]} · ${p.email}`, page: "profile" })),
-          ...violations.map(v => ({ id: v.id, type: "violation", label: v.violation_type, sub: v.qa_emails?.split("\n")[0], page: "quality" })),
+          ...violations.map(v => ({ id: v.id, type: "violation", label: v.violation_type, sub: v.qa_email?.split("\n")[0], page: "quality" })),
           ...damFlags.map(f => ({ id: f.id, type: "dam", label: f.dam_rules?.name || "DAM Flag", sub: f.qa_email, page: "quality" })),
           ...escalations.map(e => ({ id: e.id, type: "escalation", label: e.category, sub: e.about_person || "—", page: "escalations" })),
         ];

@@ -60,7 +60,7 @@ function TeamHealth({ teamData, allTeamEmails, qaQueue, qaDomain }) {
       const [tasks, plans, violations] = await Promise.all([
         listTasks({ token, select: "id,status,assigned_to", filters: "status=neq.done" }),
         listPlans({ token, select: "id,qa_email,status,end_date", filters: "status=eq.active" }),
-        listViolations({ token, select: "id,status,qa_emails", filters: "status=eq.pending" }),
+        listViolations({ token, select: "id,status,qa_email", filters: "status=eq.pending" }),
       ]);
       const openTasks = (tasks || []).filter(t => t.assigned_to && teamSet.has(t.assigned_to.toLowerCase())).length;
       const activePlans = (plans || []).filter(p => p.qa_email && teamSet.has(p.qa_email.toLowerCase())).length;
@@ -71,8 +71,8 @@ function TeamHealth({ teamData, allTeamEmails, qaQueue, qaDomain }) {
         return d >= 0 && d <= 7;
       }).length;
       const pendingViolations = (violations || []).filter(v => {
-        if (!v.qa_emails) return false;
-        const lower = v.qa_emails.toLowerCase();
+        if (!v.qa_email) return false;
+        const lower = v.qa_email.toLowerCase();
         for (const em of teamSet) if (em && lower.includes(em)) return true;
         return false;
       }).length;

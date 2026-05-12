@@ -303,7 +303,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
   }, [toEmail, plans.length]);
 
   // Get previous sessions for selected member
-  const memberHistory = sessions.filter(s => s.member_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
+  const memberHistory = sessions.filter(s => s.qa_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
   const ENUM_TO_LABEL = {"weekly_1on1":"WPR","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
 
   // CC auto-fill: whenever the recipient changes (typed or picked), rebuild
@@ -396,7 +396,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
           headers: { Prefer: "return=representation" },
           body: {
             sender_email: profile?.email || "",
-            member_email: em,
+            qa_email: em,
             cc_email: ccEmail,
             session_date: sessionDate,
             meeting_type: MEETING_TYPE_ENUM[meetingType] || "ad_hoc",
@@ -522,7 +522,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
               return actual !== null && actual !== undefined && target !== undefined && actual >= target;
             });
 
-            const latestSession = s.find(sess => sess.member_email?.toLowerCase() === toEmail.toLowerCase() && sess.session_date === sessionDate);
+            const latestSession = s.find(sess => sess.qa_email?.toLowerCase() === toEmail.toLowerCase() && sess.session_date === sessionDate);
 
             await sb.query("action_plan_weeks", {
               token, method: "PATCH",
@@ -587,7 +587,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
                 // form already receives — no extra fetch needed.
                 const cadenceFor = (email) => {
                   const lower = (email || "").toLowerCase();
-                  const mine = sessions.filter(s => (s.member_email || "").toLowerCase() === lower);
+                  const mine = sessions.filter(s => (s.qa_email || "").toLowerCase() === lower);
                   if (mine.length === 0) return { label: "never coached", color: "var(--amber)" };
                   const lastDate = mine.reduce((m, s) => (s.session_date && s.session_date > m ? s.session_date : m), "");
                   const days = lastDate ? Math.max(0, Math.round((Date.now() - new Date(lastDate + "T00:00:00").getTime()) / 86400000)) : null;

@@ -55,7 +55,7 @@ export default function CoachingHistory({ sessions, onDelete }) {
     if (!token) return;
     let cancelled = false;
     sb.query("coaching_session_acks", {
-      token, select: "session_id,acked_at,member_email",
+      token, select: "session_id,acked_at,qa_email",
     }).then(rows => {
       if (cancelled) return;
       const map = {};
@@ -86,7 +86,7 @@ export default function CoachingHistory({ sessions, onDelete }) {
     const out = new Set();
     const byMember = new Map();
     for (const s of sessions) {
-      const k = (s.member_email || "").toLowerCase();
+      const k = (s.qa_email || "").toLowerCase();
       if (!byMember.has(k)) byMember.set(k, []);
       byMember.get(k).push(s);
     }
@@ -108,7 +108,7 @@ export default function CoachingHistory({ sessions, onDelete }) {
   const sortKeyFor = {
     date:        s => s.session_date || "",
     type:        s => (ENUM_TO_LABEL[s.meeting_type] || s.meeting_type || "").toLowerCase(),
-    member:      s => nameFromEmail(s.member_email).toLowerCase(),
+    member:      s => nameFromEmail(s.qa_email).toLowerCase(),
     sender:      s => nameFromEmail(s.sender_email).toLowerCase(),
     performance: s => PERF_ORDER[s.performance_rating] ?? 99,
     outcome:     s => (s.outcome || "").toLowerCase(),
@@ -128,9 +128,9 @@ export default function CoachingHistory({ sessions, onDelete }) {
     const q = historySearch.toLowerCase().trim();
     if (!q) return scopedSessions;
     return scopedSessions.filter(s => {
-      const memberName = nameFromEmail(s.member_email).toLowerCase();
+      const memberName = nameFromEmail(s.qa_email).toLowerCase();
       const senderName = nameFromEmail(s.sender_email).toLowerCase();
-      return (s.member_email || "").toLowerCase().includes(q) || memberName.includes(q) || (s.sender_email || "").toLowerCase().includes(q) || senderName.includes(q) || (s.email_subject || "").toLowerCase().includes(q) || (ENUM_TO_LABEL[s.meeting_type] || "").toLowerCase().includes(q);
+      return (s.qa_email || "").toLowerCase().includes(q) || memberName.includes(q) || (s.sender_email || "").toLowerCase().includes(q) || senderName.includes(q) || (s.email_subject || "").toLowerCase().includes(q) || (ENUM_TO_LABEL[s.meeting_type] || "").toLowerCase().includes(q);
     });
   };
 
@@ -261,7 +261,7 @@ export default function CoachingHistory({ sessions, onDelete }) {
             {followUpNeeded.has(s.id) && <span title="Action items from this session have no follow-up session" style={{marginLeft:6,fontSize:10,padding:"1px 6px",borderRadius:8,background:"var(--amber-bg)",color:"var(--amber)",fontWeight:700,letterSpacing:.2}}>↻ Follow-up</span>}
             </td>
             <td style={{fontWeight:500}}>
-              {nameFromEmail(s.member_email)}
+              {nameFromEmail(s.qa_email)}
               {ackBySession[s.id]
                 ? <span title={`Read ${new Date(ackBySession[s.id]).toLocaleString("en-GB",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"})}`} style={{marginLeft:6,fontSize:11,color:"var(--green)"}}>✓</span>
                 : <span title="Not yet acknowledged by the member" style={{marginLeft:6,fontSize:11,color:"var(--tx3)"}}>⏳</span>}
@@ -308,7 +308,7 @@ export default function CoachingHistory({ sessions, onDelete }) {
           {/* Expanded session details */}
           {isExp&&<tr><td colSpan={hasRole(profile?.role,"super_admin")?8:7} style={{padding:0,background:"var(--bg)"}}><div style={{padding:"16px 20px"}}>
             <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:16}}>
-              <div><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>To</div><div style={{fontSize:13}}>{s.member_email||"—"}</div></div>
+              <div><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>To</div><div style={{fontSize:13}}>{s.qa_email||"—"}</div></div>
               <div><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>CC</div><div style={{fontSize:13}}>{s.cc_email||"—"}</div></div>
               <div><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>From</div><div style={{fontSize:13}}>{s.sender_email||"—"}</div></div>
               <div><div style={{fontSize:11,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:4}}>Subject</div><div style={{fontSize:13}}>{s.email_subject||"—"}</div></div>
