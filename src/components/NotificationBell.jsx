@@ -14,6 +14,7 @@ import { fetchUnreadReleases, ackRelease } from "../lib/featureReleases.js";
 import { isMismatch, isMissingCheckIn, isAutoNsnc, PLAN_FEATURE_START, seenPlanKey, isPlanUnseen } from "../lib/attendancePlan.js";
 import { listProfiles } from "../api/profiles.js";
 import { emailsMatchLoose, nameFromEmail } from "../lib/utils.js";
+import { isLive as annIsLive, matchesAudience as annMatchesAudience } from "../lib/announcementUtils.js";
 
 const safe=(v)=>{if(v==null)return"";if(typeof v==="object")return JSON.stringify(v);return String(v);};
 
@@ -58,8 +59,9 @@ function NotificationBell({ onNavigate }) {
           listTasks({ token, select: "id,title,priority,created_by,eta_date,created_at", filters: `assigned_to=eq.${profile?.email}&status=neq.done&order=created_at.desc&limit=10` }),
           // Escalations routed to ME
           listEscalations({ token, select: "id,category,status,submitted_by,created_at", filters: `routed_to=eq.${profile?.email}&status=eq.open&order=created_at.desc&limit=10` }),
-          // Announcements (everyone gets these) — cached
-          dataCache.fetch("notif_announcements",()=>sb.query("announcements", { select: "id,title,priority,sent_by,created_at", filters: "order=created_at.desc&limit=5", token })).catch(() => []),
+          // Announcements — pull recent ones; we filter by isLive +
+          // audience + ack status below before surfacing.
+          sb.query("announcements", { select: "id,title,priority,sent_by,target_type,target_value,requires_ack,dismiss_mode,send_at,expires_at,published,deleted_at,created_at", filters: "order=created_at.desc&limit=20", token }).catch(() => []),
           // Feedback responses to MY feedback (any role)
           sb.query("feedback", { select: "id,category,status,admin_response,created_at", filters: `user_email=eq.${profile?.email}&status=neq.new&order=created_at.desc&limit=5`, token }).catch(() => []),
           // Coaching sessions where I'm the member (for QAs)
@@ -114,6 +116,18 @@ function NotificationBell({ onNavigate }) {
         }).catch(() => []));
         const results = await Promise.all(queries);
         const [assignedTasks, escalations, announcements, myFeedback, myCoaching] = results;
+        // Filter announcements down to ones the user should still see:
+        //   * live (not deleted, published, within send_at..expires_at)
+        //   * audience match (handled by matchesAudience)
+        //   * not yet acknowledged
+        const myAcks = await sb.query("announcement_acks", { select: "announcement_id", filters: `user_email=eq.${profile?.email}`, token }).catch(() => []);
+        const ackedAnnIds = new Set((myAcks || []).map(a => a.announcement_id));
+        const myQueueForAnn = (window.__gfRoster || {})[myEmail] || "";
+        const liveAnnouncements = (announcements || []).filter(a =>
+          annIsLive(a)
+          && annMatchesAudience(a, { email: myEmail, queue: myQueueForAnn }, window.__gfRosterMgr || {})
+          && !ackedAnnIds.has(a.id)
+        );
         const violations = (isLead || isSv) ? (results[5] || []) : [];
         const damFlags = (isLead || isSv) ? (results[6] || []) : [];
         const activePlans = (isLead || isSv) ? (results[7] || []) : [];
@@ -185,6 +199,18 @@ function NotificationBell({ onNavigate }) {
             time: e.created_at,
             page: "admin",
             adminTab: "errors",
+          })),
+          // Live, audience-matching, un-acked announcements. Clicking
+          // surfaces them on the dashboard where the modal/banner will
+          // pick them up — same source of truth as the rest of the
+          // notification surface area.
+          ...liveAnnouncements.map(a => ({
+            id: "ann-" + a.id,
+            type: "announcement",
+            title: `📢 ${a.title || "Announcement"}`,
+            sub: `From ${nameFromEmail(a.sent_by || "")}${a.priority && a.priority !== "normal" ? " · " + a.priority : ""}`,
+            time: a.created_at,
+            page: "dashboard",
           })),
         ];
         // Daily task reminders — check auto-close tasks vs daily_scores

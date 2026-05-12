@@ -21,6 +21,8 @@ import GlobalSearch from "./components/GlobalSearch.jsx";
 import OnboardingTour from "./components/OnboardingTour.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { AppContext } from "./lib/AppContext.jsx";
+import DOMPurify from "dompurify";
+import { isLive as annIsLive, matchesAudience as annMatchesAudience } from "./lib/announcementUtils.js";
 import { ToastProvider, useGlobalToast } from "./lib/ToastContext.jsx";
 import { subscribeRealtime } from "./lib/realtime.js";
 import useKeyboard from "./lib/useKeyboard.jsx";
@@ -129,6 +131,10 @@ function AppInner(){
   const[globalRoster,setGlobalRoster]=useState([]);
   const[globalMonths,setGlobalMonths]=useState([]);
   const[pendingAnnouncements,setPendingAnnouncements]=useState([]);
+  // Banner-mode announcements: still live, audience matches, but the
+  // sender picked dismiss_mode='banner' so they show as a dismissible
+  // card on the dashboard rather than a blocking modal.
+  const[bannerAnnouncements,setBannerAnnouncements]=useState([]);
   const[showFeedback,setShowFeedback]=useState(false);
   // Recently viewed QA emails for the sidebar's "Recent" section.
   // Stored per-user in localStorage so it survives sessions.
@@ -331,31 +337,35 @@ function AppInner(){
     setGlobalMonths(uniqueMonths);
   }catch(e){console.error("Global filters:",e);}})();},[session]);
 
-  // Load pending announcements that need acknowledgement
+  // Load announcements that should surface to this user. Splits into:
+  //   * pendingAnnouncements — dismiss_mode='modal', requires ack →
+  //     blocks the UI with the full-screen modal until acknowledged.
+  //   * bannerAnnouncements   — dismiss_mode='banner' OR ack not
+  //     required → renders as a dismissible card on the dashboard.
+  // Filters apply isLive (handles expires_at, send_at, deleted_at,
+  // published) and matchesAudience (handles all the target_type
+  // variants including my_team cross-domain).
   useEffect(()=>{if(!session||!profile)return;(async()=>{try{
     const[anns,acks]=await Promise.all([
-      sb.query("announcements",{select:"*",filters:"order=created_at.desc",token:session.access_token}).catch(()=>[]),
+      sb.query("announcements",{select:"*",filters:"order=created_at.desc&limit=50",token:session.access_token}).catch(()=>[]),
       sb.query("announcement_acks",{select:"announcement_id",filters:`user_email=eq.${profile.email}`,token:session.access_token}).catch(()=>[]),
     ]);
     const ackedIds=new Set(acks.map(a=>a.announcement_id));
-    const myEmail=profile.email?.toLowerCase();
-    const myDomain=profile.domain||profile.operational_domain||"";
+    const myEmail=(profile.email||"").toLowerCase();
     const myQueue=(window.__gfRoster||{})[myEmail]||"";
-    const pending=anns.filter(a=>{
+    const me={email:myEmail,queue:myQueue};
+    const mgrMap=window.__gfRosterMgr||{};
+    const visible=(anns||[]).filter(a=>{
+      if(!annIsLive(a))return false;
+      if(!annMatchesAudience(a,me,mgrMap))return false;
+      // Acked items don't surface again, regardless of mode.
       if(ackedIds.has(a.id))return false;
-      if(a.target_type==="all")return true;
-      if(a.target_type==="domain")return myEmail.endsWith("@"+a.target_value);
-      if(a.target_type==="team")return myQueue===a.target_value;
-      if(a.target_type==="individual")return myEmail===a.target_value?.toLowerCase();
-      if(a.target_type==="my_team"){
-        // Show to QAs whose manager matches target_value, OR to the sender themselves
-        const myMgr=(window.__gfRosterMgr||{})[myEmail]||"";
-        const targetLead=a.target_value?.toLowerCase()||"";
-        return myEmail===targetLead || myMgr===targetLead || (targetLead.split("@")[0]&&myMgr.split("@")[0]===targetLead.split("@")[0]);
-      }
-      return false;
+      return true;
     });
-    setPendingAnnouncements(pending);
+    const modal=visible.filter(a=>(a.dismiss_mode||"modal")==="modal"&&a.requires_ack!==false);
+    const banner=visible.filter(a=>!modal.includes(a));
+    setPendingAnnouncements(modal);
+    setBannerAnnouncements(banner);
   }catch(e){console.error("Announcements:",e);}})();},[session,profile]);
 
   const acknowledgeAnnouncement=async(annId)=>{
@@ -696,6 +706,38 @@ function AppInner(){
         don't see "dead controls" that change nothing. Page-level
         filters live under <PageFilters> on each page. */}
     {!HIDE_GLOBAL_FILTER_PAGES.has(page) && <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} role={userRole}/>}
+    {/* Banner-mode announcements — non-blocking, dismissible card row
+        rendered just under the global filter bar so it's prominent
+        but doesn't interrupt navigation. requires_ack=true ones
+        still record an ack when dismissed (so the sender's "who's
+        seen it" panel stays accurate). */}
+    {bannerAnnouncements.length>0&&<div style={{display:"flex",flexDirection:"column",gap:8,padding:"12px 24px 0"}}>
+      {bannerAnnouncements.slice(0,3).map(b=>{
+        const dismiss=async()=>{
+          if(b.requires_ack){
+            try{await sb.query("announcement_acks",{token:session?.access_token,method:"POST",body:{announcement_id:b.id,user_email:profile?.email}});}catch{}
+          }
+          setBannerAnnouncements(prev=>prev.filter(x=>x.id!==b.id));
+        };
+        const accent=b.priority==="urgent"?"var(--red)":b.priority==="important"?"var(--amber)":"var(--tabby-purple)";
+        return (<div key={b.id} role="status" style={{
+          border:`1px solid ${accent}`,borderLeft:`3px solid ${accent}`,
+          background:"var(--bg3)",borderRadius:8,padding:"10px 14px",
+          display:"flex",alignItems:"flex-start",gap:12,
+        }}>
+          <span style={{fontSize:18}}>{b.priority==="urgent"?"🔴":b.priority==="important"?"⚠️":"📌"}</span>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{b.title}</div>
+            {b.body_format==="html"
+              ? <div style={{fontSize:12,color:"var(--tx2)",marginTop:2,lineHeight:1.5}}
+                     dangerouslySetInnerHTML={{__html:DOMPurify.sanitize(String(b.message||""),{ALLOWED_TAGS:["p","br","b","strong","i","em","u","ul","ol","li","a","div","span"],ALLOWED_ATTR:["href","target","rel"]})}}/>
+              : <div style={{fontSize:12,color:"var(--tx2)",marginTop:2,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{b.message}</div>}
+            <div style={{fontSize:10,color:"var(--tx3)",marginTop:4}}>From {nameFromEmail(b.sent_by)} · {new Date(b.created_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>
+          </div>
+          <button onClick={dismiss} aria-label="Dismiss" title={b.requires_ack?"Acknowledge & dismiss":"Dismiss"} style={{background:"none",border:"none",color:"var(--tx3)",cursor:"pointer",fontSize:18,padding:4,lineHeight:1}}>×</button>
+        </div>);
+      })}
+    </div>}
     {/* Search overlay */}
     {showSearch&&<GlobalSearch onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
     {showTour&&<OnboardingTour onDismiss={dismissTour} role={profile?.role}/>}
@@ -762,7 +804,10 @@ function AppInner(){
                 {ann.target_type!=="all"&&<span style={{fontSize:10,padding:"3px 10px",borderRadius:8,background:"var(--bg2)",color:"var(--tx3)",fontWeight:600}}>To: {ann.target_type==="domain"?String(ann.target_value||""):ann.target_type==="team"?"Team: "+String(ann.target_value||""):String(ann.target_value||"")}</span>}
               </div>
               <h3 style={{fontSize:18,fontWeight:700,marginBottom:12,letterSpacing:"-.3px",lineHeight:1.3}}>{typeof ann.title==="object"?JSON.stringify(ann.title):ann.title}</h3>
-              <div style={{fontSize:14,color:"var(--tx2)",lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:300,overflowY:"auto"}}>{typeof ann.message==="object"?JSON.stringify(ann.message):ann.message}</div>
+              {ann.body_format==="html"
+                ? <div style={{fontSize:14,color:"var(--tx2)",lineHeight:1.7,maxHeight:300,overflowY:"auto"}}
+                       dangerouslySetInnerHTML={{__html:DOMPurify.sanitize(String(ann.message||""),{ALLOWED_TAGS:["p","br","b","strong","i","em","u","ul","ol","li","a","div","span"],ALLOWED_ATTR:["href","target","rel"]})}}/>
+                : <div style={{fontSize:14,color:"var(--tx2)",lineHeight:1.7,whiteSpace:"pre-wrap",maxHeight:300,overflowY:"auto"}}>{typeof ann.message==="object"?JSON.stringify(ann.message):ann.message}</div>}
             </>;
           })()}
         </div>
