@@ -591,7 +591,7 @@ function AppInner(){
           {viewAsPickerOpen && <>
             {/* backdrop closes the popover on outside click */}
             <div onClick={()=>setViewAsPickerOpen(false)} style={{position:"fixed",inset:0,zIndex:90}}/>
-            <div style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:100,width:320,maxHeight:380,background:"var(--bg3)",border:"1px solid var(--bd)",borderRadius:10,boxShadow:"0 12px 32px rgba(0,0,0,.32)",display:"flex",flexDirection:"column",overflow:"hidden"}}>
+            <div className="topbar-viewas-popover" style={{position:"absolute",right:0,top:"calc(100% + 6px)",zIndex:100,width:320,maxHeight:380,display:"flex",flexDirection:"column",overflow:"hidden"}}>
               <input
                 autoFocus
                 value={viewAsSearch}
@@ -827,8 +827,8 @@ function AppInner(){
     </div>}
 
     {/* ═══ KEYBOARD SHORTCUTS HELP ═══ */}
-    {showShortcutsHelp&&<div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}} onClick={()=>setShowShortcutsHelp(false)}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg3)",borderRadius:16,border:"1px solid var(--bd)",boxShadow:"0 20px 48px rgba(0,0,0,.35)",width:"100%",maxWidth:360,padding:24}}>
+    {showShortcutsHelp&&<div role="dialog" aria-modal="true" aria-label="Keyboard shortcuts" style={{position:"fixed",inset:0,background:"rgba(0,0,0,.5)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999}} onClick={()=>setShowShortcutsHelp(false)}>
+      <div onClick={e=>e.stopPropagation()} style={{borderRadius:16,width:"100%",maxWidth:360,padding:24}}>
         <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>Keyboard shortcuts</div>
         {[["Cmd/Ctrl + K","Open search"],["Escape","Close overlay / modal"],["?","Toggle this help"],["1 - 4","Switch tabs (on tabbed pages)"]].map(([k,d])=>(
           <div key={k} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"6px 0",borderBottom:"1px solid var(--bd2)"}}>
