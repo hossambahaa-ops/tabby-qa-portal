@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactDOM from "react-dom";
-import { hasRole, ROLE_LABELS, sortMonthsDesc } from "../lib/constants.js";
+import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { nameFromEmail, initialsFromEmail, safeError, logActivity, csatPctValue, csatColor, emailsMatchLoose } from "../lib/utils.js";
 import { parseRawD, KPI_SLABS_D, calcSlabD, getScore, MAX_SCORE, scoreColor, scoreBg } from "../lib/dashboardScore.js";
@@ -23,7 +23,7 @@ import APDetectionAlerts from "../components/dashboard/APDetectionAlerts.jsx";
 // grid duplicated the per-QA Team members table further down the page.
 // import TeamHealth from "../components/dashboard/TeamHealth.jsx";
 import AttendanceHealthCard from "../components/attendance/AttendanceHealthCard.jsx";
-import TeamChampions from "../components/dashboard/TeamChampions.jsx";
+// TeamChampions moved off the dashboard — admin-only widget lives on the Expertise page now.
 import QADailyProgress from "../components/dashboard/QADailyProgress.jsx";
 import PendingSideTasksCard from "../components/dashboard/PendingSideTasksCard.jsx";
 // OwedCoachingsCard replaced by the cadence-aware CoachingCadenceCard
@@ -182,7 +182,8 @@ function DashboardPage(){
           <div>
             <h2>Welcome back, {nameFromEmail(profile?.email).split(" ")[0]||"there"}</h2>
             <p>{isLead?"Here's your team overview for "+latestMonth+".":"Here's your performance overview for "+latestMonth+"."}</p>
-            <div className="welcome-role">{ROLE_LABELS[profile?.role]||"QA"} &middot; {profile?.domain}{myRoster?" · "+myRoster.queue:""}</div>
+            {/* Role/domain badge removed — the topbar already shows
+                the user's identity. */}
           </div>
         </div>
         {/* Welcome banner trimmed: the Leaderboard / Profile / MTD /
@@ -225,29 +226,10 @@ function DashboardPage(){
           </div>
         );
       })()}
-      {!myData && isLead && teamCurrent.length > 0 && (() => {
-        const dCls = teamTrend == null ? "" : Number(teamTrend) >= 0.05 ? "kpi-strip-delta-up" : Number(teamTrend) <= -0.05 ? "kpi-strip-delta-down" : "kpi-strip-delta-flat";
-        const dArrow = teamTrend == null ? "" : Number(teamTrend) >= 0.05 ? "↑" : Number(teamTrend) <= -0.05 ? "↓" : "·";
-        return (
-          <div className="kpi-strip">
-            <div className="kpi-strip-item">
-              <span className="kpi-strip-label">Team avg score</span>
-              <span className="kpi-strip-value">{teamAvgScore.toFixed(1)}<span style={{fontSize:13,color:"rgba(255,255,255,.55)",fontWeight:500}}> / {maxScore}</span></span>
-              {teamTrend != null && <span className={`kpi-strip-delta ${dCls}`}>{dArrow} {Math.abs(Number(teamTrend)).toFixed(1)} pts vs {prevMonth}</span>}
-            </div>
-            <div className="kpi-strip-item">
-              <span className="kpi-strip-label">Team size</span>
-              <span className="kpi-strip-value">{teamCurrent.length}</span>
-              <span className="kpi-strip-sub">QAs in {latestMonth}</span>
-            </div>
-            <div className="kpi-strip-item">
-              <span className="kpi-strip-label">Team DSATs</span>
-              <span className="kpi-strip-value">{teamDsat}</span>
-              <span className="kpi-strip-sub">this month</span>
-            </div>
-          </div>
-        );
-      })()}
+      {/* Lead-fallback KPI strip removed — duplicated the Team stats
+          grid below (Team avg score / Team size / Team DSATs), which
+          uses the ProgressRing + sparkline treatment and is more
+          visual. One source of those numbers, not two. */}
     </div>
     {loading?<SkeletonPage/>:<>
 
@@ -364,62 +346,16 @@ function DashboardPage(){
         </div>
       )}
 
-      {/* Team Champions — admin-only pilot. Expertise stars across the team */}
-      {isAdmin && allTeamEmails.length > 0 && <TeamChampions teamEmails={allTeamEmails} month={latestMonth} onOpen={()=>nav("expertise")} />}
-
-      {/* Today's live activity */}
-      {dailyScores.length>0&&<div className="card" style={{marginBottom:16}}>
-        <div className="card-header"><span className="card-title">Today's activity</span><span style={{fontSize:11,color:"var(--tx3)"}}>{dailyScores.length} active · {new Date().toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"})}</span></div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:12,padding:"12px 16px"}}>
-          {(()=>{
-            // qa_email or email — sync can write either column. Without
-            // the fallback, team aggregates silently miss QAs whose row
-            // landed in the `email` column.
-            const teamDs=dailyScores.filter(d=>allTeamEmails.includes((d.qa_email||d.email)?.toLowerCase()));
-            const totSbs=teamDs.reduce((a,d)=>a+(d.sbs||0),0);
-            const totNon=teamDs.reduce((a,d)=>a+(d.non_sbs||0),0);
-            const totCoach=teamDs.reduce((a,d)=>a+(d.coaching_sessions||0),0);
-            const totST=teamDs.reduce((a,d)=>a+(parseFloat(d.side_task_minutes)||0),0);
-            // Exclude QAs with 0 / no occupancy data so they don't drag the avg down
-            const occVals=teamDs.map(d=>parseFloat(d.occupancy_pct)||0).filter(v=>v>0);
-            const avgOcc=occVals.length?occVals.reduce((a,b)=>a+b,0)/occVals.length:0;
-            const occPct=avgOcc>2?avgOcc:avgOcc*100;
-            return [
-              {label:"SBS",value:totSbs,color:"var(--green)",icon:"📋"},
-              {label:"Non-SBS",value:totNon,color:"var(--blue)",icon:"📝"},
-              {label:"Coaching",value:totCoach,color:"var(--amber)",icon:"🎯"},
-              {label:"Side Tasks",value:totST>0?`${Math.floor(totST/60)}h ${Math.round(totST%60)}m`:"0",color:"var(--tx2)",icon:"⏱"},
-              {label:"Avg Occ",value:occPct>0?occPct.toFixed(1)+"%":"—",color:"var(--tx2)",icon:"📊"},
-            ].map((s,i)=><div key={i} style={{textAlign:"center"}}>
-              <div style={{fontSize:18,marginBottom:4}}>{s.icon}</div>
-              <div style={{fontSize:20,fontWeight:800,color:s.color}}>{s.value}</div>
-              <div style={{fontSize:10,color:"var(--tx3)",fontWeight:500}}>{s.label}</div>
-            </div>);
-          })()}
-        </div>
-      </div>}
-
-      {/* Team availability today */}
-      {(()=>{
-        const presentStatuses=new Set(["P","H","L","EL","PH"]);
-        const absentStatuses=new Set(["AL","Paid SL","ML","UL","NSNC"]);
-        const teamAtt=todayAttendance.filter(a=>allTeamEmails.includes(a.email?.toLowerCase()));
-        const present=teamAtt.filter(a=>presentStatuses.has(a.status)).length;
-        const absent=teamAtt.filter(a=>absentStatuses.has(a.status)).length;
-        const off=teamAtt.filter(a=>a.status==="OFF").length;
-        const noData=allTeamEmails.length-teamAtt.length;
-        if(allTeamEmails.length===0)return null;
-        return <div className="card" style={{padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"center",justifyContent:"space-between",gap:16}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
-            <div style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>Today's availability</div>
-            <span style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:"var(--green-bg)",color:"var(--green)",fontWeight:700}}>{present} Present</span>
-            {absent>0&&<span style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:"var(--red-bg)",color:"var(--red)",fontWeight:700}}>{absent} On leave</span>}
-            {off>0&&<span style={{fontSize:11,padding:"3px 8px",borderRadius:6,background:"var(--bg3)",color:"var(--tx3)",fontWeight:700}}>{off} Off</span>}
-            {noData>0&&<span style={{fontSize:11,color:"var(--tx3)"}}>{noData} no schedule</span>}
-          </div>
-          <button className="btn btn-outline btn-sm" onClick={()=>nav("schedule")} style={{fontSize:11}}>Schedule →</button>
-        </div>;
-      })()}
+      {/* Removed:
+          - Team Champions (admin-only) → lives on the Expertise page,
+            so dashboard stays focused on what every lead/admin needs.
+          - Today's live activity strip → numbers (SBS / Non-SBS /
+            Coaching / Side Tasks / Occupancy) all surface in the team
+            table below + the stat cards above; the strip was a third
+            spot for the same data.
+          - Today's availability card → AttendanceHealthCard renders
+            the same Present / Absent / Off counts in a richer panel
+            higher up the page. */}
 
       {/* Score Trend Chart */}
       {months.length>=2&&<div className="card" style={{marginBottom:20}}>
