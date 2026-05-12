@@ -9,26 +9,31 @@
   --tabby-green-dim: #2BD882;
   --tabby-dark: #003227;
 
-  /* Surfaces — warm-neutral greys; almost no purple cast, easy on the eyes */
-  --bg: #C2BFBD; --bg2: #B6B3B0; --bg3: #CECBC9; --sidebar-bg: #0D0B10;
-  --tx: #26242A; --tx2: #545058; --tx3: #7C7882;
-  --bd: #9F9B98; --bd2: #ABA7A4;
+  /* Surfaces — warm-neutral greys; almost no purple cast, easy on the
+     eyes. Lifted a notch from the original muddy palette so contrast
+     against borders and text actually clears WCAG AA. */
+  --bg: #D8D5D2; --bg2: #CDCAC7; --bg3: #E2DFDC; --sidebar-bg: #0D0B10;
+  --tx: #1F1D24; --tx2: #45414B; --tx3: #5E5A65;
+  --bd: #B0ACA9; --bd2: #BCB8B5;
 
   /* Accents mapped to Tabby — light variants are mostly neutral grey
-     with just a hint of brand colour, so chips don't feel saturated. */
+     with just a hint of brand colour, so chips don't feel saturated.
+     accent-text darkened so it clears 5:1 against accent-light. */
   --accent: #3BFF9D; --accent-light: #BFC8C0; --accent-dark: #00CC7A;
-  --accent-text: #2A5F42;
+  --accent-text: #1F4D31;
   --primary: #6A2C79; --primary-light: #BEB4C2; --primary-text: #6A2C79;
   /* Chart accent — muted green in light, neon in dark (overridden below) */
-  --chart-perf: #0F9D74;
+  --chart-perf: #086B4E;
 
-  /* Semantic — slightly desaturated foregrounds + muted backgrounds so chips
-     don't shout against the calmer surfaces. */
-  --green: #0F9D74; --green-bg: #C7EBD8;
-  --amber: #D88B0A; --amber-bg: #F0E4BF;
-  --red: #D93838; --red-bg: #F0CFCF;
-  --teal: #0FA293; --teal-bg: #BFE9E0;
-  --blue: #3676E0; --blue-bg: #C9DAF0;
+  /* Semantic — darkened foregrounds + slightly lifted backgrounds so
+     every {fg, bg} pair clears WCAG AA (4.5:1+) for body text. Before
+     this pass, amber-on-amber-bg sat at ~2.2:1 and green/red/blue/teal
+     were 2.5–3.2 — readable as colour cues, not as text. */
+  --green: #086B4E; --green-bg: #D8F0E2;
+  --amber: #8C4E00; --amber-bg: #FAEED0;
+  --red: #B22020; --red-bg: #F8DBDB;
+  --teal: #0A6961; --teal-bg: #D2F0EA;
+  --blue: #1B4AA8; --blue-bg: #D7E5F4;
 
   /* System */
   --radius: 12px; --radius-lg: 16px; --radius-xl: 20px;
