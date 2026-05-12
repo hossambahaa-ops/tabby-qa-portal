@@ -2429,3 +2429,69 @@ html.dark body { color: #ECEFF6; }
 html:not(.dark) .progress-ring-track { stroke: rgba(31,29,36,.14); }
 html.dark .progress-ring-track { stroke: rgba(255,255,255,.18); }
 
+/* ── 18. Welcome banner refresh: bigger, gradient-text headline,
+   modern padding. Decorative blobs stay; main slab gradient is
+   lighter so it doesn't feel like a heavy hero from 2019. */
+.welcome-banner {
+  padding: 32px 36px !important;
+  background: linear-gradient(135deg, rgba(106,44,121,.65), rgba(74,27,86,.7) 50%, rgba(13,11,16,.85)) !important;
+}
+.welcome-banner h2 {
+  font-size: 30px !important;
+  font-weight: 800 !important;
+  letter-spacing: -.8px !important;
+  background: linear-gradient(120deg, #FFFFFF 30%, #C9A0FF 90%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+.welcome-banner p {
+  color: rgba(255,255,255,.65) !important;
+  font-size: 14.5px !important;
+  margin-top: 4px;
+}
+
+/* ── 19. Stat-card sizing — slightly larger primary value, lighter
+   label uppercase tracking. Reads as "the number is the point". */
+.stat-value { font-size: 34px !important; letter-spacing: -1.5px !important; }
+.stat-label { letter-spacing: .6px !important; font-weight: 700 !important; }
+
+/* ── 20. EmptyState placeholder — softer, better-spaced. Icon tile
+   gets a subtle gradient + glow so it doesn't read as a "stamped
+   square". */
+.placeholder { padding: 56px 24px !important; gap: 8px; }
+.placeholder-icon {
+  background: linear-gradient(135deg, rgba(106,44,121,.35), rgba(106,44,121,.15)) !important;
+  color: var(--tabby-purple-light) !important;
+  box-shadow: 0 8px 24px rgba(106,44,121,.20), inset 0 1px 0 rgba(255,255,255,.10) !important;
+  border: 1px solid rgba(106,44,121,.25) !important;
+}
+html.dark .placeholder-icon {
+  background: linear-gradient(135deg, rgba(180,120,255,.20), rgba(106,44,121,.10)) !important;
+  color: #D9C8F0 !important;
+  box-shadow: 0 8px 24px rgba(106,44,121,.30), inset 0 1px 0 rgba(255,255,255,.05) !important;
+}
+.placeholder h3 { font-size: 17px; letter-spacing: -.25px; margin-top: 4px; }
+.placeholder p { line-height: 1.55; }
+
+/* ── 21. Skeleton shimmer — replace the simple opacity pulse with
+   a sweeping highlight. Reads as "loading" without the blocky
+   on/off blink the pulse keyframe produces. Applied via
+   .skeleton-shimmer; existing .pulse class still works for
+   simpler cases. */
+@keyframes skeletonShine {
+  0%   { background-position: -240px 0; }
+  100% { background-position: 240px 0; }
+}
+html:not(.dark) .skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(31,29,36,.08) 0%, rgba(31,29,36,.16) 50%, rgba(31,29,36,.08) 100%) !important;
+  background-size: 240px 100%;
+  animation: skeletonShine 1.2s linear infinite;
+}
+html.dark .skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,.04) 0%, rgba(255,255,255,.10) 50%, rgba(255,255,255,.04) 100%) !important;
+  background-size: 240px 100%;
+  animation: skeletonShine 1.2s linear infinite;
+}
+

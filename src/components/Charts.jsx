@@ -115,23 +115,26 @@ export const SparkLine = ({ data, width = 100, height = 28, color = "var(--tabby
   );
 };
 
-// Skeleton loader — shows pulsing placeholder while data loads
+// Skeleton loader — shows a sweeping-highlight placeholder while data
+// loads. Uses .skeleton-shimmer for the shine effect (defined in
+// index.css). Each row staggers by 100ms so the page feels alive
+// rather than blinking on/off in unison.
 export const SkeletonLoader = ({ rows = 4 }) => (
   <div style={{ display: "flex", flexDirection: "column", gap: 16, padding: 8 }}>
     <div className="stats-grid">
       {[1,2,3,4].map(i => (
         <div key={i} className="stat-card" style={{ minHeight: 100 }}>
-          <div style={{ width: "40%", height: 10, borderRadius: 6, background: "var(--bd2)", marginBottom: 16, animation: "pulse 1.5s ease infinite" }} />
-          <div style={{ width: "60%", height: 28, borderRadius: 8, background: "var(--bd2)", animation: "pulse 1.5s ease infinite", animationDelay: `${i * 0.1}s` }} />
+          <div className="skeleton-shimmer" style={{ width: "40%", height: 10, borderRadius: 6, marginBottom: 16, animationDelay: `${i * 0.1}s` }} />
+          <div className="skeleton-shimmer" style={{ width: "60%", height: 28, borderRadius: 8, animationDelay: `${i * 0.1}s` }} />
         </div>
       ))}
     </div>
     {[...Array(rows)].map((_, i) => (
       <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", padding: "12px 0", borderBottom: "1px solid var(--bd2)" }}>
-        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--bd2)", flexShrink: 0, animation: "pulse 1.5s ease infinite", animationDelay: `${i * 0.1}s` }} />
+        <div className="skeleton-shimmer" style={{ width: 36, height: 36, borderRadius: "50%", flexShrink: 0, animationDelay: `${i * 0.1}s` }} />
         <div style={{ flex: 1 }}>
-          <div style={{ width: `${60 + Math.random() * 30}%`, height: 12, borderRadius: 6, background: "var(--bd2)", marginBottom: 6, animation: "pulse 1.5s ease infinite" }} />
-          <div style={{ width: "40%", height: 10, borderRadius: 6, background: "var(--bd2)", animation: "pulse 1.5s ease infinite" }} />
+          <div className="skeleton-shimmer" style={{ width: `${60 + Math.random() * 30}%`, height: 12, borderRadius: 6, marginBottom: 6 }} />
+          <div className="skeleton-shimmer" style={{ width: "40%", height: 10, borderRadius: 6 }} />
         </div>
       </div>
     ))}
