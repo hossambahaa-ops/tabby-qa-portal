@@ -793,13 +793,19 @@ table tbody tr:hover {
   box-shadow: 0 8px 24px rgba(0,0,0,.15);
 }
 
-/* 5. Card hover subtle */
+/* 5. Card hover subtle — small lift + slightly stronger shadow.
+       Plus tighter corner radius for a more modern feel. Table cells
+       inherit tabular-nums so vertically stacked numbers line up. */
 .card {
-  transition: box-shadow .2s ease;
+  border-radius: 12px;
+  transition: transform .15s var(--ease), box-shadow .2s ease;
 }
 .card:hover {
-  box-shadow: 0 4px 16px rgba(0,0,0,.08);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0,0,0,.08);
 }
+.stat-card { border-radius: 12px; }
+table td, table th { font-variant-numeric: tabular-nums; }
 
 /* ═══ Topbar, collapsible sidebar, notifications, search ═══ */
 .topbar { display: flex !important; position: sticky; top: 0; z-index: 30; backdrop-filter: blur(12px); background: rgba(194,191,189,.92) !important; }
