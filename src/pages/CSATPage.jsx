@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb } from "../lib/supabase.js";
 import { csatPctValue, csatColor, normalizeTopic, nameFromEmail } from "../lib/utils.js";
@@ -46,6 +46,17 @@ export default function CSATPage() {
   const [topicMatrixLoading, setTopicMatrixLoading] = useState(false);
   const [topicMinSurveys, setTopicMinSurveys] = useState(0);
   const [topicSort, setTopicSort] = useState({ key: null, dir: "desc" }); // key: topic name | "__name__" | null (overall)
+  // Auto-refresh tick — bumped every minute so the load effect below
+  // re-runs and picks up newly-imported CSAT surveys without the user
+  // having to navigate away. Filter-driven re-runs still go through
+  // the same effect; we just gate the month/team auto-selection so it
+  // doesn't yank the user back to the latest month on each refresh.
+  const [reloadKey, setReloadKey] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setReloadKey(k => k + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
+  const lastFilterKey = useRef("");
 
   useEffect(() => {
     (async () => {
@@ -103,17 +114,25 @@ export default function CSATPage() {
         setData(filtered);
         const uniqueMonths = sortMonthsDesc([...new Set(filtered.map(r => r.month))]);
         setMonths(uniqueMonths);
-        if (uniqueMonths.length > 0) setSelMonth(uniqueMonths[0]);
-        // CSAT is intentionally unscoped by domain: every user — including
-        // supervisors who are domain-locked at the global level — should
-        // see the full dataset across By QA / By Lead / By Topic, and
-        // narrow with the page's own filter dropdowns if they want.
-        if (gf?.month && uniqueMonths.includes(gf.month)) setSelMonth(gf.month);
-        if (gf?.teams?.length > 0) setSelTeam(gf.teams[0]);
+        // Only auto-pick month/team when the effect was triggered by a
+        // filter change (token / gf), NOT by a reloadKey bump — otherwise
+        // a user who picked a prior month would get bounced back to the
+        // latest every 60 s.
+        const filterKey = `${token || ""}|${gf?.month || ""}|${(gf?.teams || []).join(",")}`;
+        if (lastFilterKey.current !== filterKey) {
+          lastFilterKey.current = filterKey;
+          if (uniqueMonths.length > 0) setSelMonth(uniqueMonths[0]);
+          // CSAT is intentionally unscoped by domain: every user — including
+          // supervisors who are domain-locked at the global level — should
+          // see the full dataset across By QA / By Lead / By Topic, and
+          // narrow with the page's own filter dropdowns if they want.
+          if (gf?.month && uniqueMonths.includes(gf.month)) setSelMonth(gf.month);
+          if (gf?.teams?.length > 0) setSelTeam(gf.teams[0]);
+        }
       } catch (e) { console.error("CSAT:", e); }
       setLoading(false);
     })();
-  }, [token, gf?.month, gf?.teams]);
+  }, [token, gf?.month, gf?.teams, reloadKey]);
 
   const monthData = data.filter(r => r.month === selMonth);
   // Literal previous calendar month for the selected month (e.g.

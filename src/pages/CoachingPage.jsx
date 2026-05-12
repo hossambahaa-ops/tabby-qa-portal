@@ -125,6 +125,15 @@ function CoachingPage() {
     },"Disconnect","var(--red)");
   };
 
+  // Auto-refresh tick — bumped every minute so newly-submitted
+  // coaching sessions / new DAM flags surface without the user having
+  // to navigate away.
+  const [reloadKey, setReloadKey] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setReloadKey(k => k + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
+
   // Load roster + history
   useEffect(() => {
     if (!token) return;
@@ -199,7 +208,7 @@ function CoachingPage() {
         setDamFlagsByQa(flagMap);
       } catch (e) { console.error("Coaching load:", e); }
     })();
-  }, [token]);
+  }, [token, reloadKey]);
 
   // Reload sessions (called by CoachingCompose after send)
   const loadSessions = async () => {

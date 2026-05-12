@@ -4,7 +4,7 @@ import { hasRole, ROLE_LABELS } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { safeError, logActivity, nameFromEmail } from "../lib/utils.js";
 import { listProfiles } from "../api/profiles.js";
-import { useConfirm } from "../lib/hooks.jsx";
+import { useConfirm, useAutoRefresh } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -42,6 +42,7 @@ function DAMPage(){
 
   useEffect(()=>{load();},[load]);
   useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
+  useAutoRefresh(load, 60000);
 
   // EGY uses @tabby.ai, KSA uses @tabby.sa. Steps are duplicated per
   // domain in dam_escalation_steps; resolve the QA's domain from the

@@ -5,7 +5,7 @@ import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { listProfiles } from "../api/profiles.js";
 import { listViolations } from "../api/violations.js";
-import { useConfirm } from "../lib/hooks.jsx";
+import { useConfirm, useAutoRefresh } from "../lib/hooks.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { callEdgeFunction } from "../lib/edgeSync.js";
@@ -88,6 +88,7 @@ function CoachingViolationsPage() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
+  useAutoRefresh(load, 60000);
 
   const pendingV = violations.filter(v => v.status === "pending");
   const reviewedV = violations.filter(v => v.status !== "pending");

@@ -16,6 +16,7 @@ import EmptyState from "../components/EmptyState.jsx";
 import { nameFromEmail } from "../lib/utils.js";
 import PlaceholderPage from "./PlaceholderPage.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
+import { useAutoRefresh } from "../lib/hooks.jsx";
 
 // Tracker — Phase 1.
 //   - Board (Kanban) and Table views, toggleable.
@@ -83,6 +84,7 @@ export default function TrackerPage() {
   }, [token, globalToast]);
 
   useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load, 60000);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
