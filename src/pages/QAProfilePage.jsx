@@ -37,7 +37,7 @@ function QAProfilePage() {
   // selection / search / expanded-row state plus the per-QA derivations.
   const {
     roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
-    loading, allQAs, qaLeadSet, refreshDailyScores, refreshMtd,
+    loading, allQAs, qaLeadSet, allProfiles, refreshDailyScores, refreshMtd,
   } = useQaProfileData(token, profile);
 
   // Super-admin-only inline editor for the headline KPI columns on a
@@ -262,14 +262,34 @@ function QAProfilePage() {
         const todayCode = todayAtt?.status;
         const todayType = todayCode ? ATT_MAP[todayCode] : null;
         const todayPending = todayAtt?.approval_status === "pending";
+        // Profile picture comes from the user's own profiles row
+        // (avatar_url written by /auth/v1/user on Google sign-in).
+        // Fall back to initials when no picture is on file.
+        const qaProf = (allProfiles || []).find(p => (p.email || "").toLowerCase() === (selectedQA || "").toLowerCase());
+        const avatarUrl = qaProf?.avatar_url;
+        const displayName = qaProf?.display_name || nameFromEmail(selectedQA);
+        const initials = displayName.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase();
         return (
           <div className="card" style={{marginBottom:16,padding:20}}>
             <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-              <div style={{width:56,height:56,borderRadius:"50%",background:"var(--accent-light)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,color:"var(--accent-text)",flexShrink:0}}>
-                {nameFromEmail(selectedQA).split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  referrerPolicy="no-referrer"
+                  onError={(e) => { e.currentTarget.style.display = "none"; e.currentTarget.nextSibling.style.display = "flex"; }}
+                  style={{width:56,height:56,borderRadius:"50%",objectFit:"cover",flexShrink:0,border:"1px solid var(--bd)"}}/>
+              ) : null}
+              <div style={{
+                width:56,height:56,borderRadius:"50%",background:"var(--accent-light)",
+                display: avatarUrl ? "none" : "flex",
+                alignItems:"center",justifyContent:"center",fontSize:20,fontWeight:700,
+                color:"var(--accent-text)",flexShrink:0
+              }}>
+                {initials}
               </div>
               <div style={{flex:1,minWidth:200}}>
-                <div style={{fontSize:20,fontWeight:700}}>{nameFromEmail(selectedQA)}</div>
+                <div style={{fontSize:20,fontWeight:700}}>{displayName}</div>
                 <div style={{fontSize:13,color:"var(--tx2)"}}>{selectedQA}</div>
                 <div style={{display:"flex",gap:8,marginTop:6,flexWrap:"wrap",alignItems:"center"}}>
                   {qa?.queue && <span style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:"var(--accent-light)",color:"var(--accent-text)",fontWeight:600}}>{qa.queue}</span>}

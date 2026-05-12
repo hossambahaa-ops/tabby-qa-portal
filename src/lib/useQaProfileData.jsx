@@ -90,7 +90,7 @@ export function useQaProfileData(token, profile) {
       const [r, m, profs] = await Promise.all([
         listRoster({ token, select: "email,display_name,manager_email,queue,country,hiring_date", cacheKey: "qa_roster_full" }),
         listMtd({ token }),
-        listProfiles({ token, select: "email,role", filters: "", cacheKey: "profiles_email_role" }),
+        listProfiles({ token, select: "email,role,avatar_url,display_name", filters: "", cacheKey: "profiles_email_role_avatar" }),
       ]);
       return {
         roster:   Array.isArray(r)     ? r     : [],
@@ -202,6 +202,6 @@ export function useQaProfileData(token, profile) {
 
   return {
     roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
-    loading, headerLoading, allQAs, qaLeadSet, refreshDailyScores, refreshMtd,
+    loading, headerLoading, allQAs, qaLeadSet, allProfiles, refreshDailyScores, refreshMtd,
   };
 }

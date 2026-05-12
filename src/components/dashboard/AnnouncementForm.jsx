@@ -117,15 +117,17 @@ function AnnouncementForm({ roster, onClose, open = true }) {
       globalToast("error", "Select at least one person"); return;
     }
     setSending(true);
-    // Common payload bits.
+    // Common payload bits. Defensive defaults: any of the enum-ish
+    // fields landing empty (e.g. user toggled the dropdown off) would
+    // fail the DB check constraint, so fall back to the safe option.
     const baseBody = {
       title: annForm.title,
       message: annForm.message,
-      priority: annForm.priority,
+      priority: annForm.priority || "normal",
       sent_by: profile?.email,
-      requires_ack: annForm.requires_ack,
-      body_format: annForm.body_format,
-      dismiss_mode: annForm.dismiss_mode,
+      requires_ack: annForm.requires_ack !== false,
+      body_format: annForm.body_format || "plain",
+      dismiss_mode: annForm.dismiss_mode || "modal",
       send_at: annForm.send_at ? new Date(annForm.send_at).toISOString() : null,
       expires_at: annForm.expires_at ? new Date(annForm.expires_at).toISOString() : null,
       published: true,
@@ -336,7 +338,11 @@ function AnnouncementForm({ roster, onClose, open = true }) {
                 { value: "urgent", label: "🔴 Urgent" },
               ]}
               value={annForm.priority}
-              onChange={v => setAnnForm({ ...annForm, priority: v })}
+              /* SearchableSelect toggles the selected option off when re-
+                 clicked, which would set priority to "" and fail the DB
+                 check constraint. Guard with truthy check so re-clicking
+                 keeps the existing value. Same pattern below. */
+              onChange={v => v && setAnnForm({ ...annForm, priority: v })}
               placeholder="Normal" />
           </div>
 
@@ -348,7 +354,7 @@ function AnnouncementForm({ roster, onClose, open = true }) {
                 { value: "banner", label: "📌 Dashboard banner" },
               ]}
               value={annForm.dismiss_mode}
-              onChange={v => setAnnForm({ ...annForm, dismiss_mode: v })}
+              onChange={v => v && setAnnForm({ ...annForm, dismiss_mode: v })}
               placeholder="Modal" />
           </div>
 
