@@ -2409,12 +2409,17 @@ html.dark table tbody tr:hover td { background: rgba(255,255,255,.04) !important
         CSAT topic matrix. Targeted via attribute selectors so React's
         inline background is preserved. */
 
-/* — Sticky thead headers — polish only, don't touch background */
+/* — Sticky thead headers — force a SOLID background. The glass-theme
+   block above sets `table th { background: transparent !important }`,
+   which would let scrolling rows show through any sticky header.
+   We override it here with var(--bg2) (slightly contrasted vs the
+   body's var(--bg3)), so headers always read as a distinct band. */
 .table-wrap-sticky thead th,
 thead th[style*="position: sticky"],
 thead th[style*="position:sticky"],
 thead[style*="position: sticky"] th,
 thead[style*="position:sticky"] th {
+  background: var(--bg2) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border-bottom: 1px solid var(--bd) !important;
