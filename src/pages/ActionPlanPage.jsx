@@ -6,6 +6,7 @@ import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import { useAutoRefresh } from "../lib/hooks.jsx";
 import APDetectionTab from "../components/actionplan/APDetectionTab.jsx";
 import APCreateForm from "../components/actionplan/APCreateForm.jsx";
 import APConcludeModal from "../components/actionplan/APConcludeModal.jsx";
@@ -247,6 +248,10 @@ function ActionPlanPage() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
+  // Keep the Detection/Active tabs live — re-pulls plans, MTD,
+  // candidates, and DAM flags every minute so leads don't sit on
+  // stale numbers between manual refreshes.
+  useAutoRefresh(load, 60000);
 
   // Resolve the viewer's team for Detection scoping. Admin-tier roles
   // (manager / hod / admin / super_admin) and auditor see the whole

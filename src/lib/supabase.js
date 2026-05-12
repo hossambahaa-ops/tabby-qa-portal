@@ -140,7 +140,12 @@ export const sb = {
 /* ═══ GLOBAL DATA CACHE — avoids redundant fetches across pages ═══ */
 export const dataCache = {
   _store: {},
-  _ttl: 300000, // 5 min cache lifetime
+  // Short TTL keeps the app feeling live: cached entries are treated
+  // as stale after 30 s, which triggers a background refresh on the
+  // next read while still returning the cached value instantly. With
+  // Supabase on the paid plan this is well within the IO budget; on
+  // the free Nano tier we ran 5 min to avoid throttling.
+  _ttl: 30000,
   get(key) {
     const entry = this._store[key];
     if (!entry) return null;
@@ -161,24 +166,22 @@ export const dataCache = {
   },
   async fetch(key, queryFn) {
     const entry = this._store[key];
-    if (entry) {
-      const stale = Date.now() - entry.ts > this._ttl;
-      if (stale) {
-        // Return stale data immediately; refresh silently in the background.
-        // Promise.resolve coerces the result so a non-Promise return from
-        // queryFn (or a sync throw) cannot crash with "reading 'catch' of
-        // undefined" / "reading 'then' of undefined".
-        try {
-          Promise.resolve(queryFn())
-            .then(data => this.set(key, data))
-            .catch(() => {});
-        } catch { /* queryFn threw synchronously — swallow */ }
-      }
+    // Fresh cache hit → return cached data immediately, no network.
+    if (entry && Date.now() - entry.ts < this._ttl) {
       return entry.data;
     }
-    // Nothing cached — wait for fresh data.
-    const data = await Promise.resolve(queryFn());
-    this.set(key, data);
-    return data;
+    // Stale or empty → await fresh data so callers (auto-refresh loops
+    // especially) actually update with the latest values instead of
+    // serving stale and only catching up on the next tick. Falls back
+    // to whatever was cached if the network request fails so the UI
+    // doesn't go blank on a transient error.
+    try {
+      const data = await Promise.resolve(queryFn());
+      this.set(key, data);
+      return data;
+    } catch (e) {
+      if (entry) return entry.data;
+      throw e;
+    }
   }
 };

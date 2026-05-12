@@ -207,7 +207,7 @@ export function useDashboardData(token, profile) {
   }, [token, profile?.role, profile?.email]);
 
   useEffect(() => { refresh(); }, [refresh]);
-  useAutoRefresh(refresh, 300000); // 5 min
+  useAutoRefresh(refresh, 60000); // 1 min — dashboard should feel live
 
   return {
     mtd, roster, appProfiles, damCount, profileCount,

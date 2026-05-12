@@ -392,7 +392,7 @@ function NotificationBell({ onNavigate }) {
       } catch {}
     };
     load();
-    const interval = setInterval(load, 180000); // 3 min instead of 1 min
+    const interval = setInterval(load, 60000); // poll notifications every minute
     return () => clearInterval(interval);
   }, [token, profile?.email]);
 

@@ -154,6 +154,16 @@ function ScoreEntryPage(){
     })();
   }, [token, gf?.domain, gf?.month, gf?.teams, reloadKey]);
 
+  // Auto-refresh every minute so MTD numbers stay live without the
+  // user having to click "Refresh live". Piggybacks on reloadKey
+  // (which the manual button also bumps) so the load logic stays in
+  // one place. Pro plan can absorb this; on Free we'd never have
+  // dared.
+  useEffect(() => {
+    const id = setInterval(() => setReloadKey(k => k + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
+
   // Format percentage values — handles "94.46%", 0.9446, 1.345, "1", etc.
   const fmtPct = (val) => {
     if (val === null || val === undefined || val === "") return "—";
