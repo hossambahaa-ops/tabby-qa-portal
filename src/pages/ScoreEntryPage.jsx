@@ -25,9 +25,10 @@ function ScoreEntryPage(){
   const [months, setMonths] = useState([]);
   const [selMonth, setSelMonth] = useState("");
   const [selQA, setSelQA] = useState([]);
-  const [selTL, setSelTL] = useState("");
+  // Lead + team filters are multi-select.
+  const [selTL, setSelTL] = useState([]);
   const [selDomain, setSelDomain] = useState("");
-  const [selTeam, setSelTeam] = useState("");
+  const [selTeam, setSelTeam] = useState([]);
   const [mtdView, setMtdView] = useState("qa"); // qa | lead
   // Upload modal state
   const [showUpload, setShowUpload] = useState(false);
@@ -337,8 +338,8 @@ function ScoreEntryPage(){
   const scoreTeams = [...new Set(roster.filter(r => r.queue && !r.queue.includes(",") && !isSrQa(r) && (!selDomain || r.email?.endsWith("@"+selDomain))).map(r => r.queue))].sort();
   let filtered = monthData;
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
-  if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
-  if (selTL) filtered = filtered.filter(r => r.qa_tl === selTL);
+  if (selTeam.length > 0) filtered = filtered.filter(r => selTeam.includes(rosterMap[r.qa_email?.toLowerCase()]?.queue));
+  if (selTL.length > 0) filtered = filtered.filter(r => selTL.includes(r.qa_tl));
   if (selQA.length > 0) filtered = filtered.filter(r => selQA.includes(r.qa_email));
   // Apply the slim global filter (Month + Domain only). Page-level
   // selDomain/selTeam/selTL/selQA take precedence — gf.domain is just
@@ -611,8 +612,8 @@ function ScoreEntryPage(){
         onApply={(f) => {
           if ('selMonth' in f) setSelMonth(f.selMonth || "");
           if ('selDomain' in f) setSelDomain(f.selDomain || "");
-          if ('selTeam' in f) setSelTeam(f.selTeam || "");
-          if ('selTL' in f) setSelTL(f.selTL || "");
+          if ('selTeam' in f) setSelTeam(Array.isArray(f.selTeam) ? f.selTeam : (f.selTeam ? [f.selTeam] : []));
+          if ('selTL' in f) setSelTL(Array.isArray(f.selTL) ? f.selTL : (f.selTL ? [f.selTL] : []));
           if ('selQA' in f) setSelQA(Array.isArray(f.selQA) ? f.selQA : []);
           if ('mtdView' in f) setMtdView(f.mtdView || "qa");
           if ('qaSort' in f && f.qaSort) setQaSort(f.qaSort);
@@ -639,7 +640,7 @@ function ScoreEntryPage(){
         × Clear in this strip wipes Domain/Team/Lead/Specialist
         + the Quick filter text in one go. */}
     <PageFilters
-      onClear={() => { setSelDomain(""); setSelTeam(""); setSelTL(""); setSelQA([]); setTableSearch(""); }}
+      onClear={() => { setSelDomain(""); setSelTeam([]); setSelTL([]); setSelQA([]); setTableSearch(""); }}
     >
       <SearchableSelect
         options={months}
@@ -650,16 +651,18 @@ function ScoreEntryPage(){
       <SearchableSelect
         options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]}
         value={selDomain}
-        onChange={v => { setSelDomain(v); setSelTeam(""); setSelTL(""); setSelQA([]); }}
+        onChange={v => { setSelDomain(v); setSelTeam([]); setSelTL([]); setSelQA([]); }}
         placeholder="All domains"
       />
       <SearchableSelect
+        multi
         options={scoreTeams}
         value={selTeam}
-        onChange={v => { setSelTeam(v); setSelTL(""); setSelQA([]); }}
+        onChange={v => { setSelTeam(v); setSelTL([]); setSelQA([]); }}
         placeholder="All teams"
       />
       <SearchableSelect
+        multi
         options={tlEmails.map(e => ({ value: e, label: nameFromEmail(e) }))}
         value={selTL}
         onChange={v => { setSelTL(v); setSelQA([]); }}
@@ -681,22 +684,22 @@ function ScoreEntryPage(){
       // are the user's filter signals; tableSearch is the inline one.
       const hasFilter =
         (selQA && selQA.length > 0) ||
-        !!selTL ||
+        (selTL && selTL.length > 0) ||
         !!selDomain ||
-        !!selTeam ||
+        (selTeam && selTeam.length > 0) ||
         (tableSearch && tableSearch.trim().length > 0);
       // Pre-compute the human-readable filter summary outside JSX so
       // we don't end up with template-literals nested in template-
       // literals inside an inline JSX ternary (parser hates that).
       const filterParts = [];
       if (selQA && selQA.length > 0) filterParts.push(selQA.length + " specialist" + (selQA.length > 1 ? "s" : ""));
-      if (selTL) filterParts.push("lead: " + nameFromEmail(selTL));
+      if (selTL && selTL.length > 0) filterParts.push(selTL.length === 1 ? "lead: " + nameFromEmail(selTL[0]) : selTL.length + " leads");
       if (selDomain) filterParts.push("domain: " + selDomain);
-      if (selTeam) filterParts.push("team: " + selTeam);
+      if (selTeam && selTeam.length > 0) filterParts.push(selTeam.length === 1 ? "team: " + selTeam[0] : selTeam.length + " teams");
       if (tableSearch && tableSearch.trim()) filterParts.push('search: "' + tableSearch.trim() + '"');
       const filterDesc = filterParts.length > 0 ? " (" + filterParts.join(" · ") + ")" : "";
       const clearAll = () => {
-        setSelQA([]); setSelTL(""); setSelDomain(""); setSelTeam(""); setTableSearch("");
+        setSelQA([]); setSelTL([]); setSelDomain(""); setSelTeam([]); setTableSearch("");
       };
       const searchActive = !!(tableSearch && tableSearch.trim());
       return (

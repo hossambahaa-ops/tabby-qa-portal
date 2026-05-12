@@ -27,7 +27,7 @@ function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState([]);
   const [selMonth, setSelMonth] = useUrlState("month", "");
-  const [selTeam, setSelTeam] = useState("");
+  const [selTeam, setSelTeam] = useState([]);
   const [selDomain, setSelDomain] = useState("");
   const [view, setView] = useUrlState("view", "individual");
   const [expandedRow, setExpandedRow] = useState(null);
@@ -82,8 +82,8 @@ function LeaderboardPage() {
     if (gf?.domain) setSelDomain(gf.domain);
     else if (!gf?.domain && selDomain && !hasRole(profile?.role,"qa_supervisor")) setSelDomain("");
     if (gf?.month && months.includes(gf.month)) setSelMonth(gf.month);
-    if (gf?.teams?.length > 0) setSelTeam(gf.teams[0]);
-    else if (gf?.teams?.length === 0 && selTeam) setSelTeam("");
+    if (gf?.teams?.length > 0) setSelTeam(gf.teams.filter(Boolean));
+    else if (gf?.teams?.length === 0 && selTeam.length > 0) setSelTeam([]);
   }, [gf?.domain, gf?.month, JSON.stringify(gf?.teams), months.length]);
 
   useEffect(() => {
@@ -126,7 +126,7 @@ function LeaderboardPage() {
           const svDomain = profile?.operational_domain || profile?.domain || "";
           if (svDomain) setSelDomain(svDomain);
         }
-        if (gf?.teams?.length > 0) setSelTeam(gf.teams[0]);
+        if (gf?.teams?.length > 0) setSelTeam(gf.teams.filter(Boolean));
       } catch (e) {
         console.error("Leaderboard:", e);
         globalToast("error", "Failed to load leaderboard data");
@@ -184,7 +184,7 @@ function LeaderboardPage() {
   const teams = [...new Set(roster.filter(r => r.queue && (!selDomain || r.email?.endsWith("@"+selDomain))).map(r => r.queue))].sort();
   let filtered = monthData;
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
-  if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
+  if (selTeam.length > 0) filtered = filtered.filter(r => selTeam.includes(rosterMap[r.qa_email?.toLowerCase()]?.queue));
   if (search.trim()) filtered = filtered.filter(r => r.qa_email?.toLowerCase().includes(search.toLowerCase()));
   // Apply global people filter
   // gf.people / gf.teams were dropped in the filter unification —
@@ -238,12 +238,12 @@ function LeaderboardPage() {
           since it's a view switcher, not a filter. */}
       {hasRole(profile?.role,"qa_lead") && (
         <PageFilters
-          onClear={() => { setSelDomain(""); setSelTeam(""); setSearch(""); }}
+          onClear={() => { setSelDomain(""); setSelTeam([]); setSearch(""); }}
           searchProps={view === "individual" ? { value: search, onChange: setSearch, placeholder: "Search by name or email…" } : null}
         >
           <SearchableSelect options={months} value={selMonth} onChange={v => setSelMonth(v)} placeholder="Select month"/>
-          <SearchableSelect options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]} value={selDomain} onChange={v => { setSelDomain(v); setSelTeam(""); }} placeholder="All domains"/>
-          <SearchableSelect options={teams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${teams.length})`}/>
+          <SearchableSelect options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]} value={selDomain} onChange={v => { setSelDomain(v); setSelTeam([]); }} placeholder="All domains"/>
+          <SearchableSelect multi options={teams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${teams.length})`}/>
           <div className="tabs" style={{display:"flex",gap:0}}>
             <button className={`tab ${view==="individual"?"active":""}`} onClick={()=>setView("individual")}>Individual</button>
             {hasRole(profile?.role,"qa_supervisor")&&<button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>}
@@ -718,7 +718,7 @@ function LeaderboardPage() {
         {teamData.length === 0 ? <EmptyState
           icon="M9 17v-2a4 4 0 014-4h4M3 10v6a2 2 0 002 2h4M9 7h6a2 2 0 012 2v6"
           title={`No team data for ${selMonth || "this month"}`}
-          description={selDomain || selTeam ? "Try clearing the domain or team filter — the current selection may be empty." : "Performance data hasn't synced yet for this month, or no QAs are mapped to a team yet."}
+          description={selDomain || selTeam.length > 0 ? "Try clearing the domain or team filter — the current selection may be empty." : "Performance data hasn't synced yet for this month, or no QAs are mapped to a team yet."}
         /> :
         teamData.map((team, ti) => {
           const rank = ti + 1; const isGold = rank === 1;
@@ -787,7 +787,7 @@ function LeaderboardPage() {
           const email = row.qa_email?.toLowerCase();
           if (!email) return;
           if (selDomain && !email.endsWith("@" + selDomain)) return;
-          if (selTeam && rosterMap[email]?.queue !== selTeam) return;
+          if (selTeam.length > 0 && !selTeam.includes(rosterMap[email]?.queue)) return;
           if (!qaMap[email]) qaMap[email] = { email: row.qa_email, months_present: 0, monthlyScores: [], tl: row.qa_tl, totalDsat: 0, totalTickets: 0, totalWorkingDays: 0 };
           qaMap[email].months_present++;
           qaMap[email].totalDsat += (row.dsat || 0);

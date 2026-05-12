@@ -11,7 +11,7 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import PageFilters from "../components/PageFilters.jsx";
 import CsatTopicMatrix from "../components/csat/CsatTopicMatrix.jsx";
 import { useApp } from "../lib/AppContext.jsx";
-import { useUrlState } from "../lib/useUrlState.jsx";
+import { useUrlState, useUrlStateMulti } from "../lib/useUrlState.jsx";
 
 // Navigate to a QA's profile. Same hash-router pattern used by every
 // other clickable QA name in the app (Occupancy card, Score Entry
@@ -32,8 +32,10 @@ export default function CSATPage() {
   // in the URL). Same pattern as Score Entry / Leaderboard.
   const [selMonth, setSelMonth] = useUrlState("month", "");
   const [selDomain, setSelDomain] = useUrlState("domain", "");
-  const [selTeam, setSelTeam] = useUrlState("team", "");
-  const [selTL, setSelTL] = useUrlState("lead", "");
+  // selTeam and selTL are arrays (multi-select). Stored in the URL
+  // as comma-separated strings via useUrlStateMulti.
+  const [selTeam, setSelTeam] = useUrlStateMulti("team");
+  const [selTL, setSelTL] = useUrlStateMulti("lead");
   const [selQA, setSelQA] = useState([]);
   const [csatView, setCsatView] = useUrlState("view", "qa"); // qa | lead | topic
   const [expandedEmail, setExpandedEmail] = useState(null);
@@ -127,7 +129,7 @@ export default function CSATPage() {
           // see the full dataset across By QA / By Lead / By Topic, and
           // narrow with the page's own filter dropdowns if they want.
           if (gf?.month && uniqueMonths.includes(gf.month)) setSelMonth(gf.month);
-          if (gf?.teams?.length > 0) setSelTeam(gf.teams[0]);
+          if (gf?.teams?.length > 0) setSelTeam(gf.teams.filter(Boolean));
         }
       } catch (e) { console.error("CSAT:", e); }
       setLoading(false);
@@ -166,8 +168,8 @@ export default function CSATPage() {
   const tlEmails = [...new Set(monthData.map(r => r.qa_tl).filter(Boolean))].sort();
   let filtered = monthData;
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@" + selDomain));
-  if (selTeam) filtered = filtered.filter(r => rosterMap[r.qa_email?.toLowerCase()]?.queue === selTeam);
-  if (selTL) filtered = filtered.filter(r => r.qa_tl === selTL);
+  if (selTeam.length > 0) filtered = filtered.filter(r => selTeam.includes(rosterMap[r.qa_email?.toLowerCase()]?.queue));
+  if (selTL.length > 0) filtered = filtered.filter(r => selTL.includes(r.qa_tl));
   if (selQA.length > 0) filtered = filtered.filter(r => selQA.includes(r.qa_email));
   // gf.people / gf.teams were dropped in the filter unification —
   // CSAT's selQA / selTeam dropdowns cover the same scoping.
@@ -433,14 +435,15 @@ export default function CSATPage() {
         pattern. Replaces the previous card-header view buttons
         which were easy to miss tucked inside the table card. */}
     <PageFilters
-      onClear={() => { setSelDomain(""); setSelTeam(""); setSelTL(""); setSelQA([]); }}
+      onClear={() => { setSelDomain(""); setSelTeam([]); setSelTL([]); setSelQA([]); }}
     >
       <SearchableSelect options={months} value={selMonth} onChange={setSelMonth} placeholder="Select month"/>
       {hasRole(profile?.role,"admin") && (
         <SearchableSelect options={["","tabby.ai","tabby.sa"]} value={selDomain} onChange={setSelDomain} placeholder="All domains"/>
       )}
-      <SearchableSelect options={scoreTeams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${scoreTeams.length})`}/>
+      <SearchableSelect multi options={scoreTeams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${scoreTeams.length})`}/>
       <SearchableSelect
+        multi
         options={tlEmails.map(e => ({ value: e, label: nameFromEmail(e) }))}
         value={selTL}
         onChange={setSelTL}

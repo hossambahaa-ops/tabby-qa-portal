@@ -56,3 +56,21 @@ export function useUrlState(key, defaultValue = "") {
 
   return [value, updateValue];
 }
+
+/**
+ * Array-flavoured useUrlState. Stores the selected values as a
+ * comma-separated string in the URL, exposes an array to React. Empty
+ * array → param dropped from URL (same convention as useUrlState).
+ *
+ * @param {string} key
+ * @returns {[string[], (next: string[]) => void]}
+ */
+export function useUrlStateMulti(key) {
+  const [raw, setRaw] = useUrlState(key, "");
+  const arr = raw ? String(raw).split(",").filter(Boolean) : [];
+  const setArr = useCallback((next) => {
+    if (Array.isArray(next)) setRaw(next.filter(Boolean).join(","));
+    else setRaw(next || "");
+  }, [setRaw]);
+  return [arr, setArr];
+}

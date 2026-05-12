@@ -89,7 +89,7 @@ export default function ExpertisePage() {
   const [loading, setLoading] = useState(true);
   const [selMonth, setSelMonth] = useState("");
   const [selDomain, setSelDomain] = useState("");
-  const [selTeam, setSelTeam] = useState("");
+  const [selTeam, setSelTeam] = useState([]);
   const [selStar, setSelStar] = useState("");
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState(null);
@@ -303,7 +303,7 @@ export default function ExpertisePage() {
       r = r.filter(x => x.qa_email?.toLowerCase().endsWith("@" + myDomain));
     }
     if (selDomain) r = r.filter(x => x.qa_email?.toLowerCase().endsWith("@" + selDomain));
-    if (selTeam)   r = r.filter(x => rosterMap[x.qa_email?.toLowerCase()]?.queue === selTeam);
+    if (selTeam.length > 0) r = r.filter(x => selTeam.includes(rosterMap[x.qa_email?.toLowerCase()]?.queue));
     if (selStar !== "") {
       if (selStar === "no_sample") r = r.filter(x => !hasSample(x));
       else if (selStar === "0_lowperf") r = r.filter(x => Number(x.star_level) === 0 && hasSample(x));
@@ -586,7 +586,7 @@ export default function ExpertisePage() {
           replaced with SearchableSelect for visual consistency with
           every other migrated page. */}
       <PageFilters
-        onClear={() => { setSelDomain(""); setSelTeam(""); setSelStar(""); setSearch(""); }}
+        onClear={() => { setSelDomain(""); setSelTeam([]); setSelStar(""); setSearch(""); }}
         searchProps={{ value: search, onChange: setSearch, placeholder: "Search name or email…" }}
       >
         <SearchableSelect options={months} value={selMonth} onChange={setSelMonth} placeholder="Select month"/>
@@ -597,7 +597,7 @@ export default function ExpertisePage() {
           />
         )}
         {!isQAOnly && (
-          <SearchableSelect options={teams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${teams.length})`}/>
+          <SearchableSelect multi options={teams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${teams.length})`}/>
         )}
         <SearchableSelect
           options={[
