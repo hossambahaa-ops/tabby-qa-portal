@@ -1,0 +1,391 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tabby Pulse — Boxless glass layout options</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0A0814; color: #F5F3F8; font-family: 'Inter Tight', system-ui, sans-serif; min-height: 100%; }
+    body {
+      background:
+        radial-gradient(ellipse 900px 700px at 12% 5%, rgba(106,44,121,.35), transparent 60%),
+        radial-gradient(ellipse 800px 600px at 90% 25%, rgba(60,255,165,.18), transparent 60%),
+        radial-gradient(ellipse 700px 600px at 75% 95%, rgba(120,80,255,.25), transparent 60%),
+        #0A0814;
+      background-attachment: fixed;
+    }
+    .pick-bar { position: sticky; top: 0; background: rgba(10,8,20,.85); backdrop-filter: blur(20px); padding: 16px 28px; border-bottom: 1px solid rgba(255,255,255,.06); z-index: 50; }
+    .pick-bar h1 { font-size: 19px; font-weight: 700; letter-spacing: -.4px; }
+    .pick-bar p { color: rgba(245,243,248,.55); font-size: 13px; margin-top: 3px; max-width: 70ch; }
+    .pick-bar nav { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .pick-bar a {
+      font-size: 11.5px; font-weight: 600; color: rgba(245,243,248,.7); text-decoration: none;
+      padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+      transition: all .15s;
+    }
+    .pick-bar a:hover { background: rgba(255,255,255,.12); color: #fff; }
+
+    .option { max-width: 1280px; margin: 0 auto; padding: 56px 32px 80px; border-bottom: 1px dashed rgba(255,255,255,.06); }
+    .option-header { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; margin-bottom: 36px; flex-wrap: wrap; }
+    .option-header h2 { font-size: 28px; font-weight: 700; letter-spacing: -.8px; }
+    .option-header .tag { font-size: 10.5px; padding: 4px 12px; border-radius: 999px; background: rgba(180,120,255,.18); color: #C9A0FF; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
+    .option-desc { color: rgba(245,243,248,.6); font-size: 13.5px; line-height: 1.55; max-width: 80ch; margin-top: 8px; }
+    .pro-con { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 14px; font-size: 12.5px; line-height: 1.5; }
+    .pro-con .pros, .pro-con .cons { padding: 12px 16px; border-radius: 12px; backdrop-filter: blur(10px); }
+    .pro-con .pros { background: rgba(60,255,165,.08); border: 1px solid rgba(60,255,165,.18); }
+    .pro-con .cons { background: rgba(255,107,107,.08); border: 1px solid rgba(255,107,107,.18); }
+    .pro-con strong { display: block; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; opacity: .85; }
+
+    /* Demo frame — holds each preview at a realistic dashboard size */
+    .demo-frame {
+      margin-top: 30px;
+      border-radius: 24px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,.07);
+      box-shadow: 0 30px 80px rgba(0,0,0,.45), 0 0 0 1px rgba(255,255,255,.02);
+      background:
+        radial-gradient(ellipse 700px 500px at 15% 0%, rgba(106,44,121,.45), transparent 60%),
+        radial-gradient(ellipse 600px 500px at 95% 30%, rgba(60,255,165,.18), transparent 60%),
+        radial-gradient(ellipse 600px 500px at 65% 105%, rgba(120,80,255,.30), transparent 60%),
+        #0F0D14;
+      min-height: 720px;
+    }
+
+    .topbar-mock { padding: 18px 28px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid rgba(255,255,255,.05); backdrop-filter: blur(14px); background: rgba(15,13,20,.5); }
+    .topbar-mock .crumb { font-size: 12px; color: rgba(245,243,248,.55); font-weight: 500; }
+    .topbar-mock .crumb strong { color: #fff; font-weight: 700; margin-left: 4px; }
+    .topbar-mock .spacer { flex: 1; }
+    .topbar-mock .icon-btn {
+      width: 32px; height: 32px; border-radius: 10px;
+      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.07);
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 13px; color: rgba(245,243,248,.7);
+    }
+    .topbar-mock .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #6A2C79, #C9A0FF); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; }
+
+    /* ═════════════════════════════════════════════════════ */
+    /*   OPTION A — Editorial Canvas                         */
+    /*   Single flowing column, hairline dividers, big type, */
+    /*   inline KPI strip, table sits flush against canvas.  */
+    /* ═════════════════════════════════════════════════════ */
+    .editorial { padding: 40px 56px; }
+    .editorial .hero { display: flex; justify-content: space-between; align-items: flex-end; padding-bottom: 28px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .editorial .hero h3 { font-size: 38px; font-weight: 700; letter-spacing: -1.2px; line-height: 1.05; }
+    .editorial .hero .sub { color: rgba(245,243,248,.55); margin-top: 8px; font-size: 14px; }
+    .editorial .hero .live-dot { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; color: rgba(60,255,165,.95); font-weight: 600; padding-bottom: 6px; }
+    .editorial .hero .live-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #3CFFA5; box-shadow: 0 0 12px #3CFFA5; }
+    .editorial .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); padding: 28px 0; gap: 36px; }
+    .editorial .kpi { border-left: 1px solid rgba(255,255,255,.08); padding-left: 18px; }
+    .editorial .kpi:first-child { border-left: none; padding-left: 0; }
+    .editorial .kpi .label { font-size: 11px; font-weight: 600; color: rgba(245,243,248,.55); text-transform: uppercase; letter-spacing: .8px; }
+    .editorial .kpi .val { font-size: 40px; font-weight: 700; margin-top: 6px; letter-spacing: -1px; font-variant-numeric: tabular-nums; }
+    .editorial .kpi .delta { font-size: 12px; margin-top: 2px; font-weight: 600; color: rgba(60,255,165,.95); }
+    .editorial .kpi .delta.neg { color: rgba(255,107,107,.95); }
+    .editorial .section-title { font-size: 13px; font-weight: 600; color: rgba(245,243,248,.6); text-transform: uppercase; letter-spacing: 1px; margin-top: 36px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.06); display: flex; justify-content: space-between; align-items: center; }
+    .editorial .section-title .meta { font-size: 11px; text-transform: none; letter-spacing: 0; color: rgba(245,243,248,.45); font-weight: 500; }
+    .editorial table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 4px; }
+    .editorial th { text-align: left; padding: 14px 16px 12px 0; font-size: 10.5px; text-transform: uppercase; letter-spacing: .8px; color: rgba(245,243,248,.45); font-weight: 600; border-bottom: 1px solid rgba(255,255,255,.05); }
+    .editorial td { padding: 14px 16px 14px 0; border-bottom: 1px solid rgba(255,255,255,.04); font-variant-numeric: tabular-nums; }
+    .editorial tr:hover td { background: rgba(255,255,255,.025); }
+    .editorial td:last-child { text-align: right; padding-right: 0; }
+    .editorial .name { display: flex; align-items: center; gap: 10px; }
+    .editorial .name .av { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #6A2C79, #C9A0FF); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 10.5px; }
+    .editorial .name strong { font-weight: 600; }
+    .editorial .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; }
+    .editorial .pill.good { background: rgba(60,255,165,.14); color: #3CFFA5; }
+    .editorial .pill.warn { background: rgba(255,177,59,.14); color: #FFB13B; }
+    .editorial .pill.bad { background: rgba(255,107,107,.14); color: #FF6B6B; }
+
+    /* ═════════════════════════════════════════════════════ */
+    /*   OPTION B — Section Bands                            */
+    /*   Full-width horizontal bands. Alternating subtle tint.*/
+    /*   Section label on left, content on right. No boxes.  */
+    /* ═════════════════════════════════════════════════════ */
+    .bands { padding: 0; }
+    .bands .band { padding: 36px 56px; display: grid; grid-template-columns: 220px 1fr; gap: 40px; align-items: start; border-bottom: 1px solid rgba(255,255,255,.04); }
+    .bands .band.tint-a { background: linear-gradient(180deg, rgba(106,44,121,.06), rgba(106,44,121,.02)); }
+    .bands .band.tint-b { background: linear-gradient(180deg, rgba(60,255,165,.04), rgba(60,255,165,.01)); }
+    .bands .band-label { position: sticky; top: 0; }
+    .bands .band-label h4 { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: rgba(245,243,248,.85); }
+    .bands .band-label p { font-size: 12px; color: rgba(245,243,248,.5); margin-top: 6px; line-height: 1.5; }
+    .bands .hero-band h3 { font-size: 32px; font-weight: 700; letter-spacing: -.8px; }
+    .bands .hero-band p { color: rgba(245,243,248,.55); margin-top: 6px; font-size: 14px; }
+    .bands .kpi-inline { display: flex; gap: 56px; flex-wrap: wrap; }
+    .bands .kpi-inline .item .label { font-size: 11px; color: rgba(245,243,248,.55); font-weight: 600; text-transform: uppercase; letter-spacing: .7px; }
+    .bands .kpi-inline .item .val { font-size: 30px; font-weight: 700; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
+    .bands .kpi-inline .item .delta { font-size: 11.5px; color: rgba(60,255,165,.95); font-weight: 600; margin-top: 2px; }
+    .bands table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    .bands th { text-align: left; padding: 6px 16px 10px 0; font-size: 10.5px; text-transform: uppercase; letter-spacing: .7px; color: rgba(245,243,248,.45); font-weight: 600; }
+    .bands td { padding: 12px 16px 12px 0; border-top: 1px solid rgba(255,255,255,.04); font-variant-numeric: tabular-nums; }
+    .bands .name { display: flex; align-items: center; gap: 10px; }
+    .bands .name .av { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, #6A2C79, #C9A0FF); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 10.5px; }
+    .bands .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 700; }
+    .bands .pill.good { background: rgba(60,255,165,.14); color: #3CFFA5; }
+    .bands .pill.warn { background: rgba(255,177,59,.14); color: #FFB13B; }
+    .bands .pill.bad { background: rgba(255,107,107,.14); color: #FF6B6B; }
+
+    /* ═════════════════════════════════════════════════════ */
+    /*   OPTION C — Floating Layers                          */
+    /*   Overlapping translucent sheets. Depth from blur     */
+    /*   variance + Z-positioning, no hard borders anywhere. */
+    /* ═════════════════════════════════════════════════════ */
+    .layers { padding: 52px 64px; position: relative; min-height: 700px; }
+    .layers .sheet { position: relative; padding: 28px 36px; border-radius: 28px; backdrop-filter: blur(28px) saturate(160%); -webkit-backdrop-filter: blur(28px) saturate(160%); }
+    .layers .sheet-1 { background: rgba(255,255,255,.04); margin-bottom: -28px; }
+    .layers .sheet-2 { background: rgba(255,255,255,.07); margin-left: 40px; margin-right: -20px; margin-bottom: -28px; z-index: 2; }
+    .layers .sheet-3 { background: rgba(255,255,255,.1); margin-left: -10px; margin-right: 40px; z-index: 3; }
+    .layers .sheet-1 h3 { font-size: 36px; font-weight: 700; letter-spacing: -1px; }
+    .layers .sheet-1 .sub { color: rgba(245,243,248,.6); font-size: 13.5px; margin-top: 6px; }
+    .layers .sheet-1 .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 28px; margin-top: 26px; }
+    .layers .sheet-1 .kpi .label { font-size: 10.5px; color: rgba(245,243,248,.55); font-weight: 600; text-transform: uppercase; letter-spacing: .8px; }
+    .layers .sheet-1 .kpi .val { font-size: 32px; font-weight: 700; letter-spacing: -.6px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+    .layers .sheet-1 .kpi .delta { font-size: 11px; color: rgba(60,255,165,.95); font-weight: 600; margin-top: 2px; }
+    .layers .sheet-2 .label { font-size: 11px; color: rgba(245,243,248,.55); font-weight: 600; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 16px; display: flex; justify-content: space-between; }
+    .layers .sheet-2 .needs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .layers .sheet-2 .need-tile { padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,.05); border-left: 3px solid; }
+    .layers .sheet-2 .need-tile.red { border-left-color: #FF6B6B; }
+    .layers .sheet-2 .need-tile.amber { border-left-color: #FFB13B; }
+    .layers .sheet-2 .need-tile.purple { border-left-color: #C9A0FF; }
+    .layers .sheet-2 .need-tile .count { font-size: 22px; font-weight: 700; line-height: 1; }
+    .layers .sheet-2 .need-tile .what { font-size: 11px; color: rgba(245,243,248,.6); margin-top: 4px; font-weight: 500; }
+    .layers .sheet-3 table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    .layers .sheet-3 .head { font-size: 11px; color: rgba(245,243,248,.55); font-weight: 600; text-transform: uppercase; letter-spacing: .8px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .layers .sheet-3 th { text-align: left; padding: 8px 14px 10px 0; font-size: 10.5px; text-transform: uppercase; letter-spacing: .6px; color: rgba(245,243,248,.45); font-weight: 600; }
+    .layers .sheet-3 td { padding: 11px 14px 11px 0; border-top: 1px solid rgba(255,255,255,.05); font-variant-numeric: tabular-nums; }
+    .layers .sheet-3 .name { display: flex; align-items: center; gap: 10px; }
+    .layers .sheet-3 .av { width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, #6A2C79, #C9A0FF); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 10px; }
+    .layers .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 10px; font-weight: 700; }
+    .layers .pill.good { background: rgba(60,255,165,.14); color: #3CFFA5; }
+    .layers .pill.warn { background: rgba(255,177,59,.14); color: #FFB13B; }
+    .layers .pill.bad { background: rgba(255,107,107,.14); color: #FF6B6B; }
+  </style>
+</head>
+<body>
+  <div class="pick-bar">
+    <h1>Tabby Pulse — boxless glass layouts</h1>
+    <p>Three different ways to organize the dashboard without using cards. All keep the glass aesthetic. Pick the one that feels right and I'll port it across the app.</p>
+    <nav>
+      <a href="#a">A · Editorial Canvas</a>
+      <a href="#b">B · Section Bands</a>
+      <a href="#c">C · Floating Layers</a>
+    </nav>
+  </div>
+
+  <!-- ═══════════════════ OPTION A ═══════════════════ -->
+  <section class="option" id="a">
+    <div class="option-header">
+      <div>
+        <h2>A · Editorial Canvas</h2>
+        <div class="option-desc">
+          One flowing column on a single glass canvas. Hairline dividers (1px, 5% opacity) separate sections instead of cards. KPIs are typographic — large numbers separated by vertical borders, not enclosed in tiles. Tables sit flush against the canvas with subtle row hover. Feels like reading a well-typeset report.
+        </div>
+        <div class="pro-con">
+          <div class="pros"><strong>Pros</strong>Quiet, focused, scannable. Numbers hold their own visual weight without competing chrome. Tables become first-class content.</div>
+          <div class="cons"><strong>Cons</strong>Less playful. Action affordances (buttons, hover) need to work harder to stand out.</div>
+        </div>
+      </div>
+      <span class="tag">Vercel · Linear · Apple Settings</span>
+    </div>
+
+    <div class="demo-frame">
+      <div class="topbar-mock">
+        <span class="crumb">Pulse <strong>Dashboard</strong></span>
+        <span class="spacer"></span>
+        <span class="icon-btn">📣</span>
+        <span class="icon-btn">🔍</span>
+        <span class="icon-btn">🔔</span>
+        <span class="avatar">HB</span>
+      </div>
+      <div class="editorial">
+        <div class="hero">
+          <div>
+            <h3>Good afternoon, Hossam.</h3>
+            <div class="sub">Performance overview · May 2026 · 47 specialists across 10 leads</div>
+          </div>
+          <div class="live-dot">Live · synced 2m ago</div>
+        </div>
+
+        <div class="kpi-row">
+          <div class="kpi"><div class="label">Avg performance</div><div class="val">88.4%</div><div class="delta">+2.1 vs last month</div></div>
+          <div class="kpi"><div class="label">CSAT</div><div class="val">94.3%</div><div class="delta">+0.6 pts</div></div>
+          <div class="kpi"><div class="label">Coachings on time</div><div class="val">91%</div><div class="delta neg">−4 pts</div></div>
+          <div class="kpi"><div class="label">Pending violations</div><div class="val">2</div><div class="delta">−1 vs last week</div></div>
+        </div>
+
+        <div class="section-title">Needs your attention <span class="meta">3 items · click row to open</span></div>
+        <table>
+          <thead><tr><th>What</th><th>Who</th><th>When</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td><strong>Coaching overdue</strong> · SBS Multiple Days</td><td><span class="name"><span class="av">HM</span>Haidy Mohamed</span></td><td>3 days ago</td><td><span class="pill bad">URGENT</span></td></tr>
+            <tr><td><strong>Action plan review</strong> · Week 3 of 4</td><td><span class="name"><span class="av">MS</span>Mohamed Salah</span></td><td>Due tomorrow</td><td><span class="pill warn">SOON</span></td></tr>
+            <tr><td><strong>Violation pending</strong> · 4+ Uses</td><td><span class="name"><span class="av">AM</span>Asmaa Mohamed</span></td><td>1 week ago</td><td><span class="pill warn">SOON</span></td></tr>
+          </tbody>
+        </table>
+
+        <div class="section-title">Top performers <span class="meta">May 2026 · ranked by final score</span></div>
+        <table>
+          <thead><tr><th>Specialist</th><th>Team Lead</th><th style="text-align:right">CSAT</th><th style="text-align:right">Score</th></tr></thead>
+          <tbody>
+            <tr><td><span class="name"><span class="av">RS</span><strong>Rana Salah</strong></span></td><td>Ali Dahab</td><td style="text-align:right">100.0%</td><td style="text-align:right"><strong>96.8%</strong></td></tr>
+            <tr><td><span class="name"><span class="av">EI</span><strong>Esraa Ibrahim</strong></span></td><td>Yara Ashraf</td><td style="text-align:right">100.0%</td><td style="text-align:right"><strong>95.2%</strong></td></tr>
+            <tr><td><span class="name"><span class="av">AM</span><strong>Asmaa Mohamed</strong></span></td><td>Yara Ashraf</td><td style="text-align:right">—</td><td style="text-align:right"><strong>94.6%</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ OPTION B ═══════════════════ -->
+  <section class="option" id="b">
+    <div class="option-header">
+      <div>
+        <h2>B · Section Bands</h2>
+        <div class="option-desc">
+          Each section is a full-width horizontal band. Alternating bands carry a very subtle purple/green tint (~4% opacity) — enough to delineate without feeling boxy. The band's title and short description sit on the left, the actual content (KPIs, table) takes the right column. Strong sense of rhythm.
+        </div>
+        <div class="pro-con">
+          <div class="pros"><strong>Pros</strong>Sections are unambiguous. Section titles double as navigation. Tinted backgrounds remind users of glass without using card chrome.</div>
+          <div class="cons"><strong>Cons</strong>Two-column grid eats horizontal space — content area is ~70% of width. Less suitable for very dense tables.</div>
+        </div>
+      </div>
+      <span class="tag">Stripe Dashboard · Notion docs</span>
+    </div>
+
+    <div class="demo-frame">
+      <div class="topbar-mock">
+        <span class="crumb">Pulse <strong>Dashboard</strong></span>
+        <span class="spacer"></span>
+        <span class="icon-btn">📣</span>
+        <span class="icon-btn">🔍</span>
+        <span class="icon-btn">🔔</span>
+        <span class="avatar">HB</span>
+      </div>
+      <div class="bands">
+        <div class="band hero-band tint-a">
+          <div class="band-label">
+            <h4>Overview</h4>
+            <p>What's happening across the QA org this month.</p>
+          </div>
+          <div>
+            <h3>Good afternoon, Hossam.</h3>
+            <p>May 2026 · 47 specialists across 10 leads · Live, synced 2 minutes ago</p>
+          </div>
+        </div>
+
+        <div class="band tint-b">
+          <div class="band-label">
+            <h4>Key metrics</h4>
+            <p>Month-to-date performance, customer satisfaction, coaching cadence.</p>
+          </div>
+          <div class="kpi-inline">
+            <div class="item"><div class="label">Avg performance</div><div class="val">88.4%</div><div class="delta">+2.1 vs last month</div></div>
+            <div class="item"><div class="label">CSAT</div><div class="val">94.3%</div><div class="delta">+0.6 pts</div></div>
+            <div class="item"><div class="label">Coachings on time</div><div class="val">91%</div><div class="delta" style="color: rgba(255,107,107,.95);">−4 pts</div></div>
+            <div class="item"><div class="label">Pending violations</div><div class="val">2</div><div class="delta">−1 vs last week</div></div>
+          </div>
+        </div>
+
+        <div class="band tint-a">
+          <div class="band-label">
+            <h4>Needs attention</h4>
+            <p>Items requiring your action this week.</p>
+          </div>
+          <div>
+            <table>
+              <thead><tr><th>What</th><th>Who</th><th>When</th><th>Status</th></tr></thead>
+              <tbody>
+                <tr><td><strong>Coaching overdue</strong></td><td><span class="name"><span class="av">HM</span>Haidy Mohamed</span></td><td>3 days ago</td><td><span class="pill bad">URGENT</span></td></tr>
+                <tr><td><strong>Action plan review</strong></td><td><span class="name"><span class="av">MS</span>Mohamed Salah</span></td><td>Due tomorrow</td><td><span class="pill warn">SOON</span></td></tr>
+                <tr><td><strong>Violation pending</strong></td><td><span class="name"><span class="av">AM</span>Asmaa Mohamed</span></td><td>1 week ago</td><td><span class="pill warn">SOON</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="band tint-b">
+          <div class="band-label">
+            <h4>Top performers</h4>
+            <p>Ranked by May 2026 final score.</p>
+          </div>
+          <div>
+            <table>
+              <thead><tr><th>Specialist</th><th>Lead</th><th>CSAT</th><th>Score</th></tr></thead>
+              <tbody>
+                <tr><td><span class="name"><span class="av">RS</span><strong>Rana Salah</strong></span></td><td>Ali Dahab</td><td>100.0%</td><td><strong>96.8%</strong></td></tr>
+                <tr><td><span class="name"><span class="av">EI</span><strong>Esraa Ibrahim</strong></span></td><td>Yara Ashraf</td><td>100.0%</td><td><strong>95.2%</strong></td></tr>
+                <tr><td><span class="name"><span class="av">AM</span><strong>Asmaa Mohamed</strong></span></td><td>Yara Ashraf</td><td>—</td><td><strong>94.6%</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ OPTION C ═══════════════════ -->
+  <section class="option" id="c">
+    <div class="option-header">
+      <div>
+        <h2>C · Floating Layers</h2>
+        <div class="option-desc">
+          Translucent glass sheets overlap with slight horizontal offsets, creating depth. Each sheet has a different blur intensity — the top sheet is sharpest, the back ones progressively more frosted. No hard edges anywhere; sections separated by depth alone. Closest to Apple Vision Pro / Apple Music aesthetic.
+        </div>
+        <div class="pro-con">
+          <div class="pros"><strong>Pros</strong>Distinctive, premium feel. Creates a sense of layering and information hierarchy that's hard to replicate elsewhere.</div>
+          <div class="cons"><strong>Cons</strong>The most opinionated visually — may compete with content. Harder to extend cleanly to deeply nested pages or busy lists.</div>
+        </div>
+      </div>
+      <span class="tag">Apple Vision Pro · Apple Music</span>
+    </div>
+
+    <div class="demo-frame">
+      <div class="topbar-mock">
+        <span class="crumb">Pulse <strong>Dashboard</strong></span>
+        <span class="spacer"></span>
+        <span class="icon-btn">📣</span>
+        <span class="icon-btn">🔍</span>
+        <span class="icon-btn">🔔</span>
+        <span class="avatar">HB</span>
+      </div>
+      <div class="layers">
+        <div class="sheet sheet-1">
+          <h3>Good afternoon, Hossam.</h3>
+          <div class="sub">Performance overview · May 2026 · 47 specialists · Live, synced 2m ago</div>
+          <div class="kpi-row">
+            <div class="kpi"><div class="label">Avg performance</div><div class="val">88.4%</div><div class="delta">+2.1 vs last month</div></div>
+            <div class="kpi"><div class="label">CSAT</div><div class="val">94.3%</div><div class="delta">+0.6 pts</div></div>
+            <div class="kpi"><div class="label">Coachings on time</div><div class="val">91%</div><div class="delta" style="color: rgba(255,107,107,.95);">−4 pts</div></div>
+            <div class="kpi"><div class="label">Pending violations</div><div class="val">2</div><div class="delta">−1 vs last week</div></div>
+          </div>
+        </div>
+
+        <div class="sheet sheet-2">
+          <div class="label"><span>Needs your attention</span><span style="opacity:.6">3 items</span></div>
+          <div class="needs">
+            <div class="need-tile red"><div class="count">1</div><div class="what">Coaching overdue — Haidy Mohamed</div></div>
+            <div class="need-tile amber"><div class="count">1</div><div class="what">AP review due — Mohamed Salah</div></div>
+            <div class="need-tile purple"><div class="count">1</div><div class="what">Violation pending — Asmaa</div></div>
+          </div>
+        </div>
+
+        <div class="sheet sheet-3">
+          <div class="head"><span>Top performers · May 2026</span><span style="opacity:.6">3 of 47</span></div>
+          <table>
+            <thead><tr><th>Specialist</th><th>Lead</th><th style="text-align:right">CSAT</th><th style="text-align:right">Score</th></tr></thead>
+            <tbody>
+              <tr><td><span class="name"><span class="av">RS</span><strong>Rana Salah</strong></span></td><td>Ali Dahab</td><td style="text-align:right">100.0%</td><td style="text-align:right"><span class="pill good">96.8%</span></td></tr>
+              <tr><td><span class="name"><span class="av">EI</span><strong>Esraa Ibrahim</strong></span></td><td>Yara Ashraf</td><td style="text-align:right">100.0%</td><td style="text-align:right"><span class="pill good">95.2%</span></td></tr>
+              <tr><td><span class="name"><span class="av">AM</span><strong>Asmaa Mohamed</strong></span></td><td>Yara Ashraf</td><td style="text-align:right">—</td><td style="text-align:right"><span class="pill good">94.6%</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</body>
+</html>
