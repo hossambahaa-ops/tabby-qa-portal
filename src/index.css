@@ -2098,46 +2098,87 @@ html.dark body::before {
   background: transparent !important;
 }
 
-/* ── 3. Cards: frosted glass.
-   Note: 55% opacity over the aurora gives a soft white-ish surface in
-   light mode. 4% in dark gives a barely-there frost. backdrop-filter
-   is the magic; -webkit- prefix kept for Safari. */
+/* ── 3. Cards: floating glass sheets (Option C — Floating Layers).
+   No hard borders, larger radius, diffuse stacked drop-shadows that
+   give a sense of depth. The cards feel like they're "floating" on
+   the aurora gradient rather than sitting in cut-out boxes. Stronger
+   blur than before (28px) makes the frost more pronounced. */
 .card,
 .stat-card {
-  border-radius: 20px !important;
-  backdrop-filter: blur(24px) saturate(160%);
-  -webkit-backdrop-filter: blur(24px) saturate(160%);
-  transition: transform .15s var(--ease), box-shadow .2s ease;
+  border-radius: 28px !important;
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  transition: transform .25s var(--ease), box-shadow .25s ease, background .2s ease;
 }
 html:not(.dark) .card,
 html:not(.dark) .stat-card {
-  background: rgba(255,255,255,.55) !important;
-  border: 1px solid rgba(255,255,255,.7) !important;
+  background: rgba(255,255,255,.48) !important;
+  border: none !important;
+  /* Layered shadow: a long soft diffuse one for depth + a tight close
+     one to ground the sheet without a visible edge. inset highlight
+     keeps the glassy "lit from above" look. */
   box-shadow:
-    0 10px 30px rgba(60,40,120,.10),
-    inset 0 1px 0 rgba(255,255,255,.8) !important;
+    0 24px 60px -8px rgba(60,40,120,.18),
+    0 8px 20px -4px rgba(60,40,120,.10),
+    inset 0 1px 0 rgba(255,255,255,.85) !important;
 }
 html.dark .card,
 html.dark .stat-card {
-  background: rgba(255,255,255,.04) !important;
-  border: 1px solid rgba(255,255,255,.08) !important;
+  background: rgba(255,255,255,.045) !important;
+  border: none !important;
   box-shadow:
-    0 10px 30px rgba(0,0,0,.4),
-    inset 0 1px 0 rgba(255,255,255,.05) !important;
+    0 28px 80px -8px rgba(0,0,0,.55),
+    0 8px 24px -4px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.07) !important;
 }
 .card:hover,
-.stat-card:hover { transform: translateY(-1px); }
+.stat-card:hover { transform: translateY(-3px); }
 html:not(.dark) .card:hover,
 html:not(.dark) .stat-card:hover {
+  background: rgba(255,255,255,.56) !important;
   box-shadow:
-    0 18px 40px rgba(60,40,120,.16),
-    inset 0 1px 0 rgba(255,255,255,.8) !important;
+    0 36px 80px -8px rgba(60,40,120,.24),
+    0 12px 28px -4px rgba(60,40,120,.14),
+    inset 0 1px 0 rgba(255,255,255,.9) !important;
 }
 html.dark .card:hover,
 html.dark .stat-card:hover {
+  background: rgba(255,255,255,.06) !important;
   box-shadow:
-    0 18px 40px rgba(0,0,0,.55),
-    inset 0 1px 0 rgba(255,255,255,.07) !important;
+    0 42px 110px -10px rgba(0,0,0,.65),
+    0 14px 32px -4px rgba(0,0,0,.4),
+    inset 0 1px 0 rgba(255,255,255,.09) !important;
+}
+
+/* Form controls, buttons, inputs: soften their borders too so they
+   don't visually fight the new borderless cards. Borders stay (we
+   still need to delineate input fields) but they're now barely-there
+   hairlines that almost dissolve into the glass surface. */
+html:not(.dark) .btn-outline,
+html:not(.dark) .form-input,
+html:not(.dark) .input,
+html:not(.dark) .select,
+html:not(.dark) textarea,
+html:not(.dark) input[type="text"],
+html:not(.dark) input[type="email"],
+html:not(.dark) input[type="number"],
+html:not(.dark) input[type="search"],
+html:not(.dark) input[type="date"],
+html:not(.dark) input[type="datetime-local"] {
+  border-color: rgba(255,255,255,.85) !important;
+}
+html.dark .btn-outline,
+html.dark .form-input,
+html.dark .input,
+html.dark .select,
+html.dark textarea,
+html.dark input[type="text"],
+html.dark input[type="email"],
+html.dark input[type="number"],
+html.dark input[type="search"],
+html.dark input[type="date"],
+html.dark input[type="datetime-local"] {
+  border-color: rgba(255,255,255,.06) !important;
 }
 
 /* ── 4. Topbar: glass over aurora ── */
@@ -2182,11 +2223,16 @@ html:not(.dark) .sidebar .nav-item.active {
   box-shadow: inset 0 0 0 1px rgba(106,44,121,.25) !important;
 }
 
-/* ── 6. Welcome banner: keep its purple gradient but bigger radius + soft glow. */
+/* ── 6. Welcome banner — match the floating-layer cards: no border,
+   larger radius, layered diffuse shadows for depth. The purple
+   gradient inside stays; we just shed the chrome around it. */
 .welcome-banner {
-  border-radius: 24px !important;
-  border: 1px solid rgba(255,255,255,.08) !important;
-  box-shadow: 0 18px 50px rgba(60,40,120,.18) !important;
+  border-radius: 28px !important;
+  border: none !important;
+  box-shadow:
+    0 32px 80px -8px rgba(60,40,120,.30),
+    0 10px 24px -4px rgba(60,40,120,.18),
+    inset 0 1px 0 rgba(255,255,255,.10) !important;
 }
 html.dark .welcome-banner h2 {
   background: linear-gradient(90deg, #FFFFFF, #C9A0FF 85%);
