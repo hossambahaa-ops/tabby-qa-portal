@@ -4,19 +4,27 @@ import { hasRole } from "../../lib/constants.js";
 import { useApp } from "../../lib/AppContext.jsx";
 import { nameFromEmail } from "../../lib/utils.js";
 import { listTeamTargets } from "../../api/teamTargets.js";
+import { listMtd } from "../../api/mtd.js";
 import { loadTeamForViewer } from "../../lib/teamScope.js";
 
 // Compact "Team occupancy" view for QA Lead+. Shows each direct
-// report's MONTH-TO-DATE average occupancy (EXCLUDING today's partial
-// day) and what it would become if their pending side-task minutes
-// get approved.
+// report's MONTH-TO-DATE average occupancy and what it would
+// become if their pending side-task minutes get approved.
+//
+// FORMULA (Option A): current = sum(occupancy_pct over the month,
+// EXCLUDING today) / mtd_scores.working_days for the same month.
+// MTD's WDs reflects what the upstream sheet attributes as the QA's
+// actual working days (factoring leave/off-days as best the source
+// captures today). Until the in-app attendance flow is reliable,
+// MTD's WDs is the most trustworthy denominator we have. Dividing
+// by WDs instead of count(rows) means weekend ticket-touches add
+// credit to the numerator without padding the denominator.
 //
 // Why exclude today: productivity_history rows for today are partial
 // — a QA who's only logged the first 2 hours of their day shows up
-// at ~25% occupancy and drags the team headline number into the
-// floor. Averaging across the calendar month so far (1st of month
-// through yesterday) gives the honest "how is the team doing this
-// month" picture without the today's-not-done-yet noise.
+// at ~25 % occupancy and drags the team headline number into the
+// floor. WDs may include today; we just don't sum today's partial
+// occupancy into the numerator.
 //
 // Projection formula (unchanged):
 //   projected = avg_current + (pending_side_minutes / shift_minutes × 100)
@@ -54,6 +62,16 @@ function todayRiyadhIso() {
 function monthStartRiyadhIso() {
   const today = todayRiyadhIso();
   return today.slice(0, 7) + "-01";
+}
+// Current month label in the MTD format ("May-2026"). mtd_scores keys
+// on this string column for every row, so the team-occupancy card
+// uses it to look up each QA's authoritative working-day count for
+// the current month.
+function monthLabelRiyadh() {
+  const today = todayRiyadhIso();
+  const [y, m] = today.split("-").map(Number);
+  const names = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  return `${names[m - 1]}-${y}`;
 }
 
 const occColor = (pct) => {
@@ -130,7 +148,25 @@ export default function TeamOccupancyCard() {
           perQa.get(k).push(r);
         }
 
-        // 3. Team-targets (daily_working_hours per QA / queue / Default).
+        // 3a. mtd_scores.working_days for this month — the denominator
+        //     in the new occupancy formula. PostgREST `in.(…)` filter
+        //     accepts comma-separated quoted values; we already built
+        //     that string above as `inList`.
+        const monthLabel = monthLabelRiyadh();
+        const mtdRows = await listMtd({
+          token,
+          select: "qa_email,working_days",
+          filters: `month=eq.${encodeURIComponent(monthLabel)}&qa_email=in.(${inList})`,
+          cache: false,
+        }).catch(() => []);
+        const wdsByEmail = new Map();
+        for (const r of (Array.isArray(mtdRows) ? mtdRows : [])) {
+          const k = (r.qa_email || "").toLowerCase();
+          const n = Number(r.working_days);
+          if (k && n > 0) wdsByEmail.set(k, n);
+        }
+
+        // 3b. Team-targets (daily_working_hours per QA / queue / Default).
         const targets = await listTeamTargets({ token }).catch(() => []);
         const findShiftMin = (email, queue) => {
           const lower = (email || "").toLowerCase();
@@ -153,9 +189,18 @@ export default function TeamOccupancyCard() {
           const rows = perQa.get(lower);
           if (!rows || rows.length === 0) return null;
           const shiftMin = findShiftMin(r.email, r.queue);
-          // Avg occupancy across all prior-day rows in window
-          const occs = rows.map(x => Number(x.occupancy_pct ?? 0));
-          const current = occs.reduce((s, n) => s + n, 0) / occs.length;
+          // Sum the QA's occupancy across all prior-day rows this
+          // month (today already excluded above). Denominator is the
+          // working_days value from mtd_scores, which captures the
+          // QA's actual working days for the month (accounting for
+          // leave / off-days as the source sheet records them).
+          // Fallback to count(rows) when MTD hasn't reported WDs yet
+          // for this QA (e.g. brand-new joiner) — same as the old
+          // behavior in that edge case so the row stays meaningful.
+          const occSum = rows.reduce((s, x) => s + (Number(x.occupancy_pct ?? 0)), 0);
+          const wds = wdsByEmail.get(lower);
+          const denom = wds && wds > 0 ? wds : rows.length;
+          const current = occSum / denom;
           // Most recent prior-day pending snapshot (rows are sorted
           // by date.desc from the server query above)
           const pendingMin = Number(rows[0].pending_side_minutes || 0);
@@ -164,8 +209,13 @@ export default function TeamOccupancyCard() {
           return {
             email: r.email, display_name: r.display_name, name: nameFromEmail(r.email),
             manager_email: (r.manager_email || "").toLowerCase(),
-            // Window descriptor — shown in the "As of" column
-            asOfStart: rows[rows.length - 1].date, asOfEnd: rows[0].date, daysInWindow: rows.length,
+            // Window descriptor — shown in the "As of" column. We
+            // surface BOTH the productivity-data window and the WDs
+            // count so the viewer can see what the math is using.
+            asOfStart: rows[rows.length - 1].date,
+            asOfEnd: rows[0].date,
+            daysInWindow: rows.length,
+            workingDays: wds || null,
             current, pendingMin, projected, delta: lift, shiftMin,
           };
         }).filter(Boolean);
@@ -373,7 +423,7 @@ export default function TeamOccupancyCard() {
             </div>
           )}
           <div style={{ padding: "0 16px 12px", fontSize: 10, color: "var(--tx3)", fontStyle: "italic" }}>
-            "Current" is the average of each QA's daily occupancy from the 1st of this month through yesterday — month-to-date, EXCLUDING today (today's partial day would otherwise pull the headline number down). "If approved" adds pending side-task minutes on top (pending / shift × 100). Shift length resolved from team_targets.daily_working_hours, defaulting to 8 h. Click any email to open their profile.
+            "Current" = SUM of each QA's daily occupancy from the 1st of this month through yesterday, divided by their <b>working_days from MTD</b> for the month. This is the closest honest answer until the in-app attendance flow ships — MTD's working-days count already accounts for off-days / leave, so weekend ticket-touches add credit to the numerator without padding the denominator. Today's partial day is excluded from the sum. "If approved" adds pending side-task minutes on top (pending / shift × 100). Shift length resolved from team_targets.daily_working_hours, defaulting to 8 h. Click any email to open their profile.
           </div>
         </>
       )}
