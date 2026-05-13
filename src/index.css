@@ -2105,49 +2105,88 @@ html.dark body::before {
    blur than before (28px) makes the frost more pronounced. */
 .card,
 .stat-card {
-  border-radius: 28px !important;
-  backdrop-filter: blur(28px) saturate(170%);
-  -webkit-backdrop-filter: blur(28px) saturate(170%);
-  transition: transform .25s var(--ease), box-shadow .25s ease, background .2s ease;
+  /* Big rounded sheets. 32px radius reads unmistakably as a "soft
+     surface", not a rectangle. position relative + isolation so the
+     ::before top-edge reflection can sit on top of the card content
+     without escaping its rounded corner. */
+  border-radius: 32px !important;
+  backdrop-filter: blur(36px) saturate(180%);
+  -webkit-backdrop-filter: blur(36px) saturate(180%);
+  position: relative;
+  isolation: isolate;
+  /* overflow stays visible (inherited from base .card rule) so that
+     dropdowns / popovers anchored inside a card can escape its edges.
+     The top-edge ::before sheen sits inside the card's bounds anyway
+     (top half only), so it doesn't need clipping. */
+  transition: transform .3s var(--ease), box-shadow .3s ease, background .25s ease;
 }
+/* Top-edge gradient reflection — the Vision-Pro / Apple Music "lit
+   from above" look. A thin pseudo-element across the top half fades
+   from a soft white into transparent, giving the surface a tangible
+   sheen. Pointer-events none so it doesn't intercept clicks. */
+.card::before,
+.stat-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 50%;
+  pointer-events: none;
+  border-radius: 32px 32px 0 0;
+  z-index: 0;
+}
+html:not(.dark) .card::before,
+html:not(.dark) .stat-card::before {
+  background: linear-gradient(180deg, rgba(255,255,255,.32), transparent 70%);
+}
+html.dark .card::before,
+html.dark .stat-card::before {
+  background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 70%);
+}
+/* Card content must stack above the ::before sheen */
+.card > *,
+.stat-card > * { position: relative; z-index: 1; }
+
 html:not(.dark) .card,
 html:not(.dark) .stat-card {
-  background: rgba(255,255,255,.48) !important;
+  background: rgba(255,255,255,.42) !important;
   border: none !important;
-  /* Layered shadow: a long soft diffuse one for depth + a tight close
-     one to ground the sheet without a visible edge. inset highlight
-     keeps the glassy "lit from above" look. */
+  /* Three-layer shadow for unmistakable depth: a long diffuse one,
+     a mid-range one, and a tight close-grounding one. */
   box-shadow:
-    0 24px 60px -8px rgba(60,40,120,.18),
-    0 8px 20px -4px rgba(60,40,120,.10),
-    inset 0 1px 0 rgba(255,255,255,.85) !important;
+    0 40px 80px -16px rgba(60,40,120,.22),
+    0 16px 32px -8px rgba(60,40,120,.14),
+    0 4px 10px -2px rgba(60,40,120,.08),
+    inset 0 1px 0 rgba(255,255,255,.95) !important;
 }
 html.dark .card,
 html.dark .stat-card {
-  background: rgba(255,255,255,.045) !important;
+  background: rgba(255,255,255,.05) !important;
   border: none !important;
   box-shadow:
-    0 28px 80px -8px rgba(0,0,0,.55),
-    0 8px 24px -4px rgba(0,0,0,.35),
-    inset 0 1px 0 rgba(255,255,255,.07) !important;
+    0 44px 100px -12px rgba(0,0,0,.65),
+    0 16px 40px -8px rgba(0,0,0,.45),
+    0 4px 12px -2px rgba(0,0,0,.25),
+    inset 0 1px 0 rgba(255,255,255,.09) !important;
 }
 .card:hover,
-.stat-card:hover { transform: translateY(-3px); }
+.stat-card:hover { transform: translateY(-5px) scale(1.005); }
 html:not(.dark) .card:hover,
 html:not(.dark) .stat-card:hover {
-  background: rgba(255,255,255,.56) !important;
+  background: rgba(255,255,255,.55) !important;
   box-shadow:
-    0 36px 80px -8px rgba(60,40,120,.24),
-    0 12px 28px -4px rgba(60,40,120,.14),
-    inset 0 1px 0 rgba(255,255,255,.9) !important;
+    0 56px 110px -16px rgba(60,40,120,.30),
+    0 22px 48px -8px rgba(60,40,120,.20),
+    0 6px 14px -2px rgba(60,40,120,.12),
+    inset 0 1px 0 rgba(255,255,255,1) !important;
 }
 html.dark .card:hover,
 html.dark .stat-card:hover {
-  background: rgba(255,255,255,.06) !important;
+  background: rgba(255,255,255,.07) !important;
   box-shadow:
-    0 42px 110px -10px rgba(0,0,0,.65),
-    0 14px 32px -4px rgba(0,0,0,.4),
-    inset 0 1px 0 rgba(255,255,255,.09) !important;
+    0 60px 140px -14px rgba(0,0,0,.75),
+    0 22px 52px -8px rgba(0,0,0,.5),
+    0 6px 16px -2px rgba(0,0,0,.32),
+    inset 0 1px 0 rgba(255,255,255,.12) !important;
 }
 
 /* Form controls, buttons, inputs: soften their borders too so they
