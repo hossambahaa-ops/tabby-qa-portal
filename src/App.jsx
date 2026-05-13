@@ -532,14 +532,16 @@ function AppInner(){
             <div className={`sidebar-group-items${isCollapsed?" is-collapsed":""}`}>
               <div className="sidebar-group-items-inner">
                 {g.items.map(item=>{
-                  // Pulsing dot: red for escalations (urgent), amber for
-                  // anything that needs review but isn't escalated.
+                  // Pulsing dot is a real <span>, not ::after — keeps it
+                  // from clashing with the collapsed-sidebar hover tooltip
+                  // (which uses ::after for the floating label).
                   const n=navCounts[item.key]||0;
-                  const attnCls=n>0?(item.key==="escalations"?" has-attention":" has-attention-amber"):"";
+                  const dotTone=item.key==="escalations"?"":" amber";
                   return(
-                  <button key={item.key} className={`nav-item${page===item.key?" active":""}${attnCls}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}>
+                  <button key={item.key} className={`nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}>
                     <Icon d={item.icon} size={18}/>
                     <span className="nav-item-label">{item.label}</span>
+                    {n>0 && <span className={`nav-attn-dot${dotTone}`} title={`${n} pending`}/>}
                   </button>
                   );
                 })}

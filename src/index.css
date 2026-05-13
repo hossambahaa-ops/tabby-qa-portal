@@ -581,24 +581,26 @@ tbody tr:hover {
 
 /* ── Sidebar nav item — alive + reactive ── */
 .nav-item {
-  transition: background .2s var(--ease), color .2s var(--ease), transform .2s var(--ease), padding-left .2s var(--ease);
+  transition: background .18s var(--ease), color .18s var(--ease);
   position: relative;
 }
 .nav-item svg {
-  transition: transform .25s cubic-bezier(.4,1.6,.6,1), filter .2s var(--ease);
+  transition: transform .22s cubic-bezier(.4,1.6,.6,1), filter .18s var(--ease);
   flex-shrink: 0;
 }
 .nav-item:hover svg {
   transform: scale(1.12) translateX(2px);
   filter: drop-shadow(0 0 6px rgba(59,255,157,.35));
 }
-.nav-item:hover {
-  transform: translateX(2px);
-  padding-left: 18px;
-}
 .nav-item:hover .nav-item-label {
   color: rgba(255,255,255,.95);
   letter-spacing: .05px;
+}
+/* Active items don't get the icon-only motion (already visually
+   distinct via the gradient pill + wash). Suppressing keeps the
+   left-edge pill rock-steady when you hover the page you're on. */
+.nav-item.active:hover svg {
+  transform: none;
 }
 /* ── Active item: "morphing pill" indicator ──
    A vertical 4px gradient bar sits at the left of the active item.
@@ -636,29 +638,38 @@ tbody tr:hover {
 }
 
 /* ── Pulsing attention dot — for nav items with pending work ──
-   The nav item gets the class `has-attention` (red) or `has-attention-amber`
-   via JS when counts exist. A small dot in the top-right pulses to
-   draw the eye without blaring. */
-.nav-item.has-attention::after,
-.nav-item.has-attention-amber::after {
-  content: '';
+   Uses a real <span class="nav-attn-dot"> rather than ::after because
+   the collapsed-sidebar hover tooltip already claims ::after. The
+   span absolute-positions to the top-right of the nav item and
+   pulses softly on a 2s cycle. Red for urgent (escalations), amber
+   for needs-review (violations / tasks). */
+.nav-attn-dot {
   position: absolute;
-  top: 10px;
-  right: 12px;
+  top: 8px;
+  right: 10px;
   width: 7px;
   height: 7px;
   border-radius: 50%;
   background: #FF6B6B;
   box-shadow: 0 0 0 3px rgba(255,107,107,.18);
   animation: navAttentionPulse 2s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
 }
-.nav-item.has-attention-amber::after {
+.nav-attn-dot.amber {
   background: #FFB13B;
   box-shadow: 0 0 0 3px rgba(255,177,59,.18);
 }
 @keyframes navAttentionPulse {
   0%, 100% { transform: scale(1);   opacity: 1; }
   50%      { transform: scale(1.35); opacity: .75; }
+}
+/* When the sidebar is collapsed, the dot lives in the top-right
+   corner of the 64px icon-rail. On peek-expand it stays at the
+   right edge of the now-wider item — looks right both states. */
+.sidebar.collapsed:not(:hover) .nav-attn-dot {
+  top: 4px;
+  right: 6px;
 }
 
 /* ── Section divider — frosted hairline gradient running between
