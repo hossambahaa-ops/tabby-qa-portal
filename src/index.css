@@ -197,6 +197,13 @@ body, html, #root {
 /* ── Table ── */
 .table-wrap { overflow-x: auto; overflow-y: visible; }
 .table-wrap-sticky { overflow: auto; max-height: calc(100vh - 280px); }
+/* Sticky thead requires border-collapse: separate. With "collapse"
+   (the default for the base table rule above), adjacent cells share
+   borders and the browser can't keep the sticky-pinned <th> on a
+   separate paint layer — scrolling rows then bleed through. Switch
+   to separate + border-spacing: 0 so the cells stay visually
+   touching but each one paints independently. */
+.table-wrap-sticky table { border-collapse: separate !important; border-spacing: 0 !important; }
 .table-wrap-sticky thead th { position: sticky; top: 0; z-index: 2; background: var(--bg3); box-shadow: 0 1px 0 var(--bd); }
 
 /* ── Row hover — subtle highlight while scanning multi-row tables.
