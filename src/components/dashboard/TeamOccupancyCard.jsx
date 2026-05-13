@@ -7,16 +7,21 @@ import { listTeamTargets } from "../../api/teamTargets.js";
 import { loadTeamForViewer } from "../../lib/teamScope.js";
 
 // Compact "Team occupancy" view for QA Lead+. Shows each direct
-// report's MONTH-TO-DATE average occupancy (EXCLUDING today's partial
-// day) and what it would become if their pending side-task minutes
-// get approved.
+// report's MONTH-TO-DATE average occupancy across WORKING DAYS
+// (Sun–Thu only, EXCLUDING today's partial day) and what it would
+// become if their pending side-task minutes get approved.
 //
 // Why exclude today: productivity_history rows for today are partial
 // — a QA who's only logged the first 2 hours of their day shows up
 // at ~25% occupancy and drags the team headline number into the
-// floor. Averaging across the calendar month so far (1st of month
-// through yesterday) gives the honest "how is the team doing this
-// month" picture without the today's-not-done-yet noise.
+// floor.
+//
+// Why exclude Friday & Saturday: those are weekend days in the Tabby
+// QA schedule. Until the attendance flow is producing reliable rows,
+// the QA's day-of-week is the only signal we have for "was this a
+// scheduled work day". Touching a ticket on a Friday (e.g. checking
+// something briefly from home) was previously averaged 1:1 with a
+// full Sun–Thu shift and silently dragged the team number down.
 //
 // Projection formula (unchanged):
 //   projected = avg_current + (pending_side_minutes / shift_minutes × 100)
@@ -54,6 +59,16 @@ function todayRiyadhIso() {
 function monthStartRiyadhIso() {
   const today = todayRiyadhIso();
   return today.slice(0, 7) + "-01";
+}
+
+// True for Friday (5) and Saturday (6). Parses YYYY-MM-DD as a UTC date
+// so the day-of-week reading is independent of the viewer's timezone —
+// the date in productivity_history is the Riyadh calendar date, and the
+// weekday-of-that-date is the same number everywhere.
+function isWeekendIso(dateIso) {
+  const [y, m, d] = dateIso.split("-").map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return dow === 5 || dow === 6;
 }
 
 const occColor = (pct) => {
@@ -153,8 +168,16 @@ export default function TeamOccupancyCard() {
           const rows = perQa.get(lower);
           if (!rows || rows.length === 0) return null;
           const shiftMin = findShiftMin(r.email, r.queue);
-          // Avg occupancy across all prior-day rows in window
-          const occs = rows.map(x => Number(x.occupancy_pct ?? 0));
+          // Working days only: Sun–Thu. Ticket-touches that happened
+          // on a Fri/Sat (weekend in the Tabby QA schedule) used to
+          // average 1:1 with real shifts and silently pulled the team
+          // headline number down.
+          const weekdayRows = rows.filter(x => !isWeekendIso(x.date));
+          // Edge case: if the QA somehow has no Sun–Thu data in the
+          // window, fall back to all rows so the row stays visible
+          // rather than disappearing from the table entirely.
+          const usedRows = weekdayRows.length > 0 ? weekdayRows : rows;
+          const occs = usedRows.map(x => Number(x.occupancy_pct ?? 0));
           const current = occs.reduce((s, n) => s + n, 0) / occs.length;
           // Most recent prior-day pending snapshot (rows are sorted
           // by date.desc from the server query above)
@@ -164,8 +187,11 @@ export default function TeamOccupancyCard() {
           return {
             email: r.email, display_name: r.display_name, name: nameFromEmail(r.email),
             manager_email: (r.manager_email || "").toLowerCase(),
-            // Window descriptor — shown in the "As of" column
-            asOfStart: rows[rows.length - 1].date, asOfEnd: rows[0].date, daysInWindow: rows.length,
+            // Window descriptor — shown in the "As of" column. Uses
+            // the working-day window so the count matches the math.
+            asOfStart: usedRows[usedRows.length - 1].date,
+            asOfEnd: usedRows[0].date,
+            daysInWindow: usedRows.length,
             current, pendingMin, projected, delta: lift, shiftMin,
           };
         }).filter(Boolean);
@@ -373,7 +399,7 @@ export default function TeamOccupancyCard() {
             </div>
           )}
           <div style={{ padding: "0 16px 12px", fontSize: 10, color: "var(--tx3)", fontStyle: "italic" }}>
-            "Current" is the average of each QA's daily occupancy from the 1st of this month through yesterday — month-to-date, EXCLUDING today (today's partial day would otherwise pull the headline number down). "If approved" adds pending side-task minutes on top (pending / shift × 100). Shift length resolved from team_targets.daily_working_hours, defaulting to 8 h. Click any email to open their profile.
+            "Current" is the average of each QA's daily occupancy across <b>working days only (Sun–Thu)</b> from the 1st of this month through yesterday — Fridays, Saturdays, and today's partial day are excluded so weekend ticket-touches don't drag the average. "If approved" adds pending side-task minutes on top (pending / shift × 100). Shift length resolved from team_targets.daily_working_hours, defaulting to 8 h. Click any email to open their profile.
           </div>
         </>
       )}
