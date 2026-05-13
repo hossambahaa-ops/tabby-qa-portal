@@ -202,9 +202,22 @@ body, html, #root {
    borders and the browser can't keep the sticky-pinned <th> on a
    separate paint layer — scrolling rows then bleed through. Switch
    to separate + border-spacing: 0 so the cells stay visually
-   touching but each one paints independently. */
+   touching but each one paints independently.
+   will-change: transform additionally promotes the cell to its own
+   compositor layer in Chrome/Safari, eliminating any residual paint-
+   ordering glitch under heavy scroll. */
 .table-wrap-sticky table { border-collapse: separate !important; border-spacing: 0 !important; }
-.table-wrap-sticky thead th { position: sticky; top: 0; z-index: 2; background: var(--bg3); box-shadow: 0 1px 0 var(--bd); }
+.table-wrap-sticky thead th {
+  position: sticky; top: 0;
+  z-index: 2;
+  background: var(--bg3);
+  box-shadow: 0 1px 0 var(--bd);
+  will-change: transform;
+}
+.table-sticky-first tbody td:nth-child(1),
+.table-sticky-first tbody td:nth-child(2) {
+  will-change: transform;
+}
 
 /* ── Row hover — subtle highlight while scanning multi-row tables.
    Skips selected/active rows so it doesn't fight existing row tints. */
