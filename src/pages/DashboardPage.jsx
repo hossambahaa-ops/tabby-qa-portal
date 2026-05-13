@@ -189,14 +189,44 @@ function DashboardPage(){
             removed — DailyCheckInWidget below already covers it with
             more context. */}
       </div>
-      {/* KPI strip — at-a-glance personal metrics. Falls back to team
-          metrics for leads who don't have their own MTD row. */}
+      {/* KPI strip — at-a-glance personal metrics. Each value carries
+          a one-sentence narrative so the number tells a story instead
+          of standing alone. Deltas are computed against the same QA's
+          previous-month row when available. */}
       {myData && (() => {
         const myScore = getScore(myData);
         const myCsat = csatPctValue(myData.csat_pct);
+        const prevCsat = myPrevData ? csatPctValue(myPrevData.csat_pct) : null;
+        const prevDsat = myPrevData ? Number(myPrevData.dsat || 0) : null;
+        const myDsat = Number(myData.dsat || 0);
         const delta = myPrevData ? myScore - getScore(myPrevData) : null;
         const dCls = delta == null ? "" : delta >= 0.05 ? "kpi-strip-delta-up" : delta <= -0.05 ? "kpi-strip-delta-down" : "kpi-strip-delta-flat";
         const dArrow = delta == null ? "" : delta >= 0.05 ? "↑" : delta <= -0.05 ? "↓" : "·";
+        // ── Narrative helpers ───────────────────────────────────────
+        // Storytelling sub-lines: combine the bare descriptor with a
+        // human-readable comparison vs the previous month. Each picks
+        // a short phrase based on the size and direction of the
+        // change so the user gets immediate context.
+        const csatStory = (() => {
+          const surveys = Number(myData.csat_total || 0);
+          const prevSurveys = Number(myPrevData?.csat_total || 0);
+          if (surveys === 0 && prevSurveys === 0) return "no surveys yet";
+          if (surveys === 0 && prevCsat != null) return `no surveys this month · ${prevCsat.toFixed(1)}% in ${prevMonth}`;
+          if (surveys > 0 && prevSurveys === 0) return `${surveys} surveys · first ones this year`;
+          const d = myCsat - prevCsat;
+          const dir = d >= 0.5 ? "↑" : d <= -0.5 ? "↓" : "·";
+          const phrase = Math.abs(d) < 0.5 ? "holding steady" : `${dir} ${Math.abs(d).toFixed(1)} pts from ${prevMonth}`;
+          return `${surveys} surveys · ${phrase}`;
+        })();
+        const dsatStory = (() => {
+          if (myDsat === 0 && prevDsat === 0) return "clean two months in a row";
+          if (myDsat === 0 && prevDsat > 0) return `clean month · ${prevDsat} in ${prevMonth}`;
+          if (myDsat > 0 && prevDsat === 0) return `up from zero last month`;
+          if (prevDsat == null) return "this month";
+          const d = myDsat - prevDsat;
+          if (d === 0) return `same as ${prevMonth}`;
+          return d > 0 ? `↑ ${d} vs ${prevMonth}` : `↓ ${Math.abs(d)} vs ${prevMonth}`;
+        })();
         return (
           <div className="kpi-strip">
             <div className="kpi-strip-item">
@@ -207,17 +237,17 @@ function DashboardPage(){
             <div className="kpi-strip-item">
               <span className="kpi-strip-label">My CSAT</span>
               <span className="kpi-strip-value">{myCsat != null ? myCsat.toFixed(1) + "%" : "—"}</span>
-              <span className="kpi-strip-sub">{Number(myData.csat_total) > 0 ? `${myData.csat_total} surveys` : "no surveys yet"}</span>
+              <span className="kpi-strip-sub">{csatStory}</span>
             </div>
             <div className="kpi-strip-item">
               <span className="kpi-strip-label">Rank</span>
               <span className="kpi-strip-value">{myRank > 0 ? "#" + myRank : "—"}<span style={{fontSize:13,color:"rgba(255,255,255,.55)",fontWeight:500}}> / {ranked.length}</span></span>
-              <span className="kpi-strip-sub">in {latestMonth}</span>
+              <span className="kpi-strip-sub">{myRank > 0 ? (myRank <= 3 ? `top 3 in ${latestMonth}` : myRank <= Math.ceil(ranked.length * 0.1) ? `top 10% in ${latestMonth}` : myRank <= Math.ceil(ranked.length * 0.25) ? `top quartile in ${latestMonth}` : `in ${latestMonth}`) : `in ${latestMonth}`}</span>
             </div>
             <div className="kpi-strip-item">
               <span className="kpi-strip-label">DSATs</span>
-              <span className="kpi-strip-value">{myData.dsat || 0}</span>
-              <span className="kpi-strip-sub">this month</span>
+              <span className="kpi-strip-value">{myDsat}</span>
+              <span className="kpi-strip-sub">{dsatStory}</span>
             </div>
           </div>
         );
