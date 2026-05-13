@@ -287,7 +287,8 @@ function NotificationBell({ onNavigate }) {
           const isQaEmail = (em) => qaEmailSet.has((em || "").toLowerCase());
 
           const local = myEmail.split("@")[0];
-          const myAttFilters = `date=gte.${sinceDate}&or=(email.ilike.${local}@%,email.eq.${profile?.email})&order=date.desc&limit=60`;
+          // PostgREST ilike wildcard: * not % (URLs reject unencoded %).
+          const myAttFilters = `date=gte.${sinceDate}&or=(email.ilike.${local}@*,email.eq.${profile?.email})&order=date.desc&limit=60`;
           const myAttRows = await sb.query("qa_attendance", {
             select: "id,email,date,status,planned_code,justification,mismatch_approved,plan_updated_at,auto_nsnc",
             filters: myAttFilters,

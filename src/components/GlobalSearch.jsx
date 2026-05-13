@@ -19,12 +19,17 @@ function GlobalSearch({ onNavigate, onClose }) {
     if (query.length < 2) { setResults([]); return; }
     const timer = setTimeout(async () => {
       try {
-        const q = query.toLowerCase();
+        // PostgREST: use * (not %) as the ilike wildcard — bare % in a
+        // URL is mis-parsed as a percent-encoded byte by edges/CDNs
+        // and the request is dropped before CORS headers are added.
+        // Also drop any commas in the user's query because PostgREST
+        // uses comma as the in/or separator inside filter values.
+        const q = query.toLowerCase().replace(/,/g, " ");
         const [profiles, violations, damFlags, escalations] = await Promise.all([
-          listProfiles({ token, filters: `or=(email.ilike.%${q}%,display_name.ilike.%${q}%)&limit=5`, cache: false }),
-          listViolations({ token, select: "id,qa_email,violation_type,status", filters: `qa_email.ilike.%${q}%&limit=5` }),
-          sb.query("dam_flags", { select: "id,qa_email,dam_rules(name)", filters: `qa_email.ilike.%${q}%&limit=5`, token }).catch(() => []),
-          listEscalations({ token, select: "id,category,about_person,status", filters: `or=(about_person.ilike.%${q}%,category.ilike.%${q}%)&limit=5` }),
+          listProfiles({ token, filters: `or=(email.ilike.*${q}*,display_name.ilike.*${q}*)&limit=5`, cache: false }),
+          listViolations({ token, select: "id,qa_email,violation_type,status", filters: `qa_email.ilike.*${q}*&limit=5` }),
+          sb.query("dam_flags", { select: "id,qa_email,dam_rules(name)", filters: `qa_email.ilike.*${q}*&limit=5`, token }).catch(() => []),
+          listEscalations({ token, select: "id,category,about_person,status", filters: `or=(about_person.ilike.*${q}*,category.ilike.*${q}*)&limit=5` }),
         ]);
         const all = [
           ...profiles.map(p => ({ id: p.id, type: "profile", label: nameFromEmail(p.email), sub: `${ROLE_LABELS[p.role]} · ${p.email}`, page: "profile" })),

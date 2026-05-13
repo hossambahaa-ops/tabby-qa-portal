@@ -34,7 +34,10 @@ export default function DailyCheckInWidget() {
       const rows = await sb.query("qa_attendance", {
         token,
         select: "id,email,date,status,planned_code,justification,mismatch_approved",
-        filters: `date=eq.${today}&or=(email.ilike.${local}@%,email.eq.${myEmail})`,
+        // PostgREST: use * (not %) as the ilike wildcard — bare % in a
+        // URL gets mis-parsed as a percent-encoded byte by some edges
+        // and the request is dropped before CORS headers are added.
+        filters: `date=eq.${today}&or=(email.ilike.${local}@*,email.eq.${myEmail})`,
       });
       const mine = (rows || []).find((r) => emailsMatchLoose(r.email, myEmail));
       setRow(mine || null);
