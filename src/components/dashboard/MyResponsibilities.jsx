@@ -82,11 +82,10 @@ export default function MyResponsibilities({ roster, onNavigate }) {
     if (tab) setTimeout(() => window.dispatchEvent(new CustomEvent("qc-tab", { detail: tab })), 100);
   };
 
-  // Tone-tinted glass tile. Replaces the boxed sub-cards with a
-  // softer "data point" treatment: subtle background wash matching the
-  // tone, left-edge accent bar, big number, optional sub line, and an
-  // unobtrusive chevron that hints at click-through. Hover lifts the
-  // tile a notch and brightens the wash.
+  // Tone-tinted floating tile. Borderless to match the Floating
+  // Layers theme — depth comes from the soft tone-coloured shadow +
+  // top-edge highlight, not a hard outline. Left-edge accent bar
+  // preserves the colour cue. Hover lifts and warms the wash.
   const tile = (icon, label, value, sub, tone, toneRgb, onClick) => (
     <button
       type="button"
@@ -95,25 +94,26 @@ export default function MyResponsibilities({ roster, onNavigate }) {
       className="attn-tile"
       style={{
         display: "flex", flexDirection: "column", gap: 4,
-        padding: "14px 16px", borderRadius: 14,
-        background: `rgba(${toneRgb}, .08)`,
-        border: `1px solid rgba(${toneRgb}, .25)`,
+        padding: "14px 16px", borderRadius: 20,
+        background: `rgba(${toneRgb}, .10)`,
+        border: "none",
         position: "relative", overflow: "hidden",
         cursor: onClick ? "pointer" : "default",
-        transition: "transform .15s var(--ease), background .15s ease, border-color .15s ease",
+        transition: "transform .2s var(--ease), background .2s ease, box-shadow .2s ease",
         textAlign: "left", color: "var(--tx)",
         fontFamily: "var(--font)",
+        boxShadow: `0 6px 18px -4px rgba(${toneRgb}, .18), 0 2px 6px -2px rgba(${toneRgb}, .12), inset 0 1px 0 rgba(255,255,255,.10)`,
       }}
       onMouseEnter={e => {
         if (!onClick) return;
-        e.currentTarget.style.background = `rgba(${toneRgb}, .14)`;
-        e.currentTarget.style.borderColor = `rgba(${toneRgb}, .45)`;
-        e.currentTarget.style.transform = "translateY(-2px)";
+        e.currentTarget.style.background = `rgba(${toneRgb}, .16)`;
+        e.currentTarget.style.boxShadow = `0 12px 28px -4px rgba(${toneRgb}, .28), 0 4px 10px -2px rgba(${toneRgb}, .18), inset 0 1px 0 rgba(255,255,255,.14)`;
+        e.currentTarget.style.transform = "translateY(-3px)";
       }}
       onMouseLeave={e => {
         if (!onClick) return;
-        e.currentTarget.style.background = `rgba(${toneRgb}, .08)`;
-        e.currentTarget.style.borderColor = `rgba(${toneRgb}, .25)`;
+        e.currentTarget.style.background = `rgba(${toneRgb}, .10)`;
+        e.currentTarget.style.boxShadow = `0 6px 18px -4px rgba(${toneRgb}, .18), 0 2px 6px -2px rgba(${toneRgb}, .12), inset 0 1px 0 rgba(255,255,255,.10)`;
         e.currentTarget.style.transform = "translateY(0)";
       }}
     >
