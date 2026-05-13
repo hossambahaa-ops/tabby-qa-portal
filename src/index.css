@@ -2525,23 +2525,42 @@ html.dark table tbody tr:hover td { background: rgba(255,255,255,.04) !important
         CSAT topic matrix. Targeted via attribute selectors so React's
         inline background is preserved. */
 
-/* — Sticky thead headers — force a SOLID background. The glass-theme
-   block above sets `table th { background: transparent !important }`,
-   which would let scrolling rows show through any sticky header.
-   We override it here with var(--bg2) (slightly contrasted vs the
-   body's var(--bg3)), so headers always read as a distinct band. */
+/* — Sticky thead headers — fully OPAQUE, hardcoded color, no glass,
+   no backdrop-filter, no variables. The bleed-through bug on the
+   MTD table was a layered/translucency artifact: even `var(--bg2)`
+   was leaving a hair of transparency on Chrome's compositor layer
+   when stacked with the card's backdrop-filter ancestor. Pin the
+   color to a literal RGB that matches the table's perceived surface
+   so the header is unambiguously opaque. */
 .table-wrap-sticky thead th,
 thead th[style*="position: sticky"],
 thead th[style*="position:sticky"],
 thead[style*="position: sticky"] th,
 thead[style*="position:sticky"] th {
-  background: var(--bg2) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
   border-bottom: 1px solid var(--bd) !important;
   padding-top: 12px !important;
   padding-bottom: 12px !important;
   z-index: 5 !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+html:not(.dark) .table-wrap-sticky thead th,
+html:not(.dark) thead th[style*="position: sticky"],
+html:not(.dark) thead th[style*="position:sticky"],
+html:not(.dark) thead[style*="position: sticky"] th,
+html:not(.dark) thead[style*="position:sticky"] th {
+  background-color: #EFEDE8 !important;
+  background-image: none !important;
+}
+html.dark .table-wrap-sticky thead th,
+html.dark thead th[style*="position: sticky"],
+html.dark thead th[style*="position:sticky"],
+html.dark thead[style*="position: sticky"] th,
+html.dark thead[style*="position:sticky"] th {
+  background-color: #1A1525 !important;
+  background-image: none !important;
 }
 html:not(.dark) .table-wrap-sticky thead th,
 html:not(.dark) thead th[style*="position: sticky"],
@@ -2558,20 +2577,53 @@ html.dark thead[style*="position:sticky"] th {
   box-shadow: 0 2px 6px rgba(0,0,0,.3) !important;
 }
 
-/* — Sticky-left body cells — solid (no glass, no blur).
-   Class-based (.table-sticky-first) gets forced to var(--bg3); inline
-   sticky body cells keep their own inline background but lose any
-   backdrop-filter inherited from the glass theme. */
+/* — Sticky-left body cells — fully OPAQUE, hardcoded color, matching
+   the rest of the table surface. Same bleed-through fix as the thead:
+   variable-driven colors were leaving a hair of compositor-layer
+   transparency. Hardcoded literals so the columns are unambiguously
+   opaque against the aurora-tinted card background. */
 .table-sticky-first tbody td:nth-child(1),
-.table-sticky-first tbody td:nth-child(2) {
-  background: var(--bg3) !important;
-}
+.table-sticky-first tbody td:nth-child(2),
 tbody td[style*="position: sticky"],
-tbody td[style*="position:sticky"],
-.table-sticky-first tbody td:nth-child(1),
-.table-sticky-first tbody td:nth-child(2) {
+tbody td[style*="position:sticky"] {
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
+  opacity: 1 !important;
+  filter: none !important;
+}
+html:not(.dark) .table-sticky-first tbody td:nth-child(1),
+html:not(.dark) .table-sticky-first tbody td:nth-child(2),
+html:not(.dark) tbody td[style*="position: sticky"],
+html:not(.dark) tbody td[style*="position:sticky"] {
+  background-color: #F5F2EC !important;
+  background-image: none !important;
+}
+html.dark .table-sticky-first tbody td:nth-child(1),
+html.dark .table-sticky-first tbody td:nth-child(2),
+html.dark tbody td[style*="position: sticky"],
+html.dark tbody td[style*="position:sticky"] {
+  background-color: #1E1830 !important;
+  background-image: none !important;
+}
+
+/* Hover / selection on the sticky-left cells — same opaque approach so
+   the row tint reads on the pinned column too, without reintroducing
+   any transparency. */
+html:not(.dark) .table-sticky-first tbody tr:hover td:nth-child(1),
+html:not(.dark) .table-sticky-first tbody tr:hover td:nth-child(2) {
+  background-color: #EAE7E0 !important;
+}
+html.dark .table-sticky-first tbody tr:hover td:nth-child(1),
+html.dark .table-sticky-first tbody tr:hover td:nth-child(2) {
+  background-color: #2A2240 !important;
+}
+html:not(.dark) .table-sticky-first tbody tr.is-selected td:nth-child(1),
+html:not(.dark) .table-sticky-first tbody tr.is-selected td:nth-child(2) {
+  background-color: #D9D0EA !important;
+}
+html.dark .table-sticky-first tbody tr.is-selected td:nth-child(1),
+html.dark .table-sticky-first tbody tr.is-selected td:nth-child(2) {
+  background-color: #2C1F45 !important;
 }
 
 /* — Hover / selection on the MTD sticky-left cells so the row tint
