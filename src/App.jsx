@@ -18,6 +18,9 @@ import NotificationBell from "./components/NotificationBell.jsx";
 import MyBeltIndicator from "./components/MyBeltIndicator.jsx";
 import BeltAnnouncementModal from "./components/BeltAnnouncementModal.jsx";
 import GlobalSearch from "./components/GlobalSearch.jsx";
+// Lazy — only loaded when the user opens the composer from the topbar
+// (or from the dashboard action bar, but that fallback path is gone).
+const AnnouncementForm = lazy(() => import("./components/dashboard/AnnouncementForm.jsx"));
 import OnboardingTour from "./components/OnboardingTour.jsx";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import { AppContext } from "./lib/AppContext.jsx";
@@ -127,6 +130,7 @@ function AppInner(){
   // index.css read body[data-density] to scale paddings + font sizes.
   const[density,setDensity]=useState(()=>localStorage.getItem("density")||"comfortable");
   const[showSearch,setShowSearch]=useState(false);
+  const[showAnnForm,setShowAnnForm]=useState(false);
   const[globalFilters,setGlobalFilters]=useState({...defaultFilters});
   const[globalRoster,setGlobalRoster]=useState([]);
   const[globalMonths,setGlobalMonths]=useState([]);
@@ -555,6 +559,15 @@ function AppInner(){
       </div>}
 <div className="topbar"><button className="topbar-menu" onClick={()=>setSidebarOpen(true)} aria-label="Open menu"><Icon d={icons.menu} size={22}/></button><div className="topbar-title" style={{display:"flex",alignItems:"center",gap:6}}>{(()=>{const item=NAV_ITEMS.find(n=>n.key===page);const section=item?.section||NAV_ITEMS.slice(0,NAV_ITEMS.indexOf(item)).reverse().find(n=>n.section)?.section;return section?<><span style={{color:"var(--tx3)",fontSize:13}}>{section}</span><span style={{color:"var(--tx3)",fontSize:11}}>›</span><span>{item?.label||"Dashboard"}</span></>:<span>{item?.label||"Dashboard"}</span>;})()}</div>
       <div style={{display:"flex",alignItems:"center",gap:8,marginLeft:"auto"}}>
+        {/* Send announcement — anyone senior_qa+ can open the composer.
+            The form itself enforces audience-by-role inside it. Lives
+            on the topbar so the action is one click away from every
+            page, not just the dashboard. */}
+        {hasRole(effectiveProfile?.role,"senior_qa") && (
+          <button className="notif-btn" onClick={()=>setShowAnnForm(true)} title="Send announcement" aria-label="Send announcement">
+            <Icon d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" size={18}/>
+          </button>
+        )}
         {/* Search */}
         <button className="notif-btn" onClick={()=>setShowSearch(true)} title="Search (⌘K)" aria-label="Search">
           <Icon d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" size={18}/>
@@ -740,6 +753,10 @@ function AppInner(){
     </div>}
     {/* Search overlay */}
     {showSearch&&<GlobalSearch onNavigate={setPage} onClose={()=>setShowSearch(false)}/>}
+    {/* Announcement composer — wrapped in Suspense because AnnouncementForm
+        is lazy-loaded; without the boundary the page would crash on first
+        open while the chunk is in flight. */}
+    {showAnnForm&&<Suspense fallback={null}><AnnouncementForm roster={globalRoster} onClose={()=>setShowAnnForm(false)}/></Suspense>}
     {showTour&&<OnboardingTour onDismiss={dismissTour} role={profile?.role}/>}
     {/* First-of-month championship belts splash. Self-contained: fetches its
         own data, decides whether to show, marks itself "seen" on dismiss. */}

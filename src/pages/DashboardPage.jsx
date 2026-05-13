@@ -17,7 +17,6 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import DashboardTasks from "../components/dashboard/DashboardTasks.jsx";
 import MyResponsibilities from "../components/dashboard/MyResponsibilities.jsx";
-import AnnouncementForm from "../components/dashboard/AnnouncementForm.jsx";
 import APDetectionAlerts from "../components/dashboard/APDetectionAlerts.jsx";
 // TeamHealth removed in the dashboard simplification pass — its KPI
 // grid duplicated the per-QA Team members table further down the page.
@@ -49,11 +48,9 @@ function DashboardPage(){
     dailyScores, loading, refresh: loadDashboard,
     setApDetections, setApDismissals,
   } = useDashboardData(token, profile);
-  const[showAnnForm,setShowAnnForm]=useState(false);
   const isLead=hasRole(profile?.role,"qa_lead");
   const isAdmin=hasRole(profile?.role,"admin");
   const isSupervisor=hasRole(profile?.role,"qa_supervisor");
-  const canAnnounce=hasRole(profile?.role,"senior_qa");
   const{ask:confirmAsk,el:confirmEl}=useConfirm();
 
   const fmt=(val)=>{if(val===null||val===undefined||val==="")return"—";const s=String(val).trim();if(s.includes("%"))return s;const n=parseFloat(s.replace(",","."));if(isNaN(n))return s;if(n>=0&&n<=2)return(n*100).toFixed(1)+"%";if(n>2&&!Number.isInteger(n))return n.toFixed(1)+"%";return String(val);};
@@ -110,13 +107,12 @@ function DashboardPage(){
   const freshness=useFreshness(token,freshnessKey);
 
   return(<div className="page">
-    {/* Admin/Supervisor action bar */}
-    {(hasRole(profile?.role,"super_admin")||canAnnounce)&&<div className="dashboard-action-bar" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
+    {/* Admin/Supervisor action bar — "Send announcement" moved to the
+        topbar so every page can reach it. Only the super-admin "Refresh
+        live" button remains here. */}
+    {hasRole(profile?.role,"super_admin")&&<div className="dashboard-action-bar" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8,flexWrap:"wrap"}}>
       <FreshnessBadge ts={freshness} pulseKey={syncPulse} />
       <div style={{display:"flex",gap:8}}>
-      {canAnnounce&&<button className="btn btn-outline btn-sm" onClick={()=>setShowAnnForm(!showAnnForm)} style={{fontSize:12}}>
-        <Icon d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" size={14}/>Send announcement
-      </button>}
       {hasRole(profile?.role,"super_admin")&&<button className="btn btn-outline btn-sm" disabled={syncing} onClick={async()=>{
         // Pulls all three live CSVs (Today_Productivity, MTD,
         // Q_Support_Performance) through the Supabase edge functions
@@ -170,8 +166,7 @@ function DashboardPage(){
       </div>
     </div>}
 
-    {/* Announcement form */}
-    {showAnnForm&&<AnnouncementForm roster={roster} onClose={()=>setShowAnnForm(false)}/>}
+    {/* Announcement form was moved to the topbar (see App.jsx). */}
 
     <div className="welcome-banner">
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:16}}>
