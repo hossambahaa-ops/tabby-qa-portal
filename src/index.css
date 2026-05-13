@@ -664,10 +664,10 @@ tbody tr:hover {
   0%, 100% { transform: scale(1);   opacity: 1; }
   50%      { transform: scale(1.35); opacity: .75; }
 }
-/* When the sidebar is collapsed, the dot lives in the top-right
-   corner of the 64px icon-rail. On peek-expand it stays at the
-   right edge of the now-wider item — looks right both states. */
-.sidebar.collapsed:not(:hover) .nav-attn-dot {
+/* When the sidebar is collapsed, the dot sits in the top-right
+   corner of the 64px icon-rail (narrower offsets fit the smaller
+   item). */
+.sidebar.collapsed .nav-attn-dot {
   top: 4px;
   right: 6px;
 }
@@ -686,34 +686,10 @@ tbody tr:hover {
   padding-top: 10px;
 }
 
-/* ── Peek-on-hover when collapsed ──
-   When the sidebar is collapsed to 64px, hovering it briefly expands
-   to the full 240px width so labels become readable. Leaves the
-   "collapsed" state intact when the mouse moves away. Doesn't apply
-   on mobile (the .sidebar.open class is the trigger there). */
-@media (min-width: 901px) {
-  .sidebar.collapsed:hover {
-    width: var(--sidebar-w) !important;
-    box-shadow: 0 0 80px rgba(0,0,0,.35);
-  }
-  .sidebar.collapsed:hover .sidebar-brand span,
-  .sidebar.collapsed:hover .sidebar-tag,
-  .sidebar.collapsed:hover .sidebar-section,
-  .sidebar.collapsed:hover .nav-item-label,
-  .sidebar.collapsed:hover .sidebar-recent,
-  .sidebar.collapsed:hover .sidebar-section-chevron {
-    display: revert !important;
-    opacity: 1 !important;
-  }
-  .sidebar.collapsed:hover .sidebar-brand {
-    /* Switch back from the mark to the wordmark on peek-expand */
-    /* (handled by re-showing whichever child was hidden) */
-  }
-  .sidebar.collapsed:hover .nav-item {
-    justify-content: flex-start !important;
-    padding: 10px 14px !important;
-  }
-}
+/* Peek-on-hover when collapsed was removed — the auto-expand
+   conflicted with the icon-rail tooltip and other hover affordances.
+   Collapsed stays collapsed; users expand explicitly via the
+   chevron in the sidebar header. */
 
 /* ── Tab underline slide ── */
 .tab-btn, .tab {
