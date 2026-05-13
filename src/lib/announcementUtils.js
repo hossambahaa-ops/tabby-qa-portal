@@ -72,17 +72,22 @@ export function recipientsFor(ann, roster = [], profiles = []) {
   if (t === "my_team") {
     const target = (v || "").toLowerCase();
     const targetLocal = target.split("@")[0] || "";
-    return uniq(
-      roster
-        .filter(r => {
-          const m = (r.manager_email || "").toLowerCase();
-          if (!m) return false;
-          if (m === target) return true;
-          if (targetLocal && m.split("@")[0] === targetLocal) return true;
-          return false;
-        })
-        .map(r => (r.email || "").toLowerCase())
-    );
+    const reports = roster
+      .filter(r => {
+        const m = (r.manager_email || "").toLowerCase();
+        if (!m) return false;
+        if (m === target) return true;
+        if (targetLocal && m.split("@")[0] === targetLocal) return true;
+        return false;
+      })
+      .map(r => (r.email || "").toLowerCase());
+    // The sender themselves is part of "my_team" — matchesAudience
+    // counts them via the `myEmail === target` clause, so the recipient
+    // list must include them too. Without this the denominator drops to
+    // 0 for senders who have no direct reports in the roster (e.g.
+    // super_admins), making the panel render an ack count like "1 / 0"
+    // or "0 / 0" even though the sender saw + acked the announcement.
+    return uniq([...(target ? [target] : []), ...reports]);
   }
   return [];
 }
