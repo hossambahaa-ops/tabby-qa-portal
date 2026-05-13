@@ -151,6 +151,12 @@ function AppInner(){
   const[feedbackSending,setFeedbackSending]=useState(false);
   const[feedbackSent,setFeedbackSent]=useState(false);
   const[isMobile,setIsMobile]=useState(()=>typeof window!=="undefined"&&window.innerWidth<768);
+  // Sidebar attention counts — drives the pulsing dot next to nav
+  // items that have pending work. Refreshed on mount + every 5 min.
+  // Keyed by nav-item.key. Red = urgent (escalations); amber = needs
+  // review (violations, tasks). RLS scopes the counts to what the
+  // viewer can actually see, so each user gets their own dots.
+  const[navCounts,setNavCounts]=useState({});
   // Collapsible sidebar sections — persisted per user across sessions
   const[collapsedSections,setCollapsedSections]=useState(()=>{
     try{return JSON.parse(localStorage.getItem("sb_collapsed_sections")||"[]");}catch{return[];}
@@ -341,6 +347,32 @@ function AppInner(){
     setGlobalMonths(uniqueMonths);
   }catch(e){console.error("Global filters:",e);}})();},[session]);
 
+  // Sidebar attention counts. Three lightweight COUNT-style queries
+  // populate the pulsing dots on Quality, Escalations, and Tracker.
+  // RLS scopes each query to what the viewer can see, so the dots
+  // match their effective workload. Refresh every 5 min.
+  useEffect(()=>{
+    if(!session)return;
+    let cancelled=false;
+    const fetchCounts=async()=>{
+      const tok=session.access_token;
+      const [v,e,t]=await Promise.all([
+        sb.query("coaching_violations",{token:tok,select:"id",filters:"status=eq.pending&limit=200"}).catch(()=>[]),
+        sb.query("escalations",{token:tok,select:"id",filters:"status=eq.open&limit=200"}).catch(()=>[]),
+        sb.query("tasks",{token:tok,select:"id",filters:"status=eq.open&limit=200"}).catch(()=>[]),
+      ]);
+      if(cancelled)return;
+      setNavCounts({
+        quality:(v||[]).length,
+        escalations:(e||[]).length,
+        tracker:(t||[]).length,
+      });
+    };
+    fetchCounts();
+    const id=setInterval(fetchCounts,5*60*1000);
+    return()=>{cancelled=true;clearInterval(id);};
+  },[session]);
+
   // Load announcements that should surface to this user. Splits into:
   //   * pendingAnnouncements — dismiss_mode='modal', requires ack →
   //     blocks the UI with the full-screen modal until acknowledged.
@@ -499,12 +531,18 @@ function AppInner(){
             )}
             <div className={`sidebar-group-items${isCollapsed?" is-collapsed":""}`}>
               <div className="sidebar-group-items-inner">
-                {g.items.map(item=>(
-                  <button key={item.key} className={`nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}>
+                {g.items.map(item=>{
+                  // Pulsing dot: red for escalations (urgent), amber for
+                  // anything that needs review but isn't escalated.
+                  const n=navCounts[item.key]||0;
+                  const attnCls=n>0?(item.key==="escalations"?" has-attention":" has-attention-amber"):"";
+                  return(
+                  <button key={item.key} className={`nav-item${page===item.key?" active":""}${attnCls}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}>
                     <Icon d={item.icon} size={18}/>
                     <span className="nav-item-label">{item.label}</span>
                   </button>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>);

@@ -579,28 +579,129 @@ tbody tr:hover {
   background: var(--bg2) !important;
 }
 
-/* ── Sidebar nav item hover ── */
+/* ── Sidebar nav item — alive + reactive ── */
 .nav-item {
-  transition: all .15s var(--ease);
+  transition: background .2s var(--ease), color .2s var(--ease), transform .2s var(--ease), padding-left .2s var(--ease);
+  position: relative;
+}
+.nav-item svg {
+  transition: transform .25s cubic-bezier(.4,1.6,.6,1), filter .2s var(--ease);
+  flex-shrink: 0;
+}
+.nav-item:hover svg {
+  transform: scale(1.12) translateX(2px);
+  filter: drop-shadow(0 0 6px rgba(59,255,157,.35));
 }
 .nav-item:hover {
-  transform: translateX(3px);
+  transform: translateX(2px);
+  padding-left: 18px;
 }
+.nav-item:hover .nav-item-label {
+  color: rgba(255,255,255,.95);
+  letter-spacing: .05px;
+}
+/* ── Active item: "morphing pill" indicator ──
+   A vertical 4px gradient bar sits at the left of the active item.
+   With CSS transitions on the bar's height/opacity, switching pages
+   feels like the indicator is sliding/morphing between items. The
+   bar also softly pulses to draw the eye. */
 .nav-item.active {
   position: relative;
-  background: rgba(59, 255, 157, 0.08) !important;
+  background: linear-gradient(90deg, rgba(59,255,157,.10), rgba(106,44,121,.06) 80%) !important;
+  color: #fff !important;
 }
+.nav-item.active .nav-item-label { color: #fff; font-weight: 600; }
 .nav-item.active::before {
   content: '';
   position: absolute;
   left: 0;
   top: 50%;
   transform: translateY(-50%);
-  width: 3px;
-  height: 60%;
-  background: linear-gradient(180deg, #3BFF9D, var(--tabby-purple));
+  width: 4px;
+  height: 75%;
+  background: linear-gradient(180deg, #3BFF9D 0%, #C9A0FF 50%, var(--tabby-purple) 100%);
   border-radius: 0 4px 4px 0;
-  box-shadow: 0 0 8px rgba(59, 255, 157, 0.4);
+  box-shadow:
+    0 0 12px rgba(59,255,157,.55),
+    0 0 24px rgba(106,44,121,.35);
+  animation: navPillPulse 3s var(--ease) infinite;
+}
+@keyframes navPillPulse {
+  0%, 100% { box-shadow: 0 0 12px rgba(59,255,157,.55), 0 0 24px rgba(106,44,121,.35); }
+  50%      { box-shadow: 0 0 18px rgba(59,255,157,.75), 0 0 36px rgba(106,44,121,.50); }
+}
+.nav-item.active svg {
+  filter: drop-shadow(0 0 6px rgba(59,255,157,.5));
+  color: #3BFF9D;
+}
+
+/* ── Pulsing attention dot — for nav items with pending work ──
+   The nav item gets the class `has-attention` (red) or `has-attention-amber`
+   via JS when counts exist. A small dot in the top-right pulses to
+   draw the eye without blaring. */
+.nav-item.has-attention::after,
+.nav-item.has-attention-amber::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #FF6B6B;
+  box-shadow: 0 0 0 3px rgba(255,107,107,.18);
+  animation: navAttentionPulse 2s ease-in-out infinite;
+}
+.nav-item.has-attention-amber::after {
+  background: #FFB13B;
+  box-shadow: 0 0 0 3px rgba(255,177,59,.18);
+}
+@keyframes navAttentionPulse {
+  0%, 100% { transform: scale(1);   opacity: 1; }
+  50%      { transform: scale(1.35); opacity: .75; }
+}
+
+/* ── Section divider — frosted hairline gradient running between
+     groups. Replaces the bare empty space with a thin branded line
+     so the sidebar has a visible "spine". The gradient fades to
+     transparent at the edges so it doesn't look like a hard cut. */
+.sidebar-group + .sidebar-group {
+  border-top: 1px solid transparent;
+  background-image: linear-gradient(90deg, transparent 0%, rgba(106,44,121,.35) 20%, rgba(59,255,157,.30) 50%, rgba(106,44,121,.35) 80%, transparent 100%);
+  background-size: 100% 1px;
+  background-position: 0 0;
+  background-repeat: no-repeat;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+/* ── Peek-on-hover when collapsed ──
+   When the sidebar is collapsed to 64px, hovering it briefly expands
+   to the full 240px width so labels become readable. Leaves the
+   "collapsed" state intact when the mouse moves away. Doesn't apply
+   on mobile (the .sidebar.open class is the trigger there). */
+@media (min-width: 901px) {
+  .sidebar.collapsed:hover {
+    width: var(--sidebar-w) !important;
+    box-shadow: 0 0 80px rgba(0,0,0,.35);
+  }
+  .sidebar.collapsed:hover .sidebar-brand span,
+  .sidebar.collapsed:hover .sidebar-tag,
+  .sidebar.collapsed:hover .sidebar-section,
+  .sidebar.collapsed:hover .nav-item-label,
+  .sidebar.collapsed:hover .sidebar-recent,
+  .sidebar.collapsed:hover .sidebar-section-chevron {
+    display: revert !important;
+    opacity: 1 !important;
+  }
+  .sidebar.collapsed:hover .sidebar-brand {
+    /* Switch back from the mark to the wordmark on peek-expand */
+    /* (handled by re-showing whichever child was hidden) */
+  }
+  .sidebar.collapsed:hover .nav-item {
+    justify-content: flex-start !important;
+    padding: 10px 14px !important;
+  }
 }
 
 /* ── Tab underline slide ── */
