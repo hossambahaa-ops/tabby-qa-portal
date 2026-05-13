@@ -209,13 +209,24 @@ body, html, #root {
 .table-wrap-sticky table { border-collapse: separate !important; border-spacing: 0 !important; }
 .table-wrap-sticky thead th {
   position: sticky; top: 0;
-  z-index: 2;
+  z-index: 10;
   background: var(--bg3);
   box-shadow: 0 1px 0 var(--bd);
+  /* translate3d forces hardware acceleration + a dedicated compositor
+     layer in every browser, which guarantees the sticky thead paints
+     on top of scrolling rows. will-change tells the browser to keep
+     the layer optimized for transforms. */
+  transform: translate3d(0, 0, 0);
   will-change: transform;
 }
+/* Body cells in the sticky-left columns must explicitly sit BELOW the
+   thead (z-index < 10). Default z-index from earlier rules is 1, but
+   make it explicit so no future change can accidentally elevate the
+   body above the thead. */
 .table-sticky-first tbody td:nth-child(1),
 .table-sticky-first tbody td:nth-child(2) {
+  z-index: 1 !important;
+  transform: translate3d(0, 0, 0);
   will-change: transform;
 }
 
