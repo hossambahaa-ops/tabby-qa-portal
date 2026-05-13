@@ -2107,18 +2107,22 @@ body::before {
   inset: 0;
   z-index: -1;
   pointer-events: none;
+  /* Aurora matched to the chart-preview page's palette — uses Tabby
+     brand purple (#6A2C79) and brand green (#3CFFA5) for a more
+     vivid, branded backdrop. Three radial gradients positioned so
+     the colour pools don't collide. */
   background:
-    radial-gradient(ellipse 900px 700px at 5% 0%, rgba(255,180,220,.40), transparent 55%),
-    radial-gradient(ellipse 800px 700px at 95% 10%, rgba(180,200,255,.40), transparent 55%),
-    radial-gradient(ellipse 1000px 800px at 50% 100%, rgba(180,255,210,.30), transparent 55%),
+    radial-gradient(ellipse 900px 700px at 12% 5%, rgba(106,44,121,.22), transparent 60%),
+    radial-gradient(ellipse 800px 600px at 90% 25%, rgba(60,255,165,.12), transparent 60%),
+    radial-gradient(ellipse 700px 600px at 75% 95%, rgba(120,80,255,.18), transparent 60%),
     #F4F0FA;
 }
 html.dark body::before {
   background:
-    radial-gradient(ellipse 900px 700px at 5% 0%, rgba(180,80,200,.30), transparent 55%),
-    radial-gradient(ellipse 800px 700px at 95% 10%, rgba(60,180,200,.22), transparent 55%),
-    radial-gradient(ellipse 1000px 800px at 50% 100%, rgba(180,255,200,.10), transparent 55%),
-    #08060F;
+    radial-gradient(ellipse 900px 700px at 12% 5%, rgba(106,44,121,.40), transparent 60%),
+    radial-gradient(ellipse 800px 600px at 90% 25%, rgba(60,255,165,.18), transparent 60%),
+    radial-gradient(ellipse 700px 600px at 75% 95%, rgba(120,80,255,.28), transparent 60%),
+    #0A0814;
 }
 
 /* ── 2. App shell needs to be transparent so the aurora shows through. */
@@ -2139,8 +2143,10 @@ html.dark body::before {
   /* Big rounded sheets. 32px radius reads unmistakably as a "soft
      surface", not a rectangle. position relative + isolation so the
      ::before top-edge reflection can sit on top of the card content
-     without escaping its rounded corner. */
+     without escaping its rounded corner. Padding bumped to 28px so
+     content breathes like the chart-preview demo cards. */
   border-radius: 32px !important;
+  padding: 28px !important;
   backdrop-filter: blur(36px) saturate(180%);
   -webkit-backdrop-filter: blur(36px) saturate(180%);
   position: relative;
