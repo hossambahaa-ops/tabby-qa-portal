@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tabby Pulse — Monthly calendar redesign</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0A0814; color: #F5F3F8; font-family: 'Inter Tight', system-ui, sans-serif; min-height: 100%; }
+    body {
+      background:
+        radial-gradient(ellipse 900px 700px at 12% 5%, rgba(106,44,121,.40), transparent 60%),
+        radial-gradient(ellipse 800px 600px at 90% 25%, rgba(60,255,165,.18), transparent 60%),
+        radial-gradient(ellipse 700px 600px at 75% 95%, rgba(120,80,255,.28), transparent 60%),
+        #0A0814;
+      background-attachment: fixed;
+    }
+    .pick-bar { position: sticky; top: 0; background: rgba(10,8,20,.85); backdrop-filter: blur(20px); padding: 16px 28px; border-bottom: 1px solid rgba(255,255,255,.06); z-index: 50; }
+    .pick-bar h1 { font-size: 19px; font-weight: 700; letter-spacing: -.4px; }
+    .pick-bar p { color: rgba(245,243,248,.55); font-size: 13px; margin-top: 3px; max-width: 80ch; }
+
+    .container { max-width: 980px; margin: 0 auto; padding: 40px 28px 60px; }
+
+    .card-glass {
+      border-radius: 28px;
+      padding: 24px 26px;
+      background: rgba(255,255,255,.05);
+      backdrop-filter: blur(36px) saturate(180%);
+      box-shadow:
+        0 32px 80px -12px rgba(0,0,0,.5),
+        0 12px 32px -8px rgba(0,0,0,.35),
+        inset 0 1px 0 rgba(255,255,255,.09);
+      position: relative;
+      isolation: isolate;
+    }
+    .card-glass::before {
+      content: ""; position: absolute; inset: 0 0 auto 0; height: 50%; pointer-events: none;
+      border-radius: 28px 28px 0 0;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 70%);
+      z-index: 0;
+    }
+    .card-glass > * { position: relative; z-index: 1; }
+    .card-title { font-size: 16px; font-weight: 700; letter-spacing: -.3px; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .card-sub { font-size: 11.5px; color: rgba(245,243,248,.55); margin-bottom: 18px; }
+
+    /* ── Day-of-week header row ── */
+    .dow-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-bottom: 8px; }
+    .dow-cell { text-align: center; padding: 6px 0; font-size: 10px; font-weight: 700; color: rgba(245,243,248,.5); text-transform: uppercase; letter-spacing: .6px; }
+    .dow-cell.today { color: #3CFFA5; }
+    .dow-cell.weekend { color: rgba(245,243,248,.32); }
+
+    /* ── Week row (the actual cells) ── */
+    .week-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-bottom: 6px; }
+    .week-row.past { opacity: .55; }
+    .week-row.future { opacity: .85; }
+    .week-row.current { box-shadow: 0 0 0 1px rgba(60,255,165,.18) inset; border-radius: 14px; padding: 4px; background: rgba(60,255,165,.02); }
+
+    .day-cell {
+      min-height: 96px;
+      border-radius: 12px;
+      padding: 9px 10px;
+      cursor: pointer;
+      transition: transform .15s, background .15s;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      position: relative;
+      overflow: hidden;
+    }
+    .day-cell:hover { transform: scale(1.03); z-index: 2; }
+    .day-cell.empty { background: transparent; cursor: default; }
+    .day-cell.today { box-shadow: 0 0 0 2px rgba(60,255,165,.55) inset; }
+    .day-cell .dnum { font-size: 14px; font-weight: 700; line-height: 1; display: flex; justify-content: space-between; align-items: center; }
+    .day-cell .plan-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 999px; background: rgba(255,255,255,.10); color: rgba(245,243,248,.7); text-transform: uppercase; letter-spacing: .4px; }
+    .day-cell .status { font-size: 11px; font-weight: 700; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+    .day-cell .time { font-size: 9.5px; color: rgba(245,243,248,.55); font-variant-numeric: tabular-nums; margin-top: auto; font-weight: 500; }
+
+    /* status colours */
+    .day-cell.p     { background: rgba(60,255,165,.10); }
+    .day-cell.p .status     { color: #3CFFA5; }
+    .day-cell.p .plan-badge { background: rgba(60,255,165,.18); color: #3CFFA5; }
+    .day-cell.h     { background: rgba(255,177,59,.08); }
+    .day-cell.h .status     { color: #FFB13B; }
+    .day-cell.h .plan-badge { background: rgba(255,177,59,.18); color: #FFB13B; }
+    .day-cell.al    { background: rgba(120,150,255,.08); }
+    .day-cell.al .status    { color: #A8C5FF; }
+    .day-cell.al .plan-badge { background: rgba(120,150,255,.18); color: #A8C5FF; }
+    .day-cell.nsnc  { background: rgba(255,107,107,.12); }
+    .day-cell.nsnc .status  { color: #FF6B6B; }
+    .day-cell.nsnc .plan-badge { background: rgba(255,107,107,.18); color: #FF6B6B; }
+    .day-cell.pending { background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.16); }
+    .day-cell.pending .status { color: rgba(245,243,248,.6); }
+    .day-cell.future-empty { background: rgba(255,255,255,.025); }
+
+    /* ── Expand toggle ── */
+    .expand-toggle {
+      width: 100%; padding: 12px;
+      margin: 12px 0 0 0;
+      border: 1px dashed rgba(255,255,255,.16);
+      border-radius: 12px;
+      background: transparent;
+      color: rgba(245,243,248,.7);
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .expand-toggle:hover { background: rgba(60,255,165,.06); border-color: rgba(60,255,165,.30); color: #3CFFA5; }
+    .expand-toggle .chev { font-size: 13px; transition: transform .25s; }
+    .expand-toggle.open .chev { transform: rotate(180deg); }
+
+    /* expanded sections (collapsed by default) */
+    .past-weeks-wrap, .future-weeks-wrap {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height .35s ease;
+    }
+    .past-weeks-wrap.open, .future-weeks-wrap.open {
+      max-height: 800px;
+    }
+    .week-label { font-size: 10px; color: rgba(245,243,248,.4); text-transform: uppercase; letter-spacing: .5px; font-weight: 700; padding: 6px 4px 2px; }
+
+    /* ── legend ── */
+    .legend-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: rgba(245,243,248,.55); margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.06); }
+    .legend-row .leg { display: inline-flex; align-items: center; gap: 6px; }
+    .legend-row .leg .sw { width: 12px; height: 12px; border-radius: 3px; }
+
+    .month-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; gap: 12px; flex-wrap: wrap; }
+    .month-toolbar .label { font-size: 18px; font-weight: 700; letter-spacing: -.4px; }
+    .month-toolbar .nav { display: flex; gap: 6px; }
+    .month-toolbar .nav .nav-btn { padding: 4px 12px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); font-size: 11px; font-weight: 600; color: rgba(245,243,248,.8); cursor: pointer; font-family: inherit; }
+    .month-toolbar .nav .nav-btn:hover { background: rgba(60,255,165,.10); border-color: rgba(60,255,165,.30); color: #3CFFA5; }
+  </style>
+</head>
+<body>
+  <div class="pick-bar">
+    <h1>Tabby Pulse — Monthly calendar redesign</h1>
+    <p>Default view: <b>this week only</b>, integrated into the month grid. Past weeks and future weeks hidden behind expanders at top + bottom. Each cell shows plan badge in the corner, actual status in the middle, check-in time at the bottom.</p>
+  </div>
+
+  <div class="container">
+    <div class="card-glass">
+      <div class="month-toolbar">
+        <span class="label">My Attendance — May 2026</span>
+        <div class="nav">
+          <button class="nav-btn">‹ April</button>
+          <button class="nav-btn">May 2026</button>
+          <button class="nav-btn">June ›</button>
+        </div>
+      </div>
+      <div class="card-sub">Showing this week. Use the expanders to see past and future weeks.</div>
+
+      <!-- Day-of-week header (always visible) -->
+      <div class="dow-row">
+        <div class="dow-cell">Sun</div>
+        <div class="dow-cell">Mon</div>
+        <div class="dow-cell">Tue</div>
+        <div class="dow-cell today">Wed · 14</div>
+        <div class="dow-cell">Thu</div>
+        <div class="dow-cell weekend">Fri</div>
+        <div class="dow-cell weekend">Sat</div>
+      </div>
+
+      <!-- Past weeks expander (above current week) -->
+      <button class="expand-toggle" id="exp-past" onclick="togglePast()">
+        <span class="chev">▼</span>
+        <span id="past-label">Show 2 earlier weeks (May 1 – May 10)</span>
+      </button>
+      <div class="past-weeks-wrap" id="past-wrap">
+        <!-- Week May 3-9 -->
+        <div class="week-label">3 – 9 May</div>
+        <div class="week-row past">
+          <div class="day-cell p"><div class="dnum">3 <span class="plan-badge">P</span></div><div class="status">✓ Present</div><div class="time">09:08</div></div>
+          <div class="day-cell p"><div class="dnum">4 <span class="plan-badge">P</span></div><div class="status">✓ Present</div><div class="time">08:55</div></div>
+          <div class="day-cell p"><div class="dnum">5 <span class="plan-badge">P</span></div><div class="status">✓ Present</div><div class="time">09:21</div></div>
+          <div class="day-cell p"><div class="dnum">6 <span class="plan-badge">P</span></div><div class="status">✓ Present</div><div class="time">09:00</div></div>
+          <div class="day-cell al"><div class="dnum">7 <span class="plan-badge">P</span></div><div class="status">🌴 AL</div><div class="time">lead set</div></div>
+          <div class="day-cell h"><div class="dnum">8 <span class="plan-badge">H</span></div><div class="status">— Holiday</div><div class="time">—</div></div>
+          <div class="day-cell h"><div class="dnum">9 <span class="plan-badge">H</span></div><div class="status">— Holiday</div><div class="time">—</div></div>
+        </div>
+      </div>
+
+      <!-- Current week (always visible) -->
+      <div class="week-row current">
+        <div class="day-cell p"><div class="dnum">10 <span class="plan-badge">P</span></div><div class="status">✓ Present</div><div class="time">09:04</div></div>
+        <div class="day-cell p"><div class="dnum">11 <span class="plan-badge">P</span></div><div class="status">✓ Present</div><div class="time">09:14</div></div>
+        <div class="day-cell p"><div class="dnum">12 <span class="plan-badge">P</span></div><div class="status">✓ Present</div><div class="time">09:02</div></div>
+        <div class="day-cell nsnc"><div class="dnum">13 <span class="plan-badge">P</span></div><div class="status">✕ NSNC</div><div class="time">auto · 19:00</div></div>
+        <div class="day-cell pending today"><div class="dnum">14 <span class="plan-badge">P</span></div><div class="status">⏳ Not yet</div><div class="time">window 09:00–18:00</div></div>
+        <div class="day-cell pending"><div class="dnum">15 <span class="plan-badge">P</span></div><div class="status">— Planned</div><div class="time">window 09:00–18:00</div></div>
+        <div class="day-cell h"><div class="dnum">16 <span class="plan-badge">H</span></div><div class="status">— Holiday</div><div class="time">—</div></div>
+      </div>
+
+      <!-- Future weeks expander (below current week) -->
+      <button class="expand-toggle" id="exp-future" onclick="toggleFuture()">
+        <span class="chev">▼</span>
+        <span id="future-label">Show 2 upcoming weeks (May 17 – May 31)</span>
+      </button>
+      <div class="future-weeks-wrap" id="future-wrap">
+        <!-- Week May 17-23 -->
+        <div class="week-label">17 – 23 May</div>
+        <div class="week-row future">
+          <div class="day-cell h"><div class="dnum">17 <span class="plan-badge">H</span></div><div class="status">— Holiday</div></div>
+          <div class="day-cell pending"><div class="dnum">18 <span class="plan-badge">P</span></div><div class="status">— Planned</div></div>
+          <div class="day-cell pending"><div class="dnum">19 <span class="plan-badge">P</span></div><div class="status">— Planned</div></div>
+          <div class="day-cell pending"><div class="dnum">20 <span class="plan-badge">P</span></div><div class="status">— Planned</div></div>
+          <div class="day-cell pending"><div class="dnum">21 <span class="plan-badge">P</span></div><div class="status">— Planned</div></div>
+          <div class="day-cell h"><div class="dnum">22 <span class="plan-badge">H</span></div><div class="status">— Holiday</div></div>
+          <div class="day-cell h"><div class="dnum">23 <span class="plan-badge">H</span></div><div class="status">— Holiday</div></div>
+        </div>
+        <!-- Week May 24-30 -->
+        <div class="week-label">24 – 30 May</div>
+        <div class="week-row future">
+          <div class="day-cell pending"><div class="dnum">24 <span class="plan-badge">P</span></div><div class="status">— Planned</div></div>
+          <div class="day-cell pending"><div class="dnum">25 <span class="plan-badge">P</span></div><div class="status">— Planned</div></div>
+          <div class="day-cell pending"><div class="dnum">26 <span class="plan-badge">P</span></div><div class="status">— Planned</div></div>
+          <div class="day-cell pending"><div class="dnum">27 <span class="plan-badge">P</span></div><div class="status">— Planned</div></div>
+          <div class="day-cell pending"><div class="dnum">28 <span class="plan-badge">P</span></div><div class="status">— Planned</div></div>
+          <div class="day-cell h"><div class="dnum">29 <span class="plan-badge">H</span></div><div class="status">— Holiday</div></div>
+          <div class="day-cell h"><div class="dnum">30 <span class="plan-badge">H</span></div><div class="status">— Holiday</div></div>
+        </div>
+        <!-- Week May 31 -->
+        <div class="week-label">31 May</div>
+        <div class="week-row future">
+          <div class="day-cell pending"><div class="dnum">31 <span class="plan-badge">P</span></div><div class="status">— Planned</div></div>
+          <div class="day-cell empty"></div>
+          <div class="day-cell empty"></div>
+          <div class="day-cell empty"></div>
+          <div class="day-cell empty"></div>
+          <div class="day-cell empty"></div>
+          <div class="day-cell empty"></div>
+        </div>
+      </div>
+
+      <div class="legend-row">
+        <span class="leg"><span class="sw" style="background:rgba(60,255,165,.35)"></span>Present (P)</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,177,59,.30)"></span>Holiday (H)</span>
+        <span class="leg"><span class="sw" style="background:rgba(120,150,255,.30)"></span>Leave (AL/SL)</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,107,107,.35)"></span>NSNC (no-show)</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,255,255,.10);border:1px dashed rgba(255,255,255,.4)"></span>Planned, not yet checked in</span>
+      </div>
+    </div>
+
+    <div style="margin-top:24px;padding:16px 20px;border-radius:14px;background:rgba(60,255,165,.06);border:1px solid rgba(60,255,165,.20);font-size:12.5px;line-height:1.55;color:rgba(245,243,248,.85);">
+      <strong style="color:#3CFFA5;">How it works:</strong>
+      <ul style="margin-top:6px;margin-left:18px;color:rgba(245,243,248,.7);">
+        <li>The current week is always visible.</li>
+        <li>Click "Show earlier weeks" to expand past weeks above.</li>
+        <li>Click "Show upcoming weeks" to expand the rest of the month below.</li>
+        <li>Each cell shows: <b>day number + plan badge</b> on the top, <b>actual status</b> in the middle, <b>check-in time</b> at the bottom.</li>
+        <li>Today is outlined in green. Past days are slightly dimmed.</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    function togglePast(){
+      const wrap = document.getElementById("past-wrap");
+      const btn = document.getElementById("exp-past");
+      const label = document.getElementById("past-label");
+      const open = wrap.classList.toggle("open");
+      btn.classList.toggle("open");
+      label.textContent = open ? "Hide earlier weeks" : "Show 2 earlier weeks (May 1 – May 10)";
+    }
+    function toggleFuture(){
+      const wrap = document.getElementById("future-wrap");
+      const btn = document.getElementById("exp-future");
+      const label = document.getElementById("future-label");
+      const open = wrap.classList.toggle("open");
+      btn.classList.toggle("open");
+      label.textContent = open ? "Hide upcoming weeks" : "Show 2 upcoming weeks (May 17 – May 31)";
+    }
+  </script>
+
+</body>
+</html>
