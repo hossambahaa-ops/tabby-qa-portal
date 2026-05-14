@@ -23,16 +23,33 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
       const em = qa.email?.toLowerCase();
       const qaAtt = attendance.filter(a => a.email?.toLowerCase() === em && isApproved(a) && isOnOrBeforeToday(a));
       const count = (...codes) => qaAtt.filter(a => codes.includes(a.status)).length;
+      // P-count carve-out for TODAY: the status column defaults to 'P'
+      // when the lead drops a planned-P row, so today's planned-P
+      // shows status='P' even before the QA has actually checked in.
+      // For Trans / WD purposes we want to count today's P only when
+      // there's evidence the QA actually showed up (checked_in_at set)
+      // or the lead explicitly overrode the auto-default. Past days
+      // resolve through the auto-NSNC cron or remain as P, so this
+      // only affects today's row.
+      const pCountToday = qaAtt.filter(a => a.status === "P" && a.date === todayStr && a.checked_in_at).length;
+      const pCountPast = qaAtt.filter(a => a.status === "P" && a.date < todayStr).length;
+      const pCount = pCountToday + pCountPast;
       const otHours = qaAtt.filter(a => a.status === "OT").reduce((s, a) => s + (parseFloat(a.ot_hours) || 0), 0);
       // Health % = healthy / scheduled (planned H or P) MTD; higher = better.
       // computeAttendanceHealth handles its own date cutoff and planned filter.
       const allRowsForQa = attendance.filter(a => a.email?.toLowerCase() === em);
       const health = computeAttendanceHealth(allRowsForQa, selMonth);
+      // WD Payable = (check-in-aware P) + H + PH + CDO.
+      // H/PH/CDO are explicit lead picks (not defaults), so they count
+      // as-is. Only P needs the today/checked_in_at guard.
+      const hCount = count("H");
+      const phCount = count("PH");
+      const cdoCount = count("CDO");
       return {
         email: em,
         name: nameFromEmail(em),
-        wdPayable: count("P", "H", "PH", "CDO"),
-        transDays: count("P"),
+        wdPayable: pCount + hCount + phCount + cdoCount,
+        transDays: pCount,
         otHours,
         phDays: count("PH"),
         cdoDays: count("CDO"),

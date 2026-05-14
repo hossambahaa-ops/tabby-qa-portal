@@ -428,6 +428,45 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
         >
           Open bulk set
         </button>
+        {/* Quick action: stamp the org-default 9:00–18:00 window onto
+            every planned-P row in this month that doesn't already have
+            shift times. Without shift_end set, the auto-NSNC cron skips
+            the row entirely, so this is the one-click "turn on NSNC
+            enforcement for this team this month" button. */}
+        <button
+          className="btn btn-outline btn-sm"
+          onClick={() => {
+            const next = { ...pendingShifts };
+            let touched = 0;
+            for (const qa of visibleQAs) {
+              const em = (qa.email || "").toLowerCase();
+              for (const d of days) {
+                if (!isPlanEditableDate(d.date)) continue;
+                // Determine the planned status for this cell — pending change wins, then DB row.
+                const key = `${em}__${d.date}`;
+                const dbRow = attendance.find(a => a.email?.toLowerCase() === em && a.date === d.date);
+                let planned = dbRow?.planned_code;
+                if (Object.prototype.hasOwnProperty.call(pendingChanges, key)) planned = pendingChanges[key];
+                if (planned !== "P") continue;
+                // Skip if shifts are already set (DB or pending)
+                const existingShift = (() => {
+                  if (Object.prototype.hasOwnProperty.call(pendingShifts, key)) return pendingShifts[key];
+                  if (dbRow?.shift_start && dbRow?.shift_end) return { start: String(dbRow.shift_start).slice(0,5), end: String(dbRow.shift_end).slice(0,5) };
+                  return null;
+                })();
+                if (existingShift) continue;
+                next[key] = { start: "09:00", end: "18:00" };
+                touched++;
+              }
+            }
+            setPendingShifts(next);
+            globalToast("success", `Default 9:00–18:00 shift queued for ${touched} planned-P cell${touched === 1 ? "" : "s"} · click Save to commit`);
+          }}
+          style={{ fontSize: 11, fontWeight: 600 }}
+          title="Stamp 9:00–18:00 shift on every planned-P cell that has no shift set. Required for auto-NSNC enforcement."
+        >
+          ⏱ Apply default 9:00–18:00 to planned-P
+        </button>
       </div>
 
       <AttendancePlanBulkModal
@@ -527,12 +566,18 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                     const planned = cellPlan(em, d.date);
                     const original = attMap[`${em}__${d.date}`]?.planned_code || null;
                     const isPending = planned !== original;
-                    const shift = isSuperAdmin ? cellShift(em, d.date) : null;
+                    // Show shift times to every viewer (was super_admin
+                    // only). With auto-NSNC enforcement gated on
+                    // shift_end being set, leads need to see at a glance
+                    // which of their planned-P cells will trigger NSNC
+                    // versus which are still in the "no shift, no
+                    // enforcement" loose mode.
+                    const shift = cellShift(em, d.date);
                     const cellKey = `${em}__${d.date}`;
                     const origRow = attMap[cellKey];
                     const origShiftStart = origRow?.shift_start ? String(origRow.shift_start).slice(0, 5) : null;
                     const origShiftEnd = origRow?.shift_end ? String(origRow.shift_end).slice(0, 5) : null;
-                    const isShiftPending = isSuperAdmin && Object.prototype.hasOwnProperty.call(pendingShifts, cellKey)
+                    const isShiftPending = Object.prototype.hasOwnProperty.call(pendingShifts, cellKey)
                       && ((shift?.start || null) !== origShiftStart || (shift?.end || null) !== origShiftEnd);
                     let bg = "transparent";
                     let txt = "";

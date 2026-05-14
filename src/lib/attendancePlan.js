@@ -116,9 +116,20 @@ export function computeAttendanceHealth(rows, monthYM, now = new Date()) {
     r.date && r.date >= monthStart && r.date <= todayStr &&
     (r.planned_code === "H" || r.planned_code === "P")
   );
-  const scheduledDays = scheduled.length;
+  // Today's planned-P rows are "pending" if status is still the default
+  // 'P' and the QA hasn't actually checked in yet. They shouldn't count
+  // as healthy OR absent — they're in flight. Exclude them from both
+  // numerator and denominator so the percentage doesn't whiplash as the
+  // QA checks in or the auto-NSNC cron fires.
+  const isPendingToday = (r) =>
+    r.date === todayStr &&
+    r.planned_code === "P" &&
+    r.status === "P" &&
+    !r.checked_in_at;
+  const resolved = scheduled.filter(r => !isPendingToday(r));
+  const scheduledDays = resolved.length;
   if (scheduledDays === 0) return { healthPct: null, healthyDays: 0, absentDays: 0, scheduledDays: 0 };
-  const absentDays = scheduled.filter(r => !r.status || r.status === "NSNC").length;
+  const absentDays = resolved.filter(r => !r.status || r.status === "NSNC").length;
   const healthyDays = scheduledDays - absentDays;
   return {
     healthPct: (healthyDays / scheduledDays) * 100,
