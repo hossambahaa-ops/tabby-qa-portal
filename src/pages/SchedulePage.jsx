@@ -27,7 +27,7 @@ import MyMonthCalendar from "../components/schedule/MyMonthCalendar.jsx";
 import DayCell from "../components/schedule/DayCell.jsx";
 
 function SchedulePage() {
-  const{token,profile,gf,globalToast}=useApp();
+  const{token,profile,gf,globalToast,realProfile}=useApp();
   const [attendance, setAttendance] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -854,10 +854,11 @@ function SchedulePage() {
         </div>}
 
         {/* ── PREVIEW (super_admin only): "This week" strip + Today's huddle ──
-            These are the new attendance cards we're previewing for the
-            integrated Attendance page. Gated behind isSuperAdmin so only
-            you see them right now. Removes the gate once approved. */}
-        {isSuperAdmin && (() => {
+            Gated on the REAL profile's role, not the effective one, so the
+            preview survives a "View as" impersonation — Hossam can switch
+            into any QA Lead and still see how their team's huddle renders.
+            Remove the gate entirely once approved. */}
+        {(realProfile?.role === "super_admin" || isSuperAdmin) && (() => {
           const fmtTime = (ts) => ts ? new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
           const todayIso = new Date().toISOString().slice(0, 10);
           // ── Build this week's dates (Sun → Sat in Riyadh convention) ──

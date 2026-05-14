@@ -486,7 +486,7 @@ function AppInner(){
     return !n.minRole || hasRole(userRole, n.minRole);
   });let curSec=null;
   const guardRole=(role,component,fallbackProps)=>hasRole(userRole,role)?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
-  const appCtx={token:session?.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast};
+  const appCtx={token:session?.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast,realProfile:profile,impersonating};
 
   // ── Block QA / senior_qa roles on mobile devices ──
   // They must use a desktop browser. Leads and admins may use mobile.
