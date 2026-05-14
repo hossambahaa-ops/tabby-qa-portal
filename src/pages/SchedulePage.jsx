@@ -981,15 +981,34 @@ function SchedulePage() {
                 // Aggregate stats for the strip across visible team
                 const teamEmailsLower = visibleQAs.map(r => r.email?.toLowerCase()).filter(Boolean);
                 const monthRows = (attendance || []).filter(a => teamEmailsLower.includes((a.email || "").toLowerCase()));
+                // Per-QA stats — used to render an adherence badge next to
+                // each row's name. Keyed by lower-cased email.
+                const perQaStats = new Map();
+                for (const qa of visibleQAs) {
+                  perQaStats.set(qa.email.toLowerCase(), { planned: 0, adhered: 0, nsnc: 0 });
+                }
                 let pCount = 0, nsncCount = 0, alCount = 0, plannedP = 0, pendingTodayCount = 0;
+                let adheredCount = 0; // status='P' on a planned-P day. Used for true adherence.
                 for (const r of monthRows) {
+                  const k = (r.email || "").toLowerCase();
+                  const s = perQaStats.get(k);
+                  if (s) {
+                    if (r.planned_code === "P") s.planned++;
+                    if (r.planned_code === "P" && r.status === "P") s.adhered++;
+                    if (r.status === "NSNC") s.nsnc++;
+                  }
                   if (r.status === "P") pCount++;
                   if (r.status === "NSNC") nsncCount++;
                   if (["AL","SL","PH"].includes(r.status)) alCount++;
                   if (r.planned_code === "P") plannedP++;
+                  if (r.planned_code === "P" && r.status === "P") adheredCount++;
                   if (r.date === todayIso && r.planned_code === "P" && !r.checked_in_at && r.status !== "NSNC" && !["AL","SL","PH"].includes(r.status)) pendingTodayCount++;
                 }
-                const adherence = plannedP > 0 ? `${((pCount / plannedP) * 100).toFixed(1)}%` : "—";
+                // Adherence: count only days where (planned P) AND (actual P).
+                // Previously used pCount / plannedP which could go over 100%
+                // if a QA was marked P on a day they were *not* planned to be
+                // present (e.g. worked on a holiday and the lead set 'P').
+                const adherence = plannedP > 0 ? `${Math.min(100, (adheredCount / plannedP) * 100).toFixed(1)}%` : "—";
                 // Cell variant + content resolver
                 const cellDesc = (qaLower, d) => {
                   const row = monthRows.find(a => (a.email || "").toLowerCase() === qaLower && a.date === d.iso);
@@ -1084,13 +1103,25 @@ function SchedulePage() {
                         {/* Rows: one per visible QA */}
                         {visibleQAs.map(qa => {
                           const qaLower = qa.email.toLowerCase();
+                          const st = perQaStats.get(qaLower) || { planned: 0, adhered: 0, nsnc: 0 };
+                          const adhPct = st.planned > 0 ? (st.adhered / st.planned) * 100 : null;
+                          // Adherence badge colour: green ≥90, amber 70-90, red <70.
+                          // Null when there's no plan yet (avoids "—%" noise).
+                          const adhColor = adhPct == null ? "var(--tx3)" : adhPct >= 90 ? "var(--green)" : adhPct >= 70 ? "var(--amber)" : "var(--red)";
                           return (
                             <React.Fragment key={`row-${qa.email}`}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", fontSize: 11.5, fontWeight: 600, position: "sticky", left: 0, background: "rgba(15,13,20,.92)", backdropFilter: "blur(8px)", zIndex: 2, minHeight: 58, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px", fontSize: 11.5, fontWeight: 600, position: "sticky", left: 0, background: "rgba(15,13,20,.92)", backdropFilter: "blur(8px)", zIndex: 2, minHeight: 58, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                                 <span style={{ width: 22, height: 22, borderRadius: "50%", background: "linear-gradient(135deg, #6A2C79, #C9A0FF)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 9.5, flexShrink: 0 }}>
                                   {_nameFromEmail(qa.email).split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase()}
                                 </span>
-                                <span style={{ fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis" }}>{_nameFromEmail(qa.email)}</span>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", minWidth: 0 }}>
+                                  <span style={{ fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{_nameFromEmail(qa.email)}</span>
+                                  <span style={{ fontSize: 9.5, color: adhColor, fontVariantNumeric: "tabular-nums", fontWeight: 700, letterSpacing: ".2px" }} title={`${st.adhered} of ${st.planned} planned-P days actually present${st.nsnc > 0 ? ` · ${st.nsnc} NSNC` : ""}`}>
+                                    {st.planned > 0
+                                      ? `${st.adhered}/${st.planned} · ${adhPct.toFixed(0)}%${st.nsnc > 0 ? ` · ${st.nsnc} NSNC` : ""}`
+                                      : "no plan yet"}
+                                  </span>
+                                </div>
                               </div>
                               {days.map(d => {
                                 const desc = cellDesc(qaLower, d);
@@ -1262,7 +1293,12 @@ function SchedulePage() {
         )}
 
         {/* Calendar grid (leads / supervisors / admins) */}
-        {!(isQA && !isLead) && (<>
+        {/* Wide team table — the original lead grid. Hidden when the new
+            compact full-month grid is rendering (super-admin viewing-as
+            qa_lead+) so leads don't see two side-by-side views. Drop
+            the second clause once the compact grid is approved for
+            everyone qa_lead+. */}
+        {!(isQA && !isLead) && !(realProfile?.role === "super_admin" && hasRole(profile?.role, "qa_lead")) && (<>
         <div className="card" style={{overflow:"auto"}}>
           <table style={{fontSize:11,whiteSpace:"nowrap",minWidth:800}}>
             <thead>
