@@ -2489,6 +2489,51 @@ select:focus {
   outline: none !important;
 }
 
+/* Native <select> — replace the OS chevron with a custom one so the
+   closed state looks designed, and override the open-dropdown panel
+   colours so options match the app palette (no more bright-blue OS
+   highlight on dark glass). The option styling works in Chromium
+   and Firefox; Safari ignores most of it but the closed select still
+   gets the custom chevron. */
+select {
+  appearance: none !important;
+  -webkit-appearance: none !important;
+  -moz-appearance: none !important;
+  padding-right: 32px !important;
+  background-repeat: no-repeat !important;
+  background-position: right 10px center !important;
+  background-size: 14px !important;
+  cursor: pointer;
+}
+html:not(.dark) select {
+  /* Inline SVG chevron tinted to match light-mode text */
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%231F1D24' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") !important;
+}
+html.dark select {
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23ECEFF6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>") !important;
+}
+/* Option panel — Chrome/Firefox respect bg + color on option; Safari
+   keeps OS look. Both themes get a glass-aligned palette so the open
+   list doesn't break the visual style of the app. */
+html.dark select option {
+  background-color: #1A1525 !important;
+  color: #ECEFF6 !important;
+  padding: 6px 8px;
+}
+html.dark select option:checked {
+  background: linear-gradient(90deg, var(--tabby-purple), var(--tabby-purple-light)) !important;
+  color: #fff !important;
+}
+html:not(.dark) select option {
+  background-color: #FAFAF8 !important;
+  color: #1F1D24 !important;
+  padding: 6px 8px;
+}
+html:not(.dark) select option:checked {
+  background: linear-gradient(90deg, var(--tabby-purple), var(--tabby-purple-light)) !important;
+  color: #fff !important;
+}
+
 /* ── 9. Modals / dialogs: stronger glass so the backdrop blur reads ── */
 [role="dialog"] > div,
 .modal {
