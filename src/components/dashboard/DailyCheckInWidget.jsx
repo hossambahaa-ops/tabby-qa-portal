@@ -56,7 +56,18 @@ export default function DailyCheckInWidget() {
       // created_by is NOT NULL on qa_attendance, so include it for first-
       // time check-in inserts. On upserts that hit an existing row,
       // merge-duplicates preserves the original.
-      const body = { email: myEmail, date: today, status: code, created_by: myEmail };
+      // checked_in_at = now(): durable timestamp of when the QA marked
+      // themselves. Read by the auto-NSNC cron (skip if NULL at
+      // shift_end+1h) and by the daily attendance digest ("not yet
+      // checked in" list). Kept distinct from `status` so the lead can
+      // tell self-marked rows from auto-defaulted ones.
+      const body = {
+        email: myEmail,
+        date: today,
+        status: code,
+        created_by: myEmail,
+        checked_in_at: new Date().toISOString(),
+      };
       // Note: code is "H" or "P" — same letters used everywhere in the UI
       const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
         method: "POST",
