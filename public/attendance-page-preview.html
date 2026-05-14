@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tabby Pulse — Attendance page (integrated preview)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0A0814; color: #F5F3F8; font-family: 'Inter Tight', system-ui, sans-serif; min-height: 100%; }
+    body {
+      background:
+        radial-gradient(ellipse 900px 700px at 12% 5%, rgba(106,44,121,.40), transparent 60%),
+        radial-gradient(ellipse 800px 600px at 90% 25%, rgba(60,255,165,.18), transparent 60%),
+        radial-gradient(ellipse 700px 600px at 75% 95%, rgba(120,80,255,.28), transparent 60%),
+        #0A0814;
+      background-attachment: fixed;
+    }
+    .pick-bar { position: sticky; top: 0; background: rgba(10,8,20,.85); backdrop-filter: blur(20px); padding: 16px 28px; border-bottom: 1px solid rgba(255,255,255,.06); z-index: 50; }
+    .pick-bar h1 { font-size: 19px; font-weight: 700; letter-spacing: -.4px; }
+    .pick-bar p { color: rgba(245,243,248,.55); font-size: 13px; margin-top: 3px; max-width: 80ch; }
+    .pick-bar nav { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .pick-bar a {
+      font-size: 11.5px; font-weight: 600; color: rgba(245,243,248,.7); text-decoration: none;
+      padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+    }
+    .pick-bar a:hover { background: rgba(255,255,255,.12); color: #fff; }
+
+    .role-section { max-width: 1300px; margin: 0 auto; padding: 40px 32px 48px; border-bottom: 1px dashed rgba(255,255,255,.06); }
+    .role-section h2 { font-size: 24px; font-weight: 700; letter-spacing: -.6px; }
+    .role-section .role-tag { font-size: 10.5px; padding: 4px 12px; border-radius: 999px; background: rgba(180,120,255,.18); color: #C9A0FF; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; display: inline-block; margin-left: 12px; vertical-align: middle; }
+
+    /* ── Page chrome (matching the actual Attendance page) ── */
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; flex-wrap: wrap; gap: 12px; }
+    .page-title { font-size: 22px; font-weight: 700; letter-spacing: -.5px; }
+    .page-controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .page-controls .ctrl { font-size: 11.5px; font-weight: 600; padding: 6px 12px; border-radius: 8px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08); color: rgba(245,243,248,.8); }
+    .page-controls .ctrl.primary { background: var(--tabby-purple, #6A2C79); border-color: transparent; color: #fff; }
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,.06); padding-bottom: 0; }
+    .tab-bar button {
+      background: none; border: none; padding: 10px 18px;
+      color: rgba(245,243,248,.55); font-size: 13px; font-weight: 600; cursor: pointer;
+      border-bottom: 2px solid transparent;
+      font-family: inherit;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .tab-bar button.active { color: #3CFFA5; border-bottom-color: #3CFFA5; }
+    .tab-bar .badge { background: rgba(255,107,107,.22); color: #FF6B6B; font-size: 10px; padding: 1px 7px; border-radius: 999px; font-weight: 700; }
+
+    .card-glass {
+      border-radius: 28px;
+      padding: 24px 28px;
+      background: rgba(255,255,255,.05);
+      backdrop-filter: blur(36px) saturate(180%);
+      box-shadow:
+        0 32px 80px -12px rgba(0,0,0,.5),
+        0 12px 32px -8px rgba(0,0,0,.35),
+        inset 0 1px 0 rgba(255,255,255,.09);
+      position: relative;
+      isolation: isolate;
+      margin-bottom: 18px;
+    }
+    .card-glass::before {
+      content: ""; position: absolute; inset: 0 0 auto 0; height: 50%; pointer-events: none;
+      border-radius: 28px 28px 0 0;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 70%);
+      z-index: 0;
+    }
+    .card-glass > * { position: relative; z-index: 1; }
+    .card-title { font-size: 15px; font-weight: 700; letter-spacing: -.3px; margin-bottom: 4px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .card-sub { font-size: 11.5px; color: rgba(245,243,248,.55); margin-bottom: 18px; }
+
+    /* ── QA week strip (top of page) ── */
+    .week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+    .day-cell {
+      padding: 12px 10px;
+      border-radius: 14px;
+      background: rgba(255,255,255,.04);
+      position: relative;
+      transition: transform .2s, background .2s;
+      cursor: pointer;
+      min-height: 110px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .day-cell:hover { transform: translateY(-2px); background: rgba(255,255,255,.07); }
+    .day-cell.today {
+      background: linear-gradient(180deg, rgba(60,255,165,.16), rgba(60,255,165,.06));
+      box-shadow: 0 0 0 2px rgba(60,255,165,.40) inset;
+    }
+    .day-cell.past { opacity: .68; }
+    .day-cell .dow { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: rgba(245,243,248,.55); }
+    .day-cell.today .dow { color: #3CFFA5; }
+    .day-cell .date { font-size: 19px; font-weight: 700; letter-spacing: -.5px; font-variant-numeric: tabular-nums; line-height: 1; }
+    .day-cell .plan { font-size: 10px; font-weight: 600; color: rgba(245,243,248,.6); text-transform: uppercase; letter-spacing: .5px; }
+    .day-cell .plan b { color: rgba(245,243,248,.95); }
+    .day-cell .actual { margin-top: auto; padding-top: 5px; border-top: 1px solid rgba(255,255,255,.06); font-size: 11px; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+    .day-cell .actual.ok    { color: #3CFFA5; }
+    .day-cell .actual.bad   { color: #FF6B6B; }
+    .day-cell .actual.muted { color: rgba(245,243,248,.45); }
+    .day-cell .check-time { font-size: 9.5px; color: rgba(245,243,248,.45); font-weight: 500; font-variant-numeric: tabular-nums; }
+
+    /* ── QA calendar (the existing grid, enhanced) ── */
+    .qa-calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; font-size: 11px; }
+    .qa-calendar .dow-h { text-align: center; padding: 6px 0; font-size: 9.5px; font-weight: 700; color: rgba(245,243,248,.5); text-transform: uppercase; letter-spacing: .6px; }
+    .qa-calendar .qcell { min-height: 64px; border-radius: 10px; padding: 8px; cursor: pointer; transition: transform .15s; position: relative; }
+    .qa-calendar .qcell:hover { transform: scale(1.04); z-index: 2; }
+    .qa-calendar .qcell .n { font-size: 13px; font-weight: 700; line-height: 1; }
+    .qa-calendar .qcell .tag { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; margin-top: 5px; display: block; opacity: .9; }
+    .qa-calendar .qcell .t { font-size: 9px; opacity: .65; display: block; margin-top: 1px; font-variant-numeric: tabular-nums; }
+    .qa-calendar .qcell.empty { background: transparent; cursor: default; }
+    .qa-calendar .qcell.p    { background: rgba(60,255,165,.12); border: 1px solid rgba(60,255,165,.20); }
+    .qa-calendar .qcell.h    { background: rgba(255,177,59,.10); border: 1px solid rgba(255,177,59,.20); }
+    .qa-calendar .qcell.al   { background: rgba(120,150,255,.10); border: 1px solid rgba(120,150,255,.22); }
+    .qa-calendar .qcell.nsnc { background: rgba(255,107,107,.14); border: 1px solid rgba(255,107,107,.30); }
+    .qa-calendar .qcell.off  { background: rgba(245,243,248,.04); border: 1px solid rgba(245,243,248,.08); }
+    .qa-calendar .qcell.pending { background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.20); }
+    .qa-calendar .qcell.today-edge { box-shadow: 0 0 0 2px rgba(60,255,165,.5) inset; }
+
+    .legend-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: rgba(245,243,248,.6); margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.06); }
+    .legend-row .leg { display: inline-flex; align-items: center; gap: 6px; }
+    .legend-row .leg .sw { width: 12px; height: 12px; border-radius: 3px; }
+
+    /* ── Lead huddle banner ── */
+    .huddle-banner { display: flex; gap: 14px; margin-bottom: 16px; padding: 12px 16px; border-radius: 14px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); flex-wrap: wrap; }
+    .huddle-banner .stat { display: flex; flex-direction: column; gap: 2px; min-width: 100px; }
+    .huddle-banner .stat .v { font-size: 20px; font-weight: 700; letter-spacing: -.5px; font-variant-numeric: tabular-nums; }
+    .huddle-banner .stat .l { font-size: 10.5px; color: rgba(245,243,248,.55); font-weight: 600; text-transform: uppercase; letter-spacing: .6px; }
+    .huddle-banner .stat.ok .v   { color: #3CFFA5; }
+    .huddle-banner .stat.warn .v { color: #FFB13B; }
+    .huddle-banner .stat.bad .v  { color: #FF6B6B; }
+    .huddle-banner .stat.info .v { color: #A8C5FF; }
+
+    /* ── Lead team-week grid (the existing calendar, enhanced with check-in time) ── */
+    .lead-week-grid { display: grid; grid-template-columns: 170px repeat(7, 1fr); gap: 4px; font-size: 11px; }
+    .lead-week-grid .lwg-h { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; color: rgba(245,243,248,.5); padding: 6px 4px; text-align: center; }
+    .lead-week-grid .lwg-h.today { color: #3CFFA5; }
+    .lead-week-grid .name-cell { display: flex; align-items: center; gap: 8px; padding: 6px 8px; font-weight: 600; font-size: 12px; }
+    .lead-week-grid .name-cell .av { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, #6A2C79, #C9A0FF); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 9px; }
+    .lead-week-grid .lcell { padding: 6px 4px; border-radius: 8px; min-height: 58px; text-align: center; display: flex; flex-direction: column; justify-content: center; gap: 1px; cursor: pointer; transition: transform .15s; font-weight: 700; }
+    .lead-week-grid .lcell:hover { transform: scale(1.06); z-index: 2; }
+    .lead-week-grid .lcell .stat { font-size: 11px; }
+    .lead-week-grid .lcell .t { font-size: 9px; opacity: .65; font-variant-numeric: tabular-nums; font-weight: 500; }
+    .lead-week-grid .lcell.p    { background: rgba(60,255,165,.12); color: #3CFFA5; border: 1px solid rgba(60,255,165,.20); }
+    .lead-week-grid .lcell.h    { background: rgba(255,177,59,.10); color: #FFB13B; border: 1px solid rgba(255,177,59,.20); }
+    .lead-week-grid .lcell.al   { background: rgba(120,150,255,.10); color: #A8C5FF; border: 1px solid rgba(120,150,255,.22); }
+    .lead-week-grid .lcell.nsnc { background: rgba(255,107,107,.14); color: #FF6B6B; border: 1px solid rgba(255,107,107,.30); }
+    .lead-week-grid .lcell.pending { background: rgba(255,255,255,.04); color: rgba(245,243,248,.5); border: 1px dashed rgba(255,255,255,.18); }
+    .lead-week-grid .lcell.future { background: rgba(255,255,255,.03); color: rgba(245,243,248,.35); border: 1px solid rgba(255,255,255,.06); }
+    .lead-week-grid .lcell.today-edge { box-shadow: 0 0 0 2px rgba(60,255,165,.5); }
+
+    .note { font-size: 11.5px; color: rgba(201,160,255,.85); line-height: 1.55; padding: 10px 14px; border-radius: 10px; background: rgba(201,160,255,.06); border: 1px solid rgba(201,160,255,.18); margin-bottom: 16px; }
+    .note b { color: #C9A0FF; }
+  </style>
+</head>
+<body>
+  <div class="pick-bar">
+    <h1>Tabby Pulse — Attendance page (integrated)</h1>
+    <p>Everything below lives on the existing <code>/schedule</code> page — no new pages, no new sidebar items. The Calendar tab gets enhanced with the new fields. QAs and Leads each see a different shape based on their role.</p>
+    <nav>
+      <a href="#qa-view">QA view (their own attendance)</a>
+      <a href="#lead-view">Lead view (their team's attendance)</a>
+    </nav>
+  </div>
+
+  <!-- ═══════════════════ QA VIEW ═══════════════════ -->
+  <section class="role-section" id="qa-view">
+    <h2>Attendance page — QA view <span class="role-tag">QA & Senior QA</span></h2>
+    <div class="note">
+      Same page they go to today (<b>/schedule</b>). The current calendar grid stays — they still see their own row. We add: <b>(1)</b> a "This week" strip on top showing plan + actual + check-in time at a glance, and <b>(2)</b> the check-in time inside each calendar cell.
+    </div>
+
+    <div class="page-header">
+      <div class="page-title">My Attendance</div>
+      <div class="page-controls">
+        <span class="ctrl">‹ May 2026 ›</span>
+      </div>
+    </div>
+
+    <div class="tab-bar">
+      <button class="active">Calendar</button>
+      <button>Pending (1)</button>
+    </div>
+
+    <div class="card-glass">
+      <div class="card-title">
+        <span>This week · 11–17 May 2026</span>
+        <span style="font-size:11px;color:rgba(245,243,248,.55);">Tap any day to view / mark status</span>
+      </div>
+      <div class="card-sub">Plan was set by your lead. You can mark your status only during your shift window.</div>
+
+      <div class="week-strip">
+        <div class="day-cell past">
+          <div class="dow">Sun</div><div class="date">11</div>
+          <div class="plan">Plan · <b>P</b></div>
+          <div class="actual ok">✓ Present</div>
+          <div class="check-time">09:14</div>
+        </div>
+        <div class="day-cell past">
+          <div class="dow">Mon</div><div class="date">12</div>
+          <div class="plan">Plan · <b>P</b></div>
+          <div class="actual ok">✓ Present</div>
+          <div class="check-time">09:02</div>
+        </div>
+        <div class="day-cell past">
+          <div class="dow">Tue</div><div class="date">13</div>
+          <div class="plan">Plan · <b>P</b></div>
+          <div class="actual bad">✕ NSNC</div>
+          <div class="check-time">auto · 19:00</div>
+        </div>
+        <div class="day-cell today">
+          <div class="dow">Wed · TODAY</div><div class="date">14</div>
+          <div class="plan">Plan · <b>P</b></div>
+          <div class="actual muted">Not yet</div>
+          <div class="check-time">window 09:00–18:00</div>
+        </div>
+        <div class="day-cell">
+          <div class="dow">Thu</div><div class="date">15</div>
+          <div class="plan">Plan · <b>P</b></div>
+          <div class="actual muted">—</div>
+          <div class="check-time">window 09:00–18:00</div>
+        </div>
+        <div class="day-cell">
+          <div class="dow">Fri</div><div class="date">16</div>
+          <div class="plan">Plan · <b>H</b></div>
+          <div class="actual muted">—</div>
+          <div class="check-time">holiday</div>
+        </div>
+        <div class="day-cell">
+          <div class="dow">Sat</div><div class="date">17</div>
+          <div class="plan">Plan · <b>H</b></div>
+          <div class="actual muted">—</div>
+          <div class="check-time">holiday</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card-glass">
+      <div class="card-title">
+        <span>May 2026 — full month</span>
+        <span style="font-size:11px;color:rgba(245,243,248,.55);">‹ April · May 2026 · June ›</span>
+      </div>
+      <div class="card-sub">Colour-coded by status. Check-in time shown for past days.</div>
+
+      <div class="qa-calendar">
+        <div class="dow-h">Sun</div><div class="dow-h">Mon</div><div class="dow-h">Tue</div><div class="dow-h">Wed</div><div class="dow-h">Thu</div><div class="dow-h">Fri</div><div class="dow-h">Sat</div>
+
+        <!-- Week 1 (May 3-9) -->
+        <div class="qcell p"><div class="n">3</div><span class="tag">P</span><span class="t">09:08</span></div>
+        <div class="qcell p"><div class="n">4</div><span class="tag">P</span><span class="t">08:55</span></div>
+        <div class="qcell p"><div class="n">5</div><span class="tag">P</span><span class="t">09:21</span></div>
+        <div class="qcell p"><div class="n">6</div><span class="tag">P</span><span class="t">09:00</span></div>
+        <div class="qcell al"><div class="n">7</div><span class="tag">AL</span><span class="t">lead set</span></div>
+        <div class="qcell h"><div class="n">8</div><span class="tag">H</span></div>
+        <div class="qcell h"><div class="n">9</div><span class="tag">H</span></div>
+
+        <!-- Week 2 (May 10-16) -->
+        <div class="qcell p"><div class="n">10</div><span class="tag">P</span><span class="t">09:04</span></div>
+        <div class="qcell p"><div class="n">11</div><span class="tag">P</span><span class="t">09:14</span></div>
+        <div class="qcell p"><div class="n">12</div><span class="tag">P</span><span class="t">09:02</span></div>
+        <div class="qcell nsnc"><div class="n">13</div><span class="tag">NSNC</span><span class="t">auto</span></div>
+        <div class="qcell pending today-edge"><div class="n">14</div><span class="tag">P · plan</span><span class="t">⏳ window</span></div>
+        <div class="qcell pending"><div class="n">15</div><span class="tag">P · plan</span><span class="t">—</span></div>
+        <div class="qcell h"><div class="n">16</div><span class="tag">H</span></div>
+
+        <!-- Week 3 (May 17-23) -->
+        <div class="qcell h"><div class="n">17</div><span class="tag">H</span></div>
+        <div class="qcell pending"><div class="n">18</div><span class="tag">P · plan</span></div>
+        <div class="qcell pending"><div class="n">19</div><span class="tag">P · plan</span></div>
+        <div class="qcell pending"><div class="n">20</div><span class="tag">P · plan</span></div>
+        <div class="qcell pending"><div class="n">21</div><span class="tag">P · plan</span></div>
+        <div class="qcell h"><div class="n">22</div><span class="tag">H</span></div>
+        <div class="qcell h"><div class="n">23</div><span class="tag">H</span></div>
+      </div>
+
+      <div class="legend-row">
+        <span class="leg"><span class="sw" style="background:rgba(60,255,165,.40)"></span>Present (P)</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,177,59,.30)"></span>Holiday (H)</span>
+        <span class="leg"><span class="sw" style="background:rgba(120,150,255,.30)"></span>Leave (AL/SL)</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,107,107,.35)"></span>NSNC</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,255,255,.10);border:1px dashed rgba(255,255,255,.4)"></span>Planned, not yet checked in</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════════════════ LEAD VIEW ═══════════════════ -->
+  <section class="role-section" id="lead-view">
+    <h2>Attendance page — Lead view <span class="role-tag">QA Lead+</span></h2>
+    <div class="note">
+      Same page as today — same tabs (<b>Calendar · Pending · Monthly summary · Attendance Plan</b>). We add: <b>(1)</b> a "Today's huddle" banner on top of the Calendar tab showing the lead's team status right now, and <b>(2)</b> the check-in time inside every cell of the existing team grid. Everything else they already use (plan editor, OT requests, CSV upload) stays unchanged.
+    </div>
+
+    <div class="page-header">
+      <div class="page-title">Attendance</div>
+      <div class="page-controls">
+        <span class="ctrl">‹ May 2026 ›</span>
+        <span class="ctrl">Filter: Yara's team</span>
+        <span class="ctrl primary">+ Plan</span>
+      </div>
+    </div>
+
+    <div class="tab-bar">
+      <button class="active">Calendar</button>
+      <button>Pending <span class="badge">3</span></button>
+      <button>Monthly summary</button>
+      <button>Attendance Plan</button>
+    </div>
+
+    <div class="card-glass">
+      <div class="card-title">
+        <span>Today's huddle · Wed 14 May 2026</span>
+        <span style="font-size:11px;color:rgba(245,243,248,.55);">Auto-refresh · last update 2 min ago</span>
+      </div>
+      <div class="card-sub">Snapshot of your team for today. Click any row to override status.</div>
+
+      <div class="huddle-banner">
+        <div class="stat ok"><span class="v">5</span><span class="l">Checked in</span></div>
+        <div class="stat warn"><span class="v">2</span><span class="l">Not yet</span></div>
+        <div class="stat bad"><span class="v">1</span><span class="l">NSNC</span></div>
+        <div class="stat info"><span class="v">1</span><span class="l">AL approved</span></div>
+      </div>
+
+      <!-- Mini list — sorted with NSNC + pending first -->
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:grid;grid-template-columns:200px 110px 130px 100px 100px;gap:12px;align-items:center;padding:9px 12px;border-radius:10px;background:rgba(255,107,107,.08);box-shadow:inset 0 0 0 1px rgba(255,107,107,.18);font-size:12.5px;">
+          <span style="font-weight:600;display:flex;align-items:center;gap:8px;"><span style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#6A2C79,#C9A0FF);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;">HD</span>Hagar Dawood</span>
+          <span style="color:rgba(245,243,248,.6);font-size:11px;">plan · P · 09–18</span>
+          <span style="color:#FF6B6B;font-weight:700;">✕ NSNC</span>
+          <span style="font-size:11px;color:rgba(245,243,248,.55);">auto · 19:00</span>
+          <span style="display:flex;gap:5px;justify-content:flex-end;"><button style="font-size:10px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);color:#fff;font-weight:600;">Override</button></span>
+        </div>
+        <div style="display:grid;grid-template-columns:200px 110px 130px 100px 100px;gap:12px;align-items:center;padding:9px 12px;border-radius:10px;background:rgba(255,177,59,.06);font-size:12.5px;">
+          <span style="font-weight:600;display:flex;align-items:center;gap:8px;"><span style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#6A2C79,#C9A0FF);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;">MS</span>Mohamed Salah</span>
+          <span style="color:rgba(245,243,248,.6);font-size:11px;">plan · P · 09–18</span>
+          <span style="color:#FFB13B;font-weight:700;">⏳ Not yet</span>
+          <span style="font-size:11px;color:rgba(245,243,248,.55);">~7h to NSNC</span>
+          <span style="display:flex;gap:5px;justify-content:flex-end;"><button style="font-size:10px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);color:#fff;font-weight:600;">Nudge</button><button style="font-size:10px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);color:#fff;font-weight:600;">Mark P</button></span>
+        </div>
+        <div style="display:grid;grid-template-columns:200px 110px 130px 100px 100px;gap:12px;align-items:center;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.025);font-size:12.5px;">
+          <span style="font-weight:600;display:flex;align-items:center;gap:8px;"><span style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#6A2C79,#C9A0FF);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;">EI</span>Esraa Ibrahim</span>
+          <span style="color:rgba(245,243,248,.6);font-size:11px;">plan · P · 09–18</span>
+          <span style="color:#3CFFA5;font-weight:700;">✓ Present</span>
+          <span style="font-size:11px;color:rgba(245,243,248,.55);">09:02</span>
+          <span style="display:flex;gap:5px;justify-content:flex-end;"><button style="font-size:10px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:rgba(245,243,248,.6);font-weight:600;">Edit</button></span>
+        </div>
+        <div style="display:grid;grid-template-columns:200px 110px 130px 100px 100px;gap:12px;align-items:center;padding:9px 12px;border-radius:10px;background:rgba(255,255,255,.025);font-size:12.5px;">
+          <span style="font-weight:600;display:flex;align-items:center;gap:8px;"><span style="width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#6A2C79,#C9A0FF);color:#fff;display:inline-flex;align-items:center;justify-content:center;font-weight:700;font-size:10px;">RS</span>Rana Salah</span>
+          <span style="color:rgba(245,243,248,.6);font-size:11px;">plan · P · 09–18</span>
+          <span style="color:#3CFFA5;font-weight:700;">✓ Present</span>
+          <span style="font-size:11px;color:rgba(245,243,248,.55);">09:04</span>
+          <span style="display:flex;gap:5px;justify-content:flex-end;"><button style="font-size:10px;padding:3px 8px;border-radius:999px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);color:rgba(245,243,248,.6);font-weight:600;">Edit</button></span>
+        </div>
+        <div style="text-align:center;font-size:11px;color:rgba(245,243,248,.5);padding:6px;cursor:pointer;">+ 5 more · click to expand</div>
+      </div>
+    </div>
+
+    <div class="card-glass">
+      <div class="card-title">
+        <span>Team week · 11–17 May 2026</span>
+        <span style="font-size:11px;color:rgba(245,243,248,.55);">‹ prev · this week · next › · click any cell to edit</span>
+      </div>
+      <div class="card-sub">Same grid you use today, now with check-in time inside each cell.</div>
+
+      <div class="lead-week-grid">
+        <div class="lwg-h"></div>
+        <div class="lwg-h">Sun 11</div>
+        <div class="lwg-h">Mon 12</div>
+        <div class="lwg-h">Tue 13</div>
+        <div class="lwg-h today">Wed 14</div>
+        <div class="lwg-h">Thu 15</div>
+        <div class="lwg-h">Fri 16</div>
+        <div class="lwg-h">Sat 17</div>
+
+        <div class="name-cell"><span class="av">EI</span>Esraa Ibrahim</div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">09:08</span></div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">08:55</span></div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">09:00</span></div>
+        <div class="lcell pending today-edge"><span class="stat">⏳</span><span class="t">window</span></div>
+        <div class="lcell future"><span class="stat">P</span><span class="t">plan</span></div>
+        <div class="lcell h"><span class="stat">H</span></div>
+        <div class="lcell h"><span class="stat">H</span></div>
+
+        <div class="name-cell"><span class="av">HD</span>Hagar Dawood</div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">09:14</span></div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">09:02</span></div>
+        <div class="lcell nsnc"><span class="stat">NSNC</span><span class="t">auto</span></div>
+        <div class="lcell pending today-edge"><span class="stat">⏳</span><span class="t">window</span></div>
+        <div class="lcell future"><span class="stat">P</span><span class="t">plan</span></div>
+        <div class="lcell h"><span class="stat">H</span></div>
+        <div class="lcell h"><span class="stat">H</span></div>
+
+        <div class="name-cell"><span class="av">MS</span>Mohamed Salah</div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">09:00</span></div>
+        <div class="lcell al"><span class="stat">AL</span><span class="t">07:45</span></div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">09:21</span></div>
+        <div class="lcell pending today-edge"><span class="stat">⏳</span><span class="t">window</span></div>
+        <div class="lcell future"><span class="stat">P</span><span class="t">plan</span></div>
+        <div class="lcell h"><span class="stat">H</span></div>
+        <div class="lcell h"><span class="stat">H</span></div>
+
+        <div class="name-cell"><span class="av">RS</span>Rana Salah</div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">09:04</span></div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">09:00</span></div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">09:11</span></div>
+        <div class="lcell pending today-edge"><span class="stat">⏳</span><span class="t">window</span></div>
+        <div class="lcell future"><span class="stat">P</span><span class="t">plan</span></div>
+        <div class="lcell h"><span class="stat">H</span></div>
+        <div class="lcell h"><span class="stat">H</span></div>
+
+        <div class="name-cell"><span class="av">AM</span>Asmaa Mohamed</div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">09:08</span></div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">09:00</span></div>
+        <div class="lcell p"><span class="stat">P</span><span class="t">08:55</span></div>
+        <div class="lcell p today-edge"><span class="stat">P</span><span class="t">09:08</span></div>
+        <div class="lcell future"><span class="stat">P</span><span class="t">plan</span></div>
+        <div class="lcell h"><span class="stat">H</span></div>
+        <div class="lcell h"><span class="stat">H</span></div>
+      </div>
+
+      <div class="legend-row">
+        <span class="leg"><span class="sw" style="background:rgba(60,255,165,.40)"></span>Present (P)</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,177,59,.30)"></span>Holiday (H)</span>
+        <span class="leg"><span class="sw" style="background:rgba(120,150,255,.30)"></span>Leave (AL/SL)</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,107,107,.35)"></span>NSNC</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,255,255,.10);border:1px dashed rgba(255,255,255,.4)"></span>Planned, not yet checked in</span>
+      </div>
+    </div>
+  </section>
+
+</body>
+</html>
