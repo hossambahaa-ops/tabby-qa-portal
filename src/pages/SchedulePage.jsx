@@ -985,30 +985,41 @@ function SchedulePage() {
                 // each row's name. Keyed by lower-cased email.
                 const perQaStats = new Map();
                 for (const qa of visibleQAs) {
-                  perQaStats.set(qa.email.toLowerCase(), { planned: 0, adhered: 0, nsnc: 0 });
+                  perQaStats.set(qa.email.toLowerCase(), { eligible: 0, adhered: 0, nsnc: 0 });
                 }
                 let pCount = 0, nsncCount = 0, alCount = 0, plannedP = 0, pendingTodayCount = 0;
-                let adheredCount = 0; // status='P' on a planned-P day. Used for true adherence.
+                // Adherence is now strictly a P-vs-H planning question.
+                // Eligible = rows where BOTH plan and status are in (P, H).
+                // Adhered = subset where plan === status.
+                // Approved-leave statuses (AL/SL/PH) and NSNC are excluded
+                // from adherence — they're tracked separately. This is what
+                // the user asked for: "If planned P and added H it counts
+                // down, but planned P and AL/whatever shouldn't affect
+                // adherence."
+                let eligibleDays = 0;
+                let adheredCount = 0;
+                const isPH = (v) => v === "P" || v === "H";
                 for (const r of monthRows) {
                   const k = (r.email || "").toLowerCase();
                   const s = perQaStats.get(k);
                   if (s) {
-                    if (r.planned_code === "P") s.planned++;
-                    if (r.planned_code === "P" && r.status === "P") s.adhered++;
+                    if (isPH(r.planned_code) && isPH(r.status)) {
+                      s.eligible++;
+                      if (r.planned_code === r.status) s.adhered++;
+                    }
                     if (r.status === "NSNC") s.nsnc++;
                   }
                   if (r.status === "P") pCount++;
                   if (r.status === "NSNC") nsncCount++;
                   if (["AL","SL","PH"].includes(r.status)) alCount++;
                   if (r.planned_code === "P") plannedP++;
-                  if (r.planned_code === "P" && r.status === "P") adheredCount++;
+                  if (isPH(r.planned_code) && isPH(r.status)) {
+                    eligibleDays++;
+                    if (r.planned_code === r.status) adheredCount++;
+                  }
                   if (r.date === todayIso && r.planned_code === "P" && !r.checked_in_at && r.status !== "NSNC" && !["AL","SL","PH"].includes(r.status)) pendingTodayCount++;
                 }
-                // Adherence: count only days where (planned P) AND (actual P).
-                // Previously used pCount / plannedP which could go over 100%
-                // if a QA was marked P on a day they were *not* planned to be
-                // present (e.g. worked on a holiday and the lead set 'P').
-                const adherence = plannedP > 0 ? `${Math.min(100, (adheredCount / plannedP) * 100).toFixed(1)}%` : "—";
+                const adherence = eligibleDays > 0 ? `${((adheredCount / eligibleDays) * 100).toFixed(1)}%` : "—";
                 // Cell variant + content resolver
                 const cellDesc = (qaLower, d) => {
                   const row = monthRows.find(a => (a.email || "").toLowerCase() === qaLower && a.date === d.iso);
@@ -1103,10 +1114,10 @@ function SchedulePage() {
                         {/* Rows: one per visible QA */}
                         {visibleQAs.map(qa => {
                           const qaLower = qa.email.toLowerCase();
-                          const st = perQaStats.get(qaLower) || { planned: 0, adhered: 0, nsnc: 0 };
-                          const adhPct = st.planned > 0 ? (st.adhered / st.planned) * 100 : null;
+                          const st = perQaStats.get(qaLower) || { eligible: 0, adhered: 0, nsnc: 0 };
+                          const adhPct = st.eligible > 0 ? (st.adhered / st.eligible) * 100 : null;
                           // Adherence badge colour: green ≥90, amber 70-90, red <70.
-                          // Null when there's no plan yet (avoids "—%" noise).
+                          // Null when there are no P/H-vs-P/H days yet.
                           const adhColor = adhPct == null ? "var(--tx3)" : adhPct >= 90 ? "var(--green)" : adhPct >= 70 ? "var(--amber)" : "var(--red)";
                           return (
                             <React.Fragment key={`row-${qa.email}`}>
@@ -1116,10 +1127,10 @@ function SchedulePage() {
                                 </span>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", minWidth: 0 }}>
                                   <span style={{ fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{_nameFromEmail(qa.email)}</span>
-                                  <span style={{ fontSize: 9.5, color: adhColor, fontVariantNumeric: "tabular-nums", fontWeight: 700, letterSpacing: ".2px" }} title={`${st.adhered} of ${st.planned} planned-P days actually present${st.nsnc > 0 ? ` · ${st.nsnc} NSNC` : ""}`}>
-                                    {st.planned > 0
-                                      ? `${st.adhered}/${st.planned} · ${adhPct.toFixed(0)}%${st.nsnc > 0 ? ` · ${st.nsnc} NSNC` : ""}`
-                                      : "no plan yet"}
+                                  <span style={{ fontSize: 9.5, color: adhColor, fontVariantNumeric: "tabular-nums", fontWeight: 700, letterSpacing: ".2px" }} title={`${st.adhered} of ${st.eligible} P/H days matched plan${st.nsnc > 0 ? ` · ${st.nsnc} NSNC` : ""} · approved leave (AL/SL/PH) excluded from adherence`}>
+                                    {st.eligible > 0
+                                      ? `${st.adhered}/${st.eligible} · ${adhPct.toFixed(0)}%${st.nsnc > 0 ? ` · ${st.nsnc} NSNC` : ""}`
+                                      : "no P/H days yet"}
                                   </span>
                                 </div>
                               </div>
