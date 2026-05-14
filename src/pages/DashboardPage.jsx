@@ -257,6 +257,15 @@ function DashboardPage(){
           uses the ProgressRing + sparkline treatment and is more
           visual. One source of those numbers, not two. */}
     </div>
+
+    {/* Daily H/P check-in tile — pinned to the top of the Dashboard so
+        it's the first call-to-action QAs see. Self-hides on weekends
+        without a plan, on approved-leave days, and before May 2026
+        feature start, so leads/supervisors with no personal plan won't
+        see anything. Rendered outside the loading gate so it appears
+        immediately, independent of team-data fetches. */}
+    <DailyCheckInWidget/>
+
     {loading?<SkeletonPage/>:<>
 
     {/* What needs the lead's attention — deep-links to detail pages */}
@@ -425,9 +434,6 @@ function DashboardPage(){
         </tbody></table></div>
       </div>}
     </>}
-
-    {/* Daily check-in widget — visible to everyone with a planned day. Self-hides on weekends/leave/pre-May. */}
-    <DailyCheckInWidget/>
 
     {/* My Tracker tasks — senior_qa+ only. Self-hides when there are
         no open tasks assigned to me. */}
