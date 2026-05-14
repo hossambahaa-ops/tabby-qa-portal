@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tabby Pulse — QA-facing schedule preview</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0A0814; color: #F5F3F8; font-family: 'Inter Tight', system-ui, sans-serif; min-height: 100%; }
+    body {
+      background:
+        radial-gradient(ellipse 900px 700px at 12% 5%, rgba(106,44,121,.40), transparent 60%),
+        radial-gradient(ellipse 800px 600px at 90% 25%, rgba(60,255,165,.18), transparent 60%),
+        radial-gradient(ellipse 700px 600px at 75% 95%, rgba(120,80,255,.28), transparent 60%),
+        #0A0814;
+      background-attachment: fixed;
+    }
+    .pick-bar { position: sticky; top: 0; background: rgba(10,8,20,.85); backdrop-filter: blur(20px); padding: 16px 28px; border-bottom: 1px solid rgba(255,255,255,.06); z-index: 50; }
+    .pick-bar h1 { font-size: 19px; font-weight: 700; letter-spacing: -.4px; }
+    .pick-bar p { color: rgba(245,243,248,.55); font-size: 13px; margin-top: 3px; max-width: 70ch; }
+    .pick-bar nav { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .pick-bar a {
+      font-size: 11.5px; font-weight: 600; color: rgba(245,243,248,.7); text-decoration: none;
+      padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+    }
+    .pick-bar a:hover { background: rgba(255,255,255,.12); color: #fff; }
+
+    .option { max-width: 1200px; margin: 0 auto; padding: 56px 32px 60px; border-bottom: 1px dashed rgba(255,255,255,.06); }
+    .option-header { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; margin-bottom: 14px; flex-wrap: wrap; }
+    .option-header h2 { font-size: 28px; font-weight: 700; letter-spacing: -.8px; }
+    .option-header .tag { font-size: 10.5px; padding: 4px 12px; border-radius: 999px; background: rgba(180,120,255,.18); color: #C9A0FF; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
+    .option-desc { color: rgba(245,243,248,.6); font-size: 13.5px; line-height: 1.55; max-width: 80ch; margin-top: 6px; margin-bottom: 16px; }
+
+    .demo-card {
+      border-radius: 32px;
+      padding: 32px 36px;
+      background: rgba(255,255,255,.05);
+      backdrop-filter: blur(36px) saturate(180%);
+      box-shadow:
+        0 44px 100px -12px rgba(0,0,0,.65),
+        0 16px 40px -8px rgba(0,0,0,.45),
+        inset 0 1px 0 rgba(255,255,255,.09);
+      position: relative;
+      isolation: isolate;
+    }
+    .demo-card::before {
+      content: ""; position: absolute; inset: 0 0 auto 0; height: 50%; pointer-events: none;
+      border-radius: 32px 32px 0 0;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 70%);
+      z-index: 0;
+    }
+    .demo-card > * { position: relative; z-index: 1; }
+    .demo-title { font-size: 16px; font-weight: 700; letter-spacing: -.3px; margin-bottom: 4px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .demo-sub { font-size: 12px; color: rgba(245,243,248,.55); margin-bottom: 24px; }
+
+    .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 24px; font-size: 12.5px; line-height: 1.5; }
+    .pros-cons .pros, .pros-cons .cons { padding: 12px 16px; border-radius: 14px; }
+    .pros-cons .pros { background: rgba(60,255,165,.08); border: 1px solid rgba(60,255,165,.18); }
+    .pros-cons .cons { background: rgba(255,177,59,.08); border: 1px solid rgba(255,177,59,.18); }
+    .pros-cons strong { display: block; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; opacity: .85; }
+
+    /* ════════ OPTION A — Week strip on Dashboard ════════ */
+    .week-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+    .day-cell {
+      padding: 14px 12px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.04);
+      position: relative;
+      overflow: hidden;
+      transition: transform .2s, background .2s;
+      cursor: pointer;
+      min-height: 130px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .day-cell:hover { transform: translateY(-2px); background: rgba(255,255,255,.07); }
+    .day-cell.today {
+      background: linear-gradient(180deg, rgba(60,255,165,.16), rgba(60,255,165,.06));
+      box-shadow: 0 0 0 2px rgba(60,255,165,.40) inset, 0 8px 24px -8px rgba(60,255,165,.30);
+    }
+    .day-cell.past { opacity: .68; }
+    .day-cell .dow { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: rgba(245,243,248,.55); }
+    .day-cell.today .dow { color: #3CFFA5; }
+    .day-cell .date { font-size: 22px; font-weight: 700; letter-spacing: -.5px; font-variant-numeric: tabular-nums; line-height: 1; }
+    .day-cell .plan { font-size: 10.5px; font-weight: 600; color: rgba(245,243,248,.6); text-transform: uppercase; letter-spacing: .5px; }
+    .day-cell .plan b { color: rgba(245,243,248,.95); }
+    .day-cell .actual { margin-top: auto; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.06); font-size: 11.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+    .day-cell .actual.ok    { color: #3CFFA5; }
+    .day-cell .actual.warn  { color: #FFB13B; }
+    .day-cell .actual.bad   { color: #FF6B6B; }
+    .day-cell .actual.muted { color: rgba(245,243,248,.45); }
+    .day-cell .check-time { font-size: 10px; color: rgba(245,243,248,.45); font-weight: 500; font-variant-numeric: tabular-nums; margin-top: 1px; }
+    .day-cell .badge { position: absolute; top: 10px; right: 10px; font-size: 9.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+    .day-cell .badge.holiday { background: rgba(255,177,59,.18); color: #FFB13B; }
+    .day-cell .badge.off     { background: rgba(245,243,248,.10); color: rgba(245,243,248,.55); }
+    .day-cell .badge.future  { background: rgba(120,150,255,.18); color: #A8C5FF; }
+
+    /* ════════ OPTION B — Dedicated month grid page ════════ */
+    .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
+    .month-grid .dow-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .8px; color: rgba(245,243,248,.5); text-align: center; padding: 6px 0; }
+    .month-grid .mcell {
+      padding: 10px;
+      border-radius: 12px;
+      min-height: 84px;
+      position: relative;
+      cursor: pointer;
+      transition: transform .15s, background .15s;
+    }
+    .month-grid .mcell:hover { transform: scale(1.04); z-index: 2; }
+    .month-grid .mcell.empty { background: transparent; cursor: default; }
+    .month-grid .mcell.p { background: rgba(60,255,165,.12); border: 1px solid rgba(60,255,165,.20); }
+    .month-grid .mcell.h { background: rgba(255,177,59,.10); border: 1px solid rgba(255,177,59,.20); }
+    .month-grid .mcell.off { background: rgba(245,243,248,.04); border: 1px solid rgba(245,243,248,.08); }
+    .month-grid .mcell.nsnc { background: rgba(255,107,107,.14); border: 1px solid rgba(255,107,107,.30); }
+    .month-grid .mcell.al { background: rgba(120,150,255,.10); border: 1px solid rgba(120,150,255,.22); }
+    .month-grid .mcell.today { box-shadow: 0 0 0 2px rgba(60,255,165,.5) inset; }
+    .month-grid .mcell .d-num { font-size: 14px; font-weight: 700; }
+    .month-grid .mcell .d-tag { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; opacity: .85; margin-top: 4px; display: block; }
+    .month-grid .mcell .d-time { font-size: 9px; opacity: .75; margin-top: 1px; font-variant-numeric: tabular-nums; display: block; }
+
+    .month-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
+    .month-toolbar .month-label { font-size: 22px; font-weight: 700; letter-spacing: -.6px; }
+    .month-toolbar .summary { font-size: 12px; color: rgba(245,243,248,.6); display: flex; gap: 16px; }
+    .month-toolbar .summary b { color: rgba(245,243,248,.95); }
+
+    .legend-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: rgba(245,243,248,.6); margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.06); }
+    .legend-row .leg { display: inline-flex; align-items: center; gap: 6px; }
+    .legend-row .leg .sw { width: 12px; height: 12px; border-radius: 3px; }
+
+    /* ════════ OPTION C — Profile tab list ════════ */
+    .profile-tabs { display: flex; gap: 4px; margin-bottom: 18px; border-bottom: 1px solid rgba(255,255,255,.08); padding-bottom: 0; }
+    .profile-tabs button {
+      background: none; border: none; padding: 10px 18px;
+      color: rgba(245,243,248,.55); font-size: 13px; font-weight: 600; cursor: pointer;
+      border-bottom: 2px solid transparent;
+      font-family: inherit;
+    }
+    .profile-tabs button.active { color: #3CFFA5; border-bottom-color: #3CFFA5; }
+    .profile-list { display: flex; flex-direction: column; gap: 8px; }
+    .profile-row {
+      display: grid; grid-template-columns: 80px 1fr 130px 110px 110px; gap: 12px;
+      padding: 12px 14px; border-radius: 12px; background: rgba(255,255,255,.03);
+      align-items: center; font-size: 12.5px;
+      transition: background .15s;
+    }
+    .profile-row:hover { background: rgba(255,255,255,.06); }
+    .profile-row .date  { font-weight: 700; }
+    .profile-row .dow   { color: rgba(245,243,248,.5); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+    .profile-row .plan  { color: rgba(245,243,248,.85); font-weight: 600; }
+    .profile-row .actual { font-weight: 700; display: flex; align-items: center; gap: 6px; }
+    .profile-row .actual.ok    { color: #3CFFA5; }
+    .profile-row .actual.bad   { color: #FF6B6B; }
+    .profile-row .actual.warn  { color: #FFB13B; }
+    .profile-row .actual.muted { color: rgba(245,243,248,.5); }
+    .profile-row .time { font-size: 11px; color: rgba(245,243,248,.55); font-variant-numeric: tabular-nums; }
+    .profile-row .lead-note { font-size: 11px; color: rgba(201,160,255,.85); font-style: italic; }
+    .profile-row.today { background: rgba(60,255,165,.10); box-shadow: inset 0 0 0 1px rgba(60,255,165,.28); }
+  </style>
+</head>
+<body>
+  <div class="pick-bar">
+    <h1>Tabby Pulse — QA-facing schedule</h1>
+    <p>Three places the QA can see their plan + their check-in trail. Each one keeps the check-in time visible alongside the actual status. Pick whichever fits how QAs would naturally land on the info.</p>
+    <nav>
+      <a href="#a">A · Week strip on Dashboard</a>
+      <a href="#b">B · Dedicated month grid</a>
+      <a href="#c">C · Profile attendance tab</a>
+    </nav>
+  </div>
+
+  <!-- ═════════════════ OPTION A — Week strip ═════════════════ -->
+  <section class="option" id="a">
+    <div class="option-header">
+      <h2>A · Week strip on Dashboard</h2>
+      <span class="tag">Lives on the Dashboard, top</span>
+    </div>
+    <div class="option-desc">
+      A compact 7-day rolling strip on the QA's dashboard. Today is highlighted in green. Each day shows plan (P / H / OFF) and actual outcome with the check-in time. Click any day to drill in. Cheapest to build — just one extra card on the dashboard.
+    </div>
+
+    <div class="demo-card">
+      <div class="demo-title">
+        <span>This week · 11–17 May 2026</span>
+        <span style="font-size:11px;color:rgba(245,243,248,.55);">Tap any day for details</span>
+      </div>
+      <div class="demo-sub">Plan was set by your lead. Times shown in Riyadh.</div>
+
+      <div class="week-strip">
+        <div class="day-cell past">
+          <div class="dow">Sun</div>
+          <div class="date">11</div>
+          <div class="plan">Plan · <b>P</b></div>
+          <div class="actual ok">✓ Present</div>
+          <div class="check-time">checked in 09:14</div>
+        </div>
+        <div class="day-cell past">
+          <div class="dow">Mon</div>
+          <div class="date">12</div>
+          <div class="plan">Plan · <b>P</b></div>
+          <div class="actual ok">✓ Present</div>
+          <div class="check-time">checked in 09:02</div>
+        </div>
+        <div class="day-cell past">
+          <div class="dow">Tue</div>
+          <div class="date">13</div>
+          <div class="plan">Plan · <b>P</b></div>
+          <div class="actual bad">✕ NSNC</div>
+          <div class="check-time">auto-set by system</div>
+        </div>
+        <div class="day-cell today">
+          <div class="dow">Wed · TODAY</div>
+          <div class="date">14</div>
+          <div class="plan">Plan · <b>P</b></div>
+          <div class="actual muted">Not checked in yet</div>
+          <div class="check-time">window 09:00 – 18:00</div>
+        </div>
+        <div class="day-cell">
+          <div class="dow">Thu</div>
+          <div class="date">15</div>
+          <div class="plan">Plan · <b>P</b></div>
+          <div class="actual muted">—</div>
+          <span class="badge future">Upcoming</span>
+        </div>
+        <div class="day-cell">
+          <div class="dow">Fri</div>
+          <div class="date">16</div>
+          <div class="plan">Plan · <b>H</b></div>
+          <div class="actual muted">—</div>
+          <span class="badge holiday">Holiday</span>
+        </div>
+        <div class="day-cell">
+          <div class="dow">Sat</div>
+          <div class="date">17</div>
+          <div class="plan">Plan · <b>H</b></div>
+          <div class="actual muted">—</div>
+          <span class="badge holiday">Holiday</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><strong>Why this is great</strong>Zero navigation — QA sees their week the second they open the app. Highlights today. Shows planning + actual + check-in time in one glance. Smallest engineering effort.</div>
+      <div class="cons"><strong>Watch-outs</strong>Only 7 days. For longer view, still needs a "see more" link (could open a modal). No month-level patterns visible.</div>
+    </div>
+  </section>
+
+  <!-- ═════════════════ OPTION B — Month grid page ═════════════════ -->
+  <section class="option" id="b">
+    <div class="option-header">
+      <h2>B · Dedicated month grid page</h2>
+      <span class="tag">New "My Schedule" link in the sidebar</span>
+    </div>
+    <div class="option-desc">
+      A full month grid view (like Apple/Google calendar). Each cell colour-coded by status. Hover/tap any cell to see check-in time. Toolbar to switch months. This is the most "real" calendar experience and gives the QA full visibility forward and backward.
+    </div>
+
+    <div class="demo-card">
+      <div class="month-toolbar">
+        <span class="month-label">‹ May 2026 ›</span>
+        <div class="summary">
+          <span><b>20</b> Present</span>
+          <span><b>1</b> NSNC</span>
+          <span><b>1</b> AL</span>
+          <span><b>3</b> Holiday</span>
+        </div>
+      </div>
+
+      <div class="month-grid">
+        <div class="dow-header">Sun</div>
+        <div class="dow-header">Mon</div>
+        <div class="dow-header">Tue</div>
+        <div class="dow-header">Wed</div>
+        <div class="dow-header">Thu</div>
+        <div class="dow-header">Fri</div>
+        <div class="dow-header">Sat</div>
+
+        <!-- Week 1 (May 3-9) -->
+        <div class="mcell p"><div class="d-num">3</div><span class="d-tag">P</span><span class="d-time">09:08</span></div>
+        <div class="mcell p"><div class="d-num">4</div><span class="d-tag">P</span><span class="d-time">08:55</span></div>
+        <div class="mcell p"><div class="d-num">5</div><span class="d-tag">P</span><span class="d-time">09:21</span></div>
+        <div class="mcell p"><div class="d-num">6</div><span class="d-tag">P</span><span class="d-time">09:00</span></div>
+        <div class="mcell al"><div class="d-num">7</div><span class="d-tag">AL</span><span class="d-time">lead set</span></div>
+        <div class="mcell h"><div class="d-num">8</div><span class="d-tag">H</span></div>
+        <div class="mcell h"><div class="d-num">9</div><span class="d-tag">H</span></div>
+
+        <!-- Week 2 (May 10-16) -->
+        <div class="mcell p"><div class="d-num">10</div><span class="d-tag">P</span><span class="d-time">09:04</span></div>
+        <div class="mcell p"><div class="d-num">11</div><span class="d-tag">P</span><span class="d-time">09:14</span></div>
+        <div class="mcell p"><div class="d-num">12</div><span class="d-tag">P</span><span class="d-time">09:02</span></div>
+        <div class="mcell nsnc"><div class="d-num">13</div><span class="d-tag">NSNC</span><span class="d-time">auto</span></div>
+        <div class="mcell p today"><div class="d-num">14</div><span class="d-tag">P · plan</span><span class="d-time">pending</span></div>
+        <div class="mcell p"><div class="d-num">15</div><span class="d-tag">P · plan</span><span class="d-time">—</span></div>
+        <div class="mcell h"><div class="d-num">16</div><span class="d-tag">H</span></div>
+
+        <!-- Week 3 (May 17-23) - lighter / future -->
+        <div class="mcell h"><div class="d-num">17</div><span class="d-tag">H</span></div>
+        <div class="mcell p"><div class="d-num">18</div><span class="d-tag">P · plan</span></div>
+        <div class="mcell p"><div class="d-num">19</div><span class="d-tag">P · plan</span></div>
+        <div class="mcell p"><div class="d-num">20</div><span class="d-tag">P · plan</span></div>
+        <div class="mcell p"><div class="d-num">21</div><span class="d-tag">P · plan</span></div>
+        <div class="mcell h"><div class="d-num">22</div><span class="d-tag">H</span></div>
+        <div class="mcell h"><div class="d-num">23</div><span class="d-tag">H</span></div>
+      </div>
+
+      <div class="legend-row">
+        <span class="leg"><span class="sw" style="background:rgba(60,255,165,.40)"></span>Present (P)</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,177,59,.30)"></span>Holiday (H)</span>
+        <span class="leg"><span class="sw" style="background:rgba(120,150,255,.30)"></span>Leave (AL/SL)</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,107,107,.35)"></span>NSNC (no-show)</span>
+        <span class="leg"><span class="sw" style="background:rgba(245,243,248,.15)"></span>Off / no plan</span>
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><strong>Why this is great</strong>Full visibility, forward and backward. Glanceable patterns ("I missed two Tuesdays in a row"). Feels like a real calendar. Best for QAs who want to plan around future holidays.</div>
+      <div class="cons"><strong>Watch-outs</strong>New sidebar item adds nav clutter. Heaviest to build (a whole new page). Most info is identical to what option A shows — only differs in horizon length.</div>
+    </div>
+  </section>
+
+  <!-- ═════════════════ OPTION C — Profile tab ═════════════════ -->
+  <section class="option" id="c">
+    <div class="option-header">
+      <h2>C · Attendance tab on the Profile page</h2>
+      <span class="tag">Folded into existing QA Profile</span>
+    </div>
+    <div class="option-desc">
+      Adds an "Attendance" tab to the existing QA Profile page. The QA sees their own; their lead sees theirs. A simple chronological list — date, plan, actual, check-in time, any lead notes. No new pages or nav items.
+    </div>
+
+    <div class="demo-card">
+      <div class="demo-title">
+        <span>Rana Salah · Attendance</span>
+        <span style="font-size:11px;color:rgba(245,243,248,.55);">Showing last 14 days</span>
+      </div>
+
+      <div class="profile-tabs">
+        <button>Overview</button>
+        <button>MTD</button>
+        <button>Coaching</button>
+        <button class="active">Attendance</button>
+        <button>Action Plans</button>
+      </div>
+
+      <div class="profile-list">
+        <div class="profile-row today">
+          <div><div class="date">14 May</div><div class="dow">Wed · today</div></div>
+          <div class="plan">P (planned by lead)</div>
+          <div class="actual muted">⏳ Pending</div>
+          <div class="time">window 09:00 – 18:00</div>
+          <div></div>
+        </div>
+        <div class="profile-row">
+          <div><div class="date">13 May</div><div class="dow">Tue</div></div>
+          <div class="plan">P (planned by lead)</div>
+          <div class="actual bad">✕ NSNC</div>
+          <div class="time">auto-set 19:00</div>
+          <div class="lead-note">Yara override pending</div>
+        </div>
+        <div class="profile-row">
+          <div><div class="date">12 May</div><div class="dow">Mon</div></div>
+          <div class="plan">P</div>
+          <div class="actual ok">✓ Present</div>
+          <div class="time">09:02 → 18:11</div>
+          <div></div>
+        </div>
+        <div class="profile-row">
+          <div><div class="date">11 May</div><div class="dow">Sun</div></div>
+          <div class="plan">P</div>
+          <div class="actual ok">✓ Present</div>
+          <div class="time">09:14 → 18:05</div>
+          <div></div>
+        </div>
+        <div class="profile-row">
+          <div><div class="date">8 May</div><div class="dow">Thu</div></div>
+          <div class="plan">P</div>
+          <div class="actual warn">▲ AL</div>
+          <div class="time">set by Yara · 07:45</div>
+          <div class="lead-note">Approved AL</div>
+        </div>
+        <div class="profile-row">
+          <div><div class="date">7 May</div><div class="dow">Wed</div></div>
+          <div class="plan">P</div>
+          <div class="actual ok">✓ Present</div>
+          <div class="time">09:00 → 18:00</div>
+          <div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><strong>Why this is great</strong>Lives where QAs already go. Chronological list is the natural representation of an audit trail. Easy to extend (filter by month, search by status). No new sidebar entry.</div>
+      <div class="cons"><strong>Watch-outs</strong>Less glanceable than A or B — you have to scroll. Calendar patterns (e.g. "I always miss Tuesdays") aren't visible at a glance.</div>
+    </div>
+  </section>
+
+</body>
+</html>
