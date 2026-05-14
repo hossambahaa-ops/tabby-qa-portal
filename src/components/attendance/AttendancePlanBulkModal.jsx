@@ -74,7 +74,7 @@ function getWeeksInRange(fromStr, toStr) {
  * dates are already filtered by weekday + week filters and bounded to
  * [PLAN_FEATURE_START..]; the caller just maps QAs × dates.
  */
-export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isSuperAdmin, onApply }) {
+export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isSuperAdmin, canEditShift, onApply }) {
   const [value, setValue] = useState("P");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -82,7 +82,12 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
   const [selectedWeeks, setSelectedWeeks] = useState(new Set()); // empty = all
   const [scope, setScope] = useState("visible");
   const [specificEmail, setSpecificEmail] = useState("");
-  // Shift bulk fields (super_admin only). Both empty → no shift change.
+  // qa_lead+ can set bulk shifts (previously super_admin only). The new
+  // `canEditShift` prop is the gate; falls back to the legacy
+  // `isSuperAdmin` flag if not provided so call sites that haven't
+  // updated still work.
+  const canShift = canEditShift !== undefined ? canEditShift : isSuperAdmin;
+  // Shift bulk fields. Both empty → no shift change.
   // Both set → stamp on each cell. clearShift forces nulls (overrides the
   // start/end inputs if checked).
   const [shiftStart, setShiftStart] = useState("");
@@ -320,7 +325,7 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
               { code: "P", label: "P — Office", color: "#16A34A", bg: "rgba(34,197,94,.15)" },
               { code: "OFF", label: "OFF — Planned off-day", color: "var(--tx2)", bg: "rgba(156,163,175,.18)" },
               { code: "CLEAR", label: "Clear — No plan set", color: "var(--tx3)", bg: "transparent" },
-              ...(isSuperAdmin ? [{ code: "SKIP", label: "Skip — only set shift", color: "var(--tabby-purple)", bg: "rgba(106,44,121,.10)" }] : []),
+              ...(canShift ? [{ code: "SKIP", label: "Skip — only set shift", color: "var(--tabby-purple)", bg: "rgba(106,44,121,.10)" }] : []),
             ].map((opt) => {
               const active = value === opt.code;
               return (
@@ -351,7 +356,7 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
             panel acts as a single click target: tapping any blank space
             in the panel opens the start-hour dropdown so the user never
             has to aim precisely at a small input. */}
-        {isSuperAdmin && (() => {
+        {canShift && (() => {
           const SHIFT_PRESETS = [
             { label: "10–19", start: "10:00", end: "19:00" },
             { label: "9–18",  start: "09:00", end: "18:00" },

@@ -474,6 +474,10 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
         onClose={() => setBulkOpen(false)}
         visibleQAs={visibleQAs}
         isSuperAdmin={isSuperAdmin}
+        // qa_lead+ can now set bulk shift_start/shift_end times.
+        // Previously gated to super_admin; widened so every lead can
+        // turn on auto-NSNC enforcement for their team.
+        canEditShift={hasRole(profile?.role, "qa_lead")}
         onApply={applyBulkFromModal}
       />
 

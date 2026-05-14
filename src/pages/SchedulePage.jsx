@@ -320,10 +320,23 @@ function SchedulePage() {
     const approved_by = isSelfRequest ? null : myEmail;
     const approved_at = isSelfRequest ? null : new Date().toISOString();
     const note = requestNote || null;
+    // Stamp checked_in_at when the QA self-marks their OWN row for
+    // TODAY with a real check-in code (P or H). Same behaviour as the
+    // dashboard DailyCheckInWidget so the source — dashboard or
+    // attendance page — doesn't matter for the auto-NSNC cron + digest.
+    // Leads / supervisors editing a QA's row do NOT stamp the timestamp
+    // — that would defeat the "the QA never checked in" signal.
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const isOwnTodayCheckIn =
+      email?.toLowerCase() === myEmail &&
+      dateStr === todayIso &&
+      (status === "P" || status === "H");
+    const checkedInAt = isOwnTodayCheckIn ? new Date().toISOString() : undefined;
     try {
       if (existing) {
         if (status === existing.status && (existing.approval_status || null) === approval_status) { setEditCell(null); setPendingReason(""); return; }
         const body = { status, approval_status, requested_by, approved_by, approved_at, request_note: note, updated_at: new Date().toISOString() };
+        if (checkedInAt) body.checked_in_at = checkedInAt;
         // Optimistic-row IDs from a prior insert use a "new-" timestamp
         // placeholder which Postgres rejects as an invalid UUID. Same
         // fallback pattern as approveAtt / denyAtt / clearAtt: filter
@@ -339,9 +352,11 @@ function SchedulePage() {
           if (!resp.ok) throw new Error(await resp.text());
         }
       } else {
+        const insertBody = { email:email.toLowerCase(), date:dateStr, status, approval_status, requested_by, approved_by, approved_at, request_note: note, created_by:myEmail };
+        if (checkedInAt) insertBody.checked_in_at = checkedInAt;
         const resp = await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
           method:"POST", headers:{"Content-Type":"application/json","apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`,"Prefer":"resolution=merge-duplicates,return=minimal"},
-          body:JSON.stringify({email:email.toLowerCase(), date:dateStr, status, approval_status, requested_by, approved_by, approved_at, request_note: note, created_by:myEmail})
+          body:JSON.stringify(insertBody)
         });
         if (!resp.ok) throw new Error(await resp.text());
       }
