@@ -3,14 +3,32 @@ import CellPicker from "./CellPicker.jsx";
 
 // One day-square inside MyMonthCalendar. Anchors CellPicker via a div ref.
 //
-// Extracted from SchedulePage 2026-05-08. Public API unchanged.
+// `enhanced` mode adds a third line at the bottom of the cell showing
+// the check-in time when present (from att.checked_in_at), and a
+// distinct "Not yet" indicator for planned-P days that haven't been
+// checked in yet. Default off so existing QA views render unchanged.
+//
+// Extracted from SchedulePage 2026-05-08.
 export default function CalendarDayCell({
   day, dateStr, att, st, planned, attType, isPending, isDenied,
   isWeekend, isToday, isEditing, canEdit, onOpen, onClose,
   em, dayNum, isQA, canApprove, pickerStage, pendingReason,
   onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
+  enhanced = false,
 }) {
   const ref = useRef(null);
+  // Enhanced-mode helpers
+  const checkInAt = att?.checked_in_at || null;
+  const fmtTime = (ts) => {
+    if (!ts) return "";
+    try { return new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }); }
+    catch { return ""; }
+  };
+  // True when the QA is on a planned-P day but hasn't checked in yet.
+  // Distinct visual state — neither "Present" nor "NSNC" yet.
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const isPlannedNoCheckIn = enhanced && planned === "P" && !checkInAt && st !== "NSNC" && !["AL","SL","PH"].includes(st);
+  const isFutureDay = dateStr > todayIso;
   return (
     <div
       ref={ref}
@@ -72,9 +90,23 @@ export default function CalendarDayCell({
           {isDenied && <span style={{ fontSize: 10, color: "var(--red)" }} title="Denied">✗</span>}
         </div>
       )}
-      {!st && planned && (
+      {!st && planned && !enhanced && (
         <div style={{ fontSize: 10, color: "var(--tx3)", fontStyle: "italic" }}>
           {planned === "H" ? "Home" : planned === "P" ? "Office" : "Day off"}
+        </div>
+      )}
+      {/* Enhanced-mode footer: check-in time (or "Not yet" / "window")
+          on its own line beneath the status. Keeps the timing trail
+          visible without competing with the status badge above. */}
+      {enhanced && (checkInAt || isPlannedNoCheckIn) && (
+        <div style={{ marginTop: "auto", paddingTop: 4, fontSize: 9.5, color: "var(--tx3)", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
+          {checkInAt
+            ? `✓ ${fmtTime(checkInAt)}`
+            : isFutureDay
+              ? "— planned"
+              : isToday
+                ? "⏳ window 09:00–18:00"
+                : "Not yet"}
         </div>
       )}
       {isEditing && (

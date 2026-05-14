@@ -861,21 +861,6 @@ function SchedulePage() {
         {(realProfile?.role === "super_admin" || isSuperAdmin) && (() => {
           const fmtTime = (ts) => ts ? new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
           const todayIso = new Date().toISOString().slice(0, 10);
-          // ── Build this week's dates (Sun → Sat in Riyadh convention) ──
-          const now = new Date();
-          const dow = now.getDay();
-          const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow);
-          const weekDates = Array.from({ length: 7 }, (_, i) => {
-            const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
-            return {
-              iso: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,
-              dow: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i],
-              dnum: d.getDate(),
-              isToday: d.toDateString() === now.toDateString(),
-              isPast: d < new Date(todayIso + "T00:00:00"),
-            };
-          });
-          const myWeek = weekDates.map(d => ({ ...d, row: attendance.find(a => a.email?.toLowerCase() === myEmail && a.date === d.iso) }));
           // ── Today's huddle data (only meaningful if there's a team) ──
           const teamEmails = (visibleQAs || []).map(r => r.email?.toLowerCase()).filter(Boolean);
           const todayTeam = (attendance || [])
@@ -895,54 +880,10 @@ function SchedulePage() {
           };
           return (
             <>
-              {/* ── "This week" strip (QA's own view) ── */}
-              <div className="card" style={{ marginBottom: 14, padding: "18px 22px" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700 }}>This week — my view</div>
-                  <span style={{ fontSize: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(201,160,255,.18)", color: "#C9A0FF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px" }}>preview · super admin only</span>
-                </div>
-                <div style={{ fontSize: 11.5, color: "var(--tx3)", marginBottom: 14 }}>Plan and actual side by side, with check-in time on its own line. Click any day to view detail.</div>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
-                  {myWeek.map(d => {
-                    const r = d.row;
-                    const plan = r?.planned_code || "—";
-                    const status = r?.status;
-                    const ci = r?.checked_in_at;
-                    const label = status === "NSNC" ? "✕ NSNC"
-                                : ["AL","SL","PH"].includes(status) ? `🌴 ${status}`
-                                : ci ? "✓ Present"
-                                : plan === "P" && d.isToday ? "Not yet"
-                                : plan === "H" ? "—"
-                                : plan === "P" && !d.isPast ? "—"
-                                : status === "P" ? "✓ Present"
-                                : "—";
-                    const time = ci ? fmtTime(ci)
-                                : status === "NSNC" ? "auto"
-                                : plan === "P" && d.isToday ? `window ${(r?.shift_start||"09:00:00").slice(0,5)}–${(r?.shift_end||"18:00:00").slice(0,5)}`
-                                : plan === "H" ? "holiday"
-                                : "—";
-                    return (
-                      <div key={d.iso} style={{
-                        padding: "12px 10px", borderRadius: 14,
-                        background: d.isToday ? "linear-gradient(180deg, rgba(60,255,165,.16), rgba(60,255,165,.06))" : "rgba(255,255,255,.04)",
-                        boxShadow: d.isToday ? "0 0 0 2px rgba(60,255,165,.40) inset" : "none",
-                        opacity: d.isPast && !d.isToday ? 0.68 : 1,
-                        minHeight: 112, display: "flex", flexDirection: "column", gap: 4,
-                      }}>
-                        <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".8px", color: d.isToday ? "var(--green)" : "var(--tx3)" }}>
-                          {d.dow}{d.isToday ? " · TODAY" : ""}
-                        </div>
-                        <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.5px", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{d.dnum}</div>
-                        <div style={{ fontSize: 10, fontWeight: 600, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>
-                          Plan · <b style={{ color: "var(--tx)" }}>{plan}</b>
-                        </div>
-                        <div style={{ marginTop: "auto", paddingTop: 5, borderTop: "1px solid rgba(255,255,255,.06)", fontSize: 11, fontWeight: 600, color: stColor(status, plan, ci) }}>{label}</div>
-                        <div style={{ fontSize: 9.5, color: "var(--tx3)", fontWeight: 500, fontVariantNumeric: "tabular-nums" }}>{time}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
+              {/* "This week — my view" strip was removed in favour of the
+                  collapsible-week-first layout now baked into MyMonthCalendar
+                  (enhanced={true}). The strip duplicated information that
+                  the integrated monthly view now shows in one place. */}
 
               {/* ── Today's huddle (lead view) — only when there's a team ── */}
               {todayTeam.length > 0 && (
@@ -1121,6 +1062,10 @@ function SchedulePage() {
             onClearAtt={(em, dayNum) => clearAtt(em, dayNum)}
             setPendingReason={setPendingReason}
             setPickerStage={setPickerStage}
+            // Enhanced layout (collapsed past + future weeks, check-in
+            // time inside each cell) is gated to super-admin previewing
+            // via View-as. Drop the gate once approved for everyone.
+            enhanced={realProfile?.role === "super_admin"}
           />
         )}
 
