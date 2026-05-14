@@ -82,7 +82,7 @@ function SchedulePage() {
       const mid = Math.ceil(dim / 2);
       const fmtD = (d) => `${selMonth}-${String(d).padStart(2,"0")}`;
       const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
-      const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at,ot_hours,request_note,denial_reason,denied_by,denied_at,planned_code,justification,mismatch_approved,plan_updated_at,shift_start,shift_end`;
+      const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at,ot_hours,request_note,denial_reason,denied_by,denied_at,planned_code,justification,mismatch_approved,plan_updated_at,shift_start,shift_end,checked_in_at`;
       const [r, a1, a2] = await Promise.all([
         listRoster({ token, select: "email,display_name,manager_email,queue,country" }),
         fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(mid)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
@@ -852,6 +852,168 @@ function SchedulePage() {
             {isSuperAdmin ? " Super-admin override active — you can still edit." : " Ask a lead to unlock to edit."}
           </span>
         </div>}
+
+        {/* ── PREVIEW (super_admin only): "This week" strip + Today's huddle ──
+            These are the new attendance cards we're previewing for the
+            integrated Attendance page. Gated behind isSuperAdmin so only
+            you see them right now. Removes the gate once approved. */}
+        {isSuperAdmin && (() => {
+          const fmtTime = (ts) => ts ? new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
+          const todayIso = new Date().toISOString().slice(0, 10);
+          // ── Build this week's dates (Sun → Sat in Riyadh convention) ──
+          const now = new Date();
+          const dow = now.getDay();
+          const weekStart = new Date(now); weekStart.setDate(now.getDate() - dow);
+          const weekDates = Array.from({ length: 7 }, (_, i) => {
+            const d = new Date(weekStart); d.setDate(weekStart.getDate() + i);
+            return {
+              iso: `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`,
+              dow: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"][i],
+              dnum: d.getDate(),
+              isToday: d.toDateString() === now.toDateString(),
+              isPast: d < new Date(todayIso + "T00:00:00"),
+            };
+          });
+          const myWeek = weekDates.map(d => ({ ...d, row: attendance.find(a => a.email?.toLowerCase() === myEmail && a.date === d.iso) }));
+          // ── Today's huddle data (only meaningful if there's a team) ──
+          const teamEmails = (visibleQAs || []).map(r => r.email?.toLowerCase()).filter(Boolean);
+          const todayTeam = (attendance || [])
+            .filter(a => a.date === todayIso && teamEmails.includes(a.email?.toLowerCase()))
+            .map(a => ({ ...a, name: _nameFromEmail(a.email) }));
+          const checkedIn = todayTeam.filter(r => r.checked_in_at);
+          const notYet = todayTeam.filter(r => r.planned_code === "P" && !r.checked_in_at && r.status !== "NSNC" && !["AL","SL","PH"].includes(r.status));
+          const nsnc = todayTeam.filter(r => r.status === "NSNC");
+          const onLeave = todayTeam.filter(r => ["AL","SL","PH"].includes(r.status));
+          // ── Status colour resolver ──
+          const stColor = (st, pc, ci) => {
+            if (st === "NSNC") return "var(--red)";
+            if (["AL","SL","PH"].includes(st)) return "var(--blue)";
+            if (ci) return "var(--green)";
+            if (pc === "P" && !ci) return "var(--amber)";
+            return "var(--tx3)";
+          };
+          return (
+            <>
+              {/* ── "This week" strip (QA's own view) ── */}
+              <div className="card" style={{ marginBottom: 14, padding: "18px 22px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>This week — my view</div>
+                  <span style={{ fontSize: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(201,160,255,.18)", color: "#C9A0FF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px" }}>preview · super admin only</span>
+                </div>
+                <div style={{ fontSize: 11.5, color: "var(--tx3)", marginBottom: 14 }}>Plan and actual side by side, with check-in time on its own line. Click any day to view detail.</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
+                  {myWeek.map(d => {
+                    const r = d.row;
+                    const plan = r?.planned_code || "—";
+                    const status = r?.status;
+                    const ci = r?.checked_in_at;
+                    const label = status === "NSNC" ? "✕ NSNC"
+                                : ["AL","SL","PH"].includes(status) ? `🌴 ${status}`
+                                : ci ? "✓ Present"
+                                : plan === "P" && d.isToday ? "Not yet"
+                                : plan === "H" ? "—"
+                                : plan === "P" && !d.isPast ? "—"
+                                : status === "P" ? "✓ Present"
+                                : "—";
+                    const time = ci ? fmtTime(ci)
+                                : status === "NSNC" ? "auto"
+                                : plan === "P" && d.isToday ? `window ${(r?.shift_start||"09:00:00").slice(0,5)}–${(r?.shift_end||"18:00:00").slice(0,5)}`
+                                : plan === "H" ? "holiday"
+                                : "—";
+                    return (
+                      <div key={d.iso} style={{
+                        padding: "12px 10px", borderRadius: 14,
+                        background: d.isToday ? "linear-gradient(180deg, rgba(60,255,165,.16), rgba(60,255,165,.06))" : "rgba(255,255,255,.04)",
+                        boxShadow: d.isToday ? "0 0 0 2px rgba(60,255,165,.40) inset" : "none",
+                        opacity: d.isPast && !d.isToday ? 0.68 : 1,
+                        minHeight: 112, display: "flex", flexDirection: "column", gap: 4,
+                      }}>
+                        <div style={{ fontSize: 9.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".8px", color: d.isToday ? "var(--green)" : "var(--tx3)" }}>
+                          {d.dow}{d.isToday ? " · TODAY" : ""}
+                        </div>
+                        <div style={{ fontSize: 19, fontWeight: 700, letterSpacing: "-0.5px", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>{d.dnum}</div>
+                        <div style={{ fontSize: 10, fontWeight: 600, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>
+                          Plan · <b style={{ color: "var(--tx)" }}>{plan}</b>
+                        </div>
+                        <div style={{ marginTop: "auto", paddingTop: 5, borderTop: "1px solid rgba(255,255,255,.06)", fontSize: 11, fontWeight: 600, color: stColor(status, plan, ci) }}>{label}</div>
+                        <div style={{ fontSize: 9.5, color: "var(--tx3)", fontWeight: 500, fontVariantNumeric: "tabular-nums" }}>{time}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* ── Today's huddle (lead view) — only when there's a team ── */}
+              {todayTeam.length > 0 && (
+                <div className="card" style={{ marginBottom: 14, padding: "18px 22px" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>Today's huddle — {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</div>
+                    <span style={{ fontSize: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(201,160,255,.18)", color: "#C9A0FF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px" }}>preview · super admin only</span>
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--tx3)", marginBottom: 14 }}>Snapshot of the visible team. NSNC + not-yet first.</div>
+                  {/* Stats banner */}
+                  <div style={{ display: "flex", gap: 14, marginBottom: 14, padding: "12px 16px", borderRadius: 12, background: "rgba(255,255,255,.04)", border: "1px solid rgba(255,255,255,.06)", flexWrap: "wrap" }}>
+                    {[
+                      ["Checked in", checkedIn.length, "var(--green)"],
+                      ["Not yet",    notYet.length,    "var(--amber)"],
+                      ["NSNC",       nsnc.length,      "var(--red)"],
+                      ["On leave",   onLeave.length,   "var(--blue)"],
+                    ].map(([label, val, color]) => (
+                      <div key={label} style={{ minWidth: 100 }}>
+                        <div style={{ fontSize: 20, fontWeight: 700, color, fontVariantNumeric: "tabular-nums" }}>{val}</div>
+                        <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".6px" }}>{label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Sorted team rows — NSNC, then not-yet, then present, then leave */}
+                  {[...nsnc, ...notYet, ...checkedIn, ...onLeave].slice(0, 8).map(r => {
+                    const color = stColor(r.status, r.planned_code, r.checked_in_at);
+                    const stateLabel = r.status === "NSNC" ? "✕ NSNC"
+                                    : ["AL","SL","PH"].includes(r.status) ? `🌴 ${r.status}`
+                                    : r.checked_in_at ? "✓ Present"
+                                    : r.planned_code === "P" ? "⏳ Not yet"
+                                    : "—";
+                    const timeStr = r.checked_in_at ? fmtTime(r.checked_in_at)
+                                    : r.status === "NSNC" ? "auto"
+                                    : r.planned_code === "P" && !r.checked_in_at ? "pending"
+                                    : "—";
+                    const rowBg = r.status === "NSNC" ? "rgba(255,107,107,.08)"
+                                : r.planned_code === "P" && !r.checked_in_at && !["AL","SL","PH","NSNC"].includes(r.status) ? "rgba(255,177,59,.06)"
+                                : "rgba(255,255,255,.025)";
+                    const rowShadow = r.status === "NSNC" ? "inset 0 0 0 1px rgba(255,107,107,.18)" : "none";
+                    return (
+                      <div key={r.email} style={{
+                        display: "grid", gridTemplateColumns: "32px 1fr 130px 110px 90px",
+                        gap: 12, alignItems: "center",
+                        padding: "10px 12px", borderRadius: 10,
+                        background: rowBg, boxShadow: rowShadow,
+                        fontSize: 12.5, marginBottom: 6,
+                      }}>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#6A2C79,#C9A0FF)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 11 }}>
+                          {r.name.split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase()}
+                        </div>
+                        <div>
+                          <strong>{r.name}</strong>
+                          <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>plan · {r.planned_code || "—"}</div>
+                        </div>
+                        <div style={{ fontSize: 11, color: "var(--tx3)" }}>
+                          {r.shift_start && r.shift_end ? `window ${r.shift_start.slice(0, 5)}–${r.shift_end.slice(0, 5)}` : "no shift set"}
+                        </div>
+                        <div style={{ fontWeight: 700, color }}>{stateLabel}</div>
+                        <div style={{ fontSize: 11, color: "var(--tx3)", fontVariantNumeric: "tabular-nums" }}>{timeStr}</div>
+                      </div>
+                    );
+                  })}
+                  {todayTeam.length > 8 && (
+                    <div style={{ textAlign: "center", fontSize: 11, color: "var(--tx3)", padding: 6 }}>
+                      + {todayTeam.length - 8} more — scroll the team calendar below
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {/* Routes-to chip (QA only) */}
         {isQA && myManagerName && <div style={{marginBottom:10,display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
