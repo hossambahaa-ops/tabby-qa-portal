@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Tabby Pulse — SrQA+ compact month grid</title>
+  <title>Tabby Pulse — qa_lead+ compact month grid v2</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -52,14 +52,14 @@
     .toolbar .nav .btn:hover { background: rgba(60,255,165,.10); border-color: rgba(60,255,165,.30); color: #3CFFA5; }
     .sub { font-size: 11px; color: rgba(245,243,248,.55); margin-bottom: 14px; }
 
-    /* Compact grid — sticky-left QA column */
+    /* Grid — sticky-left QA column, 31 day cols */
     .grid-wrap { overflow-x: auto; padding-bottom: 4px; max-width: 100%; }
-    .grid { display: grid; grid-template-columns: 140px repeat(31, minmax(36px, 1fr)); gap: 2px; min-width: 1200px; }
+    .grid { display: grid; grid-template-columns: 150px repeat(31, minmax(54px, 1fr)); gap: 3px; min-width: 1850px; }
 
     .grid .h-cell {
       padding: 5px 2px;
       text-align: center;
-      font-size: 8.5px;
+      font-size: 9px;
       font-weight: 700;
       color: rgba(245,243,248,.45);
       text-transform: uppercase;
@@ -68,12 +68,12 @@
       display: flex;
       flex-direction: column;
       justify-content: center;
-      gap: 1px;
+      gap: 2px;
     }
     .grid .h-cell.today { color: #3CFFA5; font-weight: 800; }
     .grid .h-cell.weekend { color: rgba(245,243,248,.28); }
-    .grid .h-cell .dow { opacity: .65; font-size: 8px; }
-    .grid .h-cell .num { font-size: 11px; font-weight: 700; }
+    .grid .h-cell .dow { opacity: .65; font-size: 8.5px; }
+    .grid .h-cell .num { font-size: 12px; font-weight: 700; }
 
     .grid .qa-cell {
       display: flex; align-items: center; gap: 6px;
@@ -83,13 +83,12 @@
       background: rgba(15,13,20,.92);
       backdrop-filter: blur(8px);
       z-index: 2;
-      min-height: 40px;
+      min-height: 58px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
     }
     .grid .qa-cell .av { width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(135deg, #6A2C79, #C9A0FF); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 9.5px; flex-shrink: 0; }
-    .grid .qa-cell .qname { font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; }
 
     .grid .qa-head {
       position: sticky; left: 0; z-index: 3;
@@ -104,26 +103,50 @@
       display: flex; align-items: center;
     }
 
-    /* Compact day cells */
+    /* Compact day cells — plan badge top-left, status mid, time bottom */
     .dcell {
-      min-height: 40px;
-      border-radius: 6px;
-      padding: 3px;
+      min-height: 58px;
+      border-radius: 7px;
+      padding: 3px 4px;
       cursor: pointer;
       transition: transform .15s, box-shadow .15s;
       display: flex;
       flex-direction: column;
-      gap: 1px;
+      gap: 0;
       text-align: center;
       font-size: 9px;
       position: relative;
       line-height: 1;
     }
-    .dcell:hover { transform: scale(1.15); z-index: 5; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+    .dcell:hover { transform: scale(1.18); z-index: 5; box-shadow: 0 8px 20px rgba(0,0,0,.55); }
     .dcell.empty { background: transparent; cursor: default; }
-    .dcell .stat { font-size: 10px; font-weight: 700; line-height: 1.1; }
-    .dcell .t { font-size: 8px; opacity: .7; font-variant-numeric: tabular-nums; font-weight: 500; }
-    .dcell.p     { background: rgba(60,255,165,.14); border: 1px solid rgba(60,255,165,.22); }
+    /* plan badge inside the cell — top-right corner */
+    .dcell .plan-badge {
+      position: absolute; top: 2px; right: 3px;
+      font-size: 7.5px; font-weight: 700;
+      padding: 0 4px;
+      border-radius: 2px;
+      background: rgba(255,255,255,.10);
+      color: rgba(245,243,248,.7);
+      letter-spacing: .3px;
+      line-height: 1.3;
+    }
+    .dcell.p .plan-badge { background: rgba(60,255,165,.20); color: #3CFFA5; }
+    .dcell.h .plan-badge { background: rgba(255,177,59,.20); color: #FFB13B; }
+    /* Status badge — main center text */
+    .dcell .stat {
+      font-size: 10.5px; font-weight: 800; line-height: 1.1;
+      margin-top: 12px; margin-bottom: auto;
+    }
+    /* Check-in time on its own line, bottom */
+    .dcell .t {
+      font-size: 8.5px;
+      opacity: .8;
+      font-variant-numeric: tabular-nums;
+      font-weight: 500;
+      margin-top: 2px;
+    }
+    .dcell.p     { background: rgba(60,255,165,.12); border: 1px solid rgba(60,255,165,.22); }
     .dcell.p .stat     { color: #3CFFA5; }
     .dcell.h     { background: rgba(255,177,59,.10); border: 1px solid rgba(255,177,59,.20); }
     .dcell.h .stat     { color: #FFB13B; }
@@ -159,14 +182,14 @@
 </head>
 <body>
   <div class="pick-bar">
-    <h1>Tabby Pulse — SrQA+ compact month grid</h1>
-    <p>For <b>senior_qa and above</b>: the lead team grid renders compact, full month visible at once horizontally. No expander. Built for people who oversee multiple teams and need the broad picture immediately.</p>
+    <h1>Tabby Pulse — qa_lead+ compact month grid</h1>
+    <p>For <b>qa_lead and above</b>: full month visible at once horizontally. Each cell shows plan badge (top-right), status (middle), and check-in time (bottom) — same vocabulary as the QA's week-first view, just compact.</p>
   </div>
 
   <div class="container">
     <div class="card-glass">
       <div class="toolbar">
-        <span class="label">Team attendance · May 2026 <span class="pill">SrQA+ · compact view</span></span>
+        <span class="label">Team attendance · May 2026 <span class="pill">qa_lead+ · compact view</span></span>
         <div class="nav">
           <button class="btn">‹ April</button>
           <button class="btn">May 2026</button>
@@ -174,7 +197,7 @@
           <button class="btn">Filter: Yara's team</button>
         </div>
       </div>
-      <div class="sub">8 specialists · full month visible horizontally · hover any cell for the day's detail · click to edit</div>
+      <div class="sub">8 specialists · plan vs actual · check-in time inside each cell · hover any cell for the day's detail · click to edit</div>
 
       <div class="stat-strip">
         <div class="item ok"><div class="v">21</div><div class="l">Working days</div></div>
@@ -222,174 +245,144 @@
           <div class="h-cell"><span class="dow">S</span><span class="num">31</span></div>
 
           <!-- Esraa Ibrahim -->
-          <div class="qa-cell"><span class="av">EI</span><span class="qname">Esraa Ibrahim</span></div>
+          <div class="qa-cell"><span class="av">EI</span>Esraa Ibrahim</div>
           <div class="dcell off"><div class="stat">·</div></div>
           <div class="dcell off"><div class="stat">·</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell pending today-edge"><div class="stat">⏳</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:08</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">08:55</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:21</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:14</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:04</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:08</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">08:55</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell pending today-edge"><span class="plan-badge">P</span><div class="stat">⏳</div><div class="t">window</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
 
           <!-- Hagar Dawood -->
-          <div class="qa-cell"><span class="av">HD</span><span class="qname">Hagar Dawood</span></div>
+          <div class="qa-cell"><span class="av">HD</span>Hagar Dawood</div>
           <div class="dcell off"><div class="stat">·</div></div>
           <div class="dcell off"><div class="stat">·</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell al"><div class="stat">AL</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell nsnc"><div class="stat">NSNC</div></div>
-          <div class="dcell pending today-edge"><div class="stat">⏳</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:14</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:02</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:18</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell al"><span class="plan-badge">P</span><div class="stat">AL</div><div class="t">07:45</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:11</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:14</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:02</div></div>
+          <div class="dcell nsnc"><span class="plan-badge">P</span><div class="stat">NSNC</div><div class="t">auto</div></div>
+          <div class="dcell pending today-edge"><span class="plan-badge">P</span><div class="stat">⏳</div><div class="t">window</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
 
           <!-- Mohamed Salah -->
-          <div class="qa-cell"><span class="av">MS</span><span class="qname">Mohamed Salah</span></div>
+          <div class="qa-cell"><span class="av">MS</span>Mohamed Salah</div>
           <div class="dcell off"><div class="stat">·</div></div>
           <div class="dcell off"><div class="stat">·</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell al"><div class="stat">AL</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell pending today-edge"><div class="stat">⏳</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell al"><span class="plan-badge">P</span><div class="stat">AL</div><div class="t">07:45</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:08</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:21</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:11</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">08:55</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:21</div></div>
+          <div class="dcell pending today-edge"><span class="plan-badge">P</span><div class="stat">⏳</div><div class="t">window</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
 
           <!-- Rana Salah -->
-          <div class="qa-cell"><span class="av">RS</span><span class="qname">Rana Salah</span></div>
+          <div class="qa-cell"><span class="av">RS</span>Rana Salah</div>
           <div class="dcell off"><div class="stat">·</div></div>
           <div class="dcell off"><div class="stat">·</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell pending today-edge"><div class="stat">⏳</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-
-          <!-- Asmaa Mohamed -->
-          <div class="qa-cell"><span class="av">AM</span><span class="qname">Asmaa Mohamed</span></div>
-          <div class="dcell off"><div class="stat">·</div></div>
-          <div class="dcell off"><div class="stat">·</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p"><div class="stat">P</div></div>
-          <div class="dcell p today-edge"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell h"><div class="stat">H</div></div>
-          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:04</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:14</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">08:55</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:08</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:11</div></div>
+          <div class="dcell p"><span class="plan-badge">P</span><div class="stat">P</div><div class="t">09:14</div></div>
+          <div class="dcell pending today-edge"><span class="plan-badge">P</span><div class="stat">⏳</div><div class="t">window</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell h"><span class="plan-badge">H</span><div class="stat">H</div></div>
+          <div class="dcell future"><span class="plan-badge">P</span><div class="stat">·</div></div>
         </div>
       </div>
 
@@ -398,23 +391,28 @@
         <span class="leg"><span class="sw" style="background:rgba(255,177,59,.30)"></span>Holiday (H)</span>
         <span class="leg"><span class="sw" style="background:rgba(120,150,255,.30)"></span>Leave (AL/SL)</span>
         <span class="leg"><span class="sw" style="background:rgba(255,107,107,.35)"></span>NSNC</span>
-        <span class="leg"><span class="sw" style="background:rgba(255,255,255,.10);border:1px dashed rgba(255,255,255,.4)"></span>Pending</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,255,255,.10);border:1px dashed rgba(255,255,255,.4)"></span>Planned, not yet checked in</span>
         <span class="leg"><span class="sw" style="background:rgba(245,243,248,.12)"></span>OFF / no plan</span>
       </div>
     </div>
 
     <div class="note">
-      <strong>For senior_qa and above:</strong>
+      <strong>For qa_lead and above:</strong>
       <ul>
         <li>Full month visible at once (31 day columns). No expander needed.</li>
-        <li>Compact 40 × 40 px cells — about 50 % smaller than the standard lead view.</li>
-        <li>QA name column is sticky-left so the row label stays visible as you scroll horizontally.</li>
-        <li>Top stat strip surfaces month-level totals (P / NSNC / pending / AL / adherence) for fast scanning.</li>
-        <li>Cells show only the status badge — no check-in time inline (too dense). Hover any cell to pop a tooltip with the full detail (time, plan, lead override notes).</li>
-        <li>Click any cell to edit (same picker as today).</li>
+        <li>Each cell is ~54 × 58 px and shows three things in one glance:
+          <ul style="margin-top:4px;">
+            <li><b>Plan badge</b> (top-right) — P or H, what was scheduled.</li>
+            <li><b>Status badge</b> (middle) — P / NSNC / AL / ⏳ / H — what actually happened.</li>
+            <li><b>Check-in time</b> (bottom) — 09:14, auto, window — when the QA checked in.</li>
+          </ul>
+        </li>
+        <li>Plan ≠ status is instantly visible: a cell with plan badge "P" but body colour "NSNC" red, or plan "P" but body "AL" blue, shows the mismatch in one glance.</li>
+        <li>Sticky-left QA name column stays visible while scrolling horizontally.</li>
         <li>Today's column outlined in green across every QA row.</li>
+        <li>Click any cell to edit (same picker as today). Hover for richer tooltip.</li>
       </ul>
-      <p style="margin-top:8px;">Pure QAs and regular leads stay on the <b>week-first</b> view (the previous preview). This compact full-month layout only kicks in at <b>senior_qa</b> and above.</p>
+      <p style="margin-top:8px;">QA / senior_qa still use the <b>week-first</b> own-calendar view. qa_lead and above get this <b>compact full-month</b> team view.</p>
     </div>
   </div>
 </body>
