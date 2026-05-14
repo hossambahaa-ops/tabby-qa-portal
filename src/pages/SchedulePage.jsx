@@ -953,6 +953,198 @@ function SchedulePage() {
                   )}
                 </div>
               )}
+
+              {/* ── Compact full-month grid (qa_lead+ only) ──
+                  Same vocabulary as the QA week-first view: plan badge,
+                  status, check-in time per cell. 31 cols, sticky-left
+                  QA name, today's column outlined. Built for leads who
+                  need the broader picture in one shot. */}
+              {hasRole(profile?.role, "qa_lead") && visibleQAs.length > 0 && (() => {
+                const [yyyy, mm] = selMonth.split("-").map(Number);
+                const daysInMonth = new Date(yyyy, mm, 0).getDate();
+                const dowLetters = ["S","M","T","W","T","F","S"];
+                const today = new Date();
+                const days = Array.from({ length: daysInMonth }, (_, i) => {
+                  const dnum = i + 1;
+                  const dt = new Date(yyyy, mm - 1, dnum);
+                  const dow = dt.getDay();
+                  const iso = `${selMonth}-${String(dnum).padStart(2, "0")}`;
+                  return {
+                    dnum,
+                    dow,
+                    dowLetter: dowLetters[dow],
+                    isWeekend: dow === 5 || dow === 6,
+                    isToday: dt.toDateString() === today.toDateString(),
+                    iso,
+                  };
+                });
+                // Aggregate stats for the strip across visible team
+                const teamEmailsLower = visibleQAs.map(r => r.email?.toLowerCase()).filter(Boolean);
+                const monthRows = (attendance || []).filter(a => teamEmailsLower.includes((a.email || "").toLowerCase()));
+                let pCount = 0, nsncCount = 0, alCount = 0, plannedP = 0, pendingTodayCount = 0;
+                for (const r of monthRows) {
+                  if (r.status === "P") pCount++;
+                  if (r.status === "NSNC") nsncCount++;
+                  if (["AL","SL","PH"].includes(r.status)) alCount++;
+                  if (r.planned_code === "P") plannedP++;
+                  if (r.date === todayIso && r.planned_code === "P" && !r.checked_in_at && r.status !== "NSNC" && !["AL","SL","PH"].includes(r.status)) pendingTodayCount++;
+                }
+                const adherence = plannedP > 0 ? `${((pCount / plannedP) * 100).toFixed(1)}%` : "—";
+                // Cell variant + content resolver
+                const cellDesc = (qaLower, d) => {
+                  const row = monthRows.find(a => (a.email || "").toLowerCase() === qaLower && a.date === d.iso);
+                  const plan = row?.planned_code;
+                  const status = row?.status;
+                  const ci = row?.checked_in_at;
+                  let variant = "future";
+                  let statText = "·";
+                  let timeText = "";
+                  if (!row || (!plan && !status)) {
+                    variant = "off";
+                    statText = "·";
+                  } else if (status === "NSNC") {
+                    variant = "nsnc"; statText = "NSNC"; timeText = "auto";
+                  } else if (["AL","SL","PH"].includes(status)) {
+                    variant = "al"; statText = status; timeText = ci ? fmtTime(ci) : "lead";
+                  } else if (plan === "H" || status === "H") {
+                    variant = "h"; statText = "H";
+                  } else if (ci) {
+                    variant = "p"; statText = "P"; timeText = fmtTime(ci);
+                  } else if (plan === "P" && d.iso === todayIso) {
+                    variant = "pending"; statText = "⏳"; timeText = "window";
+                  } else if (plan === "P" && d.iso > todayIso) {
+                    variant = "future"; statText = "·";
+                  } else if (status === "P") {
+                    variant = "p"; statText = "P";
+                  } else {
+                    variant = "off"; statText = "·";
+                  }
+                  return { variant, statText, timeText, plan };
+                };
+                // Variant -> background/border/colour map
+                const variantStyle = (v, isToday) => {
+                  const base = {
+                    p:      { bg: "rgba(60,255,165,.12)",  bd: "rgba(60,255,165,.22)",  fg: "var(--green)"     },
+                    h:      { bg: "rgba(255,177,59,.10)",  bd: "rgba(255,177,59,.20)",  fg: "var(--amber)"     },
+                    al:     { bg: "rgba(120,150,255,.10)", bd: "rgba(120,150,255,.22)", fg: "var(--accent-text)" },
+                    nsnc:   { bg: "rgba(255,107,107,.18)", bd: "rgba(255,107,107,.32)", fg: "var(--red)"       },
+                    pending:{ bg: "rgba(255,255,255,.04)", bd: "rgba(255,255,255,.18)", fg: "rgba(255,255,255,.6)", dashed: true },
+                    future: { bg: "rgba(255,255,255,.025)",bd: "rgba(255,255,255,.06)", fg: "rgba(255,255,255,.4)" },
+                    off:    { bg: "rgba(245,243,248,.04)", bd: "rgba(245,243,248,.08)", fg: "rgba(245,243,248,.45)" },
+                  }[v];
+                  return {
+                    background: base.bg,
+                    border: `1px ${base.dashed ? "dashed" : "solid"} ${base.bd}`,
+                    color: base.fg,
+                    boxShadow: isToday ? "0 0 0 2px rgba(60,255,165,.55)" : "none",
+                  };
+                };
+                const planBadgeStyle = (plan) => {
+                  if (plan === "P") return { background: "rgba(60,255,165,.20)", color: "#3CFFA5" };
+                  if (plan === "H") return { background: "rgba(255,177,59,.20)", color: "#FFB13B" };
+                  return { background: "rgba(255,255,255,.10)", color: "rgba(255,255,255,.6)" };
+                };
+                return (
+                  <div className="card" style={{ marginBottom: 14, padding: "16px 18px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ fontSize: 14, fontWeight: 700 }}>
+                        Team attendance · full month
+                        <span style={{ fontSize: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(106,44,121,.18)", color: "#C9A0FF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", marginLeft: 10 }}>qa_lead+ compact</span>
+                      </div>
+                      <span style={{ fontSize: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(201,160,255,.18)", color: "#C9A0FF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px" }}>preview · super admin only</span>
+                    </div>
+                    <div style={{ fontSize: 11.5, color: "var(--tx3)", marginBottom: 12 }}>{visibleQAs.length} specialists · plan badge top-right · status middle · check-in time bottom · today's column outlined</div>
+                    {/* Stat strip */}
+                    <div style={{ display: "flex", gap: 18, marginBottom: 14, padding: "10px 14px", borderRadius: 10, background: "rgba(255,255,255,.03)", border: "1px solid rgba(255,255,255,.06)", flexWrap: "wrap" }}>
+                      {[
+                        ["Working days", plannedP, "var(--green)"],
+                        ["P this month", pCount, "var(--green)"],
+                        ["NSNC", nsncCount, "var(--red)"],
+                        ["Pending today", pendingTodayCount, "var(--amber)"],
+                        ["AL approved", alCount, "var(--accent-text)"],
+                        ["Adherence", adherence, "var(--tx)"],
+                      ].map(([label, val, c]) => (
+                        <div key={label} style={{ minWidth: 80 }}>
+                          <div style={{ fontSize: 17, fontWeight: 700, color: c, letterSpacing: "-.3px", fontVariantNumeric: "tabular-nums" }}>{val}</div>
+                          <div style={{ fontSize: 9.5, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>{label}</div>
+                        </div>
+                      ))}
+                    </div>
+                    {/* Grid */}
+                    <div style={{ overflowX: "auto", paddingBottom: 4 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: `150px repeat(${daysInMonth}, minmax(54px, 1fr))`, gap: 3, minWidth: 150 + daysInMonth * 56 }}>
+                        {/* Header: QA + day numbers */}
+                        <div style={{ position: "sticky", left: 0, background: "rgba(15,13,20,.92)", backdropFilter: "blur(8px)", zIndex: 3, padding: "5px 8px", fontSize: 9, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".4px", display: "flex", alignItems: "center" }}>QA</div>
+                        {days.map(d => (
+                          <div key={`h-${d.dnum}`} style={{ padding: "5px 2px", textAlign: "center", fontSize: 9, fontWeight: 700, color: d.isToday ? "var(--green)" : d.isWeekend ? "rgba(245,243,248,.28)" : "var(--tx3)", textTransform: "uppercase", letterSpacing: ".3px", lineHeight: 1.1, display: "flex", flexDirection: "column", justifyContent: "center", gap: 2 }}>
+                            <span style={{ opacity: .65, fontSize: 8.5 }}>{d.dowLetter}</span>
+                            <span style={{ fontSize: 12, fontWeight: 700 }}>{d.dnum}</span>
+                          </div>
+                        ))}
+                        {/* Rows: one per visible QA */}
+                        {visibleQAs.map(qa => {
+                          const qaLower = qa.email.toLowerCase();
+                          return (
+                            <React.Fragment key={`row-${qa.email}`}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 8px", fontSize: 11.5, fontWeight: 600, position: "sticky", left: 0, background: "rgba(15,13,20,.92)", backdropFilter: "blur(8px)", zIndex: 2, minHeight: 58, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "linear-gradient(135deg, #6A2C79, #C9A0FF)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 9.5, flexShrink: 0 }}>
+                                  {_nameFromEmail(qa.email).split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase()}
+                                </span>
+                                <span style={{ fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis" }}>{_nameFromEmail(qa.email)}</span>
+                              </div>
+                              {days.map(d => {
+                                const desc = cellDesc(qaLower, d);
+                                const vs = variantStyle(desc.variant, d.isToday);
+                                return (
+                                  <div
+                                    key={`${qa.email}-${d.dnum}`}
+                                    onClick={() => setEditCell(`${qa.email}-${d.dnum}`)}
+                                    title={`${d.iso} · plan ${desc.plan || "—"} · ${desc.statText}${desc.timeText ? " · " + desc.timeText : ""}`}
+                                    style={{
+                                      minHeight: 58,
+                                      borderRadius: 7,
+                                      padding: "3px 4px",
+                                      cursor: "pointer",
+                                      transition: "transform .15s, box-shadow .15s",
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      gap: 0,
+                                      textAlign: "center",
+                                      fontSize: 9,
+                                      position: "relative",
+                                      lineHeight: 1,
+                                      ...vs,
+                                    }}
+                                  >
+                                    {/* plan badge — top-right corner */}
+                                    {desc.plan && (
+                                      <span style={{
+                                        position: "absolute", top: 2, right: 3,
+                                        fontSize: 7.5, fontWeight: 700,
+                                        padding: "0 4px",
+                                        borderRadius: 2,
+                                        letterSpacing: ".3px",
+                                        lineHeight: 1.3,
+                                        ...planBadgeStyle(desc.plan),
+                                      }}>{desc.plan}</span>
+                                    )}
+                                    {/* status text */}
+                                    <div style={{ fontSize: 10.5, fontWeight: 800, lineHeight: 1.1, marginTop: 12, marginBottom: "auto" }}>{desc.statText}</div>
+                                    {/* check-in time */}
+                                    {desc.timeText && (
+                                      <div style={{ fontSize: 8.5, opacity: .8, fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 2 }}>{desc.timeText}</div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </React.Fragment>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
             </>
           );
         })()}
