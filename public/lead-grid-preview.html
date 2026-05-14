@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tabby Pulse — Lead team grid redesign</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0A0814; color: #F5F3F8; font-family: 'Inter Tight', system-ui, sans-serif; min-height: 100%; }
+    body {
+      background:
+        radial-gradient(ellipse 900px 700px at 12% 5%, rgba(106,44,121,.40), transparent 60%),
+        radial-gradient(ellipse 800px 600px at 90% 25%, rgba(60,255,165,.18), transparent 60%),
+        radial-gradient(ellipse 700px 600px at 75% 95%, rgba(120,80,255,.28), transparent 60%),
+        #0A0814;
+      background-attachment: fixed;
+    }
+    .pick-bar { position: sticky; top: 0; background: rgba(10,8,20,.85); backdrop-filter: blur(20px); padding: 16px 28px; border-bottom: 1px solid rgba(255,255,255,.06); z-index: 50; }
+    .pick-bar h1 { font-size: 19px; font-weight: 700; letter-spacing: -.4px; }
+    .pick-bar p { color: rgba(245,243,248,.55); font-size: 13px; margin-top: 3px; max-width: 80ch; }
+
+    .container { max-width: 1300px; margin: 0 auto; padding: 40px 28px 60px; }
+
+    .card-glass {
+      border-radius: 28px;
+      padding: 24px 26px;
+      background: rgba(255,255,255,.05);
+      backdrop-filter: blur(36px) saturate(180%);
+      box-shadow:
+        0 32px 80px -12px rgba(0,0,0,.5),
+        0 12px 32px -8px rgba(0,0,0,.35),
+        inset 0 1px 0 rgba(255,255,255,.09);
+      position: relative;
+      isolation: isolate;
+    }
+    .card-glass::before {
+      content: ""; position: absolute; inset: 0 0 auto 0; height: 50%; pointer-events: none;
+      border-radius: 28px 28px 0 0;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 70%);
+      z-index: 0;
+    }
+    .card-glass > * { position: relative; z-index: 1; }
+
+    .toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .toolbar .label { font-size: 18px; font-weight: 700; letter-spacing: -.4px; }
+    .toolbar .label .pill { font-size: 10px; padding: 3px 9px; border-radius: 999px; background: rgba(60,255,165,.12); color: #3CFFA5; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; margin-left: 10px; vertical-align: middle; }
+    .toolbar .nav { display: flex; gap: 6px; }
+    .toolbar .nav .btn { padding: 5px 12px; border-radius: 8px; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.08); font-size: 11.5px; font-weight: 600; color: rgba(245,243,248,.8); cursor: pointer; font-family: inherit; }
+    .toolbar .nav .btn:hover { background: rgba(60,255,165,.10); border-color: rgba(60,255,165,.30); color: #3CFFA5; }
+    .toolbar .nav .btn.active { background: rgba(60,255,165,.20); border-color: rgba(60,255,165,.40); color: #3CFFA5; }
+    .sub { font-size: 11.5px; color: rgba(245,243,248,.55); margin-bottom: 14px; }
+
+    /* Grid wrapper — scrolls horizontally when month view is open */
+    .grid-wrap { overflow-x: auto; padding-bottom: 6px; }
+
+    /* Header row */
+    .grid-row { display: grid; gap: 4px; }
+    .grid-row.head { font-size: 10px; font-weight: 700; color: rgba(245,243,248,.5); text-transform: uppercase; letter-spacing: .6px; padding-bottom: 6px; }
+    .grid-row.head .h-cell { padding: 6px 4px; text-align: center; }
+    .grid-row.head .h-cell.today { color: #3CFFA5; }
+    .grid-row.head .h-cell.weekend { color: rgba(245,243,248,.32); }
+    .grid-row.head .h-cell.qa-col { text-align: left; padding-left: 10px; }
+
+    /* Body rows (one per QA) */
+    .grid-row.body { padding: 4px 0; align-items: center; }
+    .grid-row.body .qa-cell { display: flex; align-items: center; gap: 8px; padding: 6px 10px; font-weight: 600; font-size: 12.5px; }
+    .grid-row.body .qa-cell .av { width: 24px; height: 24px; border-radius: 50%; background: linear-gradient(135deg, #6A2C79, #C9A0FF); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 10px; }
+
+    /* Day cells */
+    .dcell {
+      min-height: 64px;
+      border-radius: 10px;
+      padding: 6px 6px;
+      cursor: pointer;
+      transition: transform .15s;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      text-align: center;
+      font-size: 10.5px;
+      position: relative;
+    }
+    .dcell:hover { transform: scale(1.05); z-index: 2; }
+    .dcell.empty { background: transparent; cursor: default; }
+    .dcell .stat { font-size: 11px; font-weight: 700; line-height: 1.1; margin-top: auto; margin-bottom: auto; }
+    .dcell .t { font-size: 9px; opacity: .65; font-variant-numeric: tabular-nums; font-weight: 500; }
+    .dcell.p     { background: rgba(60,255,165,.12); border: 1px solid rgba(60,255,165,.20); }
+    .dcell.p .stat     { color: #3CFFA5; }
+    .dcell.h     { background: rgba(255,177,59,.08); border: 1px solid rgba(255,177,59,.20); }
+    .dcell.h .stat     { color: #FFB13B; }
+    .dcell.al    { background: rgba(120,150,255,.08); border: 1px solid rgba(120,150,255,.22); }
+    .dcell.al .stat    { color: #A8C5FF; }
+    .dcell.nsnc  { background: rgba(255,107,107,.14); border: 1px solid rgba(255,107,107,.30); }
+    .dcell.nsnc .stat  { color: #FF6B6B; }
+    .dcell.pending { background: rgba(255,255,255,.04); border: 1px dashed rgba(255,255,255,.18); }
+    .dcell.pending .stat { color: rgba(245,243,248,.6); }
+    .dcell.future { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.06); }
+    .dcell.future .stat { color: rgba(245,243,248,.45); }
+    .dcell.today-edge { box-shadow: 0 0 0 2px rgba(60,255,165,.55); }
+    .dcell.off { background: rgba(245,243,248,.04); border: 1px solid rgba(245,243,248,.08); }
+    .dcell.off .stat { color: rgba(245,243,248,.5); }
+
+    .expand-toggle {
+      width: 100%; padding: 10px 12px;
+      margin: 10px 0 0;
+      border: 1px dashed rgba(255,255,255,.16);
+      border-radius: 10px;
+      background: transparent;
+      color: rgba(245,243,248,.7);
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .expand-toggle:hover { background: rgba(60,255,165,.06); border-color: rgba(60,255,165,.30); color: #3CFFA5; }
+    .expand-toggle .chev { font-size: 13px; transition: transform .25s; }
+    .expand-toggle.open .chev { transform: rotate(180deg); }
+
+    /* Grid templates */
+    .week-cols { grid-template-columns: 180px repeat(7, minmax(80px, 1fr)); }
+    .month-cols { grid-template-columns: 180px repeat(31, minmax(64px, 1fr)); }
+
+    .legend-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 11px; color: rgba(245,243,248,.55); margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.06); }
+    .legend-row .leg { display: inline-flex; align-items: center; gap: 6px; }
+    .legend-row .leg .sw { width: 12px; height: 12px; border-radius: 3px; }
+
+    .note { font-size: 12.5px; line-height: 1.55; color: rgba(245,243,248,.85); padding: 14px 18px; border-radius: 14px; background: rgba(60,255,165,.06); border: 1px solid rgba(60,255,165,.20); margin-top: 24px; }
+    .note strong { color: #3CFFA5; }
+    .note ul { margin-top: 6px; margin-left: 18px; color: rgba(245,243,248,.7); }
+  </style>
+</head>
+<body>
+  <div class="pick-bar">
+    <h1>Tabby Pulse — Lead team grid redesign</h1>
+    <p>Default: <b>this week only</b> (7 day columns), team members as rows. Each cell shows status + check-in time. Expand below to see the full month (still as a single grid, scrollable horizontally).</p>
+  </div>
+
+  <div class="container">
+    <div class="card-glass">
+      <div class="toolbar">
+        <span class="label">Yara Ashraf's team · May 2026 <span class="pill">this week</span></span>
+        <div class="nav">
+          <button class="btn">‹ prev week</button>
+          <button class="btn active">today</button>
+          <button class="btn">next week ›</button>
+          <button class="btn">‹ April</button>
+          <button class="btn">June ›</button>
+        </div>
+      </div>
+      <div class="sub">8 specialists · current week 11–17 May 2026. Click any cell to edit. Status + check-in time inside each cell.</div>
+
+      <!-- WEEK VIEW (default) -->
+      <div class="grid-wrap" id="weekView">
+        <div class="grid-row head week-cols">
+          <div class="h-cell qa-col">QA</div>
+          <div class="h-cell">Sun 11</div>
+          <div class="h-cell">Mon 12</div>
+          <div class="h-cell">Tue 13</div>
+          <div class="h-cell today">Wed 14</div>
+          <div class="h-cell">Thu 15</div>
+          <div class="h-cell weekend">Fri 16</div>
+          <div class="h-cell weekend">Sat 17</div>
+        </div>
+
+        <!-- Esraa -->
+        <div class="grid-row body week-cols">
+          <div class="qa-cell"><span class="av">EI</span>Esraa Ibrahim</div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:08</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">08:55</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell pending today-edge"><div class="stat">⏳</div><div class="t">window</div></div>
+          <div class="dcell future"><div class="stat">P</div><div class="t">plan</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+        </div>
+
+        <!-- Hagar -->
+        <div class="grid-row body week-cols">
+          <div class="qa-cell"><span class="av">HD</span>Hagar Dawood</div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:14</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:02</div></div>
+          <div class="dcell nsnc"><div class="stat">NSNC</div><div class="t">auto</div></div>
+          <div class="dcell pending today-edge"><div class="stat">⏳</div><div class="t">window</div></div>
+          <div class="dcell future"><div class="stat">P</div><div class="t">plan</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+        </div>
+
+        <!-- Mohamed Salah -->
+        <div class="grid-row body week-cols">
+          <div class="qa-cell"><span class="av">MS</span>Mohamed Salah</div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell al"><div class="stat">AL</div><div class="t">07:45</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:21</div></div>
+          <div class="dcell pending today-edge"><div class="stat">⏳</div><div class="t">window</div></div>
+          <div class="dcell future"><div class="stat">P</div><div class="t">plan</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+        </div>
+
+        <!-- Rana -->
+        <div class="grid-row body week-cols">
+          <div class="qa-cell"><span class="av">RS</span>Rana Salah</div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:04</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:11</div></div>
+          <div class="dcell pending today-edge"><div class="stat">⏳</div><div class="t">window</div></div>
+          <div class="dcell future"><div class="stat">P</div><div class="t">plan</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+        </div>
+
+        <!-- Asmaa -->
+        <div class="grid-row body week-cols">
+          <div class="qa-cell"><span class="av">AM</span>Asmaa Mohamed</div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:08</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">08:55</div></div>
+          <div class="dcell p today-edge"><div class="stat">P</div><div class="t">09:08</div></div>
+          <div class="dcell future"><div class="stat">P</div><div class="t">plan</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+        </div>
+      </div>
+
+      <!-- Show full month expander -->
+      <button class="expand-toggle" id="fullMonthToggle" onclick="toggleFullMonth()">
+        <span class="chev">▼</span>
+        <span id="toggleLabel">Show full month (May 1 – May 31)</span>
+      </button>
+
+      <!-- MONTH VIEW (hidden by default) -->
+      <div class="grid-wrap" id="monthView" style="display:none; margin-top: 10px;">
+        <div class="grid-row head month-cols">
+          <div class="h-cell qa-col">QA</div>
+          <!-- May 1-31 day headers (Sun=1=Fri etc.) -->
+          <div class="h-cell weekend">F1</div>
+          <div class="h-cell weekend">S2</div>
+          <div class="h-cell">S3</div>
+          <div class="h-cell">M4</div>
+          <div class="h-cell">T5</div>
+          <div class="h-cell">W6</div>
+          <div class="h-cell">T7</div>
+          <div class="h-cell weekend">F8</div>
+          <div class="h-cell weekend">S9</div>
+          <div class="h-cell">S10</div>
+          <div class="h-cell">M11</div>
+          <div class="h-cell">T12</div>
+          <div class="h-cell">W13</div>
+          <div class="h-cell today">T14</div>
+          <div class="h-cell weekend">F15</div>
+          <div class="h-cell weekend">S16</div>
+          <div class="h-cell">S17</div>
+          <div class="h-cell">M18</div>
+          <div class="h-cell">T19</div>
+          <div class="h-cell">W20</div>
+          <div class="h-cell">T21</div>
+          <div class="h-cell weekend">F22</div>
+          <div class="h-cell weekend">S23</div>
+          <div class="h-cell">S24</div>
+          <div class="h-cell">M25</div>
+          <div class="h-cell">T26</div>
+          <div class="h-cell">W27</div>
+          <div class="h-cell">T28</div>
+          <div class="h-cell weekend">F29</div>
+          <div class="h-cell weekend">S30</div>
+          <div class="h-cell">S31</div>
+        </div>
+        <!-- Just one example row for Esraa to show density -->
+        <div class="grid-row body month-cols">
+          <div class="qa-cell"><span class="av">EI</span>Esraa Ibrahim</div>
+          <div class="dcell off"><div class="stat">·</div></div>
+          <div class="dcell off"><div class="stat">·</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:08</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">08:55</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:21</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell p"><div class="stat">P</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:04</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:08</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">08:55</div></div>
+          <div class="dcell p"><div class="stat">P</div><div class="t">09:00</div></div>
+          <div class="dcell pending today-edge"><div class="stat">⏳</div></div>
+          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell future"><div class="stat">P</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell h"><div class="stat">H</div></div>
+          <div class="dcell future"><div class="stat">P</div></div>
+        </div>
+        <!-- ...etc for all team members -->
+        <div style="text-align:center;padding:10px;font-size:11px;color:rgba(245,243,248,.45);">…all 8 team members render in this view; scroll horizontally if needed</div>
+      </div>
+
+      <div class="legend-row">
+        <span class="leg"><span class="sw" style="background:rgba(60,255,165,.35)"></span>Present (P)</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,177,59,.30)"></span>Holiday (H)</span>
+        <span class="leg"><span class="sw" style="background:rgba(120,150,255,.30)"></span>Leave (AL/SL)</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,107,107,.35)"></span>NSNC</span>
+        <span class="leg"><span class="sw" style="background:rgba(255,255,255,.10);border:1px dashed rgba(255,255,255,.4)"></span>Planned, not yet checked in</span>
+      </div>
+    </div>
+
+    <div class="note">
+      <strong>How it works:</strong>
+      <ul>
+        <li>Default: <b>this week only</b> (Sun–Sat, 7 columns). Today (Wed 14) outlined in green.</li>
+        <li>Use <b>‹ prev week / today / next week ›</b> to step one week at a time.</li>
+        <li>Click <b>Show full month</b> to expand the whole month grid below — 31 columns, horizontal scroll. Hide it again with the same button.</li>
+        <li>Each cell: status badge (P / H / NSNC / ⏳ / AL) on the main line, check-in time below.</li>
+        <li>Cells stay click-to-edit. The lead can override any status.</li>
+      </ul>
+    </div>
+  </div>
+
+  <script>
+    function toggleFullMonth(){
+      const mv = document.getElementById("monthView");
+      const btn = document.getElementById("fullMonthToggle");
+      const label = document.getElementById("toggleLabel");
+      const open = mv.style.display === "none";
+      mv.style.display = open ? "block" : "none";
+      btn.classList.toggle("open", open);
+      label.textContent = open ? "Hide full month" : "Show full month (May 1 – May 31)";
+    }
+  </script>
+</body>
+</html>
