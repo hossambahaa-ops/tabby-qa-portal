@@ -70,7 +70,20 @@ export default function CalendarDayCell({
           </span>
         )}
       </div>
-      {st && attType && (
+      {/* Status badge: in enhanced mode, only render when there's a
+          REAL outcome — checked-in, a mismatch with the plan, or a
+          definitive status code (NSNC / AL / SL / PH). Skip when status
+          merely echoes the plan with no check-in (column-default 'P'
+          on planned-P rows) so the plan badge in the corner is the
+          single source of truth until the QA actually marks themselves. */}
+      {st && attType && (() => {
+        if (!enhanced) return true;
+        if (checkInAt) return true;                               // QA self-checked in
+        if (st === "NSNC") return true;                            // auto / manual NSNC
+        if (["AL", "SL", "PH"].includes(st)) return true;          // approved leave
+        if (planned && st !== planned) return true;                // mismatch — keep visible
+        return false;                                              // default-status echoing the plan → hide
+      })() && (
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <span
             style={{
@@ -97,18 +110,37 @@ export default function CalendarDayCell({
       )}
       {/* Enhanced-mode footer: check-in time (or "Not yet" / "window")
           on its own line beneath the status. Keeps the timing trail
-          visible without competing with the status badge above. */}
-      {enhanced && (checkInAt || isPlannedNoCheckIn) && (
-        <div style={{ marginTop: "auto", paddingTop: 4, fontSize: 9.5, color: "var(--tx3)", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
-          {checkInAt
-            ? `✓ ${fmtTime(checkInAt)}`
-            : isFutureDay
-              ? "— planned"
-              : isToday
-                ? "⏳ window 09:00–18:00"
-                : "Not yet"}
-        </div>
-      )}
+          visible without competing with the status badge above.
+          Window string reflects shift_start through shift_end + 1h
+          (the auto-NSNC grace), which is the actual check-in window
+          the QA still has. Falls back to 09:00–19:00 (default 9-18 +
+          1h grace) when the row has no shift times. */}
+      {enhanced && (checkInAt || isPlannedNoCheckIn) && (() => {
+        const windowText = (() => {
+          const s = att?.shift_start;
+          const e = att?.shift_end;
+          const toMM = (t) => (typeof t === "string" ? t.slice(0, 5) : "");
+          const plusGrace = (t) => {
+            if (typeof t !== "string") return "";
+            const [h, m] = t.split(":").map(Number);
+            const h2 = Math.min(23, (h || 0) + 1);
+            return `${String(h2).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`;
+          };
+          if (s && e) return `${toMM(s)}–${plusGrace(e)}`;
+          return "09:00–19:00";
+        })();
+        return (
+          <div style={{ marginTop: "auto", paddingTop: 4, fontSize: 9.5, color: "var(--tx3)", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
+            {checkInAt
+              ? `✓ ${fmtTime(checkInAt)}`
+              : isFutureDay
+                ? "— planned"
+                : isToday
+                  ? `⏳ window ${windowText}`
+                  : "Not yet"}
+          </div>
+        );
+      })()}
       {isEditing && (
         <CellPicker
           anchorEl={ref.current}

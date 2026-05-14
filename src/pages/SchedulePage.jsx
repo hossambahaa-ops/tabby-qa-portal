@@ -1035,34 +1035,63 @@ function SchedulePage() {
                   if (r.date === todayIso && r.planned_code === "P" && !r.checked_in_at && r.status !== "NSNC" && !["AL","SL","PH"].includes(r.status)) pendingTodayCount++;
                 }
                 const adherence = eligibleDays > 0 ? `${((adheredCount / eligibleDays) * 100).toFixed(1)}%` : "—";
-                // Cell variant + content resolver
+                // Cell variant + content resolver.
+                // Rule: only render a status badge (statText) when the row
+                // has a REAL outcome — checked-in, a mismatch with the
+                // plan, or a definitive non-P/H code. Otherwise leave
+                // statText empty so the plan badge in the corner is the
+                // only thing showing. Keeps the cell from echoing the
+                // plan-default 'P' before the QA has actually marked
+                // themselves.
                 const cellDesc = (qaLower, d) => {
                   const row = monthRows.find(a => (a.email || "").toLowerCase() === qaLower && a.date === d.iso);
                   const plan = row?.planned_code;
                   const status = row?.status;
                   const ci = row?.checked_in_at;
                   let variant = "future";
-                  let statText = "·";
+                  let statText = "";
                   let timeText = "";
                   if (!row || (!plan && !status)) {
                     variant = "off";
-                    statText = "·";
                   } else if (status === "NSNC") {
                     variant = "nsnc"; statText = "NSNC"; timeText = "auto";
                   } else if (["AL","SL","PH"].includes(status)) {
                     variant = "al"; statText = status; timeText = ci ? fmtTime(ci) : "lead";
-                  } else if (plan === "H" || status === "H") {
-                    variant = "h"; statText = "H";
                   } else if (ci) {
-                    variant = "p"; statText = "P"; timeText = fmtTime(ci);
+                    // QA self-checked-in. Show their actual status in the middle.
+                    variant = status === "H" ? "h" : "p";
+                    statText = status || "P";
+                    timeText = fmtTime(ci);
+                  } else if (plan && status && plan !== status) {
+                    // Mismatch (e.g. planned P, actual H by lead override).
+                    // Worth surfacing — keep the status badge visible.
+                    variant = status === "H" ? "h" : status === "P" ? "p" : "off";
+                    statText = status;
+                  } else if (plan === "H") {
+                    // Planned holiday, no actual outcome yet — plan badge tells the story.
+                    variant = "h";
                   } else if (plan === "P" && d.iso === todayIso) {
-                    variant = "pending"; statText = "⏳"; timeText = "window";
+                    // Today's planned-P, not yet checked in. Show the
+                    // ACTUAL check-in window (shift_start through
+                    // shift_end + 1h grace, matching the auto-NSNC cutoff).
+                    variant = "pending";
+                    const s = row?.shift_start; const e = row?.shift_end;
+                    const toMM = (t) => (typeof t === "string" ? t.slice(0, 5) : "");
+                    const plusGrace = (t) => {
+                      if (typeof t !== "string") return "";
+                      const [h, m] = t.split(":").map(Number);
+                      const h2 = Math.min(23, (h || 0) + 1);
+                      return `${String(h2).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`;
+                    };
+                    timeText = (s && e) ? `${toMM(s)}–${plusGrace(e)}` : "09:00–19:00";
                   } else if (plan === "P" && d.iso > todayIso) {
-                    variant = "future"; statText = "·";
-                  } else if (status === "P") {
-                    variant = "p"; statText = "P";
+                    variant = "future";
+                  } else if (plan === "P" && d.iso < todayIso) {
+                    // Past planned-P with default-P status, no check-in.
+                    // Plan badge is enough — keep statText empty.
+                    variant = "p";
                   } else {
-                    variant = "off"; statText = "·";
+                    variant = "off";
                   }
                   return { variant, statText, timeText, plan };
                 };
@@ -1185,8 +1214,10 @@ function SchedulePage() {
                                         ...planBadgeStyle(desc.plan),
                                       }}>{desc.plan}</span>
                                     )}
-                                    {/* status text */}
-                                    <div style={{ fontSize: 10.5, fontWeight: 800, lineHeight: 1.1, marginTop: 12, marginBottom: "auto" }}>{desc.statText}</div>
+                                    {/* status text — only when there's a real outcome */}
+                                    {desc.statText && (
+                                      <div style={{ fontSize: 10.5, fontWeight: 800, lineHeight: 1.1, marginTop: 12, marginBottom: "auto" }}>{desc.statText}</div>
+                                    )}
                                     {/* check-in time */}
                                     {desc.timeText && (
                                       <div style={{ fontSize: 8.5, opacity: .8, fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 2 }}>{desc.timeText}</div>
