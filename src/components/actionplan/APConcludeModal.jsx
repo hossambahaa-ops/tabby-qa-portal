@@ -45,19 +45,48 @@ export default function APConcludeModal({
           <textarea className="form-input" rows={3} value={conclusionNotes} onChange={e => setConclusionNotes(e.target.value)} placeholder="Document the final assessment..." style={{ resize: "vertical" }} />
         </div>
 
-        {conclusionOutcome === "fail" && concludingPlan.type === "ap" && (
-          <div style={{ padding: "8px 12px", background: "var(--amber-bg)", borderRadius: 6, fontSize: 12, color: "var(--amber)", fontWeight: 500, marginTop: 8 }}>
-            ⚠️ Failed AP will recommend escalation to PIP.
-          </div>
-        )}
-        {conclusionOutcome === "fail" && concludingPlan.type === "pip" && (
-          <div style={{ padding: "8px 12px", background: "var(--red-bg)", borderRadius: 6, fontSize: 12, color: "var(--red)", fontWeight: 500, marginTop: 8 }}>
-            ⚠️ Failed PIP will automatically create a DAM flag for HR investigation.
+        {/* Pre-flight summary — spells out exactly what the click will
+            do so leads don't fat-finger a Pass on a fresh PIP or
+            wonder what "Fail" actually triggers. Updates live as the
+            outcome toggle flips. */}
+        {conclusionOutcome && (
+          <div style={{
+            marginTop: 12, padding: "10px 12px", borderRadius: 8,
+            background: conclusionOutcome === "pass" ? "var(--green-bg)" : (concludingPlan.type === "pip" ? "var(--red-bg)" : "var(--amber-bg)"),
+            border: `1px solid ${conclusionOutcome === "pass" ? "var(--green)" : (concludingPlan.type === "pip" ? "var(--red)" : "var(--amber)")}`,
+            fontSize: 12, lineHeight: 1.5,
+          }}>
+            <div style={{ fontWeight: 700, marginBottom: 6, color: conclusionOutcome === "pass" ? "var(--green)" : (concludingPlan.type === "pip" ? "var(--red)" : "var(--amber)") }}>
+              When you click Confirm:
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 18, color: "var(--tx2)" }}>
+              {conclusionOutcome === "pass" ? (
+                <>
+                  <li>Plan status → <strong>completed_pass</strong>; the QA exits the {concludingPlan.type.toUpperCase()} clean.</li>
+                  <li>DAM history for this {concludingPlan.type.toUpperCase()} is closed — no new flag is created.</li>
+                  {prog.filledWeeks.length === 0 && (
+                    <li style={{ color: "var(--red)", fontWeight: 600 }}>⚠ This plan has 0 weeks of actuals — Pass will be rejected. Add weekly actuals first.</li>
+                  )}
+                </>
+              ) : concludingPlan.type === "pip" ? (
+                <>
+                  <li>Plan status → <strong>completed_fail</strong>.</li>
+                  <li>An auto-DAM flag is created against the <em>performance_management</em> rule with severity <strong>critical</strong>.</li>
+                  <li>Occurrence # advances against this QA's existing PM flags — the DAM escalation step matrix determines the recommended action (PIP / termination_review).</li>
+                </>
+              ) : (
+                <>
+                  <li>Plan status → <strong>completed_fail</strong>.</li>
+                  <li>An auto-DAM flag is created against the <em>performance_management</em> rule with severity <strong>warning</strong>.</li>
+                  <li>Occurrence # advances — escalation step matrix decides whether the next consequence is coaching, PIP, or termination_review.</li>
+                </>
+              )}
+            </ul>
           </div>
         )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <button className="btn btn-primary" onClick={concludePlan} disabled={!conclusionOutcome || loading}>
+          <button className="btn btn-primary" onClick={concludePlan} disabled={!conclusionOutcome || loading || (conclusionOutcome === "pass" && prog.filledWeeks.length === 0)}>
             {loading ? "Processing..." : "Confirm conclusion"}
           </button>
           <button className="btn btn-outline" onClick={() => { setConcludingPlan(null); setConclusionOutcome(""); setConclusionNotes(""); }}>Cancel</button>

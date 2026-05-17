@@ -50,6 +50,28 @@ const SchedulePage = lazy(() => import("./pages/SchedulePage.jsx"));
 const UtilizationPage = lazy(() => import("./pages/UtilizationPage.jsx"));
 const ExpertisePage = lazy(() => import("./pages/ExpertisePage.jsx"));
 const TrackerPage = lazy(() => import("./pages/TrackerPage.jsx"));
+
+// Hover-prefetch map. Calling import() warms the chunk cache; the
+// subsequent React.lazy() resolution on click is instant. Keys must
+// match NAV_ITEMS.key so the sidebar's onMouseEnter can fire the
+// right loader. Safe to call repeatedly — Vite caches the module
+// graph so the second hover is a no-op.
+const PAGE_PREFETCH = {
+  dashboard:   () => import("./pages/DashboardPage.jsx"),
+  scores:      () => import("./pages/ScoreEntryPage.jsx"),
+  csat:        () => import("./pages/CSATPage.jsx"),
+  targets:     () => import("./pages/TargetsPage.jsx"),
+  admin:       () => import("./pages/AdminPage.jsx"),
+  leaderboard: () => import("./pages/LeaderboardPage.jsx"),
+  quality:     () => import("./pages/QualityControlPage.jsx"),
+  escalations: () => import("./pages/EscalationsPage.jsx"),
+  profile:     () => import("./pages/QAProfilePage.jsx"),
+  schedule:    () => import("./pages/SchedulePage.jsx"),
+  utilization: () => import("./pages/UtilizationPage.jsx"),
+  expertise:   () => import("./pages/ExpertisePage.jsx"),
+  tracker:     () => import("./pages/TrackerPage.jsx"),
+};
+function prefetchPage(key) { try { PAGE_PREFETCH[key]?.(); } catch {} }
 const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
 
 document.title = "Tabby Pulse — QA Performance & Analytics";
@@ -546,7 +568,7 @@ function AppInner(){
                   const n=navCounts[item.key]||0;
                   const dotTone=item.key==="escalations"?"":" amber";
                   return(
-                  <button key={item.key} className={`nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}>
+                  <button key={item.key} className={`nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} onMouseEnter={()=>prefetchPage(item.key)} onFocus={()=>prefetchPage(item.key)} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}>
                     <Icon d={item.icon} size={18}/>
                     <span className="nav-item-label">{item.label}</span>
                     {n>0 && <span className={`nav-attn-dot${dotTone}`} title={`${n} pending`}/>}
@@ -1010,7 +1032,7 @@ function AppInner(){
         {key:"schedule",label:"Attendance",icon:icons.attendance},
         hasRole(userRole,"admin")?{key:"admin",label:"Admin",icon:icons.key}:hasRole(userRole,"qa_lead")?{key:"quality",label:"Quality",icon:icons.quality}:{key:"leaderboard",label:"Rank",icon:icons.podium},
       ].map(item=>(
-        <button key={item.key} className={`mobile-bottom-nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}}>
+        <button key={item.key} className={`mobile-bottom-nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} onTouchStart={()=>prefetchPage(item.key)}>
           <Icon d={item.icon} size={20}/>
           <span>{item.label}</span>
         </button>
