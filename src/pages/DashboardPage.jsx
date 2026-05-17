@@ -214,6 +214,10 @@ function DashboardPage(){
           if (surveys === 0 && prevSurveys === 0) return "no surveys yet";
           if (surveys === 0 && prevCsat != null) return `no surveys this month · ${prevCsat.toFixed(1)}% in ${prevMonth}`;
           if (surveys > 0 && prevSurveys === 0) return `${surveys} surveys · first ones this year`;
+          // Guard against NaN when prevSurveys > 0 but csat_pct
+          // wasn't populated on the prior row — previously rendered
+          // "↑ NaN pts from <month>".
+          if (myCsat == null || prevCsat == null) return `${surveys} surveys`;
           const d = myCsat - prevCsat;
           const dir = d >= 0.5 ? "↑" : d <= -0.5 ? "↓" : "·";
           const phrase = Math.abs(d) < 0.5 ? "holding steady" : `${dir} ${Math.abs(d).toFixed(1)} pts from ${prevMonth}`;
@@ -243,7 +247,20 @@ function DashboardPage(){
             <div className="kpi-strip-item">
               <span className="kpi-strip-label">Rank</span>
               <span className="kpi-strip-value">{myRank > 0 ? "#" + myRank : "—"}<span style={{fontSize:13,color:"rgba(255,255,255,.55)",fontWeight:500}}> / {ranked.length}</span></span>
-              <span className="kpi-strip-sub">{myRank > 0 ? (myRank <= 3 ? `top 3 in ${latestMonth}` : myRank <= Math.ceil(ranked.length * 0.1) ? `top 10% in ${latestMonth}` : myRank <= Math.ceil(ranked.length * 0.25) ? `top quartile in ${latestMonth}` : `in ${latestMonth}`) : `in ${latestMonth}`}</span>
+              <span className="kpi-strip-sub">{(() => {
+                if (myRank <= 0) return `in ${latestMonth}`;
+                if (myRank <= 3) return `top 3 in ${latestMonth}`;
+                // Skip the "top 10%" tier when the population is so
+                // small that ceil(N*0.1) <= 3 — the rank 1-3 check
+                // above already swallows everyone who'd qualify, and
+                // labeling "top 10%" stops being meaningful for tiny
+                // teams. (Previously rank 4 with 6 QAs got mislabeled
+                // "in <month>" instead of "top quartile".)
+                const top10Cut = Math.ceil(ranked.length * 0.1);
+                if (top10Cut > 3 && myRank <= top10Cut) return `top 10% in ${latestMonth}`;
+                if (myRank <= Math.ceil(ranked.length * 0.25)) return `top quartile in ${latestMonth}`;
+                return `in ${latestMonth}`;
+              })()}</span>
             </div>
             <div className="kpi-strip-item">
               <span className="kpi-strip-label">DSATs</span>

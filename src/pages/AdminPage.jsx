@@ -10,7 +10,10 @@ import { useUrlState } from "../lib/useUrlState.jsx";
 
 function AdminPage(){
   const{token}=useApp();
-  const[tab,setTab]=useUrlState("tab","users");const[teams,setTeams]=useState([]);
+  // Namespaced key (was "tab") so cross-page navigation doesn't
+  // carry an unknown tab value over from /quality or /schedule and
+  // leave Admin with no tab content active.
+  const[tab,setTab]=useUrlState("admin_tab","users");const[teams,setTeams]=useState([]);
   useEffect(()=>{sb.query("teams",{select:"id,name,domain",token}).then(setTeams).catch(()=>{});},[token]);
   return(<div><div className="page" style={{paddingBottom:0}}><div className="page-header" style={{marginBottom:16}}><div className="page-title">Admin panel</div></div>
     <div className="tab-bar" style={{marginBottom:0}}><button className={`tab-btn ${tab==="users"?"active":""}`} onClick={()=>setTab("users")}>Users</button><button className={`tab-btn ${tab==="teams"?"active":""}`} onClick={()=>setTab("teams")}>Teams</button><button className={`tab-btn ${tab==="audit"?"active":""}`} onClick={()=>setTab("audit")}>Audit trail</button><button className={`tab-btn ${tab==="feedback"?"active":""}`} onClick={()=>setTab("feedback")}>Feedback</button><button className={`tab-btn ${tab==="errors"?"active":""}`} onClick={()=>setTab("errors")}>Errors</button></div></div>

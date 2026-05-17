@@ -149,7 +149,11 @@ function ScoreEntryPage(){
         // Sync from global filters
         if (gf?.domain) setSelDomain(gf.domain);
         if (gf?.month && uniqueMonths.includes(gf.month)) setSelMonth(gf.month);
-        if (gf?.teams?.length > 0) setSelTeam(gf.teams[0]);
+        // setSelTeam expects an array (later code does
+        // selTeam.includes(...)). Previously this passed a single
+        // string from gf.teams[0], which made `.includes(queue)` a
+        // substring test on a string instead of an Array.includes.
+        if (gf?.teams?.length > 0) setSelTeam(gf.teams.filter(Boolean));
       } catch (e) { console.error("MTD Scores:", e); }
       setLoading(false);
     })();

@@ -627,7 +627,7 @@ function QAProfilePage() {
             return <div key={s.id}>
               <div onClick={()=>setExpandedSession(isExpanded?null:s.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--bd)",cursor:"pointer"}}>
                 <div>
-                  <div style={{fontSize:12,fontWeight:600,color:"var(--tx)"}}>{new Date(s.session_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
+                  <div style={{fontSize:12,fontWeight:600,color:"var(--tx)"}}>{s.session_date ? new Date(s.session_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}) : "—"}</div>
                   <div style={{fontSize:11,color:"var(--tx3)"}}>{s.meeting_type?.replace(/_/g," ")} — by {nameFromEmail(s.sender_email)}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>

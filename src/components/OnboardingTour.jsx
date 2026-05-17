@@ -46,7 +46,7 @@ const TOUR_FLOWS = {
   ],
   admin: [
     { icon: "🔧", title: "Welcome, Admin!", body: "You have full system access. This tour covers admin-specific tools plus a quick overview of everything else." },
-    { icon: "⚙️", title: "Admin Panel — 4 Tabs", body: "Users · Teams · Audit Trail · Feedback. All admin tools live here." },
+    { icon: "⚙️", title: "Admin Panel — 5 Tabs", body: "Users · Teams · Audit Trail · Feedback · Errors. All admin tools live here." },
     { icon: "👤", title: "Users Management", body: "View by role or list. Bulk role updates, bulk team reassignment, delete users. Search by name or email." },
     { icon: "🏢", title: "Teams Management", body: "Create, edit, and merge teams. Assign leads and supervisors." },
     { icon: "📜", title: "Audit Trail", body: "See every action taken in the app: user updates, targets changed, coaching sessions sent, etc. Filter by user, action type, or date." },

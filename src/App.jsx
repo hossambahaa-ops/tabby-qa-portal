@@ -862,7 +862,11 @@ function AppInner(){
       <Route path="/violations" element={<Navigate to="/quality" replace/>}/>
       <Route path="/audit" element={<Navigate to="/admin" replace/>}/>
       <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage/>:<PlaceholderPage title="Admin panel" icon={icons.key} minRole="admin" userRole={userRole}/>}/>
-      <Route path="/utilization" element={(hasRole(userRole,"admin")||hasRole(userRole,"qa_supervisor"))?<UtilizationPage/>:<PlaceholderPage title="App utilization" icon={icons.utilization} minRole="qa_supervisor" userRole={userRole}/>}/>
+      {/* `hasRole(userRole, "admin")` already implies qa_supervisor
+          in ROLE_LEVEL, so the OR with qa_supervisor was a dead
+          branch. Single gate now matches what App.jsx does for
+          every other admin route. */}
+      <Route path="/utilization" element={hasRole(userRole,"qa_supervisor")?<UtilizationPage/>:<PlaceholderPage title="App utilization" icon={icons.utilization} minRole="qa_supervisor" userRole={userRole}/>}/>
       <Route path="/hr" element={<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.folder} minRole="qa_supervisor" userRole={userRole}/>}/>
       <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
     </Routes></Suspense></div>

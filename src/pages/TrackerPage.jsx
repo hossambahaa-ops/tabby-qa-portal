@@ -92,7 +92,11 @@ export default function TrackerPage() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (rows || []).filter(r => {
-      if (mineOnly && r.assigned_to?.toLowerCase() !== myEmail) return false;
+      // "Mine only" now matches either assigned_to OR created_by so a
+      // task the user opened (but didn't yet assign to themselves)
+      // doesn't disappear from their own filter the moment they pick
+      // a different assignee.
+      if (mineOnly && r.assigned_to?.toLowerCase() !== myEmail && r.created_by?.toLowerCase() !== myEmail) return false;
       if (fStatus   && r.status   !== fStatus)   return false;
       if (fPriority && r.priority !== fPriority) return false;
       if (fAssignee && r.assigned_to?.toLowerCase() !== fAssignee) return false;

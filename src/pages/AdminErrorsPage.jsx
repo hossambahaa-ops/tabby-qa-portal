@@ -32,11 +32,16 @@ export default function AdminErrorsPage() {
       `This will remove ${rows.length} error entries permanently.`,
       async () => {
         try {
-          for (const r of rows) {
-            await sb.query("client_errors", { token, method: "DELETE", filters: `id=eq.${r.id}` });
-          }
+          // Single bulk DELETE via `id=in.(…)` — was previously a
+          // sequential for-loop firing one DELETE per row. With
+          // ~200 rows that was 200 sequential round-trips and a
+          // network blip mid-loop left a half-deleted state with
+          // no rollback. Bulk DELETE is atomic and one round-trip.
+          const ids = (rows || []).map(r => r.id).filter(Boolean);
+          if (ids.length === 0) { globalToast("info", "Nothing to delete"); return; }
+          await sb.query("client_errors", { token, method: "DELETE", filters: `id=in.(${ids.join(",")})` });
           setRows([]);
-          globalToast("success", "Error log cleared");
+          globalToast("success", `Error log cleared (${ids.length})`);
         } catch (e) { globalToast("error", safeError(e)); }
       }, "Delete all", "var(--red)"
     );

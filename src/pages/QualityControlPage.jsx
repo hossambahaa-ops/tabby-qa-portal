@@ -20,7 +20,10 @@ const TABS = [
 
 function QualityControlPage() {
   const { profile } = useApp();
-  const [tab, setTab] = useUrlState("tab", "violations");
+  // Namespaced (was "tab") so a stale ?tab=feedback from /admin or
+  // ?tab=plan from /schedule doesn't bleed in and leave Quality on
+  // its default fallback when the user crosses pages.
+  const [tab, setTab] = useUrlState("qc_tab", "violations");
 
   // Listen for direct navigation requests (e.g., from notification clicks)
   useEffect(() => {

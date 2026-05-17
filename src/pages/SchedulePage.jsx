@@ -32,7 +32,10 @@ function SchedulePage() {
   const [attendance, setAttendance] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useUrlState("tab", "calendar");
+  // Namespaced (was "tab") so cross-nav from /admin or /quality
+  // doesn't carry a stranger tab value over and leave the Schedule
+  // landing on its default fallback.
+  const [activeTab, setActiveTab] = useUrlState("sched_tab", "calendar");
   const [selMonth, setSelMonth] = useUrlState("month", (()=>{const now=new Date();return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;})());
   const [bulkModal, setBulkModal] = useState(false);
   const [bulkStatus, setBulkStatus] = useState("OFF");

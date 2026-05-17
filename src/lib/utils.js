@@ -126,5 +126,12 @@ export async function logActivity(token, actor, action, targetType, targetId, de
   try {
     await sb.query("activity_log", { token, method: "POST", body: { actor_email: actor, action, target_type: targetType || null, target_id: targetId || null, details: details || null } });
     if (targetType) dataCache.invalidate(targetType);
-  } catch {}
+  } catch (e) {
+    // Don't surface to the user, but DO log to the console so a
+    // dropped audit row is at least debuggable. Previously the
+    // empty `catch {}` made audit gaps completely silent — when a
+    // session expired mid-admin-action the POST 401'd and the
+    // audit trail just had a hole with no breadcrumb.
+    console.warn("logActivity failed:", { action, targetType, targetId, error: e?.message || e });
+  }
 }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { hasRole } from "../lib/constants.js";
-import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
+import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { useConfirm } from "../lib/hooks.jsx";

@@ -197,10 +197,17 @@ function EscalationsPage() {
         }
       }
 
-      // Create copies for each CC reviewer so they see the escalation in their "routed to me" list
+      // Create copies for each CC reviewer so they see the escalation in their "routed to me" list.
+      // Defense-in-depth: dedup against each other too — the
+      // SearchableSelect dedups at input, but a stale state could
+      // still slip through with the same email twice and create two
+      // copies for the same person.
       if (Array.isArray(ccReviewers) && ccReviewers.length > 0) {
+        const seenCc = new Set([routedTo?.toLowerCase()]);
         for (const cc of ccReviewers) {
-          if (!cc || cc.toLowerCase() === routedTo.toLowerCase()) continue;
+          const lc = cc?.toLowerCase();
+          if (!lc || seenCc.has(lc)) continue;
+          seenCc.add(lc);
           await sb.query("escalations", {
             token, method: "POST",
             body: {
@@ -402,7 +409,12 @@ function EscalationsPage() {
         return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {list.map(esc => {
             const sc = statusColor(esc.status);
-            const isRoutedToMe = esc.routed_to?.toLowerCase() === myEmail || (hasRole(myRole, "qa_supervisor") && esc.routed_to?.includes("supervisor"));
+            // Loose-match the route so a supervisor signed in via
+            // either Tabby domain alias still sees their inbox.
+            // (Dead `routed_to.includes("supervisor")` substring
+            // branch dropped — routed_to is always a real email,
+            // never the literal string "supervisor".)
+            const isRoutedToMe = emailsMatchLoose(esc.routed_to, myEmail);
             const submitterDisplay = esc.is_anonymous && isRoutedToMe && !hasRole(myRole, "admin") ? "Anonymous" : nameFromEmail(esc.submitted_by);
 
             return <div key={esc.id} className="card" style={{ cursor: "pointer", borderLeft: `4px solid ${sc.color}` }} onClick={() => { setViewEsc(esc); setResponseText(""); setResolutionNote(""); }}>

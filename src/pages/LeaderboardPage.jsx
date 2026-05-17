@@ -531,7 +531,7 @@ function LeaderboardPage() {
                 }}>{initialsFromEmail(r.qa_email)}</div>
               </div>
               <div style={{fontWeight:700,fontSize:isGold?16:14,letterSpacing:"-.3px"}}>{nameFromEmail(r.qa_email)}</div>
-              <div style={{fontSize:11,color:"var(--tx3)",marginBottom:10}}>{r.qa_email.split("@")[1]}</div>
+              <div style={{fontSize:11,color:"var(--tx3)",marginBottom:10}}>{r.qa_email?.split("@")[1] || ""}</div>
               <div style={{fontSize:isGold?28:22,fontWeight:800,color:scoreColor(total),letterSpacing:"-1px",fontVariantNumeric:"tabular-nums"}}>{total.toFixed(1)}<span style={{fontSize:12,fontWeight:500,color:"var(--tx3)"}}> / {maxScore}</span></div>
               <div style={{fontSize:10,color:"var(--tx3)",marginTop:6,fontWeight:500}}>JKQ: {r.jkq_result||"—"} · {r.ticket_per_day} tickets/day</div>
             </div>);
@@ -840,7 +840,7 @@ function LeaderboardPage() {
             const q = selQaQuarterly.toLowerCase();
             visibleQas = visibleQas.filter(qa => {
               const name = qa.email?.split("@")[0]?.split(".").map(p=>p.replace(/[\d]+$/,"")).filter(Boolean).join(" ").toLowerCase() || "";
-              return name.includes(q) || qa.email.toLowerCase().includes(q);
+              return name.includes(q) || (qa.email || "").toLowerCase().includes(q);
             });
           }
         }
