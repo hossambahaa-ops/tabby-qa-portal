@@ -1677,24 +1677,40 @@ label, summary, select {
   .card > p, .card > div > p, .card > span,
   .welcome-banner, .welcome-banner * { overflow-wrap: anywhere; }
 
-  /* Tables inside cards: scroll horizontally instead of squishing.
-     min-width on the table itself ensures cells stay readable; the
-     wrapper handles momentum scroll on iOS. */
-  .card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  /* Tables inside cards: scroll horizontally INSIDE the table-wrap
+     only — never the whole card. Previously .card { overflow-x: auto }
+     combined with min-width: max-content on the table made the entire
+     card scrollable, which on a 360 px viewport showed users a
+     "split-screen" view (left half of one column abutting the right
+     half of another) whenever they swiped right. The card chrome hid
+     the scrollbar so it wasn't obvious what was happening.
+     Now: the card itself never scrolls horizontally, and only the
+     .table-wrap inside it does — and only when it has to. */
+  .card { overflow-x: hidden; }
+  .card .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+  /* Keep tables at their natural width so cells stay readable when
+     the user scrolls .table-wrap. The horizontal scroll happens
+     INSIDE the table-wrap (which has its own visible scrollbar)
+     — never on the card itself. */
   .card > table,
   .card .table-wrap > table,
   table.data-table {
     min-width: max-content;
     width: max-content;
   }
-  /* Reset cell wrapping the desktop CSS may have set */
+  /* Tables inside cards but NOT wrapped in .table-wrap would get
+     stuck (since card is now overflow-x: hidden). The few cases
+     this matters in practice render through .table-wrap already.
+     If we hit a regression, add .table-wrap to the holdout. */
   table td, table th {
     white-space: nowrap;
     word-break: normal !important;
     overflow-wrap: normal !important;
   }
-  /* Visible scroll hint on the right edge of any scrollable card */
-  .card { scroll-snap-type: x proximity; }
 
   /* View-as banner: long email + role + Exit button overflowed on
      narrow viewports. Wrap content, tighten font, shrink Exit. */
@@ -2980,6 +2996,35 @@ html.dark .skeleton-shimmer {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  /* ── Leaderboard tables: collapse to rank | name | total ──
+     The monthly leaderboard has ~12 columns (rank, name, TL, 7×
+     KPI, total, arrow). On a 360 px viewport that's ~1000 px
+     wide and the card's overflow-x: auto kicked in, creating a
+     confusing intra-card horizontal scroll where users saw their
+     QA names truncated on the left while a separate-looking
+     column of TL names appeared on the right ("split screen").
+     Fix: hide TL, every KPI column, and the chevron on mobile.
+     Tap the row to expand the KPI breakdown — that block already
+     exists. */
+  .lb-monthly .lb-col-tl,
+  .lb-monthly .lb-col-kpi,
+  .lb-monthly .lb-col-arrow,
+  .lb-quarterly .lb-col-month {
+    display: none !important;
+  }
+  /* With columns hidden, the table no longer needs max-content;
+     let it shrink to fit the card so users can't horizontally
+     scroll inside it. */
+  .lb-monthly table,
+  .lb-quarterly table {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  .lb-monthly,
+  .lb-quarterly {
+    overflow-x: hidden !important;
   }
 }
 

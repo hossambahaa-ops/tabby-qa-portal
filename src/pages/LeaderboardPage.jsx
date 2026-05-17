@@ -616,13 +616,13 @@ function LeaderboardPage() {
           </div>}
           {/* Checkbox column removed — pin (★) is now the only way to
               single out a QA, which drives the action bar above. */}
-          <div className="table-wrap"><table><thead><tr>
+          <div className="table-wrap lb-monthly"><table><thead><tr>
             <th style={{width:50}}>#</th>
             <th>Specialist</th>
-            <th>TL</th>
-            {Object.values(KPI_SLABS).map(k => <th key={k.label} style={{textAlign:"center",minWidth:100}}>{k.label}<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{k.weight}</span></th>)}
+            <th className="lb-col-tl">TL</th>
+            {Object.values(KPI_SLABS).map(k => <th key={k.label} className="lb-col-kpi" style={{textAlign:"center",minWidth:100}}>{k.label}<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{k.weight}</span></th>)}
             <th style={{textAlign:"center",minWidth:80}}>Total<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{maxScore}</span></th>
-            <th style={{width:40}}></th>
+            <th className="lb-col-arrow" style={{width:40}}></th>
           </tr></thead><tbody>
             {visibleRanked.map((r, i) => {
               const rank = r._myRank || (ranked.findIndex(x => x.qa_email?.toLowerCase() === r.qa_email?.toLowerCase()) + 1);
@@ -657,9 +657,9 @@ function LeaderboardPage() {
                       <div style={{fontSize:11,color:"var(--tx3)"}}>{r.qa_email}</div>
                     </div>
                   </div></td>
-                  <td style={{fontSize:13,color:"var(--tx2)"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
+                  <td className="lb-col-tl" style={{fontSize:13,color:"var(--tx2)"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</td>
                   {kpis.map(k => (
-                    <td key={k.key} style={{textAlign:"center",padding:"8px 6px"}}>
+                    <td key={k.key} className="lb-col-kpi" style={{textAlign:"center",padding:"8px 6px"}}>
                       <div style={{fontSize:13,fontWeight:600,color:scoreColor(k.score/k.weight*maxScore)}}>{k.score.toFixed(1)}</div>
                       <div style={{fontSize:10,color:"var(--tx3)"}}>{k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "—"}</div>
                       <div style={{height:3,background:"var(--bd2)",borderRadius:2,marginTop:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:2,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .3s"}}/></div>
@@ -668,7 +668,7 @@ function LeaderboardPage() {
                   <td style={{textAlign:"center"}}>
                     <span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:13,fontWeight:600,background:scoreBg(total),color:scoreColor(total)}}>{total.toFixed(1)}</span>
                   </td>
-                  <td><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
+                  <td className="lb-col-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
                 </tr>
 
                 {/* Expanded KPI detail */}
@@ -924,10 +924,10 @@ function LeaderboardPage() {
           <div className="card">
             <div className="card-header"><span className="card-title">Quarterly rankings — {activeQ}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{visibleQas.length} specialists</span></div>
             {visibleQas.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {activeQ}.</p></div> :
-            <div className="table-wrap"><table><thead><tr>
+            <div className="table-wrap lb-quarterly"><table><thead><tr>
               <th style={{width:50}}>#</th>
               <th>Specialist</th>
-              {qMonths.map(m => <th key={m} style={{textAlign:"center",minWidth:80}}>{m}</th>)}
+              {qMonths.map(m => <th key={m} className="lb-col-month" style={{textAlign:"center",minWidth:80}}>{m}</th>)}
               <th style={{textAlign:"center",minWidth:80}}>Total<br/><span style={{fontWeight:400,fontSize:10,opacity:.6}}>/{55*qMonths.length}%</span></th>
             </tr></thead><tbody>
               {visibleQas.map((qa, i) => {
@@ -942,7 +942,7 @@ function LeaderboardPage() {
                     {qMonths.map(m => {
                       const row = data.find(r => r.month === m && r.qa_email?.toLowerCase() === qa.email?.toLowerCase());
                       const monthScore = row ? getTotalScore(row) : null;
-                      return <td key={m} style={{textAlign:"center",padding:"8px 6px"}}>
+                      return <td key={m} className="lb-col-month" style={{textAlign:"center",padding:"8px 6px"}}>
                         <div style={{fontSize:13,fontWeight:600,color:monthScore===null?"var(--tx3)":monthScore>=55*0.7?"var(--green)":monthScore>=55*0.4?"var(--amber)":"var(--red)"}}>{monthScore !== null ? monthScore.toFixed(1)+"%" : "—"}</div>
                       </td>;
                     })}
