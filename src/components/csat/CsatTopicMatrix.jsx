@@ -40,7 +40,13 @@ export default function CsatTopicMatrix({
   selMonth,
 }) {
   if (topicMatrixLoading) {
-    return <div className="placeholder" style={{ padding: 40, color: "var(--tx3)" }}>Loading topic matrix…</div>;
+    return (
+      <div style={{ padding: "24px 16px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {[78, 90, 62, 84, 70].map((w, i) => (
+          <div key={i} className="skeleton" style={{ height: 22, width: `${w}%`, borderRadius: 6 }}/>
+        ))}
+      </div>
+    );
   }
   if (!matrix || matrix.topics.length === 0) {
     return (

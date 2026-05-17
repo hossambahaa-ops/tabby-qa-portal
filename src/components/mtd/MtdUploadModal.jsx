@@ -3,6 +3,7 @@ import { Icon, icons } from "../Icons.jsx";
 import SearchableSelect from "../SearchableSelect.jsx";
 import { COL_LABELS } from "../../lib/mtdColumns.js";
 import Modal from "../Modal.jsx";
+import EmptyState from "../EmptyState.jsx";
 
 // Three-step MTD CSV upload modal: config (pick month + columns +
 // safe-mode), preview (diff per QA), done (success/error summary).
@@ -122,9 +123,12 @@ export default function MtdUploadModal({
               <button className="btn btn-outline btn-sm" onClick={() => setUploadStep("config")}>Back</button>
             </div>
             {uploadPreview.length === 0 ? (
-              <div className="placeholder" style={{ padding: 30 }}>
-                <p style={{ color: "var(--tx3)" }}>No changes to apply. {uploadOverwrite ? "All values are identical." : "All cells already have values. Enable 'Overwrite existing values' to replace them."}</p>
-              </div>
+              <EmptyState
+                tone="good"
+                illus="check"
+                title="Nothing to apply"
+                description={uploadOverwrite ? "All values in the uploaded CSV are identical to what's already stored." : "All target cells already have values. Enable 'Overwrite existing values' if you want to replace them."}
+              />
             ) : (
               <div style={{ maxHeight: 400, overflow: "auto", border: "1px solid var(--bd2)", borderRadius: 8, marginBottom: 16 }}>
                 <table>

@@ -84,6 +84,58 @@ body, html, #root {
 
 /* ── Loading ── */
 .loading-fullscreen { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--sidebar-bg); }
+
+/* ── App shell skeleton (cold-load) ──
+   Renders during the brief "loading" gate before session/profile
+   resolve. Shapes match the real .app-layout / .sidebar / .topbar /
+   .page composition so when the real chrome paints, the visual
+   doesn't jump. */
+.app-shell-skel { display: flex; height: 100vh; background: var(--bg); overflow: hidden; }
+.app-shell-skel-sidebar {
+  width: 240px; flex-shrink: 0;
+  background: var(--sidebar-bg, #0E0B16);
+  border-right: 1px solid rgba(255,255,255,.06);
+  padding: 16px 12px;
+  display: flex; flex-direction: column; gap: 14px;
+  overflow: hidden;
+}
+.app-shell-skel-brand {
+  padding: 6px 10px 10px;
+  display: flex; align-items: center;
+}
+.app-shell-skel-section { width: 70px; height: 9px; border-radius: 4px; margin: 10px 10px 6px; }
+.app-shell-skel-nav { height: 30px; border-radius: 9px; margin: 4px 0; }
+.app-shell-skel-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.app-shell-skel-topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 24px; border-bottom: 1px solid var(--bd, rgba(255,255,255,.06));
+  background: var(--bg, #06050B);
+}
+.app-shell-skel-crumbs { width: 220px; height: 16px; border-radius: 4px; }
+.app-shell-skel-iconbtn { width: 36px; height: 36px; border-radius: 10px; }
+.app-shell-skel-userchip { width: 110px; height: 32px; border-radius: 999px; }
+.app-shell-skel-page { padding: 28px; flex: 1; overflow: hidden; }
+.app-shell-skel-pagetitle { width: 280px; height: 28px; border-radius: 6px; margin-bottom: 8px; }
+.app-shell-skel-pagesub { width: 360px; height: 14px; border-radius: 4px; margin-bottom: 24px; }
+.app-shell-skel-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+.app-shell-skel-kpi {
+  background: rgba(255,255,255,.03); border: 1px solid var(--bd, rgba(255,255,255,.06));
+  border-radius: 14px; padding: 18px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.app-shell-skel-kpil { width: 55%; height: 11px; border-radius: 4px; }
+.app-shell-skel-kpiv { width: 50%; height: 26px; border-radius: 6px; }
+.app-shell-skel-kpid { width: 70%; height: 11px; border-radius: 4px; }
+.app-shell-skel-panel { width: 100%; height: 280px; border-radius: 14px; }
+
+/* Hide the sidebar skeleton on phones so the page skeleton fills the
+   width — matches the mobile layout where the real sidebar is an
+   overlay rather than a column. */
+@media (max-width: 768px) {
+  .app-shell-skel-sidebar { display: none; }
+  .app-shell-skel-page { padding: 18px; }
+  .app-shell-skel-kpis { grid-template-columns: repeat(2, 1fr); }
+}
 .spinner { width: 28px; height: 28px; border: 2.5px solid rgba(106,44,121,.2); border-top-color: var(--tabby-green); border-radius: 50%; animation: spin .7s var(--ease) infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .loading-spinner { display: flex; align-items: center; justify-content: center; padding: 48px; }

@@ -5,6 +5,7 @@ import { safeError, logActivity, nameFromEmail, emailsMatchLoose } from "../../l
 import { listPlans } from "../../api/plans.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
+import EmptyState from "../EmptyState.jsx";
 import RichTextField from "./RichTextField.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import { riyadhTodayStr } from "../../lib/attendancePlan.js";
@@ -887,10 +888,11 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
             <span style={{fontSize:12,color:"var(--tx3)"}}>{showPreview ? "Ready to send" : "Waiting for input"}</span>
           </div>
           {!showPreview ? (
-            <div className="placeholder" style={{padding:"60px 20px"}}>
-              <div className="placeholder-icon"><Icon d={icons.coaching} size={28}/></div>
-              <p style={{color:"var(--tx3)"}}>Fill in the session details, then click<br/><strong>Preview Email</strong></p>
-            </div>
+            <EmptyState
+              illus="empty"
+              title="Email preview will appear here"
+              description="Fill in the session details on the left, then click Preview Email to see what the QA will receive."
+            />
           ) : (<div>
             <div style={{fontSize:13,marginBottom:4}}><span style={{color:"var(--tx3)",fontWeight:600,fontSize:11}}>TO:</span> {toEmail}</div>
             {ccEmail && <div style={{fontSize:13,marginBottom:4}}><span style={{color:"var(--tx3)",fontWeight:600,fontSize:11}}>CC:</span> {ccEmail}</div>}

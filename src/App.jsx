@@ -523,12 +523,45 @@ function AppInner(){
   // Responsive mobile detection — reactive to orientation changes / resizes
   useEffect(()=>{const check=()=>setIsMobile(window.innerWidth<768);window.addEventListener("resize",check);return()=>window.removeEventListener("resize",check);},[]);
 
-  if(loading)return<div className="loading-fullscreen">
-    <TabbyPulseWordmark height={56} uid="tpw-loading" style={{color:"#fff",marginTop:8}}/>
-    <p style={{marginTop:6,color:"rgba(255,255,255,.35)",fontSize:12,letterSpacing:"2px",textTransform:"uppercase"}}>QA Performance & Analytics</p>
-    
-    <p style={{marginTop:16,color:"rgba(255,255,255,.3)",fontSize:12}}>Loading your workspace...</p>
-  </div>;
+  // Loading state: render a shell-shaped skeleton (sidebar + topbar +
+  // page area) instead of a centred splash. The shapes match the real
+  // layout so when data lands, the visual doesn't jump — the user sees
+  // structure within ~80 ms instead of staring at a blank screen for
+  // a second. The wordmark + status pill at the top keep the brand
+  // visible during the load.
+  if(loading)return(<div className="app-shell-skel">
+    <div className="app-shell-skel-sidebar">
+      <div className="app-shell-skel-brand">
+        <TabbyPulseWordmark height={20} uid="tpw-loading" style={{color:"#fff"}}/>
+      </div>
+      {[0,1,2,3].map(g=><div key={`g${g}`}>
+        <div className="skeleton app-shell-skel-section"/>
+        {[0,1,2,3].map(i=><div key={`g${g}i${i}`} className="skeleton app-shell-skel-nav"/>)}
+      </div>)}
+    </div>
+    <div className="app-shell-skel-main">
+      <div className="app-shell-skel-topbar">
+        <div className="skeleton app-shell-skel-crumbs"/>
+        <div style={{display:"flex",gap:10,alignItems:"center"}}>
+          <div className="skeleton app-shell-skel-iconbtn"/>
+          <div className="skeleton app-shell-skel-iconbtn"/>
+          <div className="skeleton app-shell-skel-userchip"/>
+        </div>
+      </div>
+      <div className="app-shell-skel-page">
+        <div className="skeleton app-shell-skel-pagetitle"/>
+        <div className="skeleton app-shell-skel-pagesub"/>
+        <div className="app-shell-skel-kpis">
+          {[0,1,2,3].map(i=><div key={i} className="app-shell-skel-kpi">
+            <div className="skeleton app-shell-skel-kpil"/>
+            <div className="skeleton app-shell-skel-kpiv"/>
+            <div className="skeleton app-shell-skel-kpid"/>
+          </div>)}
+        </div>
+        <div className="skeleton app-shell-skel-panel"/>
+      </div>
+    </div>
+  </div>);
   if(!session)return(<div className="login-page login-v2">
     <div className="login-v2-bg" aria-hidden="true"/>
     <div className="login-v2-frame">
