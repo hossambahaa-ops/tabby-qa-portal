@@ -11,6 +11,7 @@ import TrackerBoard from "../components/tracker/TrackerBoard.jsx";
 import TrackerTable from "../components/tracker/TrackerTable.jsx";
 import TrackerTimeline from "../components/tracker/TrackerTimeline.jsx";
 import TrackerDetailPanel from "../components/tracker/TrackerDetailPanel.jsx";
+import { downloadCsv } from "../lib/csvExport.js";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import { nameFromEmail } from "../lib/utils.js";
@@ -207,6 +208,21 @@ export default function TrackerPage() {
           <div className="page-subtitle">Unit-level work items — Kanban + table for senior QAs and above.</div>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <button className="btn btn-outline btn-sm" style={{ fontSize: 11 }} disabled={filtered.length === 0} onClick={() => {
+            downloadCsv(`tracker_${new Date().toISOString().slice(0,10)}.csv`, filtered.map(r => ({
+              ref: r.seq ? `TRK-${r.seq}` : "",
+              title: r.title || "",
+              status: r.status || "",
+              priority: r.priority || "",
+              team: (r.team || []).join(", "),
+              type: (r.task_type || []).join(", "),
+              assigned_to: r.assigned_to || "",
+              created_by: r.created_by || "",
+              eta_date: r.eta_date || "",
+              created_at: r.created_at || "",
+              description: r.description || "",
+            })));
+          }}>📥 Export CSV</button>
           <div role="tablist" aria-label="View" style={{ display: "inline-flex", border: "1px solid var(--bd)", borderRadius: 8, overflow: "hidden", background: "var(--bg2)" }}>
             {[
               { key: "board",    label: "Board" },

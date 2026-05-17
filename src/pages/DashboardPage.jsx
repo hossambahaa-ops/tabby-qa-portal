@@ -11,6 +11,7 @@ import { useFreshness } from "../lib/useFreshness.js";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 import FreshnessBadge from "../components/FreshnessBadge.jsx";
 import HelpTip from "../components/HelpTip.jsx";
+import { helpFor } from "../lib/metricHelp.js";
 import { Icon, icons } from "../components/Icons.jsx";
 import { ProgressRing, MiniBarChart, SparkLine } from "../components/Charts.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
@@ -235,17 +236,17 @@ function DashboardPage(){
         return (
           <div className="kpi-strip">
             <div className="kpi-strip-item">
-              <span className="kpi-strip-label">My MTD score</span>
+              <span className="kpi-strip-label">My MTD score<HelpTip text={helpFor("score")}/></span>
               <span className="kpi-strip-value">{myScore.toFixed(1)}<span style={{fontSize:13,color:"rgba(255,255,255,.55)",fontWeight:500}}> / {maxScore}</span></span>
               {delta != null && <span className={`kpi-strip-delta ${dCls}`}>{dArrow} {Math.abs(delta).toFixed(1)} pts vs {prevMonth}</span>}
             </div>
             <div className="kpi-strip-item">
-              <span className="kpi-strip-label">My CSAT</span>
+              <span className="kpi-strip-label">My CSAT<HelpTip text={helpFor("csat")}/></span>
               <span className="kpi-strip-value">{myCsat != null ? myCsat.toFixed(1) + "%" : "—"}</span>
               <span className="kpi-strip-sub">{csatStory}</span>
             </div>
             <div className="kpi-strip-item">
-              <span className="kpi-strip-label">Rank</span>
+              <span className="kpi-strip-label">Rank<HelpTip text={helpFor("rank")}/></span>
               <span className="kpi-strip-value">{myRank > 0 ? "#" + myRank : "—"}<span style={{fontSize:13,color:"rgba(255,255,255,.55)",fontWeight:500}}> / {ranked.length}</span></span>
               <span className="kpi-strip-sub">{(() => {
                 if (myRank <= 0) return `in ${latestMonth}`;
@@ -263,7 +264,7 @@ function DashboardPage(){
               })()}</span>
             </div>
             <div className="kpi-strip-item">
-              <span className="kpi-strip-label">DSATs</span>
+              <span className="kpi-strip-label">DSATs<HelpTip text={helpFor("dsat")}/></span>
               <span className="kpi-strip-value">{myDsat}</span>
               <span className="kpi-strip-sub">{dsatStory}</span>
             </div>
@@ -424,15 +425,15 @@ function DashboardPage(){
         <div className="table-wrap"><table><thead><tr>
           <th>#</th>
           <th>Specialist</th>
-          <th style={{textAlign:"right"}}>Score</th>
-          <th style={{textAlign:"right"}}>Occupancy</th>
-          <th style={{textAlign:"right"}}>Avg T/D</th>
-          <th style={{textAlign:"right"}}>Coaching %</th>
-          <th style={{textAlign:"right"}}>SBS</th>
-          <th style={{textAlign:"right"}}>RTR</th>
-          <th style={{textAlign:"right"}}>CO %</th>
-          <th style={{textAlign:"right"}}>ST/Hr</th>
-          <th style={{textAlign:"right"}}>WD</th>
+          <th style={{textAlign:"right"}}>Score<HelpTip text={helpFor("score")}/></th>
+          <th style={{textAlign:"right"}}>Occupancy<HelpTip text={helpFor("occupancy")}/></th>
+          <th style={{textAlign:"right"}}>Avg T/D<HelpTip text={helpFor("ticket_per_day")}/></th>
+          <th style={{textAlign:"right"}}>Coaching %<HelpTip text={helpFor("coaching_pct")}/></th>
+          <th style={{textAlign:"right"}}>SBS<HelpTip text={helpFor("sbs")}/></th>
+          <th style={{textAlign:"right"}}>RTR<HelpTip text={helpFor("rtr")}/></th>
+          <th style={{textAlign:"right"}}>CO %<HelpTip text={helpFor("observation")}/></th>
+          <th style={{textAlign:"right"}}>ST/Hr<HelpTip text={helpFor("side_tasks")}/></th>
+          <th style={{textAlign:"right"}}>WD<HelpTip text={helpFor("working_days")}/></th>
         </tr></thead><tbody>
           {teamSorted.map((r,i)=>{
             const stHours = r.side_tasks_duration_mins ? (r.side_tasks_duration_mins / 60).toFixed(1) : "—";

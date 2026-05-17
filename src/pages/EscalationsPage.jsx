@@ -8,6 +8,7 @@ import { listEscalations } from "../api/escalations.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
+import { downloadCsv } from "../lib/csvExport.js";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import Modal from "../components/Modal.jsx";
@@ -290,9 +291,25 @@ function EscalationsPage() {
           <div className="page-title">Escalations</div>
           <div className="page-subtitle">Raise concerns confidentially to leadership</div>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-          <Icon d={icons.plus} size={16} />New escalation
-        </button>
+        <div style={{display:"flex",gap:8}}>
+          {hasRole(myRole, "qa_lead") && <button className="btn btn-outline btn-sm" style={{fontSize:11}} disabled={(escalations||[]).length===0} onClick={() => {
+            const visible = hasRole(myRole, "admin") ? (escalations || []) : (escalations || []).filter(e => emailsMatchLoose(e.submitted_by, myEmail) || emailsMatchLoose(e.routed_to, myEmail));
+            downloadCsv(`escalations_${new Date().toISOString().slice(0,10)}.csv`, visible.map(e => ({
+              when: e.created_at,
+              status: e.status || "",
+              category: e.category || "",
+              about_person: e.about_person || "",
+              submitted_by: e.is_anonymous && !hasRole(myRole, "admin") ? "(anonymous)" : (e.submitted_by || ""),
+              routed_to: e.routed_to || "",
+              description: e.description || "",
+              resolution_note: e.resolution_note || "",
+              resolved_at: e.resolved_at || "",
+            })));
+          }}>📥 Export CSV</button>}
+          <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
+            <Icon d={icons.plus} size={16} />New escalation
+          </button>
+        </div>
       </div>
 
       {/* New Escalation Form */}

@@ -4,6 +4,7 @@ import { nameFromEmail } from "../lib/utils.js";
 import { listProfiles } from "../api/profiles.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import { downloadCsv } from "../lib/csvExport.js";
 
 // Default lookback: 30 days. The audit trail used to hard-cap at
 // 500 rows per table with no date filter — covering only ~1-2 months
@@ -126,9 +127,25 @@ function AuditTrailPage() {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <div className="page-title">Audit Trail</div>
-        <div className="page-subtitle">{filtered.length} action{filtered.length === 1 ? "" : "s"} shown{hiddenSaCount ? ` · ${hiddenSaCount} super-admin entries hidden` : ""}</div>
+      <div className="page-header" style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",gap:12,flexWrap:"wrap"}}>
+        <div>
+          <div className="page-title">Audit Trail</div>
+          <div className="page-subtitle">{filtered.length} action{filtered.length === 1 ? "" : "s"} shown{hiddenSaCount ? ` · ${hiddenSaCount} super-admin entries hidden` : ""}</div>
+        </div>
+        <button className="btn btn-outline btn-sm" style={{fontSize:11}} disabled={filtered.length===0} onClick={() => {
+          downloadCsv(`audit_trail_${dateFrom}_to_${dateTo}.csv`, sortedFiltered.map(l => ({
+            when: l.time, type: l.type, user: l.actor || "", action: l.action || "",
+            target: l.target || "", target_id: l.target_id || "", details: l.details || "",
+          })), [
+            { key: "when", label: "When (UTC)" },
+            { key: "type", label: "Source" },
+            { key: "user", label: "Actor" },
+            { key: "action", label: "Action" },
+            { key: "target", label: "Target table" },
+            { key: "target_id", label: "Target id" },
+            { key: "details", label: "Details" },
+          ]);
+        }}>📥 Export CSV</button>
       </div>
 
       {/* Filters */}

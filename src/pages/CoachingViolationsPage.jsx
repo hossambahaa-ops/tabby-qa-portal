@@ -8,6 +8,7 @@ import { listViolations } from "../api/violations.js";
 import { useConfirm, useAutoRefresh } from "../lib/hooks.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
+import { downloadCsv } from "../lib/csvExport.js";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 import useKeyboard from "../lib/useKeyboard.jsx";
 
@@ -213,6 +214,20 @@ function CoachingViolationsPage() {
       <div style={{display:"flex",justifyContent:"flex-end",alignItems:"center",flexWrap:"wrap",gap:12,marginBottom:16}}>
         {pendingV.length>0&&<span style={{padding:"4px 12px",borderRadius:20,background:"var(--red-bg)",color:"var(--red)",fontSize:12,fontWeight:700}}>{pendingV.length} pending</span>}
         <span style={{padding:"4px 12px",borderRadius:20,background:"var(--green-bg)",color:"var(--green)",fontSize:12,fontWeight:600}}>{reviewedV.length} reviewed</span>
+        <button className="btn btn-outline btn-sm" style={{fontSize:11}} disabled={(violations||[]).length===0} onClick={() => {
+          downloadCsv(`violations_${new Date().toISOString().slice(0,10)}.csv`, (violations || []).map(v => ({
+            violation_date: v.violation_date || "",
+            reported_at: v.created_at || "",
+            qa_email: v.qa_email || "",
+            lead_email: v.lead_email || "",
+            type: v.violation_type || "",
+            status: v.status || "",
+            reviewed_by: v.reviewed_by || "",
+            reviewed_at: v.reviewed_at || "",
+            review_notes: v.review_notes || "",
+            coaching_link: v.coaching_link || "",
+          })));
+        }}>📥 Export CSV</button>
         {(hasRole(profile?.role,"admin")||hasRole(profile?.role,"qa_supervisor")||profile?.role==="manager")&&(
           <button
             className="btn btn-outline btn-sm"
