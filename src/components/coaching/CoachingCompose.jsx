@@ -24,7 +24,14 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
   // + supervisors + manager + HOD + admins) so MPRs can address anyone, not
   // just QAs. Falls back to roster when the parent didn't supply candidates.
   const candidates = (pickerCandidates && pickerCandidates.length > 0) ? pickerCandidates : roster;
-  const { token, profile, globalToast } = useApp();
+  // realProfile = the actual signed-in user even while impersonating.
+  // The coaching session's sender_email + created_by + From: header MUST
+  // be the real admin, not the impersonated person — otherwise a
+  // super_admin View-As lead session shows up as authored by that lead
+  // and the QA's "from" trail is wrong. profile is still used for the
+  // gmail token lookup (the impersonated person's outbox isn't accessible).
+  const { token, profile, realProfile, impersonating, globalToast } = useApp();
+  const senderEmail = (impersonating ? realProfile?.email : profile?.email) || "";
   // Inline confirm modal — used by the destructive "Clear" button so the
   // lead can't accidentally wipe a long draft with one stray click.
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
@@ -395,7 +402,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
           token, method: "POST",
           headers: { Prefer: "return=representation" },
           body: {
-            sender_email: profile?.email || "",
+            sender_email: senderEmail,
             qa_email: em,
             cc_email: ccEmail,
             session_date: sessionDate,
@@ -435,9 +442,9 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
                 token, method: "POST",
                 body: {
                   title: line.length > 140 ? line.slice(0, 137) + "…" : line,
-                  description: `From coaching session on ${dateLabel} (${meetingType}) with ${nameFromEmail(profile?.email)}`,
+                  description: `From coaching session on ${dateLabel} (${meetingType}) with ${nameFromEmail(senderEmail)}`,
                   priority: "medium",
-                  created_by: profile?.email,
+                  created_by: senderEmail,
                   assigned_to: em,
                   due_date: dueIso,
                   status: "pending",
@@ -482,7 +489,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
           cc: ccEmail,
           subject: emailSubject,
           htmlBody,
-          replyTo: profile?.email || "",
+          replyTo: senderEmail,
         });
 
         if (result.success) {
@@ -545,7 +552,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
       } else {
         globalToast("success", "Email sent and session logged successfully!");
       }
-      logActivity(token, profile?.email, "coaching_session_created", "coaching_sessions", null, `Member: ${toEmail}, Type: ${meetingType}`);
+      logActivity(token, senderEmail, "coaching_session_created", "coaching_sessions", null, `Member: ${toEmail}, Type: ${meetingType}`);
       // Wipe storage and reset the form to a clean default-template
       // state for the next session.
       resetFormToDefaults();

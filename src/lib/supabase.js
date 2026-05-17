@@ -133,7 +133,26 @@ export const sb = {
       }
       return null;
     },
-    async signOut(){dataCache.invalidate();localStorage.removeItem("sb_session");sessionStorage.clear();window.location.href=window.location.origin;},
+    async signOut(){
+      dataCache.invalidate();
+      localStorage.removeItem("sb_session");
+      // Clear user-scoped browsing state so the next user signing in
+      // on the same browser doesn't inherit it. recent_qas leaked the
+      // previous user's QA browsing history; notif_dismissed_* leaked
+      // their notification preferences (and could silently hide
+      // entries for the next user when IDs collided).
+      try {
+        localStorage.removeItem("recent_qas");
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith("notif_dismissed") || k.startsWith("plan_seen_v1_"))) {
+            localStorage.removeItem(k);
+          }
+        }
+      } catch {}
+      sessionStorage.clear();
+      window.location.href=window.location.origin;
+    },
   },
 };
 

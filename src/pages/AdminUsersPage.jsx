@@ -11,7 +11,12 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 function AdminUsersPage({teams}){
-  const{token,profile,globalToast}=useApp();
+  // realProfile = the actual signed-in user even when impersonating
+  // (View-As). Used as the actor on every audit-log write so the
+  // forensic trail records who really performed the destructive
+  // admin action, not the impersonated user.
+  const{token,profile,realProfile,globalToast}=useApp();
+  const actorEmail = realProfile?.email || profile?.email;
   const[users,setUsers]=useState([]);
   const[roster,setRoster]=useState([]);
   const[loading,setLoading]=useState(true);
@@ -47,7 +52,7 @@ function AdminUsersPage({teams}){
         setUsers(prev=>prev.filter(x=>x.id!==u.id));
         setSelected(prev=>{const n=new Set(prev);n.delete(u.id);return n;});
         globalToast("success",`${nameFromEmail(u.email)} deleted`);
-        logActivity(token,profile?.email,"user_deleted","profiles",u.id,`Deleted: ${u.email}`);
+        logActivity(token,actorEmail,"user_deleted","profiles",u.id,`Deleted: ${u.email}`);
       }catch(e){globalToast("error",safeError(e));}
       setDeletingId(null);
     },"Delete","var(--red)");
@@ -85,7 +90,7 @@ function AdminUsersPage({teams}){
     for(const tid of editTeamIds){
       await sb.query("user_teams",{token,method:"POST",body:{user_id:uid,team_id:tid}}).catch(()=>{});
     }
-    logActivity(token, profile?.email, "user_updated", "profiles", uid, `${u?.email}: role=${editRole}, domain=${editOpDomain}, teams=${editTeamIds.length}`);
+    logActivity(token, actorEmail, "user_updated", "profiles", uid, `${u?.email}: role=${editRole}, domain=${editOpDomain}, teams=${editTeamIds.length}`);
     dataCache.invalidate("profiles");dataCache.invalidate("profiles_slim");dataCache.invalidate("profiles_email_role");
     setUsers(prev=>prev.map(x=>x.id===uid?{...x,role:editRole,operational_domain:editOpDomain,team_id:editTeamIds[0]||null}:x));
     setEditingId(null);globalToast("success","Updated");
@@ -103,7 +108,7 @@ function AdminUsersPage({teams}){
           const u=users.find(x=>x.id===uid);
           if(!u||u.role===bulkRole)continue;
           await sb.query("profiles",{token,method:"PATCH",body:{role:bulkRole},filters:`id=eq.${uid}`});
-          logActivity(token,profile?.email,"user_updated","profiles",uid,`${u.email}: bulk role → ${bulkRole}`);
+          logActivity(token,actorEmail,"user_updated","profiles",uid,`${u.email}: bulk role → ${bulkRole}`);
           count++;
         }
         dataCache.invalidate("profiles");dataCache.invalidate("profiles_slim");dataCache.invalidate("profiles_email_role");
@@ -130,7 +135,7 @@ function AdminUsersPage({teams}){
           await sb.query("profiles",{token,method:"PATCH",body:{team_id:bulkTeam},filters:`id=eq.${uid}`});
           await sb.query("user_teams",{token,method:"DELETE",filters:`user_id=eq.${uid}`}).catch(()=>{});
           await sb.query("user_teams",{token,method:"POST",body:{user_id:uid,team_id:bulkTeam}}).catch(()=>{});
-          logActivity(token,profile?.email,"user_updated","profiles",uid,`${u.email}: bulk moved to team ${team?.name}`);
+          logActivity(token,actorEmail,"user_updated","profiles",uid,`${u.email}: bulk moved to team ${team?.name}`);
           count++;
         }
         dataCache.invalidate("profiles");dataCache.invalidate("profiles_slim");

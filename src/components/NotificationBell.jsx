@@ -19,14 +19,28 @@ import { isLive as annIsLive, matchesAudience as annMatchesAudience } from "../l
 const safe=(v)=>{if(v==null)return"";if(typeof v==="object")return JSON.stringify(v);return String(v);};
 
 function NotificationBell({ onNavigate }) {
-  const{token,profile}=useApp();
+  const{token,profile,realProfile,impersonating}=useApp();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([]);
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [historyMonth, setHistoryMonth] = useState("");
+  // Per-user dismissal key so (a) signing out and another user signing
+  // in doesn't inherit the previous user's dismissed set, and (b) the
+  // notification IDs (e.g. "v-12") don't collide across users.
+  // While impersonating, fall back to the real admin's key so View-As
+  // browsing doesn't pollute either bucket.
+  const storageEmail = (impersonating ? realProfile?.email : profile?.email) || "anon";
+  const dismissKey = `notif_dismissed_${storageEmail.toLowerCase()}`;
   const [dismissed, setDismissed] = useState(() => {
-    try { return JSON.parse(localStorage.getItem("notif_dismissed") || "[]"); } catch { return []; }
+    try { return JSON.parse(localStorage.getItem(dismissKey) || "[]"); } catch { return []; }
   });
+  // Reload dismissed set if identity flips (sign-out + sign-in another
+  // user without a page reload, or View-As toggle). Without this the
+  // hook closure keeps the previous identity's list in memory.
+  useEffect(() => {
+    try { setDismissed(JSON.parse(localStorage.getItem(dismissKey) || "[]")); }
+    catch { setDismissed([]); }
+  }, [dismissKey]);
   const ref = useRef(null);
   const isLead = hasRole(profile?.role, "qa_lead");
   const isSv = hasRole(profile?.role, "qa_supervisor");
@@ -35,19 +49,25 @@ function NotificationBell({ onNavigate }) {
   const dismiss = (id) => {
     const updated = [...dismissed, id];
     setDismissed(updated);
-    localStorage.setItem("notif_dismissed", JSON.stringify(updated));
-    // Special case: dismissing a plan-updated entry also writes the
-    // plan_updated_at timestamp to the seenPlanKey marker so the same
-    // batch never reappears when the bell reloads.
-    if (id?.startsWith("plan-updated-")) {
-      const ts = id.slice("plan-updated-".length);
-      try { localStorage.setItem(seenPlanKey(profile?.email), ts); } catch {}
+    // Skip the localStorage write entirely while impersonating —
+    // dismissals from a View-As session shouldn't bleed back into
+    // the real admin's bucket. Same applies to the seenPlanKey marker.
+    if (!impersonating) {
+      localStorage.setItem(dismissKey, JSON.stringify(updated));
+      if (id?.startsWith("plan-updated-")) {
+        const ts = id.slice("plan-updated-".length);
+        try { localStorage.setItem(seenPlanKey(profile?.email), ts); } catch {}
+      }
     }
   };
 
   const dismissAll = () => {
     const allIds = items.map(i => i.id);
-    setDismissed(prev => { const u = [...new Set([...prev, ...allIds])]; localStorage.setItem("notif_dismissed", JSON.stringify(u)); return u; });
+    setDismissed(prev => {
+      const u = [...new Set([...prev, ...allIds])];
+      if (!impersonating) localStorage.setItem(dismissKey, JSON.stringify(u));
+      return u;
+    });
   };
 
   useEffect(() => {
@@ -490,7 +510,7 @@ function NotificationBell({ onNavigate }) {
     if (item.__digestIds) {
       const updated = [...new Set([...dismissed, ...item.__digestIds])];
       setDismissed(updated);
-      localStorage.setItem("notif_dismissed", JSON.stringify(updated));
+      if (!impersonating) localStorage.setItem(dismissKey, JSON.stringify(updated));
     } else {
       dismiss(item.id);
     }

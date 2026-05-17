@@ -10,7 +10,11 @@ import { useApp } from "../lib/AppContext.jsx";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 
 function TeamManagementPage(){
-  const { token, profile, globalToast } = useApp();
+  // realProfile = the actual signed-in user even when impersonating.
+  // Used as audit-log actor so View-As mode doesn't attribute team
+  // create / edit / delete to the impersonated user.
+  const { token, profile, realProfile, globalToast } = useApp();
+  const actorEmail = realProfile?.email || profile?.email;
   const [teams, setTeams] = useState([]);
   const [users, setUsers] = useState([]);
   const [roster, setRoster] = useState([]);
@@ -67,11 +71,11 @@ function TeamManagementPage(){
       const b = { name: form.name, domain: form.domain, lead_id: form.lead_id || null, supervisor_id: form.supervisor_id || null };
       if (editId) {
         await sb.query("teams", { token, method: "PATCH", body: b, filters: `id=eq.${editId}` });
-        logActivity(token, profile?.email, "team_updated", "teams", editId, `Name: ${form.name}`);
+        logActivity(token, actorEmail, "team_updated", "teams", editId, `Name: ${form.name}`);
         globalToast("success", "Team updated");
       } else {
         await sb.query("teams", { token, method: "POST", body: b });
-        logActivity(token, profile?.email, "team_created", "teams", null, `Name: ${form.name}, Domain: ${form.domain}`);
+        logActivity(token, actorEmail, "team_created", "teams", null, `Name: ${form.name}, Domain: ${form.domain}`);
         globalToast("success", "Team created");
       }
       setShowForm(false); setEditId(null);
@@ -88,7 +92,7 @@ function TeamManagementPage(){
     confirmAsk("Delete team?", `Delete "${t?.name || "this team"}"?`, async () => {
       try {
         await sb.query("teams", { token, method: "DELETE", filters: `id=eq.${id}` });
-        logActivity(token, profile?.email, "team_deleted", "teams", id, `Name: ${t?.name || "?"}`);
+        logActivity(token, actorEmail, "team_deleted", "teams", id, `Name: ${t?.name || "?"}`);
         globalToast("success", "Deleted"); load();
       } catch (e) { globalToast("error", safeError(e)); }
     }, "Delete", "var(--red)");
