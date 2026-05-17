@@ -582,7 +582,7 @@ function LeaderboardPage() {
             ranked={ranked}
             maxScore={maxScore}
           />
-          {visibleRanked.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {selMonth}.</p></div> :
+          {visibleRanked.length === 0 ? <EmptyState tone="warn" illus="chart" title={`No data for ${selMonth}`} description="Scores haven't been synced for this month yet, or your filters exclude everything."/> :
           <>
           {/* Pin-driven action bar — replaces the old multi-select +
               compare-mode + focus-only trio. One primitive (pin), four
@@ -923,7 +923,7 @@ function LeaderboardPage() {
 
           <div className="card">
             <div className="card-header"><span className="card-title">Quarterly rankings — {activeQ}</span><span style={{fontSize:12,color:"var(--tx3)"}}>{visibleQas.length} specialists</span></div>
-            {visibleQas.length === 0 ? <div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No data for {activeQ}.</p></div> :
+            {visibleQas.length === 0 ? <EmptyState tone="warn" illus="chart" title={`No data for ${activeQ}`} description="No QA scores rolled up for this quarter yet."/> :
             <div className="table-wrap lb-quarterly"><table><thead><tr>
               <th style={{width:50}}>#</th>
               <th>Specialist</th>

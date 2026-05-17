@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Heads-up notifications + "Do this next" preview</title>
+<style>
+  :root {
+    --bg: #06050B;
+    --bg-card: #11101A;
+    --bg-elev: #181421;
+    --sidebar: #0E0B16;
+    --line: rgba(255,255,255,.06);
+    --line-2: rgba(255,255,255,.10);
+    --purple: #6A2C79;
+    --purple-light: #8B4D99;
+    --green: #3BFF9D;
+    --amber: #F59E0B;
+    --red: #FF8B8B;
+    --blue: #60A5FA;
+    --text: #fff;
+    --text-2: rgba(255,255,255,.62);
+    --text-3: rgba(255,255,255,.42);
+    --text-4: rgba(255,255,255,.28);
+    --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, sans-serif;
+    --ease: cubic-bezier(.2,.9,.3,1);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; min-height: 100vh; }
+
+  .page { padding: 40px 28px; max-width: 1400px; margin: 0 auto; }
+  .page-title { font-size: 32px; font-weight: 800; letter-spacing: -1px; margin: 0 0 8px; }
+  .page-sub { font-size: 15px; color: var(--text-2); margin: 0 0 32px; max-width: 720px; line-height: 1.55; }
+
+  /* Mock app shell */
+  .shell {
+    display: grid; grid-template-columns: 240px 1fr;
+    background: var(--bg-card);
+    border: 1px solid var(--line); border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,.45);
+    min-height: 640px;
+  }
+
+  /* Sidebar (collapsed for this demo) */
+  .sb { background: var(--sidebar); padding: 16px 12px; border-right: 1px solid var(--line); }
+  .sb-brand { padding: 8px 10px 18px; display: inline-flex; align-items: baseline; gap: 2px; }
+  .sb-brand .t { font-size: 16px; font-weight: 800; letter-spacing: -.5px; color: #fff; }
+  .sb-brand .p { font-size: 16px; font-weight: 800; letter-spacing: -.5px;
+    background: linear-gradient(135deg, var(--green), var(--purple-light));
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+  .sb-item { display:flex; align-items:center; gap:10px; padding:8px 12px; border-radius:8px; color:var(--text-3); font-size:12.5px; }
+  .sb-item.active { background:rgba(106,44,121,.22); color:#fff; }
+  .sb-item.active::before { content:""; width:3px; height:14px; background:var(--green); border-radius:2px; margin-left:-7px; }
+  .sb-badge { margin-left:auto; font-size:9.5px; padding:1px 6px; border-radius:7px; background:rgba(255,139,139,.16); color:var(--red); font-weight:700; }
+  .sb-badge.g { background:rgba(59,255,157,.14); color:var(--green); }
+
+  /* Topbar with bell + breadcrumb */
+  .topbar { display:flex; justify-content:space-between; align-items:center; padding:14px 20px; border-bottom:1px solid var(--line); background:var(--bg-card); }
+  .crumbs { display:flex; gap:8px; align-items:center; font-size:13px; color:var(--text-3); }
+  .crumbs strong { color:#fff; font-weight:600; }
+  .crumbs .sep { color:var(--text-4); }
+  .topbar-actions { display:flex; align-items:center; gap:14px; }
+  .icon-btn {
+    position:relative;
+    width:36px; height:36px; border-radius:10px;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(255,255,255,.04); border:1px solid var(--line);
+    cursor:pointer; transition:all .15s;
+    color: var(--text-2);
+  }
+  .icon-btn:hover { background: rgba(255,255,255,.07); color:#fff; }
+  /* New animated badge */
+  .icon-btn .pip {
+    position:absolute; top:-3px; right:-3px;
+    min-width: 18px; height: 18px; padding: 0 5px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--red), #FF5252);
+    color: #fff; font-size: 10px; font-weight: 800;
+    display:flex; align-items:center; justify-content:center;
+    border: 2px solid var(--bg-card);
+    box-shadow: 0 0 0 4px rgba(255,82,82,.15);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,82,82,.5); }
+    50% { box-shadow: 0 0 0 8px rgba(255,82,82,0); }
+  }
+  .user-chip {
+    display:flex; align-items:center; gap:8px;
+    padding:5px 10px 5px 6px; border-radius: 999px;
+    background: rgba(255,255,255,.04); border:1px solid var(--line);
+    font-size: 12px; color: var(--text-2);
+  }
+  .ava { width:24px; height:24px; border-radius:50%; background:linear-gradient(135deg,var(--purple-light),var(--purple)); display:flex; align-items:center; justify-content:center; font-size:10px; font-weight:700; color:#fff; }
+
+  /* Content */
+  .content { padding: 22px; display:grid; grid-template-columns: 1fr 320px; gap: 20px; align-content: start; }
+
+  /* "Do this next" panel (right column) */
+  .donext {
+    background: linear-gradient(180deg, rgba(106,44,121,.10), transparent 80%), var(--bg-elev);
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 18px;
+    position: relative;
+  }
+  .donext-h { display:flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .donext-h h3 { margin: 0; font-size: 13px; font-weight: 700; letter-spacing: -.2px; }
+  .donext-h .count { font-size: 10px; color: var(--text-3); }
+  .dn-item {
+    display:flex; gap:10px; align-items:flex-start;
+    padding: 12px; border-radius: 10px;
+    border:1px solid var(--line);
+    background: rgba(255,255,255,.02);
+    margin-bottom: 10px;
+    cursor:pointer; transition: all .15s;
+  }
+  .dn-item:hover { background: rgba(255,255,255,.05); border-color: var(--line-2); transform: translateY(-1px); }
+  .dn-ico {
+    width: 30px; height: 30px; border-radius: 8px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .dn-ico.red { background: rgba(255,139,139,.10); color: var(--red); border:1px solid rgba(255,139,139,.18); }
+  .dn-ico.amber { background: rgba(245,158,11,.10); color: var(--amber); border:1px solid rgba(245,158,11,.18); }
+  .dn-ico.green { background: rgba(59,255,157,.10); color: var(--green); border:1px solid rgba(59,255,157,.18); }
+  .dn-ico.purple { background: rgba(139,77,153,.10); color: var(--purple-light); border:1px solid rgba(139,77,153,.18); }
+  .dn-body { flex: 1; min-width: 0; }
+  .dn-title { font-size: 12.5px; font-weight: 600; color: #fff; line-height: 1.35; }
+  .dn-meta { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+  .dn-cta { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); display:flex; justify-content:space-between; align-items:center; }
+  .dn-cta a { font-size: 11.5px; color: var(--green); text-decoration: none; font-weight: 600; }
+  .dn-empty { text-align:center; padding: 24px 8px; color: var(--text-3); font-size: 12px; }
+
+  /* Bell dropdown overlay */
+  .dropdown {
+    position:absolute; top: 56px; right: 96px;
+    width: 360px; max-height: 480px; overflow:hidden;
+    background: var(--bg-elev); border: 1px solid var(--line-2);
+    border-radius: 14px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.7), 0 0 0 1px rgba(255,255,255,.03);
+    z-index: 100;
+    display: flex; flex-direction: column;
+  }
+  .dd-h {
+    padding: 14px 16px; border-bottom: 1px solid var(--line);
+    display:flex; justify-content:space-between; align-items:center;
+  }
+  .dd-h-title { font-size: 13px; font-weight: 700; }
+  .dd-tabs { display:flex; gap: 0; padding: 0 16px; border-bottom: 1px solid var(--line); }
+  .dd-tab { padding: 8px 14px; font-size: 12px; color: var(--text-3); cursor:pointer; border-bottom: 2px solid transparent; }
+  .dd-tab.active { color: #fff; border-bottom-color: var(--green); font-weight: 600; }
+  .dd-body { padding: 8px; overflow-y: auto; flex: 1; max-height: 320px; }
+  .dd-item {
+    display:flex; gap:10px; padding: 12px; border-radius: 9px;
+    cursor:pointer; transition: background .15s;
+  }
+  .dd-item:hover { background: rgba(255,255,255,.04); }
+  .dd-item.new { background: rgba(106,44,121,.12); }
+  .dd-item.new::before { content:""; width: 6px; height: 6px; border-radius: 50%; background: var(--green); align-self: center; flex-shrink: 0; box-shadow: 0 0 6px var(--green); margin-left:-4px; margin-right:6px; }
+  .dd-content { flex:1; }
+  .dd-title { font-size: 12.5px; color: #fff; line-height: 1.4; }
+  .dd-title strong { font-weight: 600; }
+  .dd-time { font-size: 10.5px; color: var(--text-3); margin-top: 3px; }
+  .dd-foot { padding: 10px 16px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; font-size: 11px; }
+  .dd-foot a { color: var(--text-2); text-decoration: none; }
+  .dd-foot a:hover { color: #fff; }
+
+  /* Main column placeholders */
+  .greet { font-size: 22px; font-weight: 800; letter-spacing: -.6px; margin: 0 0 4px; }
+  .greet-sub { font-size: 13px; color: var(--text-2); margin: 0 0 18px; }
+  .kpis { display:grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 16px; }
+  .kpi { background: rgba(255,255,255,.03); border:1px solid var(--line); border-radius: 12px; padding: 14px; }
+  .kpi-l { font-size: 10px; color: var(--text-3); letter-spacing: .5px; text-transform: uppercase; margin-bottom: 4px; }
+  .kpi-v { font-size: 22px; font-weight: 800; letter-spacing: -.6px; line-height: 1; }
+  .kpi-d { font-size: 10.5px; color: var(--green); margin-top: 4px; }
+  .kpi-d.r { color: var(--red); }
+  .panel { background: rgba(255,255,255,.02); border:1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .panel-h { font-size: 12px; font-weight: 700; margin: 0 0 12px; color: var(--text-2); letter-spacing: .3px; text-transform: uppercase; }
+  .row { display:flex; gap:10px; padding: 8px 0; border-bottom: 1px solid var(--line); align-items:center; font-size: 12.5px; }
+  .row:last-child { border-bottom:none; }
+  .row .name { flex:1; color: #fff; }
+  .row .v { color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+  .note {
+    margin-top: 20px;
+    padding: 18px 22px; background: rgba(255,255,255,.025);
+    border: 1px solid var(--line); border-radius: 14px;
+    font-size: 13px; line-height: 1.6; color: var(--text-2);
+  }
+  .note strong { color: #fff; font-weight: 600; }
+  .note ul { margin: 8px 0 0; padding-left: 18px; }
+  .note li { margin-bottom: 6px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1 class="page-title">Notifications + "Do this next"</h1>
+  <p class="page-sub">A persistent badge on the bell tells you something needs attention. A side panel on every page tells you <em>what</em>. Click any item to jump straight to it — no scrolling Dashboard tiles to figure out what to do today.</p>
+
+  <div class="shell">
+    <!-- Sidebar (collapsed view) -->
+    <div class="sb">
+      <div class="sb-brand"><span class="t">tabby</span><span class="p">pulse</span></div>
+      <div style="font-size:9px; color:var(--text-4); padding:8px 10px 4px; letter-spacing:1.4px; text-transform:uppercase; font-weight:700;">Performance</div>
+      <div class="sb-item active">📊 Dashboard</div>
+      <div class="sb-item">🏆 Leaderboard</div>
+      <div class="sb-item">📝 Score entry</div>
+      <div class="sb-item">📞 CSAT</div>
+      <div style="font-size:9px; color:var(--text-4); padding:14px 10px 4px; letter-spacing:1.4px; text-transform:uppercase; font-weight:700;">Coaching &amp; Plans</div>
+      <div class="sb-item">💬 Coaching <span class="sb-badge">3</span></div>
+      <div class="sb-item">⚠️ Violations</div>
+      <div class="sb-item">🎯 Action plans <span class="sb-badge g">2</span></div>
+    </div>
+
+    <!-- Main pane -->
+    <div style="position:relative;">
+      <div class="topbar">
+        <div class="crumbs">Overview <span class="sep">›</span> <strong>Dashboard</strong></div>
+        <div class="topbar-actions">
+          <button class="icon-btn" title="Search">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+          </button>
+          <button class="icon-btn" title="Notifications">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span class="pip">5</span>
+          </button>
+          <div class="user-chip"><div class="ava">HB</div><span>Hossam</span></div>
+        </div>
+      </div>
+
+      <!-- Bell dropdown (showing what it looks like when opened) -->
+      <div class="dropdown">
+        <div class="dd-h"><span class="dd-h-title">Notifications</span><a href="#" style="font-size:11px;color:var(--text-3);text-decoration:none;">Mark all read</a></div>
+        <div class="dd-tabs">
+          <div class="dd-tab active">All · 5</div>
+          <div class="dd-tab">Mentions</div>
+          <div class="dd-tab">System</div>
+        </div>
+        <div class="dd-body">
+          <div class="dd-item new">
+            <div class="dn-ico red"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg></div>
+            <div class="dd-content">
+              <div class="dd-title"><strong>Omar Khaled</strong> needs your coaching ack (Apr-29)</div>
+              <div class="dd-time">5 min ago</div>
+            </div>
+          </div>
+          <div class="dd-item new">
+            <div class="dn-ico amber"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+            <div class="dd-content">
+              <div class="dd-title">AP for <strong>Mohammed Faran</strong> detected — week 4 score below 35</div>
+              <div class="dd-time">18 min ago</div>
+            </div>
+          </div>
+          <div class="dd-item new">
+            <div class="dn-ico purple"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg></div>
+            <div class="dd-content">
+              <div class="dd-title"><strong>Mariam Gad</strong> acknowledged your coaching</div>
+              <div class="dd-time">1h ago</div>
+            </div>
+          </div>
+          <div class="dd-item">
+            <div class="dn-ico green"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 13l4 4L19 7"/></svg></div>
+            <div class="dd-content">
+              <div class="dd-title">Daily sync completed — 412 records</div>
+              <div class="dd-time">3h ago</div>
+            </div>
+          </div>
+          <div class="dd-item">
+            <div class="dn-ico purple"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M3 3v18h18M7 14l4-4 4 4 5-5"/></svg></div>
+            <div class="dd-content">
+              <div class="dd-title">Pulse v1.43.0 is live — see what's new</div>
+              <div class="dd-time">Yesterday</div>
+            </div>
+          </div>
+        </div>
+        <div class="dd-foot"><a href="#">Notification settings</a><a href="#">View all →</a></div>
+      </div>
+
+      <div class="content">
+        <!-- Main content area -->
+        <div>
+          <h2 class="greet">Good afternoon, Hossam</h2>
+          <p class="greet-sub">Tuesday · May 17 · 16:42 KSA</p>
+          <div class="kpis">
+            <div class="kpi"><div class="kpi-l">Team avg</div><div class="kpi-v">48.2</div><div class="kpi-d">+2.1 vs last week</div></div>
+            <div class="kpi"><div class="kpi-l">JKQ</div><div class="kpi-v">94%</div><div class="kpi-d">+1.4</div></div>
+            <div class="kpi"><div class="kpi-l">Tickets / day</div><div class="kpi-v">42</div><div class="kpi-d r">−0.6</div></div>
+            <div class="kpi"><div class="kpi-l">Open APs</div><div class="kpi-v">2</div><div class="kpi-d">−1 this week</div></div>
+          </div>
+          <div class="panel">
+            <h4 class="panel-h">Top performers · MTD</h4>
+            <div class="row"><span class="name">🥇 Mohammed Mohsen</span><span class="v">52.4</span></div>
+            <div class="row"><span class="name">🥈 Mariam Gad</span><span class="v">51.1</span></div>
+            <div class="row"><span class="name">🥉 Karim Hassan</span><span class="v">49.8</span></div>
+            <div class="row"><span class="name">Omar Khaled</span><span class="v">48.0</span></div>
+          </div>
+        </div>
+
+        <!-- DO THIS NEXT (right side panel) -->
+        <div class="donext">
+          <div class="donext-h">
+            <h3>Do this next</h3>
+            <span class="count">3 items</span>
+          </div>
+          <div class="dn-item">
+            <div class="dn-ico red"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg></div>
+            <div class="dn-body">
+              <div class="dn-title">3 coachings overdue your ack</div>
+              <div class="dn-meta">Oldest: Apr 29 · Omar Khaled</div>
+            </div>
+          </div>
+          <div class="dn-item">
+            <div class="dn-ico amber"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/></svg></div>
+            <div class="dn-body">
+              <div class="dn-title">AP for Mohammed Faran awaiting review</div>
+              <div class="dn-meta">Detected 18 min ago · score &lt; 35</div>
+            </div>
+          </div>
+          <div class="dn-item">
+            <div class="dn-ico purple"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 11H5a2 2 0 0 0-2 2v7h18v-7a2 2 0 0 0-2-2h-4M9 11V5a3 3 0 0 1 6 0v6"/></svg></div>
+            <div class="dn-body">
+              <div class="dn-title">2 attendance approvals pending</div>
+              <div class="dn-meta">Today's bulk shift, Mahmoud Ahmed leave req.</div>
+            </div>
+          </div>
+          <div class="dn-cta">
+            <span style="font-size:11px;color:var(--text-3);">Updated 30s ago</span>
+            <a href="#">View all →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>How it works</strong>
+    <ul>
+      <li><strong>Bell badge</strong> reflects unseen items only — once you open it, the pulse animation calms. Counts split by tab so System chatter doesn't drown out human signals.</li>
+      <li><strong>"Do this next" panel</strong> renders on every page, not just Dashboard. Items are role-filtered: leads see acks/AP detections, admins see system health alerts, QAs see their own pending tasks.</li>
+      <li><strong>Click-through</strong> takes you straight to the relevant record (no landing on Dashboard then re-searching).</li>
+      <li><strong>Empty state</strong> ("You're all caught up 🎉") is its own little reward — meaningful for a workspace this busy.</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

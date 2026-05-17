@@ -5,15 +5,14 @@ import { nameFromEmail, safeError } from "../../lib/utils.js";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import { useConfirm } from "../../lib/hooks.jsx";
+import EmptyState from "../EmptyState.jsx";
 
 function APHistoryTab({ historyPlans, expandedPlan, setExpandedPlan, getPlanProgress, parseTargets, safeJson, setPlans, setWeeks }) {
   const { token, profile, globalToast } = useApp();
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
 
   if (historyPlans.length === 0) {
-    return <div className="card"><div className="placeholder" style={{ padding: "40px" }}>
-      <p style={{ color: "var(--tx3)" }}>No completed plans in history.</p>
-    </div></div>;
+    return <div className="card"><EmptyState illus="empty" title="No completed plans" description="Once an AP or PIP wraps, it'll move here for the record."/></div>;
   }
 
   return <div className="card">

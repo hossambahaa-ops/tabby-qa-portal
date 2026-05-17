@@ -7,6 +7,7 @@ import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import PageFilters from "../components/PageFilters.jsx";
 import CsatTopicMatrix from "../components/csat/CsatTopicMatrix.jsx";
@@ -490,7 +491,14 @@ export default function CSATPage() {
     </PageFilters>
 
     {filtered.length === 0 ? (
-      <div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No CSAT data for {selMonth}.</p></div></div>
+      <div className="card">
+        <EmptyState
+          tone="warn"
+          illus="chart"
+          title={`No CSAT data for ${selMonth}`}
+          description="Either no surveys have come in yet for this month, or your current filters exclude everything. Try widening the date range or clearing a filter."
+        />
+      </div>
     ) : (
       <div className="card">
         <div className="card-header">

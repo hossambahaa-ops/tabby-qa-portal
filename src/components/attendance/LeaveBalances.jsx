@@ -63,7 +63,18 @@ export default function LeaveBalances({ visibleQAs, token, profile, myEmail, glo
       </div>
 
       {loading ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>Loading…</div>
+        <div style={{ padding: "12px 0", display: "flex", flexDirection: "column", gap: 10 }}>
+          {[0,1,2].map(i => (
+            <div key={i} style={{ display: "flex", gap: 12, alignItems: "center" }}>
+              <div className="skeleton" style={{ width: 36, height: 36, borderRadius: "50%" }}/>
+              <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div className="skeleton" style={{ height: 12, width: "45%", borderRadius: 4 }}/>
+                <div className="skeleton" style={{ height: 10, width: "30%", borderRadius: 4 }}/>
+              </div>
+              <div className="skeleton" style={{ width: 56, height: 22, borderRadius: 6 }}/>
+            </div>
+          ))}
+        </div>
       ) : rows.length === 0 ? (
         <div className="card" style={{ padding: "36px 24px", textAlign: "center" }}>
           <div style={{ fontSize: 13, color: "var(--tx3)" }}>

@@ -14,6 +14,7 @@ import TrackerDetailPanel from "../components/tracker/TrackerDetailPanel.jsx";
 import { downloadCsv } from "../lib/csvExport.js";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import EmptyState from "../components/EmptyState.jsx";
+import { SkeletonTable } from "../components/Skeleton.jsx";
 import { nameFromEmail } from "../lib/utils.js";
 import PlaceholderPage from "./PlaceholderPage.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
@@ -316,12 +317,13 @@ export default function TrackerPage() {
 
       {/* Body */}
       {loading ? (
-        <div style={{ padding: 40, textAlign: "center", color: "var(--tx3)" }}>Loading…</div>
+        <SkeletonTable/>
       ) : rows.length === 0 ? (
         <EmptyState
+          illus="empty"
           title="No tasks yet"
           description="Create the first one — it'll show up on the board for everyone in the unit."
-          cta={{ label: "New task", onClick: openCreate }}
+          cta={{ label: "+ New task", onClick: openCreate }}
         />
       ) : view === "board" ? (
         <TrackerBoard

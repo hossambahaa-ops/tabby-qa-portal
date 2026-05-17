@@ -5,6 +5,7 @@ import { safeError } from "../lib/utils.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { useConfirm } from "../lib/hooks.jsx";
 import { SkeletonTable } from "../components/Skeleton.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 
 // Admin viewer for public.client_errors — runtime JS errors captured by
 // src/lib/errorLog.js (window.onerror + unhandledrejection + React
@@ -127,9 +128,7 @@ export default function AdminErrorsPage() {
 
       {loading ? <SkeletonTable /> :
         filtered.length === 0 ? (
-          <div className="card"><div className="placeholder" style={{ padding: 40 }}>
-            <p style={{ color: "var(--tx3)" }}>No runtime errors logged. That's good news.</p>
-          </div></div>
+          <div className="card"><EmptyState tone="good" illus="check" title="No runtime errors" description="Nothing logged in the selected window. That's good news."/></div>
         ) : grouped ? (
           <div className="card"><div className="table-wrap"><table>
             <thead><tr>

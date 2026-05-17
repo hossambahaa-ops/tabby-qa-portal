@@ -7,6 +7,7 @@ import { listProfiles } from "../api/profiles.js";
 import { useConfirm, useAutoRefresh } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import useKeyboard from "../lib/useKeyboard.jsx";
@@ -167,7 +168,12 @@ function DAMPage(){
 
     {tab==="flags"&&<div className="card">
       {flags.filter(f=>f.status!=="resolved"&&f.status!=="dismissed").length===0?
-        <div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>No active flags. Create one above or wait for auto-detection.</p></div>:
+        <EmptyState
+          tone="good"
+          illus="check"
+          title="No active flags"
+          description="Nothing pending review. Auto-detection will surface new flags here automatically."
+        />:
         <>
         {selectedFlags.size>0&&<div style={{padding:"10px 16px",margin:"12px 16px 0",background:"var(--accent-light)",borderRadius:8,display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
           <span style={{fontSize:13,fontWeight:600,color:"var(--accent-text)"}}>{selectedFlags.size} selected</span>
@@ -227,7 +233,12 @@ function DAMPage(){
     </div>)}</div>}
 
     {tab==="history"&&<div className="card">
-      {flags.length===0?<div className="placeholder" style={{padding:"40px"}}><p style={{color:"var(--tx3)"}}>{hasRole(profile?.role,"admin")?"No flags in history yet.":hasRole(profile?.role,"qa_supervisor")?"No flags in your domain yet.":"No flags on your team yet."}</p></div>:
+      {flags.length===0?
+        <EmptyState
+          illus="empty"
+          title="No flags in history yet"
+          description={hasRole(profile?.role,"admin")?"Nothing has been flagged across the whole org yet.":hasRole(profile?.role,"qa_supervisor")?"No flags raised in your domain yet.":"No flags raised on your team yet."}
+        />:
       <>
       {hasRole(profile?.role,"super_admin")&&<div style={{display:"flex",justifyContent:"flex-end",marginBottom:8}}>
         <button className="btn btn-outline btn-sm" style={{color:"var(--red)"}} onClick={async()=>{

@@ -3,6 +3,7 @@ import { hasRole } from "../../lib/constants.js";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import Modal from "../Modal.jsx";
+import EmptyState from "../EmptyState.jsx";
 
 export default function APDetectionTab({
   detections,
@@ -19,11 +20,7 @@ export default function APDetectionTab({
   return (
     <div>
       {detections.length === 0 ? (
-        <div className="card"><div className="placeholder" style={{ padding: "40px" }}>
-          <div className="placeholder-icon"><Icon d={icons.check} size={28} /></div>
-          <h3>No auto-detections</h3>
-          <p>No QAs currently need an Action Plan.<br />AP/PIP detection is triggered by DAM escalation steps with "includes PIP" enabled.</p>
-        </div></div>
+        <div className="card"><EmptyState tone="good" illus="check" title="No auto-detections" description='No QAs currently need an Action Plan. AP/PIP detection is triggered by DAM escalation steps with "includes PIP" enabled.'/></div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div style={{ padding: "10px 14px", background: "var(--amber-bg)", borderRadius: 8, fontSize: 13, color: "var(--amber)", fontWeight: 500 }}>

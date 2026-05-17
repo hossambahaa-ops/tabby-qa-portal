@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { sb, dataCache } from "../lib/supabase.js";
 import { safeError } from "../lib/utils.js";
 import { SkeletonTable } from "../components/Skeleton.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
 function AdminFeedbackPage(){
@@ -35,7 +36,7 @@ function AdminFeedbackPage(){
       </div>}
     </div>
     {loading?<SkeletonTable/>:
-    items.length===0?<div className="card"><div className="placeholder" style={{padding:40}}><p style={{color:"var(--tx3)"}}>No feedback yet.</p></div></div>:
+    items.length===0?<div className="card"><EmptyState illus="empty" title="No feedback yet" description="When users submit feedback via the in-app bubble, it'll appear here for you to triage."/></div>:
     <div className="card"><div className="table-wrap"><table><thead><tr>
       <th style={{width:30}}></th>
       <th>User</th>

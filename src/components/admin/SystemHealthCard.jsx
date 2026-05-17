@@ -113,7 +113,13 @@ export default function SystemHealthCard() {
         </div>
         <button className="btn btn-outline btn-sm" style={{ fontSize: 11 }} onClick={load}>↻ Refresh</button>
       </div>
-      {loading && <div style={{ fontSize: 12, color: "var(--tx3)", padding: 12 }}>Loading…</div>}
+      {loading && (
+        <div style={{ padding: "8px 0", display: "flex", flexDirection: "column", gap: 8 }}>
+          {[78, 62, 70, 55].map((w, i) => (
+            <div key={i} className="skeleton" style={{ height: 14, width: `${w}%`, borderRadius: 6 }}/>
+          ))}
+        </div>
+      )}
       {err && <div style={{ fontSize: 12, color: "var(--red)", padding: 12 }}>Error: {err}</div>}
       {!loading && !err && rows.length === 0 && <div style={{ fontSize: 12, color: "var(--tx3)", padding: 12 }}>No cron jobs scheduled.</div>}
       {!loading && !err && rows.length > 0 && (

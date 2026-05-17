@@ -51,7 +51,14 @@ export default function TeamChampions({ teamEmails, month, onOpen }) {
         {onOpen && <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--tabby-purple)", fontWeight: 600 }}>View all →</span>}
       </div>
       {loading ? (
-        <div style={{ fontSize: 12, color: "var(--tx3)" }}>Loading…</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginTop: 6 }}>
+          {[0,1,2,3].map(i => (
+            <div key={i} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <div className="skeleton" style={{ height: 12, width: "60%", borderRadius: 4 }}/>
+              <div className="skeleton" style={{ height: 22, width: "80%", borderRadius: 6 }}/>
+            </div>
+          ))}
+        </div>
       ) : total === 0 ? (
         <div style={{ fontSize: 12, color: "var(--tx3)" }}>No expertise data for {month} yet.</div>
       ) : (

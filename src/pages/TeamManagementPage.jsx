@@ -6,6 +6,7 @@ import { listRoster } from "../api/roster.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { SkeletonTable } from "../components/Skeleton.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 
@@ -216,7 +217,7 @@ function TeamManagementPage(){
 
     <div className="card">
       {loading ? <SkeletonTable /> : groupedLeads.length === 0 ? (
-        <div className="placeholder" style={{ padding: 40 }}><p style={{ color: "var(--tx3)" }}>No teams yet. Hit “🔄 Sync from Distro” to pull from the QA Roster sheet.</p></div>
+        <EmptyState illus="empty" title="No teams yet" description="Hit 🔄 Sync from Distro above to pull the team structure from the QA Roster sheet."/>
       ) : (
         <div className="table-wrap"><table>
           <thead><tr>
