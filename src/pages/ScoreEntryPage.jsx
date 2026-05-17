@@ -575,8 +575,8 @@ function ScoreEntryPage(){
     <div className="page-header" style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:12}}>
       <div style={{display:"flex",alignItems:"center",gap:12}}>
         <div>
-          <div className="page-title">MTD Scores</div>
-          <div className="page-subtitle">MTD performance data — synced from Metabase hourly</div>
+          <div className="page-title">MTD</div>
+          <div className="page-subtitle">Month-to-date performance — synced from Metabase hourly</div>
         </div>
         {/* Refresh live — pulls the latest MTD CSV from Google Sheets via
             the mtd-sync edge function, then reloads the table. Visible to

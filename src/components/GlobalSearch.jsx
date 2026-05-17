@@ -56,9 +56,9 @@ function GlobalSearch({ onNavigate, onClose }) {
             {icon:"📋",label:"Log Coaching",sub:"Open coaching composer",page:"quality",qcTab:"coaching"},
             {icon:"👤",label:"Check QA Profile",sub:"View any QA's performance",page:"profile"},
             {icon:"📊",label:"Leaderboard",sub:"See team rankings",page:"leaderboard"},
-            {icon:"🎯",label:"MTD Scores",sub:"Monthly score entry",page:"scores"},
+            {icon:"🎯",label:"MTD",sub:"Month-to-date team performance",page:"scores"},
             {icon:"⚠️",label:"DAM Flags",sub:"Review pending flags",page:"quality",qcTab:"dam"},
-            {icon:"📅",label:"Schedule",sub:"Attendance & shifts",page:"schedule"},
+            {icon:"📅",label:"Attendance",sub:"Schedule & attendance for the month",page:"schedule"},
           ].map(a => (
             <div key={a.label} className="search-result" onClick={() => { onNavigate(a.page); if(a.qcTab) setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:a.qcTab})),100); onClose(); }}>
               <span style={{fontSize:18,width:28,textAlign:"center"}}>{a.icon}</span>
