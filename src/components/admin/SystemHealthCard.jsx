@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { sb } from "../../lib/supabase.js";
+import { SUPABASE_URL, SUPABASE_ANON } from "../../lib/supabase.js";
 import { useApp } from "../../lib/AppContext.jsx";
 
 // One-pane cron health for admins. Replaces the "is the sync working?"
@@ -72,12 +72,19 @@ export default function SystemHealthCard() {
       // PostgREST RPC. The function is SECURITY DEFINER + granted
       // to authenticated, so any signed-in user can call it; we
       // still only render this component to admin via AdminPage.
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL || ""}/rest/v1/rpc/cron_health`, {
+      // (Note: imports are SUPABASE_URL / SUPABASE_ANON from
+      // lib/supabase.js — NOT import.meta.env.VITE_* — same pattern
+      // every other direct fetch in the app uses. Using the env
+      // form 401'd because those Vite-prefixed vars aren't defined.)
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/cron_health`, {
         method: "POST",
-        headers: { apikey: import.meta.env.VITE_SUPABASE_ANON || "", Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
         body: "{}",
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const body = await res.text().catch(() => "");
+        throw new Error(`HTTP ${res.status}${body ? ` — ${body.slice(0, 120)}` : ""}`);
+      }
       const data = await res.json();
       setRows(Array.isArray(data) ? data : []);
     } catch (e) {
