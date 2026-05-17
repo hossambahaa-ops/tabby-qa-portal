@@ -58,20 +58,27 @@ const TrackerPage = lazy(() => import("./pages/TrackerPage.jsx"));
 // match NAV_ITEMS.key so the sidebar's onMouseEnter can fire the
 // right loader. Safe to call repeatedly — Vite caches the module
 // graph so the second hover is a no-op.
+// Every prefetcher swallows its own rejection. A failing prefetch on
+// hover is harmless — when the user actually clicks, lazyWithRetry()
+// fires fresh + does the retry-then-reload dance. Without these
+// .catch() guards, a stale-chunk hover-prefetch surfaces as an
+// unhandledrejection and ends up in client_errors as a fake "real"
+// error even though the user never saw a broken page.
+const safePrefetch = (loader) => () => { loader().catch(() => {}); };
 const PAGE_PREFETCH = {
-  dashboard:   () => import("./pages/DashboardPage.jsx"),
-  scores:      () => import("./pages/ScoreEntryPage.jsx"),
-  csat:        () => import("./pages/CSATPage.jsx"),
-  targets:     () => import("./pages/TargetsPage.jsx"),
-  admin:       () => import("./pages/AdminPage.jsx"),
-  leaderboard: () => import("./pages/LeaderboardPage.jsx"),
-  quality:     () => import("./pages/QualityControlPage.jsx"),
-  escalations: () => import("./pages/EscalationsPage.jsx"),
-  profile:     () => import("./pages/QAProfilePage.jsx"),
-  schedule:    () => import("./pages/SchedulePage.jsx"),
-  utilization: () => import("./pages/UtilizationPage.jsx"),
-  expertise:   () => import("./pages/ExpertisePage.jsx"),
-  tracker:     () => import("./pages/TrackerPage.jsx"),
+  dashboard:   safePrefetch(() => import("./pages/DashboardPage.jsx")),
+  scores:      safePrefetch(() => import("./pages/ScoreEntryPage.jsx")),
+  csat:        safePrefetch(() => import("./pages/CSATPage.jsx")),
+  targets:     safePrefetch(() => import("./pages/TargetsPage.jsx")),
+  admin:       safePrefetch(() => import("./pages/AdminPage.jsx")),
+  leaderboard: safePrefetch(() => import("./pages/LeaderboardPage.jsx")),
+  quality:     safePrefetch(() => import("./pages/QualityControlPage.jsx")),
+  escalations: safePrefetch(() => import("./pages/EscalationsPage.jsx")),
+  profile:     safePrefetch(() => import("./pages/QAProfilePage.jsx")),
+  schedule:    safePrefetch(() => import("./pages/SchedulePage.jsx")),
+  utilization: safePrefetch(() => import("./pages/UtilizationPage.jsx")),
+  expertise:   safePrefetch(() => import("./pages/ExpertisePage.jsx")),
+  tracker:     safePrefetch(() => import("./pages/TrackerPage.jsx")),
 };
 function prefetchPage(key) { try { PAGE_PREFETCH[key]?.(); } catch {} }
 const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));

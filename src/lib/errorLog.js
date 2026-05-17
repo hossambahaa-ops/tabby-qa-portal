@@ -42,8 +42,25 @@ const shouldSkip = (message, stack) => {
 
 const trim = (v, max = 2000) => (v == null ? null : String(v).slice(0, max));
 
+// Errors that the app already recovers from automatically aren't worth
+// alerting on — they're noise in the Admin → Errors page and crowd out
+// real problems. The patterns below all describe stale-chunk failures
+// after a Cloudflare Pages deploy: lazyWithRetry retries and force-
+// reloads, so the user lands on the new build and is fine. Logging
+// them anyway just makes the dashboard look broken when it isn't.
+const RECOVERED_AUTOMATICALLY = [
+  /failed to fetch dynamically imported module/i,
+  /importing a module script failed/i,
+  /error loading dynamically imported module/i,
+  /chunkloaderror/i,
+  /loading chunk \S+ failed/i,
+];
+const isRecoveredAutomatically = (msg) =>
+  RECOVERED_AUTOMATICALLY.some((re) => re.test(String(msg || "")));
+
 async function shipError({ source, message, stack, context }) {
   if (!message) return;
+  if (isRecoveredAutomatically(message)) return;
   if (shouldSkip(message, stack)) return;
   const user = (() => { try { return getUser() || {}; } catch { return {}; } })();
   const token = (() => { try { return getToken(); } catch { return null; } })();
