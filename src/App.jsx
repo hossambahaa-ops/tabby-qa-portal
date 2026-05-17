@@ -493,23 +493,41 @@ function AppInner(){
     
     <p style={{marginTop:16,color:"rgba(255,255,255,.3)",fontSize:12}}>Loading your workspace...</p>
   </div>;
-  if(!session)return(<div className="login-page">
-    <div className="login-bg-grid" aria-hidden="true"/>
-    <div className="login-bg-glow login-bg-glow-1" aria-hidden="true"/>
-    <div className="login-bg-glow login-bg-glow-2" aria-hidden="true"/>
-    <div className="login-card">
-      <div className="login-brand">
-        <TabbyPulseWordmark height={40} uid="tpw-login" style={{color:"#fff"}}/>
+  if(!session)return(<div className="login-page login-v2">
+    <div className="login-v2-bg" aria-hidden="true"/>
+    <div className="login-v2-frame">
+      <div className="login-v2-topbar">
+        <TabbyPulseWordmark height={22} uid="tpw-login" style={{color:"#fff"}}/>
+        <div className="login-v2-topmeta" aria-hidden="true">
+          <span className="login-v2-pip"><span className="login-v2-pip-dot"/>All systems normal</span>
+        </div>
       </div>
-      <h1 className="login-title">Welcome back</h1>
-      <p className="login-subtitle">Sign in to the QA performance workspace.</p>
-      <button className="login-btn" onClick={()=>sb.auth.signInWithGoogle()}>
-        <GoogleLogo/>
-        <span>Continue with Google</span>
-      </button>
-      <p className="login-hint">Use your <code>@tabby.ai</code> or <code>@tabby.sa</code> account</p>
+      <div className="login-v2-hero">
+        <div className="login-v2-eyebrow"><span>QA Performance Platform</span></div>
+        <h1 className="login-v2-h1">
+          Where Tabby measures<br/>
+          <span className="login-v2-h1-accent">customer experience.</span>
+        </h1>
+        <p className="login-v2-lede">
+          The internal workspace for scoring, coaching, and resolving — sign in with your Tabby Google account to continue.
+        </p>
+        <div className="login-v2-cta">
+          <button className="login-v2-primary" onClick={()=>sb.auth.signInWithGoogle()}>
+            <GoogleLogo/>
+            <span>Continue with Google</span>
+          </button>
+          <p className="login-v2-sso">SSO via <code>@tabby.ai</code> or <code>@tabby.sa</code></p>
+        </div>
+      </div>
+      <div className="login-v2-rail">
+        <div className="login-v2-rail-left">
+          <div className="login-v2-rail-item"><div className="login-v2-rail-ico"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M16 11V7a4 4 0 0 0-8 0v4M5 11h14v10H5z"/></svg></div><span>OAuth secured</span></div>
+          <div className="login-v2-rail-item"><div className="login-v2-rail-ico"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2L4 6v6c0 5 3.5 9.5 8 10 4.5-.5 8-5 8-10V6l-8-4z"/></svg></div><span>Role-aware access</span></div>
+          <div className="login-v2-rail-item"><div className="login-v2-rail-ico"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><span>Audit trail</span></div>
+        </div>
+        <div className="login-v2-rail-right">Tabby Pulse · Internal tool · © {new Date().getFullYear()} Tabby</div>
+      </div>
     </div>
-    <div className="login-footer-fixed">Tabby Pulse · Internal tool</div>
   </div>);
   const visibleNav=NAV_ITEMS.filter(n=>{
     if (n.key === "escalations") return true;
