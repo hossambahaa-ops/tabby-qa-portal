@@ -476,11 +476,21 @@ function AppInner(){
     window.addEventListener("focus",onFocus);
     return()=>{clearInterval(id);window.removeEventListener("focus",onFocus);};
   },[session]);
-  const acknowledgeDailyRefresh=()=>{
+  const acknowledgeDailyRefresh=async()=>{
+    // Stamp today's KSA date FIRST so the modal doesn't re-appear on
+    // the login screen / next sign-in. Then sign the user out — the
+    // login redirect picks up the latest deployed assets cleanly +
+    // forces a fresh auth session. (Used to call window.location.reload;
+    // switched to logout because re-authenticating is a stronger nudge
+    // than a refresh that lots of people swiped past too quickly.)
     try{localStorage.setItem("pulse_daily_refresh_ack",riyadhTodayStr());}catch{}
-    // Hard reload — bypasses bfcache + asks Service Worker / browser to
-    // fetch fresh assets. The localStorage write above prevents the
-    // modal from re-appearing once the new page finishes loading.
+    setShowDailyRefresh(false);
+    try{await sb.auth.signOut();}catch{}
+    setSession(null);
+    setProfile(null);
+    window.location.hash="";
+    // Belt-and-suspenders: force a full reload so the next page load
+    // is the fresh build, not the old SPA shell rerouting to /login.
     window.location.reload();
   };
 
@@ -1031,25 +1041,25 @@ function AppInner(){
           color:"#fff",
         }}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
-            <span style={{fontSize:22}}>🔄</span>
-            <span style={{fontSize:16,fontWeight:700}}>Daily refresh required</span>
+            <span style={{fontSize:22}}>🔐</span>
+            <span style={{fontSize:16,fontWeight:700}}>Daily sign-in refresh</span>
           </div>
           <div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>Triggered daily at 12:00 KSA</div>
         </div>
         {/* Body */}
         <div style={{padding:"24px"}}>
           <p style={{fontSize:14,color:"var(--tx2)",lineHeight:1.65,margin:"0 0 12px"}}>
-            Pulse ships updates throughout the day. To make sure you're working on
-            the latest version — and to clear any stale data from a long session —
-            please refresh once before continuing.
+            To keep things secure and make sure you're on the latest version, Pulse
+            signs you out once a day. One quick re-login and you're back — no data
+            lost, no work interrupted.
           </p>
           <p style={{fontSize:13,color:"var(--tx3)",lineHeight:1.55,margin:0}}>
-            This takes ~1 second and only happens once per day.
+            Takes ~5 seconds. Happens once per day.
           </p>
         </div>
         {/* Footer — must acknowledge */}
         <div style={{padding:"16px 24px",borderTop:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <span style={{fontSize:11,color:"var(--tx3)"}}>You must refresh to continue</span>
+          <span style={{fontSize:11,color:"var(--tx3)"}}>You must sign in again to continue</span>
           <button onClick={acknowledgeDailyRefresh} style={{
             padding:"10px 24px",borderRadius:10,border:"none",
             background:"var(--tabby-purple,#6A2C79)",color:"#fff",fontSize:13,fontWeight:700,
@@ -1057,7 +1067,7 @@ function AppInner(){
           }}
             onMouseEnter={e=>{e.currentTarget.style.background="var(--tabby-purple-light,#8B4D99)";e.currentTarget.style.transform="translateY(-1px)";}}
             onMouseLeave={e=>{e.currentTarget.style.background="var(--tabby-purple,#6A2C79)";e.currentTarget.style.transform="translateY(0)";}}
-          >Refresh now</button>
+          >Sign out &amp; back in</button>
         </div>
       </div>
     </div>}

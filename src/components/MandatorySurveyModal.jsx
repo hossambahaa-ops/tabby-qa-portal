@@ -60,7 +60,7 @@ function StarPicker({ value, onChange }) {
 const STAR_LABELS = { 1: "Poor", 2: "Could be better", 3: "OK", 4: "Good", 5: "Excellent" };
 
 export default function MandatorySurveyModal() {
-  const { token, profile, globalToast } = useApp();
+  const { token, profile, globalToast, impersonating } = useApp();
   const [survey, setSurvey] = useState(null);
   const [hasResponded, setHasResponded] = useState(null); // null=unknown, true/false=resolved
   const [rating, setRating] = useState(0);
@@ -68,6 +68,13 @@ export default function MandatorySurveyModal() {
   const [submitting, setSubmitting] = useState(false);
 
   const load = useCallback(async () => {
+    // Skip entirely while super-admin is viewing-as another user. The
+    // useApp().profile we'd otherwise check is the *impersonated* user's
+    // profile, so we'd be popping the modal on every QA the admin
+    // inspects — and blocking the admin from doing the inspection at
+    // all. The real user (Hossam) will see their own modal later when
+    // they're operating as themselves.
+    if (impersonating) { setSurvey(null); setHasResponded(null); return; }
     if (!token || !profile?.email) return;
     const surveys = await listActiveSurvey({ token });
     const s = surveys?.[0];
@@ -79,7 +86,7 @@ export default function MandatorySurveyModal() {
     const mine = await listMyResponse({ token, surveyId: s.id, userEmail: profile.email });
     setSurvey(s);
     setHasResponded((mine?.length || 0) > 0);
-  }, [token, profile?.email]);
+  }, [token, profile?.email, impersonating]);
 
   useEffect(() => { load(); }, [load]);
 
