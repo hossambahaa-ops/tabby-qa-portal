@@ -30,3 +30,16 @@ export const APPROVAL_CODES = new Set(["OT", "PH", "CDO", "Tabby Day"]);
 // separate request flow behind the "Request OT" header button so it
 // can't be set by casually clicking around.
 export const PICKER_TYPES = ATTENDANCE_TYPES.filter(t => t.code !== "OT");
+
+// Approved-leave codes that should be excluded from auto-NSNC,
+// mismatch flags, "not yet checked in" lists, and adherence math.
+// Centralized here because the literal "Paid SL" (with the space)
+// diverged from many call sites that wrote ["AL","SL","PH"] — silently
+// letting sick-leave rows fall through every filter. Add new approved-
+// leave codes here and they propagate everywhere.
+export const LEAVE_CODES = new Set(["AL", "Paid SL", "PH", "ML", "UL"]);
+
+// Convenience helper — leave + NSNC together cover every "resolved
+// without a check-in" state. Useful for callers that want one set
+// to test against.
+export const RESOLVED_NO_CHECKIN = new Set([...LEAVE_CODES, "NSNC"]);

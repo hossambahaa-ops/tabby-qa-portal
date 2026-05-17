@@ -11,7 +11,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES } from "../lib/attendance.js";
+import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES, LEAVE_CODES, RESOLVED_NO_CHECKIN } from "../lib/attendance.js";
 import AttendanceBulkModal from "../components/attendance/AttendanceBulkModal.jsx";
 import AttendanceCsvUpload from "../components/attendance/AttendanceCsvUpload.jsx";
 import AttendanceOtModal from "../components/attendance/AttendanceOtModal.jsx";
@@ -802,6 +802,10 @@ function SchedulePage() {
   const TABS = [
     { key: "calendar", label: "Calendar", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
     { key: "pending",  label: "Pending",  icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z", badge: isLead ? attendance.filter(a => {
+      // Scope badge to the currently selected month so switching from
+      // May → April doesn't leave May's pending count hanging on the
+      // tab. attendance.date is YYYY-MM-DD; selMonth is YYYY-MM.
+      if (selMonth && a.date && !a.date.startsWith(selMonth)) return false;
       const mgr = roster.find(r => r.email?.toLowerCase() === a.email?.toLowerCase())?.manager_email?.toLowerCase();
       return a.approval_status === "pending" && mgr === myEmail;
     }).length : 0 },
@@ -898,7 +902,13 @@ function SchedulePage() {
               const monthLabel=new Date(year,month-1).toLocaleDateString("en-US",{month:"long",year:"numeric"});
               confirmAsk("Delete all attendance?",`Delete ALL attendance data for ${monthLabel}? This cannot be undone.`,async()=>{
                 try{
-                  const startDate=`${selMonth}-01`;const endDate=`${year}-${String(month+1>12?1:month+1).padStart(2,"0")}-01`;
+                  // Roll the year too when month=12 — the previous form
+                  // (`month+1>12 ? 1 : month+1`) wrapped the month back
+                  // to 01 but kept the same year, deleting January of
+                  // the SAME year instead of January of the next year.
+                  const nextMonth = month >= 12 ? 1 : month + 1;
+                  const nextYear = month >= 12 ? year + 1 : year;
+                  const startDate=`${selMonth}-01`;const endDate=`${nextYear}-${String(nextMonth).padStart(2,"0")}-01`;
                   const resp=await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?date=gte.${startDate}&date=lt.${endDate}`,{method:"DELETE",headers:{"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`}});
                   if(!resp.ok)throw new Error(await resp.text());
                   globalToast("success","All attendance data deleted for this month");loadData();
@@ -951,13 +961,13 @@ function SchedulePage() {
             .filter(a => a.date === todayIso && teamEmails.includes(a.email?.toLowerCase()))
             .map(a => ({ ...a, name: _nameFromEmail(a.email) }));
           const checkedIn = todayTeam.filter(r => r.checked_in_at);
-          const notYet = todayTeam.filter(r => r.planned_code === "P" && !r.checked_in_at && r.status !== "NSNC" && !["AL","SL","PH"].includes(r.status));
+          const notYet = todayTeam.filter(r => r.planned_code === "P" && !r.checked_in_at && r.status !== "NSNC" && !LEAVE_CODES.has(r.status));
           const nsnc = todayTeam.filter(r => r.status === "NSNC");
-          const onLeave = todayTeam.filter(r => ["AL","SL","PH"].includes(r.status));
+          const onLeave = todayTeam.filter(r => LEAVE_CODES.has(r.status));
           // ── Status colour resolver ──
           const stColor = (st, pc, ci) => {
             if (st === "NSNC") return "var(--red)";
-            if (["AL","SL","PH"].includes(st)) return "var(--blue)";
+            if (LEAVE_CODES.has(st)) return "var(--blue)";
             if (ci) return "var(--green)";
             if (pc === "P" && !ci) return "var(--amber)";
             return "var(--tx3)";
@@ -995,7 +1005,7 @@ function SchedulePage() {
                   {[...nsnc, ...notYet, ...checkedIn, ...onLeave].slice(0, 8).map(r => {
                     const color = stColor(r.status, r.planned_code, r.checked_in_at);
                     const stateLabel = r.status === "NSNC" ? "✕ NSNC"
-                                    : ["AL","SL","PH"].includes(r.status) ? `🌴 ${r.status}`
+                                    : LEAVE_CODES.has(r.status) ? `🌴 ${r.status}`
                                     : r.checked_in_at ? "✓ Present"
                                     : r.planned_code === "P" ? "⏳ Not yet"
                                     : "—";
@@ -1004,7 +1014,7 @@ function SchedulePage() {
                                     : r.planned_code === "P" && !r.checked_in_at ? "pending"
                                     : "—";
                     const rowBg = r.status === "NSNC" ? "rgba(255,107,107,.08)"
-                                : r.planned_code === "P" && !r.checked_in_at && !["AL","SL","PH","NSNC"].includes(r.status) ? "rgba(255,177,59,.06)"
+                                : r.planned_code === "P" && !r.checked_in_at && !RESOLVED_NO_CHECKIN.has(r.status) ? "rgba(255,177,59,.06)"
                                 : "rgba(255,255,255,.025)";
                     const rowShadow = r.status === "NSNC" ? "inset 0 0 0 1px rgba(255,107,107,.18)" : "none";
                     return (
@@ -1095,13 +1105,13 @@ function SchedulePage() {
                   }
                   if (r.status === "P") pCount++;
                   if (r.status === "NSNC") nsncCount++;
-                  if (["AL","SL","PH"].includes(r.status)) alCount++;
+                  if (LEAVE_CODES.has(r.status)) alCount++;
                   if (r.planned_code === "P") plannedP++;
                   if (isPH(r.planned_code) && isPH(r.status)) {
                     eligibleDays++;
                     if (r.planned_code === r.status) adheredCount++;
                   }
-                  if (r.date === todayIso && r.planned_code === "P" && !r.checked_in_at && r.status !== "NSNC" && !["AL","SL","PH"].includes(r.status)) pendingTodayCount++;
+                  if (r.date === todayIso && r.planned_code === "P" && !r.checked_in_at && r.status !== "NSNC" && !LEAVE_CODES.has(r.status)) pendingTodayCount++;
                 }
                 const adherence = eligibleDays > 0 ? `${((adheredCount / eligibleDays) * 100).toFixed(1)}%` : "—";
                 // Cell variant + content resolver.
@@ -1124,7 +1134,7 @@ function SchedulePage() {
                     variant = "off";
                   } else if (status === "NSNC") {
                     variant = "nsnc"; statText = "NSNC"; timeText = "auto";
-                  } else if (["AL","SL","PH"].includes(status)) {
+                  } else if (LEAVE_CODES.has(status)) {
                     variant = "al"; statText = status; timeText = ci ? fmtTime(ci) : "lead";
                   } else if (ci) {
                     // QA self-checked-in. Show their actual status in the middle.
@@ -1147,10 +1157,15 @@ function SchedulePage() {
                     const s = row?.shift_start; const e = row?.shift_end;
                     const toMM = (t) => (typeof t === "string" ? t.slice(0, 5) : "");
                     const plusGrace = (t) => {
+                      // shift_end + 1h grace, rolling over past
+                      // midnight (e.g. 23:30 → 00:30). Was previously
+                      // clamped at 23:00 — silently shortened the
+                      // window for anyone on a late shift.
                       if (typeof t !== "string") return "";
                       const [h, m] = t.split(":").map(Number);
-                      const h2 = Math.min(23, (h || 0) + 1);
-                      return `${String(h2).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`;
+                      const minutes = ((h || 0) + 1) * 60 + (m || 0);
+                      const hh = Math.floor(minutes / 60) % 24;
+                      return `${String(hh).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`;
                     };
                     timeText = (s && e) ? `${toMM(s)}–${plusGrace(e)}` : "09:00–19:00";
                   } else if (plan === "P" && d.iso > todayIso) {

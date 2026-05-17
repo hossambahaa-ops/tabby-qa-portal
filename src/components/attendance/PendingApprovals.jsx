@@ -32,7 +32,16 @@ export default function PendingApprovals({
     ? allPending
     : allPending.filter(a => a.email?.toLowerCase() === myEmail);
 
-  const dayNum = (row) => parseInt(row.date.split("-")[2], 10);
+  const dayNum = (row) => {
+    // Guard against malformed dates (null, undefined, or rows where
+    // date got a TZ suffix etc.). NaN day numbers would silently flow
+    // into approveAtt(row, NaN) and miss the row entirely.
+    if (!row?.date || typeof row.date !== "string") return null;
+    const parts = row.date.split("-");
+    if (parts.length < 3) return null;
+    const n = parseInt(parts[2], 10);
+    return Number.isFinite(n) ? n : null;
+  };
 
   const toggleAll = () => {
     if (selected.size === rows.length && rows.length > 0) setSelected(new Set());

@@ -3,6 +3,7 @@ import { sb, SUPABASE_URL, SUPABASE_ANON } from "../../lib/supabase.js";
 import { useApp } from "../../lib/AppContext.jsx";
 import { safeError, emailsMatchLoose } from "../../lib/utils.js";
 import { riyadhTodayStr, PLAN_FEATURE_START } from "../../lib/attendancePlan.js";
+import { RESOLVED_NO_CHECKIN } from "../../lib/attendance.js";
 
 /**
  * <DailyCheckInWidget />
@@ -62,7 +63,7 @@ export default function DailyCheckInWidget() {
     // "NSNC" into "H/P" silently — leads need to handle those manually.
     // The widget is also hidden when isLeave is true (line ~116), but a
     // stale render or in-flight load could expose the buttons briefly.
-    if (row && ["AL", "SL", "PH", "NSNC"].includes(row.status)) {
+    if (row && RESOLVED_NO_CHECKIN.has(row.status)) {
       globalToast("info", `Today is marked ${row.status}. Ask your lead to change it before checking in.`);
       return;
     }

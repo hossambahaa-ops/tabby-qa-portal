@@ -47,13 +47,15 @@ const DayCell = React.memo(function DayCell({
   const isPending = att?.approval_status === "pending";
   const isDenied  = att?.approval_status === "denied";
   const planned = att?.planned_code || null;
-  // Self check-in detection: created_by must equal the QA's own email.
-  // The DailyCheckInWidget stamps created_by = the QA's email on every
-  // tap of Home/Office. Lead-pre-filled rows have created_by = lead's
-  // email. We only apply this rule to P / H — admin-set codes always
-  // render as solid.
+  // Self check-in detection: a real check-in writes checked_in_at via
+  // the DailyCheckInWidget / calendar cell. We used to key this off
+  // created_by === em, but merge-duplicates preserves the ORIGINAL
+  // created_by on an upsert — so a QA who self-checked-in via the
+  // widget on a row the lead had created kept created_by = lead, and
+  // the cell rendered as dim "plan-only" even though the QA had
+  // actually checked in. checked_in_at is the unambiguous signal.
   const isAttendedCode = SELF_CHECKIN_CODES.has(st);
-  const isSelfCheckIn = isAttendedCode && (att?.created_by || "").toLowerCase() === (em || "").toLowerCase();
+  const isSelfCheckIn = isAttendedCode && !!att?.checked_in_at;
   // "Plan-only" = status is P/H but the QA hasn't actually checked in.
   // This includes lead-pre-filled rows AND rows where status was set by
   // the lead but not yet confirmed by the QA.

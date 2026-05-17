@@ -31,8 +31,14 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
       // or the lead explicitly overrode the auto-default. Past days
       // resolve through the auto-NSNC cron or remain as P, so this
       // only affects today's row.
+      // Both today and past require checked_in_at evidence — a
+      // past planned-P row that the QA never checked into (and that
+      // the auto-NSNC cron didn't catch, e.g. shift_end null) used
+      // to count toward Trans/WD as if they'd been present. Now
+      // checked_in_at gates both windows so Trans/WD reflects real
+      // attendance only.
       const pCountToday = qaAtt.filter(a => a.status === "P" && a.date === todayStr && a.checked_in_at).length;
-      const pCountPast = qaAtt.filter(a => a.status === "P" && a.date < todayStr).length;
+      const pCountPast = qaAtt.filter(a => a.status === "P" && a.date < todayStr && a.checked_in_at).length;
       const pCount = pCountToday + pCountPast;
       const otHours = qaAtt.filter(a => a.status === "OT").reduce((s, a) => s + (parseFloat(a.ot_hours) || 0), 0);
       // Health % = healthy / scheduled (planned H or P) MTD; higher = better.

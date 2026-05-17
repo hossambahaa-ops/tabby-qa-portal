@@ -3,6 +3,8 @@
 // flag logic (no triggers, no event log) — we just look at qa_attendance
 // rows and decide.
 
+import { LEAVE_CODES } from "./attendance.js";
+
 // Plans only meaningful from May 2026 onward — earlier dates are
 // not editable in the plan grid, and any pre-existing planned_code
 // values (shouldn't exist, but defensive) are ignored.
@@ -159,7 +161,7 @@ export function computeAttendanceHealth(rows, monthYM, now = new Date()) {
     r.planned_code === "P" &&
     !r.checked_in_at &&
     r.status !== "NSNC" &&
-    !["AL","SL","PH"].includes(r.status);
+    !LEAVE_CODES.has(r.status);
   const resolved = scheduled.filter(r => !isPendingToday(r));
   const scheduledDays = resolved.length;
   if (scheduledDays === 0) return { healthPct: null, healthyDays: 0, absentDays: 0, scheduledDays: 0 };

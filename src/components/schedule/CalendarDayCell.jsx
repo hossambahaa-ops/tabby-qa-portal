@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 import { riyadhTodayStr } from "../../lib/attendancePlan.js";
+import { LEAVE_CODES } from "../../lib/attendance.js";
 import CellPicker from "./CellPicker.jsx";
 
 // One day-square inside MyMonthCalendar. Anchors CellPicker via a div ref.
@@ -28,7 +29,7 @@ export default function CalendarDayCell({
   // True when the QA is on a planned-P day but hasn't checked in yet.
   // Distinct visual state — neither "Present" nor "NSNC" yet.
   const todayIso = riyadhTodayStr();
-  const isPlannedNoCheckIn = enhanced && planned === "P" && !checkInAt && st !== "NSNC" && !["AL","SL","PH"].includes(st);
+  const isPlannedNoCheckIn = enhanced && planned === "P" && !checkInAt && st !== "NSNC" && !LEAVE_CODES.has(st);
   const isFutureDay = dateStr > todayIso;
   return (
     <div
@@ -81,7 +82,7 @@ export default function CalendarDayCell({
         if (!enhanced) return true;
         if (checkInAt) return true;                               // QA self-checked in
         if (st === "NSNC") return true;                            // auto / manual NSNC
-        if (["AL", "SL", "PH"].includes(st)) return true;          // approved leave
+        if (LEAVE_CODES.has(st)) return true;                       // approved leave
         if (planned && st !== planned) return true;                // mismatch — keep visible
         return false;                                              // default-status echoing the plan → hide
       })() && (
@@ -122,10 +123,16 @@ export default function CalendarDayCell({
           const e = att?.shift_end;
           const toMM = (t) => (typeof t === "string" ? t.slice(0, 5) : "");
           const plusGrace = (t) => {
+            // shift_end + 1h grace, preserving minutes and rolling
+            // over past midnight for late shifts (e.g. 23:30 → 00:30
+            // next day). The previous Math.min(23, h+1) implementation
+            // clamped at 23:00, silently shortening the window for
+            // anyone working past 22:00.
             if (typeof t !== "string") return "";
             const [h, m] = t.split(":").map(Number);
-            const h2 = Math.min(23, (h || 0) + 1);
-            return `${String(h2).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`;
+            const minutes = ((h || 0) + 1) * 60 + (m || 0);
+            const hh = Math.floor(minutes / 60) % 24;
+            return `${String(hh).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`;
           };
           if (s && e) return `${toMM(s)}–${plusGrace(e)}`;
           return "09:00–19:00";
