@@ -157,18 +157,6 @@ body, html, #root {
   min-height: 100vh;
   display: flex; flex-direction: column;
 }
-.login-v2-topbar {
-  display: flex; justify-content: space-between; align-items: center;
-  padding: 28px 40px;
-  border-bottom: 1px solid rgba(255,255,255,.06);
-}
-.login-v2-topmeta { display: inline-flex; gap: 28px; align-items: center; font-size: 13px; color: rgba(255,255,255,.42); }
-.login-v2-pip { display: inline-flex; align-items: center; gap: 6px; }
-.login-v2-pip-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--tabby-green, #3BFF9D);
-  box-shadow: 0 0 8px var(--tabby-green, #3BFF9D);
-}
 
 .login-v2-hero {
   flex: 1;
@@ -180,14 +168,13 @@ body, html, #root {
 }
 @keyframes loginCardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 
-.login-v2-eyebrow {
-  font-size: 11px; color: rgba(255,255,255,.42);
-  letter-spacing: 2.5px; text-transform: uppercase;
-  margin: 0 0 32px;
-  display: inline-flex; align-items: center; gap: 14px;
-}
-.login-v2-eyebrow::before, .login-v2-eyebrow::after {
-  content: ""; width: 28px; height: 1px; background: rgba(255,255,255,.10);
+/* Brand wordmark sits where the eyebrow chip used to be — same role
+   (small mark above the headline) but rendered with the actual SVG
+   logo so the "tabby" / gradient "Pulse" / EKG-pulse-l reads as the
+   real product mark, not a typed label. */
+.login-v2-wordmark {
+  display: inline-flex;
+  margin-bottom: 36px;
 }
 
 .login-v2-h1 {
@@ -257,9 +244,9 @@ body, html, #root {
 .login-v2-rail-right { color: rgba(255,255,255,.42); }
 
 @media (max-width: 720px) {
-  .login-v2-topbar { padding: 20px 22px; }
-  .login-v2-topmeta { display: none; }
   .login-v2-hero { padding: 48px 22px; }
+  .login-v2-wordmark { margin-bottom: 28px; }
+  .login-v2-wordmark svg { height: 40px !important; width: 160px !important; }
   .login-v2-h1 { font-size: 44px; letter-spacing: -1.6px; }
   .login-v2-lede { font-size: 16px; margin-bottom: 36px; }
   .login-v2-rail { padding: 18px 22px; flex-direction: column; align-items: flex-start; }

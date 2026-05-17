@@ -565,14 +565,10 @@ function AppInner(){
   if(!session)return(<div className="login-page login-v2">
     <div className="login-v2-bg" aria-hidden="true"/>
     <div className="login-v2-frame">
-      <div className="login-v2-topbar">
-        <TabbyPulseWordmark height={22} uid="tpw-login" style={{color:"#fff"}}/>
-        <div className="login-v2-topmeta" aria-hidden="true">
-          <span className="login-v2-pip"><span className="login-v2-pip-dot"/>All systems normal</span>
-        </div>
-      </div>
       <div className="login-v2-hero">
-        <div className="login-v2-eyebrow"><span>Tabby Pulse</span></div>
+        <div className="login-v2-wordmark">
+          <TabbyPulseWordmark height={56} uid="tpw-login" style={{color:"#fff"}}/>
+        </div>
         <h1 className="login-v2-h1">
           Where Tabby measures<br/>
           <span className="login-v2-h1-accent">customer experience.</span>
