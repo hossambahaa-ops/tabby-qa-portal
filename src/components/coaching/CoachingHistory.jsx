@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import DOMPurify from "dompurify";
 import { hasRole } from "../../lib/constants.js";
 import { sb } from "../../lib/supabase.js";
 import { nameFromEmail, safeError, emailsMatchLoose } from "../../lib/utils.js";
@@ -7,27 +6,9 @@ import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import EmptyState from "../EmptyState.jsx";
+import RichText from "../RichText.jsx";
 
 const ENUM_TO_LABEL = {"weekly_1on1":"WPR","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
-
-// Coaching content fields (topics / strengths / weaknesses / goals /
-// action_items / next_steps) are stored as raw HTML by the rich-text
-// editor in CoachingCompose — `<div>...</div>`, `<ul><li>...</li></ul>`,
-// `&nbsp;`, etc. Rendering them inside a plain `<div>{s.field}</div>`
-// shows the markup as literal characters in the detail panel — the
-// "<div>Achieving 124.6% occupancy.&nbsp;</div>" symbol soup the user
-// reported. RichText detects markup and routes it through DOMPurify
-// for safe HTML rendering; falls back to plain pre-line for legacy
-// non-HTML drafts.
-const hasMarkup = (text) => /<[a-z][^>]*>/i.test(String(text || ""));
-const RichText = ({ text }) => {
-  if (!text) return null;
-  const str = String(text);
-  if (hasMarkup(str)) {
-    return <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(str) }} />;
-  }
-  return <div style={{ whiteSpace: "pre-line" }}>{str}</div>;
-};
 
 export default function CoachingHistory({ sessions, onDelete }) {
   const { token, profile, globalToast } = useApp();

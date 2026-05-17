@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Tabby Pulse — Chart previews</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: #0A0814; color: #F5F3F8; font-family: 'Inter Tight', system-ui, sans-serif; min-height: 100%; }
+    body {
+      background:
+        radial-gradient(ellipse 900px 700px at 12% 5%, rgba(106,44,121,.35), transparent 60%),
+        radial-gradient(ellipse 800px 600px at 90% 25%, rgba(60,255,165,.18), transparent 60%),
+        radial-gradient(ellipse 700px 600px at 75% 95%, rgba(120,80,255,.25), transparent 60%),
+        #0A0814;
+      background-attachment: fixed;
+    }
+    .pick-bar { position: sticky; top: 0; background: rgba(10,8,20,.85); backdrop-filter: blur(20px); padding: 16px 28px; border-bottom: 1px solid rgba(255,255,255,.06); z-index: 50; }
+    .pick-bar h1 { font-size: 19px; font-weight: 700; letter-spacing: -.4px; }
+    .pick-bar p { color: rgba(245,243,248,.55); font-size: 13px; margin-top: 3px; max-width: 70ch; }
+    .pick-bar nav { margin-top: 12px; display: flex; gap: 10px; flex-wrap: wrap; }
+    .pick-bar a {
+      font-size: 11.5px; font-weight: 600; color: rgba(245,243,248,.7); text-decoration: none;
+      padding: 6px 12px; border-radius: 999px; background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08);
+      transition: all .15s;
+    }
+    .pick-bar a:hover { background: rgba(255,255,255,.12); color: #fff; }
+
+    .option { max-width: 1200px; margin: 0 auto; padding: 56px 32px 80px; border-bottom: 1px dashed rgba(255,255,255,.06); }
+    .option-header { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; margin-bottom: 14px; flex-wrap: wrap; }
+    .option-header h2 { font-size: 28px; font-weight: 700; letter-spacing: -.8px; }
+    .option-header .tag { font-size: 10.5px; padding: 4px 12px; border-radius: 999px; background: rgba(180,120,255,.18); color: #C9A0FF; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; }
+    .option-desc { color: rgba(245,243,248,.6); font-size: 13.5px; line-height: 1.55; max-width: 80ch; margin-top: 6px; margin-bottom: 16px; }
+    .where { color: rgba(60,255,165,.95); font-size: 12px; font-weight: 600; margin-bottom: 24px; }
+
+    /* The "card" surface the chart sits on — mimics Floating Layers */
+    .demo-card {
+      border-radius: 32px;
+      padding: 32px 36px;
+      background: rgba(255,255,255,.05);
+      backdrop-filter: blur(36px) saturate(180%);
+      -webkit-backdrop-filter: blur(36px) saturate(180%);
+      box-shadow:
+        0 44px 100px -12px rgba(0,0,0,.65),
+        0 16px 40px -8px rgba(0,0,0,.45),
+        0 4px 12px -2px rgba(0,0,0,.25),
+        inset 0 1px 0 rgba(255,255,255,.09);
+      position: relative;
+      isolation: isolate;
+    }
+    .demo-card::before {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto 0;
+      height: 50%;
+      pointer-events: none;
+      border-radius: 32px 32px 0 0;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), transparent 70%);
+      z-index: 0;
+    }
+    .demo-card > * { position: relative; z-index: 1; }
+    .demo-title { font-size: 15px; font-weight: 700; letter-spacing: -.3px; margin-bottom: 6px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .demo-sub { font-size: 12px; color: rgba(245,243,248,.55); margin-bottom: 24px; }
+    .demo-meta { font-size: 11px; color: rgba(245,243,248,.45); }
+
+    /* ══════════════════ HEATMAP ══════════════════ */
+    .heatmap-wrap { overflow-x: auto; padding-bottom: 8px; }
+    .heatmap { display: grid; grid-template-columns: 24px repeat(53, 14px); gap: 3px; font-size: 9px; align-items: start; }
+    .heatmap .month-row { display: contents; }
+    .heatmap .month-cell { font-size: 10px; color: rgba(245,243,248,.6); font-weight: 500; padding-bottom: 6px; grid-column: span 4; }
+    .heatmap .day-label { font-size: 9px; color: rgba(245,243,248,.45); padding-right: 4px; height: 14px; line-height: 14px; }
+    .heatmap .cell {
+      width: 14px; height: 14px; border-radius: 3px; background: rgba(255,255,255,.04);
+      transition: transform .15s;
+    }
+    .heatmap .cell:hover { transform: scale(1.4); cursor: pointer; }
+    .heatmap .l1 { background: rgba(60,255,165,.15); }
+    .heatmap .l2 { background: rgba(60,255,165,.35); }
+    .heatmap .l3 { background: rgba(60,255,165,.55); }
+    .heatmap .l4 { background: rgba(60,255,165,.85); box-shadow: 0 0 8px rgba(60,255,165,.5); }
+    .legend { display: flex; align-items: center; gap: 6px; font-size: 10px; color: rgba(245,243,248,.55); justify-content: flex-end; margin-top: 12px; }
+    .legend .sq { width: 12px; height: 12px; border-radius: 3px; }
+
+    /* ══════════════════ RADAR ══════════════════ */
+    .radar-wrap { display: grid; grid-template-columns: 1fr 280px; gap: 36px; align-items: center; }
+    @media (max-width: 760px) { .radar-wrap { grid-template-columns: 1fr; } }
+    .radar-key { display: flex; flex-direction: column; gap: 14px; font-size: 12.5px; }
+    .radar-key .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .radar-key .row:last-child { border-bottom: none; }
+    .radar-key .lbl { color: rgba(245,243,248,.7); font-weight: 500; }
+    .radar-key .val { font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+    .radar-key .val.up { color: #3CFFA5; }
+    .radar-key .val.warn { color: #FFB13B; }
+    .radar-key .val.low { color: #FF6B6B; }
+    .radar-key .row.compare { color: rgba(201,160,255,.85); }
+
+    /* ══════════════════ BUBBLE ══════════════════ */
+    .bubble-wrap { display: grid; grid-template-columns: 1fr 220px; gap: 28px; }
+    @media (max-width: 760px) { .bubble-wrap { grid-template-columns: 1fr; } }
+    .bubble-legend { display: flex; flex-direction: column; gap: 12px; font-size: 12px; }
+    .bubble-legend strong { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: rgba(245,243,248,.55); font-weight: 700; margin-bottom: 4px; }
+    .bubble-legend .row { display: flex; align-items: center; gap: 8px; color: rgba(245,243,248,.75); }
+    .bubble-legend .dot { width: 12px; height: 12px; border-radius: 50%; }
+    .bubble-legend .hint { font-size: 11px; color: rgba(245,243,248,.5); line-height: 1.5; margin-top: 8px; }
+
+    .pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 24px; font-size: 12.5px; line-height: 1.5; }
+    .pros-cons .pros, .pros-cons .cons { padding: 12px 16px; border-radius: 14px; }
+    .pros-cons .pros { background: rgba(60,255,165,.08); border: 1px solid rgba(60,255,165,.18); }
+    .pros-cons .cons { background: rgba(255,177,59,.08); border: 1px solid rgba(255,177,59,.18); }
+    .pros-cons strong { display: block; margin-bottom: 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .6px; opacity: .85; }
+  </style>
+</head>
+<body>
+  <div class="pick-bar">
+    <h1>Tabby Pulse — chart previews</h1>
+    <p>Three additions to the chart vocabulary. Each one shown with realistic example data so you can read it like the real thing.</p>
+    <nav>
+      <a href="#radar">🕸 Radar</a>
+      <a href="#bubble">🫧 Bubble scatter</a>
+      <a href="#heatmap">🟩 Activity heatmap</a>
+    </nav>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!--  RADAR                                                            -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="option" id="radar">
+    <div class="option-header">
+      <h2>🕸 Radar — multi-dimensional QA profile</h2>
+      <span class="tag">QA Profile page</span>
+    </div>
+    <div class="option-desc">
+      Each axis is one of the QA's six core skills. The shape immediately shows strengths and weaknesses. A faint second polygon (purple) overlays the team average — you instantly see where this QA outperforms and where they need to catch up.
+    </div>
+    <div class="where">→ Renders on every QA profile, above the Performance Trend chart.</div>
+
+    <div class="demo-card">
+      <div class="demo-title">
+        <span>Rana Salah — May 2026</span>
+        <span class="demo-meta">vs team average · 10 dimensions · click any axis to drill into history</span>
+      </div>
+      <div class="demo-sub">Yara Ashraf's team · #1 in MTD</div>
+
+      <div class="radar-wrap">
+        <svg viewBox="0 0 320 320" style="display:block;width:100%;max-width:480px;margin:0 auto;">
+          <defs>
+            <linearGradient id="radarFill" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stop-color="#3CFFA5" stop-opacity="0.55"/>
+              <stop offset="100%" stop-color="#3CFFA5" stop-opacity="0.15"/>
+            </linearGradient>
+            <filter id="radarGlow">
+              <feGaussianBlur stdDeviation="2" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+          <!-- Gridlines (concentric hexagons at 25/50/75/100) -->
+          <g stroke="rgba(255,255,255,.08)" fill="none" stroke-width="1">
+            <polygon points="160,40 264,100 264,220 160,280 56,220 56,100"/>
+            <polygon points="160,70 238,115 238,205 160,250 82,205 82,115"/>
+            <polygon points="160,100 212,130 212,190 160,220 108,190 108,130"/>
+            <polygon points="160,130 186,145 186,175 160,190 134,175 134,145"/>
+          </g>
+          <!-- Axis lines (6 spokes) -->
+          <g stroke="rgba(255,255,255,.10)" stroke-width="1">
+            <line x1="160" y1="160" x2="160" y2="40"/>
+            <line x1="160" y1="160" x2="264" y2="100"/>
+            <line x1="160" y1="160" x2="264" y2="220"/>
+            <line x1="160" y1="160" x2="160" y2="280"/>
+            <line x1="160" y1="160" x2="56" y2="220"/>
+            <line x1="160" y1="160" x2="56" y2="100"/>
+          </g>
+          <!-- Team-avg polygon (background, dashed) -->
+          <polygon
+            points="160,82  220,118  214,202  160,232  100,210  108,118"
+            fill="rgba(201,160,255,.10)"
+            stroke="rgba(201,160,255,.55)"
+            stroke-width="1.5"
+            stroke-dasharray="4 4"/>
+          <!-- Rana's polygon (foreground, solid + glow) -->
+          <polygon
+            points="160,48  256,110  238,210  160,254  78,196  80,108"
+            fill="url(#radarFill)"
+            stroke="#3CFFA5"
+            stroke-width="2.5"
+            stroke-linejoin="round"
+            filter="url(#radarGlow)"/>
+          <!-- Vertex dots -->
+          <g fill="#3CFFA5">
+            <circle cx="160" cy="48" r="4"/>
+            <circle cx="256" cy="110" r="4"/>
+            <circle cx="238" cy="210" r="4"/>
+            <circle cx="160" cy="254" r="4"/>
+            <circle cx="78" cy="196" r="4"/>
+            <circle cx="80" cy="108" r="4"/>
+          </g>
+          <!-- Axis labels -->
+          <g font-family="Inter Tight, sans-serif" font-size="11" font-weight="600" fill="rgba(245,243,248,.75)" text-anchor="middle">
+            <text x="160" y="28">CSAT</text>
+            <text x="278" y="98">Performance</text>
+            <text x="278" y="232">Coaching</text>
+            <text x="160" y="300">Calibration</text>
+            <text x="42" y="232">RTR</text>
+            <text x="42" y="98">Side-task</text>
+          </g>
+        </svg>
+
+        <div class="radar-key">
+          <div class="row"><span class="lbl">CSAT</span><span class="val up">100% <span style="font-size:11px;color:rgba(60,255,165,.7)">vs avg 87%</span></span></div>
+          <div class="row"><span class="lbl">Performance</span><span class="val up">96.8% <span style="font-size:11px;color:rgba(60,255,165,.7)">vs 79%</span></span></div>
+          <div class="row"><span class="lbl">Coaching</span><span class="val warn">76%<span style="font-size:11px;color:rgba(255,177,59,.7)"> vs 82%</span></span></div>
+          <div class="row"><span class="lbl">Calibration</span><span class="val up">94%<span style="font-size:11px;color:rgba(60,255,165,.7)"> vs 78%</span></span></div>
+          <div class="row"><span class="lbl">RTR</span><span class="val up">100%<span style="font-size:11px;color:rgba(60,255,165,.7)"> vs 86%</span></span></div>
+          <div class="row"><span class="lbl">Side-task</span><span class="val up">92%<span style="font-size:11px;color:rgba(60,255,165,.7)"> vs 73%</span></span></div>
+          <div class="row compare"><span class="lbl">Team avg shape</span><span class="val" style="color:#C9A0FF">dashed purple</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><strong>What it shows</strong>Strengths and weaknesses in one image. The "coaching" dip is invisible in the existing per-cell tables — here it pops out. Comparison overlay is intuitive ("am I above or below my team on this axis").</div>
+      <div class="cons"><strong>Watch-outs</strong>Works best for 5–8 axes (more = unreadable). Needs all six metrics to be normalised to 0–100 — fine for percentages, but RTR/Coaching counts need scaling.</div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!--  BUBBLE SCATTER                                                   -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="option" id="bubble">
+    <div class="option-header">
+      <h2>🫧 Bubble scatter — team-at-a-glance</h2>
+      <span class="tag">Dashboard (lead+ view)</span>
+    </div>
+    <div class="option-desc">
+      X-axis: CSAT %. Y-axis: Performance %. Bubble size: survey count (confidence weight). Bubble colour: team lead. Every QA on the team appears as one bubble. Outliers — bottom-left (struggling), top-right (stars), top-left (high perf but low CSAT) — pop immediately. Click any bubble → QA profile.
+    </div>
+    <div class="where">→ Lives on the Dashboard, replaces or sits next to the current Performance Trend chart for leads with >5 reports.</div>
+
+    <div class="demo-card">
+      <div class="demo-title">
+        <span>Team overview · May 2026</span>
+        <span class="demo-meta">8 QAs across 3 leads · bubble size = surveys · hover to pin</span>
+      </div>
+      <div class="demo-sub">Yara Ashraf's team + 2 others</div>
+
+      <div class="bubble-wrap">
+        <svg viewBox="0 0 600 380" style="display:block;width:100%;">
+          <defs>
+            <radialGradient id="bb-purple"><stop offset="0%" stop-color="#C9A0FF" stop-opacity="0.95"/><stop offset="100%" stop-color="#6A2C79" stop-opacity="0.6"/></radialGradient>
+            <radialGradient id="bb-green"><stop offset="0%" stop-color="#7DFFC5" stop-opacity="0.95"/><stop offset="100%" stop-color="#3CFFA5" stop-opacity="0.55"/></radialGradient>
+            <radialGradient id="bb-blue"><stop offset="0%" stop-color="#A8C5FF" stop-opacity="0.95"/><stop offset="100%" stop-color="#6FA3FF" stop-opacity="0.55"/></radialGradient>
+          </defs>
+          <!-- Axes -->
+          <g stroke="rgba(255,255,255,.10)" stroke-width="1">
+            <line x1="60" y1="340" x2="580" y2="340"/>
+            <line x1="60" y1="40" x2="60" y2="340"/>
+          </g>
+          <!-- Gridlines at every 25% -->
+          <g stroke="rgba(255,255,255,.05)" stroke-width="1" stroke-dasharray="3 4">
+            <line x1="60" y1="265" x2="580" y2="265"/>
+            <line x1="60" y1="190" x2="580" y2="190"/>
+            <line x1="60" y1="115" x2="580" y2="115"/>
+            <line x1="190" y1="40" x2="190" y2="340"/>
+            <line x1="320" y1="40" x2="320" y2="340"/>
+            <line x1="450" y1="40" x2="450" y2="340"/>
+          </g>
+          <!-- Quadrant tints — top-right (stars), bottom-left (concerns) -->
+          <rect x="450" y="40" width="130" height="75" fill="rgba(60,255,165,.06)"/>
+          <rect x="60" y="265" width="130" height="75" fill="rgba(255,107,107,.06)"/>
+          <text x="455" y="58" font-size="9" fill="rgba(60,255,165,.7)" font-weight="700" font-family="Inter Tight, sans-serif">STARS</text>
+          <text x="65" y="282" font-size="9" fill="rgba(255,107,107,.7)" font-weight="700" font-family="Inter Tight, sans-serif">CONCERNS</text>
+          <text x="455" y="282" font-size="9" fill="rgba(245,243,248,.4)" font-weight="700" font-family="Inter Tight, sans-serif">HAPPY BUT SLOW</text>
+          <text x="65" y="58" font-size="9" fill="rgba(245,243,248,.4)" font-weight="700" font-family="Inter Tight, sans-serif">FAST BUT UNHAPPY</text>
+
+          <!-- Axis labels -->
+          <g font-family="Inter Tight, sans-serif" font-size="11" fill="rgba(245,243,248,.55)">
+            <text x="320" y="370" text-anchor="middle">CSAT %</text>
+            <text transform="rotate(-90 22 190)" x="22" y="190" text-anchor="middle">Performance %</text>
+            <!-- x ticks -->
+            <text x="60" y="356" text-anchor="middle">0</text>
+            <text x="190" y="356" text-anchor="middle">25</text>
+            <text x="320" y="356" text-anchor="middle">50</text>
+            <text x="450" y="356" text-anchor="middle">75</text>
+            <text x="580" y="356" text-anchor="middle">100</text>
+            <!-- y ticks -->
+            <text x="50" y="343" text-anchor="end">0</text>
+            <text x="50" y="268" text-anchor="end">25</text>
+            <text x="50" y="193" text-anchor="end">50</text>
+            <text x="50" y="118" text-anchor="end">75</text>
+            <text x="50" y="44" text-anchor="end">100</text>
+          </g>
+
+          <!-- Bubbles (cx=CSAT, cy=Performance inverted, r=surveys) -->
+          <!-- Yara's team — green -->
+          <g>
+            <circle cx="580" cy="50" r="22" fill="url(#bb-green)" stroke="#3CFFA5" stroke-opacity=".6"/>
+            <text x="580" y="92" font-size="10" font-weight="700" fill="#F5F3F8" text-anchor="middle" font-family="Inter Tight, sans-serif">Rana</text>
+          </g>
+          <g>
+            <circle cx="580" cy="64" r="18" fill="url(#bb-green)" stroke="#3CFFA5" stroke-opacity=".6"/>
+            <text x="580" y="100" font-size="9" fill="rgba(245,243,248,.5)" text-anchor="middle" font-family="Inter Tight, sans-serif">Esraa</text>
+          </g>
+          <g>
+            <circle cx="535" cy="85" r="16" fill="url(#bb-green)" stroke="#3CFFA5" stroke-opacity=".6"/>
+            <text x="535" y="115" font-size="9" fill="rgba(245,243,248,.5)" text-anchor="middle" font-family="Inter Tight, sans-serif">Asmaa</text>
+          </g>
+          <!-- Ali Dahab's team — purple -->
+          <g>
+            <circle cx="498" cy="180" r="18" fill="url(#bb-purple)" stroke="#C9A0FF" stroke-opacity=".6"/>
+            <text x="498" y="212" font-size="9" fill="rgba(245,243,248,.5)" text-anchor="middle" font-family="Inter Tight, sans-serif">Abdulrahman</text>
+          </g>
+          <g>
+            <circle cx="446" cy="220" r="20" fill="url(#bb-purple)" stroke="#C9A0FF" stroke-opacity=".6"/>
+            <text x="446" y="254" font-size="9" fill="rgba(245,243,248,.5)" text-anchor="middle" font-family="Inter Tight, sans-serif">Sohaila</text>
+          </g>
+          <!-- Habiba's team — blue -->
+          <g>
+            <circle cx="382" cy="190" r="22" fill="url(#bb-blue)" stroke="#6FA3FF" stroke-opacity=".6"/>
+            <text x="382" y="226" font-size="9" fill="rgba(245,243,248,.5)" text-anchor="middle" font-family="Inter Tight, sans-serif">Sameh</text>
+          </g>
+          <g>
+            <circle cx="190" cy="240" r="14" fill="url(#bb-blue)" stroke="#6FA3FF" stroke-opacity=".6"/>
+            <text x="190" y="266" font-size="9" fill="rgba(245,243,248,.5)" text-anchor="middle" font-family="Inter Tight, sans-serif">Zainab</text>
+          </g>
+          <!-- Bottom-left concern — Hagar -->
+          <g>
+            <circle cx="135" cy="288" r="13" fill="url(#bb-purple)" stroke="#FF6B6B" stroke-opacity=".7" stroke-width="2"/>
+            <text x="135" y="313" font-size="10" font-weight="700" fill="#FF6B6B" text-anchor="middle" font-family="Inter Tight, sans-serif">Hagar ⚠</text>
+          </g>
+        </svg>
+
+        <div class="bubble-legend">
+          <div>
+            <strong>Lead</strong>
+            <div class="row"><span class="dot" style="background:#3CFFA5"></span>Yara Ashraf</div>
+            <div class="row"><span class="dot" style="background:#C9A0FF"></span>Ali Dahab</div>
+            <div class="row"><span class="dot" style="background:#6FA3FF"></span>Habiba Belal</div>
+          </div>
+          <div>
+            <strong>Bubble size</strong>
+            <div class="row"><svg width="40" height="20"><circle cx="10" cy="10" r="5" fill="rgba(255,255,255,.4)"/><circle cx="30" cy="10" r="9" fill="rgba(255,255,255,.4)"/></svg>1 — 30 surveys</div>
+          </div>
+          <div class="hint">The whole team is one constellation. Quadrants are tinted so the eye lands on stars and concerns first.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><strong>What it shows</strong>Outliers in two dimensions simultaneously. Hagar bottom-left → struggling. Rana top-right → star. Sohaila & Sameh mid-zone — solid, no action needed.</div>
+      <div class="cons"><strong>Watch-outs</strong>Crowded for teams >20 QAs — would need hover-to-reveal labels. Bubble overlap a real concern; should anchor labels on hover only.</div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <!--  HEATMAP                                                          -->
+  <!-- ════════════════════════════════════════════════════════════════ -->
+  <section class="option" id="heatmap">
+    <div class="option-header">
+      <h2>🟩 Activity heatmap — year-in-a-grid</h2>
+      <span class="tag">QA Profile page</span>
+    </div>
+    <div class="option-desc">
+      GitHub-style 53-week × 7-day grid. Each cell is one day; colour intensity reflects something configurable (default: occupancy %). Vacation weeks, coaching cadence drops, long quiet stretches — patterns leap out from a year of data in one glance.
+    </div>
+    <div class="where">→ Renders on every QA profile, near the top. Drop-down to switch metric: Occupancy / Performance / Coaching count / Tickets.</div>
+
+    <div class="demo-card">
+      <div class="demo-title">
+        <span>Pola Emad — last 12 months · Occupancy %</span>
+        <span class="demo-meta">hover any cell for the day · click any month label to zoom</span>
+      </div>
+      <div class="demo-sub">Highlights: 8-week streak above 80% (Jan–Feb) · 2-week vacation gap (Mar) · current month strong</div>
+
+      <div class="heatmap-wrap">
+        <div class="heatmap" id="hm">
+          <!-- The JS below fills this in -->
+        </div>
+      </div>
+
+      <div class="legend">
+        <span>less</span>
+        <span class="sq" style="background:rgba(255,255,255,.04)"></span>
+        <span class="sq l1"></span>
+        <span class="sq l2"></span>
+        <span class="sq l3"></span>
+        <span class="sq l4"></span>
+        <span>more</span>
+      </div>
+    </div>
+
+    <div class="pros-cons">
+      <div class="pros"><strong>What it shows</strong>A full year of working life. Easy to spot patterns invisible elsewhere — leave clusters, consistent weeks vs lumpy weeks, return-from-vacation slumps, gradual ramps.</div>
+      <div class="cons"><strong>Watch-outs</strong>Wide on small screens — needs horizontal scroll on mobile (or condense to last 90 days). 365 cells = 365 DOM nodes; perf fine but should virtualise if we ever do team-wide heatmap.</div>
+    </div>
+  </section>
+
+  <script>
+    // Generate 53 weeks × 7 days of synthetic occupancy data with
+    // visible patterns: a steady ~70-85 baseline, an 8-week streak,
+    // a 2-week vacation gap, fewer weekends.
+    (function() {
+      const wrap = document.getElementById("hm");
+      if (!wrap) return;
+      const months = ["May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Jan","Feb","Mar","Apr"];
+      // Header row: empty + month labels spanning weeks
+      const monthRow = document.createDocumentFragment();
+      monthRow.appendChild(Object.assign(document.createElement("div"), { className: "day-label" }));
+      months.forEach(m => {
+        const d = document.createElement("div");
+        d.className = "month-cell";
+        d.textContent = m;
+        monthRow.appendChild(d);
+      });
+      wrap.appendChild(monthRow);
+
+      const dayLabels = ["Sun","","Tue","","Thu","",""];
+      const seed = (i) => {
+        // Synthetic levels:
+        //  - Sat/Fri (i%7=5,6) mostly empty
+        //  - Weeks 35–42 strong (8-week streak)
+        //  - Weeks 47–48 vacation (mostly empty)
+        const week = Math.floor(i / 7);
+        const day = i % 7;
+        if (day >= 5) return Math.random() < 0.15 ? 1 : 0;
+        if (week >= 47 && week <= 48) return Math.random() < 0.1 ? 1 : 0;
+        if (week >= 35 && week <= 42) return Math.random() < 0.85 ? (3 + (Math.random() > .5 ? 1 : 0)) : 2;
+        const r = Math.random();
+        if (r < 0.05) return 0;
+        if (r < 0.20) return 1;
+        if (r < 0.55) return 2;
+        if (r < 0.90) return 3;
+        return 4;
+      };
+
+      // Render the grid: rows = day-of-week, columns = weeks
+      for (let day = 0; day < 7; day++) {
+        const label = document.createElement("div");
+        label.className = "day-label";
+        label.textContent = dayLabels[day];
+        wrap.appendChild(label);
+        for (let week = 0; week < 53; week++) {
+          const i = week * 7 + day;
+          const lvl = seed(i);
+          const cell = document.createElement("div");
+          cell.className = "cell" + (lvl > 0 ? " l" + lvl : "");
+          cell.title = lvl === 0
+            ? "off / no data"
+            : `~${50 + lvl * 12}% occupancy`;
+          wrap.appendChild(cell);
+        }
+      }
+    })();
+  </script>
+
+</body>
+</html>

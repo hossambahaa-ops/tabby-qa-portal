@@ -6,6 +6,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
 import CoachingTimeline from "../components/coaching/CoachingTimeline.jsx";
+import RichText from "../components/RichText.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import { useQaProfileData, bustBulkCache } from "../lib/useQaProfileData.jsx";
 import { useFreshness } from "../lib/useFreshness.js";
@@ -641,7 +642,12 @@ function QAProfilePage() {
                 {[["Topics",s.topics],["Strengths",s.strengths],["Areas for improvement",s.weaknesses],["Goals",s.goals],["Action items",s.action_items],["Notes",s.notes||s.agenda],["Next steps",s.next_steps]].map(([label,val])=>
                   val ? <div key={label} style={{marginBottom:8}}>
                     <div style={{fontSize:10,fontWeight:600,color:"var(--accent-text)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:2}}>{label}</div>
-                    <div style={{fontSize:12,color:"var(--tx2)",whiteSpace:"pre-wrap",lineHeight:1.5}}>{safe(val)}</div>
+                    {/* RichText sniffs for HTML markup and routes through
+                        DOMPurify; falls back to pre-wrap for plain text.
+                        Previously `{safe(val)}` rendered the rich-text
+                        editor's HTML as escaped characters ("<p>…</p>"
+                        symbol soup on the profile). */}
+                    <RichText text={val} style={{fontSize:12,color:"var(--tx2)",lineHeight:1.5}}/>
                   </div> : null
                 )}
                 {s.outcome && <div style={{marginTop:4}}><span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,background:s.outcome==="pass"?"var(--green-bg)":"var(--red-bg)",color:s.outcome==="pass"?"var(--green)":"var(--red)"}}>Outcome: {safe(s.outcome)}</span></div>}
@@ -675,7 +681,7 @@ function QAProfilePage() {
                   }}>{t.status}</span>
                 </div>
                 {isExp && <div style={{padding:10,margin:"4px 0 8px",background:"var(--bg)",borderRadius:8,fontSize:12}}>
-                  {t.description && <div style={{color:"var(--tx2)",marginBottom:6,whiteSpace:"pre-wrap"}}>{safe(t.description)}</div>}
+                  {t.description && <div style={{marginBottom:6}}><RichText text={t.description} style={{color:"var(--tx2)"}}/></div>}
                   <div style={{display:"flex",gap:12,flexWrap:"wrap",color:"var(--tx3)",fontSize:11}}>
                     {t.priority && <span>Priority: <strong style={{color:t.priority==="high"?"var(--red)":t.priority==="medium"?"var(--amber)":"var(--tx3)"}}>{t.priority}</strong></span>}
                     {t.due_date && <span>Due: {new Date(t.due_date).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</span>}
