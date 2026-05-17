@@ -329,13 +329,22 @@ function ActionPlanPage() {
     const invalidCustom = customMetrics.some(c => !c.name.trim() || c.targets.some(t => t === "" || t === null || t === undefined));
     if (invalidCustom) { globalToast("error", "Fill in name and all targets for each custom metric"); return; }
 
+    // Reject when ANY active plan exists for this QA, not just the
+    // same type. Allowing simultaneous AP + PIP meant both tracked,
+    // both concluded, and both auto-issued DAM flags on failure —
+    // double-counting an offense that's really one offense.
     const existing = plans.find(p =>
       p.qa_email?.toLowerCase() === selQaEmail.toLowerCase() &&
-      p.type === planType &&
       (p.status === "active" || p.status === "pending_review")
     );
     if (existing) {
-      globalToast("error", `${nameFromEmail(selQaEmail)} already has an active ${existing.type.toUpperCase()} plan`);
+      const sameType = existing.type === planType;
+      globalToast(
+        "error",
+        sameType
+          ? `${nameFromEmail(selQaEmail)} already has an active ${existing.type.toUpperCase()} plan`
+          : `${nameFromEmail(selQaEmail)} already has an active ${existing.type.toUpperCase()}. Conclude it before starting a ${planType.toUpperCase()}.`
+      );
       return;
     }
 
@@ -474,8 +483,26 @@ function ActionPlanPage() {
   };
 
   // ── Conclude plan ──
+  // Ref-based re-entrancy guard. A double-click on the modal's Submit
+  // button used to fire concludePlan twice before React could disable
+  // it, creating two DAM flags per failure and stamping the plan twice.
+  const concludingRef = useRef(false);
   const concludePlan = async () => {
     if (!concludingPlan || !conclusionOutcome) return;
+    if (concludingRef.current) return;
+    // Hard guard against concluding Pass on a plan with zero filled
+    // weeks of actuals — a fresh AP/PIP can otherwise be marked Pass
+    // by a single click, silently clearing DAM history for that QA
+    // with no justification. Fail-with-zero-weeks is still allowed
+    // (early termination is a real workflow).
+    if (conclusionOutcome === "pass") {
+      const { filledWeeks } = getPlanProgress(concludingPlan);
+      if (!filledWeeks || filledWeeks.length === 0) {
+        globalToast("error", "Add weekly actuals before marking this plan as Passed.");
+        return;
+      }
+    }
+    concludingRef.current = true;
     setLoading(true);
     try {
       await sb.query("action_plans", {
@@ -490,24 +517,54 @@ function ActionPlanPage() {
         filters: `id=eq.${concludingPlan.id}`,
       });
 
-      // If PIP failed → auto-create DAM flag
+      // If PIP failed → auto-create DAM flag against the
+      // performance_management rule, matching the AP-failure branch
+      // below. Previously this branch omitted `rule_id` entirely and
+      // hard-coded occurrence_number=1, so the DAM escalation walk
+      // never advanced past step 1 even on repeat PIP failures and
+      // the "termination_review" action was wrong for a QA on their
+      // 2nd or 3rd offense (the rule's step matrix should drive it).
       if (concludingPlan.type === "pip" && conclusionOutcome === "fail") {
         try {
           const qaProfile = profiles.find(p => p.email?.toLowerCase() === concludingPlan.qa_email?.toLowerCase());
           if (qaProfile) {
+            let pmRule = null;
+            try {
+              const rules = await sb.query("dam_rules", { select: "id,name,behavior_type", filters: "behavior_type=eq.performance_management&is_active=eq.true&limit=1", token });
+              pmRule = rules[0] || null;
+            } catch { }
+
+            let occurrence = 1;
+            if (pmRule) {
+              try {
+                const existing = await sb.query("dam_flags", { select: "id", filters: `profile_id=eq.${qaProfile.id}&rule_id=eq.${pmRule.id}&status=neq.dismissed`, token });
+                occurrence = (existing?.length || 0) + 1;
+              } catch { }
+            }
+
+            let step = null;
+            if (pmRule) {
+              try {
+                const steps = await sb.query("dam_escalation_steps", { select: "*", filters: `rule_id=eq.${pmRule.id}&occurrence=eq.${occurrence}`, token });
+                step = steps[0] || null;
+              } catch { }
+            }
+
             await sb.query("dam_flags", {
               token, method: "POST",
               body: {
                 profile_id: qaProfile.id,
+                rule_id: pmRule?.id || null,
                 severity: "critical",
-                recommended_action: "termination_review",
+                recommended_action: step?.includes_pip ? "pip" : (step?.is_hr_investigation ? "termination_review" : "termination_review"),
                 notes: `PIP failed. Plan ID: ${concludingPlan.id}. ${conclusionNotes}`,
                 status: "pending",
-                occurrence_number: 1,
-                trigger_data: JSON.stringify({ source: "pip_failure", plan_id: concludingPlan.id }),
+                occurrence_number: occurrence,
+                escalation_step_id: step?.id || null,
+                trigger_data: JSON.stringify({ source: "pip_failure", plan_id: concludingPlan.id, step_action: step?.action || "No step defined" }),
               }
             });
-            globalToast("success", "PIP failed — DAM flag created for HR investigation");
+            globalToast("success", `PIP failed — DAM flag created (occurrence #${occurrence}${step ? ": " + step.action : ""})`);
           }
         } catch (e) { console.error("DAM flag creation:", e); }
       }
@@ -575,6 +632,8 @@ function ActionPlanPage() {
       setPlans(prev => prev.map(p => p.id === concludingPlan.id ? { ...p, status: newStatus, conclusion: conclusionOutcome, conclusion_notes: conclusionNotes, concluded_by: profile?.email, concluded_at: new Date().toISOString() } : p));
     } catch (e) { globalToast("error", safeError(e)); }
     setLoading(false);
+    // Release the re-entrancy lock no matter how the request settles.
+    concludingRef.current = false;
   };
 
   // ── Dismiss detection (persisted to DB) ──

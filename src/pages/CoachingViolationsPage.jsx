@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import Modal from "../components/Modal.jsx";
 import { hasRole } from "../lib/constants.js";
 import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
@@ -108,8 +108,16 @@ function CoachingViolationsPage() {
     setSelDamRule(matched?.id || "");
   };
 
+  // Re-entrancy guard. Double-clicking "Confirm" used to fire the
+  // submit twice — for a "valid" review of a multi-QA violation the
+  // inner loop iterated each QA twice, creating duplicate DAM flags
+  // AND advancing occurrence_number twice (wrong DAM escalation step
+  // for everyone on the row).
+  const submittingReviewRef = useRef(false);
   const submitReview = async () => {
     if (!reviewStatus) { globalToast("error", "Select Valid or Invalid"); return; }
+    if (submittingReviewRef.current) return;
+    submittingReviewRef.current = true;
 
     try {
       // Update the violation
@@ -188,6 +196,7 @@ function CoachingViolationsPage() {
       const newStatus = reviewStatus === "valid" ? "dam_created" : "invalid";
       setViolations(prev => prev.map(v => v.id === reviewModal.id ? { ...v, status: newStatus, reviewed_by: profile?.email, reviewed_at: new Date().toISOString(), review_notes: reviewNotes.trim() } : v));
     } catch (e) { globalToast("error", safeError(e)); }
+    finally { submittingReviewRef.current = false; }
   };
 
   const violationColor = (type) => {

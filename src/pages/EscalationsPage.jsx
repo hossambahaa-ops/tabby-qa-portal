@@ -243,14 +243,23 @@ function EscalationsPage() {
   };
 
   const resolveEscalation = async (escId) => {
+    // Require a non-empty resolution note. The previous form persisted
+    // `null` when the textarea was empty, which let leads close an
+    // escalation with zero explanation — breaks the workflow guarantee
+    // that resolution is auditable.
+    const note = resolutionNote.trim();
+    if (!note) {
+      globalToast("error", "Add a short resolution note before resolving.");
+      return;
+    }
     try {
       await sb.query("escalations", {
         token, method: "PATCH",
-        body: { status: "resolved", resolution_note: resolutionNote.trim() || null, resolved_at: new Date().toISOString() },
+        body: { status: "resolved", resolution_note: note, resolved_at: new Date().toISOString() },
         filters: `id=eq.${escId}`,
       });
       globalToast("success", "Escalation resolved");
-      setEscalations(prev => prev.map(e => e.id === escId ? { ...e, status: "resolved", resolution_note: resolutionNote.trim() || null, resolved_at: new Date().toISOString() } : e));
+      setEscalations(prev => prev.map(e => e.id === escId ? { ...e, status: "resolved", resolution_note: note, resolved_at: new Date().toISOString() } : e));
       setResolutionNote("");
       setViewEsc(null);
     } catch (e) { globalToast("error", safeError(e)); }

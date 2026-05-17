@@ -381,13 +381,22 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
     return s.split(/\r?\n/).map(l => l.replace(/^[-•*]\s*/, "").trim()).filter(Boolean);
   };
 
+  // Ref-based re-entrancy guard. Pressing Enter inside a focused
+  // textarea, or React StrictMode in dev, could fire generateAndSend
+  // twice — creating duplicate coaching_sessions rows AND duplicate
+  // tasks. The disabled={loading} on the button only blocks the
+  // second click after the first re-render, not concurrent submits
+  // that fire before React commits.
+  const sendingRef = useRef(false);
   const generateAndSend = async () => {
+    if (sendingRef.current) return;
     if (!toEmail) { globalToast("error", "Enter the team member's email"); return; }
     if (!gmailAuthorized) {
       globalToast("error", "Please connect your Gmail account first");
       connectGmail();
       return;
     }
+    sendingRef.current = true;
     setLoading(true);
     try {
       // Parse toEmail for multiple recipients (comma/space separated)
@@ -561,6 +570,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
       globalToast("error", safeError(e));
     }
     setLoading(false);
+    sendingRef.current = false;
   };
 
   // Manual "Clear all" button.
