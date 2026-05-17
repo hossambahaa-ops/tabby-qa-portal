@@ -340,7 +340,14 @@ function ScoreEntryPage(){
   if (selDomain) filtered = filtered.filter(r => r.qa_email?.endsWith("@"+selDomain));
   if (selTeam.length > 0) filtered = filtered.filter(r => selTeam.includes(rosterMap[r.qa_email?.toLowerCase()]?.queue));
   if (selTL.length > 0) filtered = filtered.filter(r => selTL.includes(r.qa_tl));
-  if (selQA.length > 0) filtered = filtered.filter(r => selQA.includes(r.qa_email));
+  if (selQA.length > 0) {
+    // Match by the local-part (everything before @) so cross-domain
+    // duplicates of the same person collapse. selQA may hold either
+    // local-parts (new dropdown format) or full emails (legacy saved
+    // views) — normalize both sides to the local-part.
+    const selLocals = new Set(selQA.map(e => String(e || "").toLowerCase().split("@")[0]));
+    filtered = filtered.filter(r => selLocals.has(String(r.qa_email || "").toLowerCase().split("@")[0]));
+  }
   // Apply the slim global filter (Month + Domain only). Page-level
   // selDomain/selTeam/selTL/selQA take precedence — gf.domain is just
   // a default scope when the user hasn't picked one here. People +
@@ -669,7 +676,21 @@ function ScoreEntryPage(){
         placeholder={`All leads (${tlEmails.length})`}
       />
       <SearchableSelect
-        options={[...new Set(filtered.map(r => r.qa_email))].sort().map(e => ({ value: e, label: nameFromEmail(e) }))}
+        options={(() => {
+          // Dedupe by local-part so QAs with both @tabby.ai and
+          // @tabby.sa email rows (cross-domain split) show up once.
+          // Option value is the local-part — the filter above is
+          // local-part-aware and accepts either format from legacy
+          // saved views.
+          const seen = new Map(); // local-part → { value, label }
+          for (const r of filtered) {
+            const e = r.qa_email;
+            if (!e) continue;
+            const lp = String(e).toLowerCase().split("@")[0];
+            if (!seen.has(lp)) seen.set(lp, { value: lp, label: nameFromEmail(e) });
+          }
+          return [...seen.values()].sort((a, b) => a.label.localeCompare(b.label));
+        })()}
         value={selQA}
         onChange={setSelQA}
         placeholder={`All specialists (${filtered.length})`}
