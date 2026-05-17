@@ -158,6 +158,23 @@ function AdminUsersPage({teams}){
   // Filter
   const filtered=search?users.filter(u=>(u.display_name||"").toLowerCase().includes(search.toLowerCase())||u.email?.toLowerCase().includes(search.toLowerCase())):users;
 
+  // Roster-membership index — checks each profile's email against the
+  // qa_roster on local-part (so @tabby.ai vs @tabby.sa variants of the
+  // same person resolve together). Profiles whose email isn't in the
+  // roster get a visible "Not in roster" badge so admins can decide
+  // whether to add to roster or delete the user. The notification
+  // bell separately surfaces a notification on new auto-sign-ins.
+  const rosterLocalSet = new Set(
+    (roster || [])
+      .map(r => (r.email || "").toLowerCase().split("@")[0])
+      .filter(Boolean)
+  );
+  const isInRoster = (email) => {
+    if (!email) return true; // unknown → don't accuse
+    const local = email.toLowerCase().split("@")[0];
+    return rosterLocalSet.has(local);
+  };
+
   // Group by role
   const roleGroups=Object.entries(ROLE_LABELS).map(([key,label])=>{
     const group=filtered.filter(u=>u.role===key);
@@ -176,7 +193,26 @@ function AdminUsersPage({teams}){
         <td style={{width:32,padding:"8px 4px 8px 12px"}}>
           <input type="checkbox" checked={isSelected} onChange={()=>toggleSelect(u.id)} style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}}/>
         </td>
-        <td style={{fontWeight:500}}>{nameFromEmail(u.email)}</td>
+        <td style={{fontWeight:500}}>
+          {nameFromEmail(u.email)}
+          {!isInRoster(u.email) && (
+            <span
+              title="This user signed in via Google but their email isn't in qa_roster. Either add them to roster (qa_lead+ in the Roster tab) or delete the user."
+              style={{
+                display:"inline-block",
+                marginLeft:8,
+                padding:"1px 6px",
+                borderRadius:4,
+                fontSize:10,
+                fontWeight:700,
+                background:"var(--amber-bg,#fef3c7)",
+                color:"var(--amber,#b45309)",
+                border:"1px solid var(--amber,#b45309)",
+                verticalAlign:"middle",
+              }}
+            >NOT IN ROSTER</span>
+          )}
+        </td>
         <td style={{color:"var(--tx2)",fontSize:13}}>{u.email}</td>
         <td>{isEditing?<SearchableSelect options={Object.entries(ROLE_LABELS).map(([k,v])=>({value:k,label:v}))} value={editRole} onChange={setEditRole} placeholder="Select role"/>:<span className={`role-badge role-${u.role}`}>{ROLE_LABELS[u.role]}</span>}</td>
         <td><span className={`domain-badge domain-${u.domain==="tabby.ai"?"ai":"sa"}`}>{u.domain}</span></td>
