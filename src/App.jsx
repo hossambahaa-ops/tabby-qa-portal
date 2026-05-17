@@ -64,19 +64,19 @@ const safe = (v) => {
 
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
-  {key:"leaderboard",label:"Leaderboard",icon:icons.leaderboard},
-  {key:"profile",label:"QA Profile",icon:icons.hr,section:"Performance"},
+  {key:"leaderboard",label:"Leaderboard",icon:icons.podium},
+  {key:"profile",label:"QA Profile",icon:icons.profile,section:"Performance"},
   {key:"scores",label:"MTD",icon:icons.scores},
-  {key:"csat",label:"CSAT",icon:icons.leaderboard},
-  {key:"expertise",label:"Expertise",icon:icons.leaderboard,minRole:"admin"},
-  {key:"targets",label:"Targets",icon:icons.scores,minRole:"qa_lead"},
-  {key:"schedule",label:"Attendance",icon:icons.coaching,section:"Management"},
+  {key:"csat",label:"CSAT",icon:icons.csat},
+  {key:"expertise",label:"Expertise",icon:icons.expertise,minRole:"admin"},
+  {key:"targets",label:"Targets",icon:icons.targets,minRole:"qa_lead"},
+  {key:"schedule",label:"Attendance",icon:icons.attendance,section:"Management"},
   {key:"tracker",label:"Tracker",icon:icons.tracker,minRole:"senior_qa"},
-  {key:"quality",label:"Quality Control",icon:icons.dam,minRole:"qa_lead"},
+  {key:"quality",label:"Quality Control",icon:icons.quality,minRole:"qa_lead"},
   {key:"escalations",label:"Escalations",icon:icons.escalation},
-  {key:"hr",label:"HR cases",icon:icons.hr,minRole:"qa_supervisor"},
-  {key:"admin",label:"Admin panel",icon:icons.settings,minRole:"admin",section:"System"},
-  {key:"utilization",label:"App utilization",icon:icons.dashboard,minRole:"qa_supervisor"},
+  {key:"hr",label:"HR cases",icon:icons.folder,minRole:"qa_supervisor"},
+  {key:"admin",label:"Admin panel",icon:icons.key,minRole:"admin",section:"System"},
+  {key:"utilization",label:"App utilization",icon:icons.utilization,minRole:"qa_supervisor"},
 ];
 
 /* ═══ APP ═══ */
@@ -805,14 +805,14 @@ function AppInner(){
       <Route path="/dashboard" element={<DashboardPage/>}/>
       <Route path="/scores" element={<ScoreEntryPage/>}/>
       <Route path="/csat" element={<CSATPage/>}/>
-      <Route path="/expertise" element={hasRole(userRole,"admin")?<ExpertisePage/>:<PlaceholderPage title="Expertise" icon={icons.leaderboard} minRole="admin" userRole={userRole}/>}/>
+      <Route path="/expertise" element={hasRole(userRole,"admin")?<ExpertisePage/>:<PlaceholderPage title="Expertise" icon={icons.expertise} minRole="admin" userRole={userRole}/>}/>
       <Route path="/targets" element={<TargetsPage/>}/>
       <Route path="/leaderboard" element={<LeaderboardPage/>}/>
       <Route path="/profile" element={<QAProfilePage/>}/>
       <Route path="/schedule" element={<SchedulePage/>}/>
       <Route path="/escalations" element={<EscalationsPage/>}/>
       <Route path="/tracker" element={hasRole(userRole,"senior_qa")?<TrackerPage/>:<PlaceholderPage title="Tracker" icon={icons.tracker} minRole="senior_qa" userRole={userRole}/>}/>
-      <Route path="/quality" element={guardRole("qa_lead",<QualityControlPage/>,{title:"Quality Control",icon:icons.dam})}/>
+      <Route path="/quality" element={guardRole("qa_lead",<QualityControlPage/>,{title:"Quality Control",icon:icons.quality})}/>
       {/* Legacy redirects */}
       <Route path="/dam" element={<Navigate to="/quality" replace/>}/>
       <Route path="/plans" element={<Navigate to="/quality" replace/>}/>
@@ -822,9 +822,9 @@ function AppInner(){
       <Route path="/coaching/ack/:id" element={<CoachingAckPage/>}/>
       <Route path="/violations" element={<Navigate to="/quality" replace/>}/>
       <Route path="/audit" element={<Navigate to="/admin" replace/>}/>
-      <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage/>:<PlaceholderPage title="Admin panel" icon={icons.settings} minRole="admin" userRole={userRole}/>}/>
-      <Route path="/utilization" element={(hasRole(userRole,"admin")||hasRole(userRole,"qa_supervisor"))?<UtilizationPage/>:<PlaceholderPage title="App utilization" icon={icons.dashboard} minRole="qa_supervisor" userRole={userRole}/>}/>
-      <Route path="/hr" element={<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.hr} minRole="qa_supervisor" userRole={userRole}/>}/>
+      <Route path="/admin" element={hasRole(userRole,"admin")?<AdminPage/>:<PlaceholderPage title="Admin panel" icon={icons.key} minRole="admin" userRole={userRole}/>}/>
+      <Route path="/utilization" element={(hasRole(userRole,"admin")||hasRole(userRole,"qa_supervisor"))?<UtilizationPage/>:<PlaceholderPage title="App utilization" icon={icons.utilization} minRole="qa_supervisor" userRole={userRole}/>}/>
+      <Route path="/hr" element={<PlaceholderPage title="HR cases" description="Disciplinary case tracking." icon={icons.folder} minRole="qa_supervisor" userRole={userRole}/>}/>
       <Route path="*" element={<Navigate to="/dashboard" replace/>}/>
     </Routes></Suspense></div>
 
@@ -994,9 +994,9 @@ function AppInner(){
     <nav className="mobile-bottom-nav" role="navigation" aria-label="Bottom navigation">
       {[
         {key:"dashboard",label:"Home",icon:icons.dashboard},
-        {key:"profile",label:"Profile",icon:icons.hr},
-        {key:"schedule",label:"Attendance",icon:icons.coaching},
-        hasRole(userRole,"admin")?{key:"admin",label:"Admin",icon:icons.settings}:hasRole(userRole,"qa_lead")?{key:"quality",label:"Quality",icon:icons.dam}:{key:"leaderboard",label:"Rank",icon:icons.leaderboard},
+        {key:"profile",label:"Profile",icon:icons.profile},
+        {key:"schedule",label:"Attendance",icon:icons.attendance},
+        hasRole(userRole,"admin")?{key:"admin",label:"Admin",icon:icons.key}:hasRole(userRole,"qa_lead")?{key:"quality",label:"Quality",icon:icons.quality}:{key:"leaderboard",label:"Rank",icon:icons.podium},
       ].map(item=>(
         <button key={item.key} className={`mobile-bottom-nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}}>
           <Icon d={item.icon} size={20}/>

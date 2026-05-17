@@ -20,6 +20,30 @@ export const icons={
   trash:"M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16",
   // Three-column board / Kanban — used by /tracker.
   tracker:"M5 4h3a1 1 0 011 1v14a1 1 0 01-1 1H5a1 1 0 01-1-1V5a1 1 0 011-1zm6 0h3a1 1 0 011 1v8a1 1 0 01-1 1h-3a1 1 0 01-1-1V5a1 1 0 011-1zm6 0h3a1 1 0 011 1v5a1 1 0 01-1 1h-3a1 1 0 01-1-1V5a1 1 0 011-1z",
+  // ── Sidebar-only glyphs ────────────────────────────────────────────
+  // Added 2026-05-17 so every nav item has its own unique symbol.
+  // Keep the existing keys above untouched — they're referenced by
+  // buttons, headers, and modals across the app.
+  // Podium 1-2-3 (Leaderboard).
+  podium:"M3 22V15h5v7zM10 22V9h5v13zM17 22v-4h5v4z",
+  // ID card with head + shoulders + two text lines (QA Profile).
+  profile:"M3 5h18v14H3zM9 12a2 2 0 100-4 2 2 0 000 4zM6 17a3 3 0 016 0M14 11h5M14 15h4",
+  // Speedometer arc with needle + center pivot (CSAT score reading).
+  csat:"M4 18a8 8 0 0 1 16 0M12 18l3-5M11 18a1 1 0 102 0 1 1 0 00-2 0",
+  // Five-point star (Expertise — mastery).
+  expertise:"M12 3l2.5 6.5 6.5.5-5 4.5 2 7-6-3.5-6 3.5 2-7-5-4.5 6.5-.5z",
+  // Bullseye (three rings) with an arrow striking from upper-right (Targets).
+  targets:"M12 3a9 9 0 110 18 9 9 0 010-18zM12 6a6 6 0 110 12 6 6 0 010-12zM12 9a3 3 0 110 6 3 3 0 010-6zM12 12l7-7M16 5h3v3",
+  // Calendar with binder tabs + a checkmark on one day (Attendance).
+  attendance:"M4 5h16v15H4zM4 9h16M8 3v4M16 3v4M10 14l1.5 1.5L15 12",
+  // Magnifying glass with a check inside the lens (Quality Control).
+  quality:"M16 10a6 6 0 11-12 0 6 6 0 0112 0M14.5 14.5l5 5M7 10l2 2 4-4",
+  // Folder with tab and a document line inside (HR cases).
+  folder:"M3 7v12a1 1 0 001 1h16a1 1 0 001-1V9a1 1 0 00-1-1h-9l-2-2H4a1 1 0 00-1 1zM8 14h8",
+  // Key — head + shaft + two teeth (Admin panel — access).
+  key:"M11 12a4 4 0 11-8 0 4 4 0 018 0M11 12h10M18 12v3M21 12v2",
+  // ECG / heartbeat line (App utilization — wink at the "Pulse" name).
+  utilization:"M3 12h5l2-4 3 8 3-8 2 4h4",
 };
 export const TabbyLogo = ({size=24, color="#3BFF9D"}) => (
   <svg width={size * 5} height={size} viewBox="0 0 500 100" fill="none">
