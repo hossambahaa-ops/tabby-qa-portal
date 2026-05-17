@@ -8,6 +8,7 @@ import { listEscalations } from "../api/escalations.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 import { downloadCsv } from "../lib/csvExport.js";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
@@ -421,7 +422,22 @@ function EscalationsPage() {
       {/* Escalation Cards */}
       {(()=>{
         const list = tab === "inbox" ? routedToMe : tab === "all" ? escalations : mySubmitted;
-        if (list.length === 0) return <div className="card"><div className="placeholder" style={{ padding: 40 }}><p style={{ color: "var(--tx3)" }}>{tab === "my" ? "You haven't submitted any escalations." : "No escalations in your inbox."}</p></div></div>;
+        if (list.length === 0) return <div className="card">
+          {tab === "my" ? (
+            <EmptyState
+              illus="empty"
+              title="No escalations yet"
+              description="Your submitted escalations will appear here with their status and resolution."
+            />
+          ) : (
+            <EmptyState
+              tone="good"
+              illus="check"
+              title="Inbox clear"
+              description="No escalations waiting on you. Nicely done."
+            />
+          )}
+        </div>;
 
         return <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {list.map(esc => {

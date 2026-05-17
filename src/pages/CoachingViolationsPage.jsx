@@ -7,6 +7,7 @@ import { listProfiles } from "../api/profiles.js";
 import { listViolations } from "../api/violations.js";
 import { useConfirm, useAutoRefresh } from "../lib/hooks.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
+import EmptyState from "../components/EmptyState.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { downloadCsv } from "../lib/csvExport.js";
 import { callEdgeFunction } from "../lib/edgeSync.js";
@@ -264,9 +265,12 @@ function CoachingViolationsPage() {
 
       {tab === "pending" && <div className="card">
         {pendingV.length === 0 ? (
-          <div className="placeholder" style={{ padding: 40 }}>
-            <p style={{ color: "var(--tx3)" }}>{hasRole(profile?.role,"admin")?"No pending violations to review.":hasRole(profile?.role,"qa_supervisor")?"No pending violations in your domain.":"No pending violations for your team."}</p>
-          </div>
+          <EmptyState
+            tone="good"
+            illus="check"
+            title="All caught up"
+            description={hasRole(profile?.role,"admin")?"No pending violations to review across the whole org.":hasRole(profile?.role,"qa_supervisor")?"No pending violations in your domain.":"No pending violations for your team — nothing to do here right now."}
+          />
         ) : (
           <div className="table-wrap"><table>
             <thead><tr>
@@ -326,9 +330,11 @@ function CoachingViolationsPage() {
 
       {tab === "reviewed" && <div className="card">
         {reviewedV.length === 0 ? (
-          <div className="placeholder" style={{ padding: 40 }}>
-            <p style={{ color: "var(--tx3)" }}>No reviewed violations yet.</p>
-          </div>
+          <EmptyState
+            illus="empty"
+            title="No reviewed violations yet"
+            description="Once you review a pending violation it'll move here for the record."
+          />
         ) : (
           <div className="table-wrap"><table>
             <thead><tr>

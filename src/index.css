@@ -2969,6 +2969,34 @@ html.dark .placeholder-icon {
 .placeholder h3 { font-size: 17px; letter-spacing: -.25px; margin-top: 4px; }
 .placeholder p { line-height: 1.55; }
 
+/* ── 20a. EmptyState tone variants — tint the icon tile to match the
+   nature of the empty state. .placeholder (no modifier) keeps the
+   default purple "nothing here yet" look so existing callers don't
+   change. Add .placeholder-good for "all caught up" surfaces,
+   .placeholder-warn for "missing data / blocked / stale". */
+.placeholder-good .placeholder-icon {
+  background: linear-gradient(135deg, rgba(59,255,157,.20), rgba(59,255,157,.04)) !important;
+  color: var(--tabby-green, #3BFF9D) !important;
+  box-shadow: 0 8px 24px rgba(59,255,157,.18), inset 0 1px 0 rgba(255,255,255,.10) !important;
+  border: 1px solid rgba(59,255,157,.22) !important;
+}
+html.dark .placeholder-good .placeholder-icon {
+  background: linear-gradient(135deg, rgba(59,255,157,.18), rgba(59,255,157,.03)) !important;
+  color: #6BFFB8 !important;
+  box-shadow: 0 8px 24px rgba(59,255,157,.20), inset 0 1px 0 rgba(255,255,255,.05) !important;
+}
+.placeholder-warn .placeholder-icon {
+  background: linear-gradient(135deg, rgba(245,158,11,.18), rgba(245,158,11,.04)) !important;
+  color: var(--amber, #F59E0B) !important;
+  box-shadow: 0 8px 24px rgba(245,158,11,.20), inset 0 1px 0 rgba(255,255,255,.10) !important;
+  border: 1px solid rgba(245,158,11,.22) !important;
+}
+html.dark .placeholder-warn .placeholder-icon {
+  background: linear-gradient(135deg, rgba(245,158,11,.20), rgba(245,158,11,.03)) !important;
+  color: #FBBF24 !important;
+  box-shadow: 0 8px 24px rgba(245,158,11,.22), inset 0 1px 0 rgba(255,255,255,.05) !important;
+}
+
 /* ── 21. Skeleton shimmer — replace the simple opacity pulse with
    a sweeping highlight. Reads as "loading" without the blocky
    on/off blink the pulse keyframe produces. Applied via
