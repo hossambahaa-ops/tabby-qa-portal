@@ -34,12 +34,15 @@ export default function TrackerPage() {
   const myEmail = profile?.email?.toLowerCase() || "";
   const isAdmin = hasRole(profile?.role, "admin");
 
-  // Role gate. The route guard in App.jsx already handles this, but a
-  // belt-and-suspenders check here protects against deep-links from
-  // viewers who get re-rendered after a role downgrade.
-  if (!hasRole(profile?.role, "senior_qa")) {
-    return <PlaceholderPage title="Tracker" icon={icons.tracker} minRole="senior_qa" userRole={profile?.role} />;
-  }
+  // Role gate captured before any hooks so we can branch the render
+  // at the BOTTOM (post-hooks) rather than early-returning above the
+  // useState calls. Early-returning above hooks would break React's
+  // hooks-order invariant when a viewer's role drops mid-session and
+  // the component re-renders along the no-permission branch — it
+  // would throw "Rendered fewer hooks than expected" and white-
+  // screen the page. The route guard in App.jsx is still the
+  // primary protection; this is the belt-and-suspenders branch.
+  const allowed = hasRole(profile?.role, "senior_qa");
 
   const [rows, setRows] = useState([]);
   const [profiles, setProfiles] = useState([]);
@@ -184,6 +187,12 @@ export default function TrackerPage() {
     setRows(rs => rs.filter(r => r.id !== currentRow.id));
     globalToast?.("success", "Task deleted.");
   };
+
+  // Role-downgraded viewer falls through to the PlaceholderPage
+  // AFTER every hook above has run — preserves the call order.
+  if (!allowed) {
+    return <PlaceholderPage title="Tracker" icon={icons.tracker} minRole="senior_qa" userRole={profile?.role} />;
+  }
 
   return (
     <div>

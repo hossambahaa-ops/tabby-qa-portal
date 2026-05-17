@@ -5,6 +5,20 @@ import { listProfiles } from "../api/profiles.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 
+// Default lookback: 30 days. The audit trail used to hard-cap at
+// 500 rows per table with no date filter — covering only ~1-2 months
+// of activity even when older entries were the ones being
+// investigated. Now we range-fetch via `created_at>=from&<=to` so
+// admins can widen the window via the UI.
+function defaultRangeFrom() {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.toISOString().slice(0, 10);
+}
+function todayDateStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function AuditTrailPage() {
   const{token,profile}=useApp();
   const [logs, setLogs] = useState([]);
@@ -12,6 +26,8 @@ function AuditTrailPage() {
   const [filterAction, setFilterAction] = useState("");
   const [filterActor, setFilterActor] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
+  const [dateFrom, setDateFrom] = useState(defaultRangeFrom());
+  const [dateTo, setDateTo] = useState(todayDateStr());
   // Default OFF: show every action including super-admin. Toggle ON to
   // hide super-admin noise. Was previously hard-coded to "always hide",
   // which left ~90% of all log rows invisible to the only super_admin
@@ -24,12 +40,19 @@ function AuditTrailPage() {
   const sortArrow = (key) => sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : "";
 
   useEffect(() => {
+    setLoading(true);
     (async () => {
       try {
-        // Load both activity_log and audit_trail, exclude super_admin actions
+        // Range-fetch both audit tables. `from` is start-of-day UTC,
+        // `to` is end-of-day UTC for the inclusive ranges. Hard cap
+        // raised to 2000 per table within the window so a wide range
+        // (e.g. quarter) doesn't silently truncate.
+        const fromIso = `${dateFrom}T00:00:00Z`;
+        const toIso = `${dateTo}T23:59:59Z`;
+        const baseFilters = `created_at=gte.${encodeURIComponent(fromIso)}&created_at=lte.${encodeURIComponent(toIso)}&order=created_at.desc&limit=2000`;
         const [activities, audits, profs] = await Promise.all([
-          sb.query("activity_log", {select:"*",filters:"order=created_at.desc&limit=500",token}).catch(()=>[]),
-          sb.query("audit_trail", {select:"*",filters:"order=created_at.desc&limit=500",token}).catch(()=>[]),
+          sb.query("activity_log", {select:"*",filters:baseFilters,token}).catch(()=>[]),
+          sb.query("audit_trail", {select:"*",filters:baseFilters,token}).catch(()=>[]),
           listProfiles({ token, select: "email,role", filters: "", cache: false }),
         ]);
         // Build super_admin email set so the toggle can hide them on demand.
@@ -49,7 +72,7 @@ function AuditTrailPage() {
       } catch(e) { console.error("Audit load:", e); }
       setLoading(false);
     })();
-  }, [token]);
+  }, [token, dateFrom, dateTo]);
 
   // Get unique actors and actions for filters
   const actors = [...new Set(logs.map(l=>l.actor).filter(Boolean))].sort();
@@ -111,9 +134,18 @@ function AuditTrailPage() {
       {/* Filters */}
       <div className="card" style={{padding:"12px 16px",marginBottom:16}}>
         <div style={{display:"flex",gap:12,flexWrap:"wrap",alignItems:"center"}}>
+          {/* Date range — server-side. The audit_trail/activity_log
+              fetch caps at 2000 rows per table in the chosen window;
+              widen the range to investigate older entries. */}
+          <div style={{display:"flex",alignItems:"center",gap:6,fontSize:11,color:"var(--tx2)"}}>
+            <span>From</span>
+            <input type="date" className="form-input" style={{fontSize:11,padding:"6px 8px",width:140}} value={dateFrom} max={dateTo} onChange={e=>setDateFrom(e.target.value)} />
+            <span>To</span>
+            <input type="date" className="form-input" style={{fontSize:11,padding:"6px 8px",width:140}} value={dateTo} min={dateFrom} max={todayDateStr()} onChange={e=>setDateTo(e.target.value)} />
+          </div>
           <div className="form-group" style={{marginBottom:0,minWidth:140}}>
             <select className="select form-input" style={{fontSize:11,padding:"6px 10px"}} value={filterMonth} onChange={e=>setFilterMonth(e.target.value)}>
-              <option value="">All months</option>
+              <option value="">All months in range</option>
               {logMonths.map(m=><option key={m} value={m}>{m}</option>)}
             </select>
           </div>

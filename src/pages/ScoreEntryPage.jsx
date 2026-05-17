@@ -294,9 +294,15 @@ function ScoreEntryPage(){
         setUploadResult({ success: true, rowsAffected, rowsCreated, errors: errors.length > 0 ? errors : null });
       }
       setUploadStep("done");
+      // Invalidate the shared cache and let each consumer refetch
+      // through its own filter (useDashboardData filters by month
+      // window, Leaderboard pulls per-month, etc.). Previously we
+      // dataCache.set("mtd_scores", newRows) here with the FULL
+      // unfiltered payload, poisoning downstream callers that
+      // expected only their filtered slice — they got over-broad
+      // months mixed into their views until the next 30s TTL.
       dataCache.invalidate("mtd_scores");
       const newRows = await sb.query("mtd_scores_v", {select:"*",filters:"order=month.desc,qa_email.asc",token});
-      dataCache.set("mtd_scores", newRows);
       setData(newRows);
     } catch (e) {
       setUploadResult({ success: false, error: e.message });
