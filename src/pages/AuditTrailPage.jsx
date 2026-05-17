@@ -5,6 +5,7 @@ import { listProfiles } from "../api/profiles.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { downloadCsv } from "../lib/csvExport.js";
+import SystemHealthCard from "../components/admin/SystemHealthCard.jsx";
 
 // Default lookback: 30 days. The audit trail used to hard-cap at
 // 500 rows per table with no date filter — covering only ~1-2 months
@@ -147,6 +148,12 @@ function AuditTrailPage() {
           ]);
         }}>📥 Export CSV</button>
       </div>
+
+      {/* System health — admin only. Pulls from public.cron_health()
+          which wraps cron.job + cron.job_run_details with a SECURITY
+          DEFINER function. One pane answers "is the sync working?"
+          so admins don't have to run SQL. */}
+      <SystemHealthCard/>
 
       {/* Filters */}
       <div className="card" style={{padding:"12px 16px",marginBottom:16}}>
