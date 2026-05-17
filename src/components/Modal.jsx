@@ -182,13 +182,54 @@ export default function Modal({
         style={{ ...CARD_STYLE_BASE, maxWidth, maxHeight: "calc(100vh - 40px)" }}
       >
         {title !== undefined && (
-          <div style={{ flexShrink: 0, padding: "16px 24px 0", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-            <h3 id={titleIdRef.current} style={{ margin: 0, fontSize: 15, fontWeight: 700, letterSpacing: "-.2px" }}>{title}</h3>
+          <div style={{
+            flexShrink: 0,
+            // Symmetric top/bottom padding so the header reads as its
+            // own block. Bottom border mirrors FOOTER_STYLE's
+            // border-top — gives every modal a clean three-band
+            // layout (header / body / footer) without each consumer
+            // having to roll their own card-header div.
+            padding: "16px 24px",
+            borderBottom: "1px solid var(--bd2)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+          }}>
+            {/* Title size raised from 15 → 17 + letter-spacing
+                tightened so the modal heading reads as a heading,
+                not as a label. At fontSize 15 it was visually
+                smaller than the body labels below it AND smaller
+                than the 20px close button, which inverted the
+                visual hierarchy (× drew the eye before the title). */}
+            <h3 id={titleIdRef.current} style={{ margin: 0, fontSize: 17, fontWeight: 700, letterSpacing: "-.3px", lineHeight: 1.3, color: "var(--tx)" }}>{title}</h3>
             {onClose && (
               <button
                 onClick={onClose}
                 aria-label="Close"
-                style={{ background: "none", border: "none", cursor: "pointer", color: "var(--tx3)", fontSize: 20, padding: 0, lineHeight: 1 }}
+                title="Close (Esc)"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "var(--tx3)",
+                  fontSize: 20,
+                  // Padding + minWidth give the close target a
+                  // 28×28 hit area without making it visually huge.
+                  // Hover bumps opacity for affordance.
+                  padding: "2px 8px",
+                  minWidth: 28,
+                  minHeight: 28,
+                  lineHeight: 1,
+                  borderRadius: 6,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  opacity: 0.6,
+                  transition: "opacity .15s ease, background .15s ease",
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "var(--bg)"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; e.currentTarget.style.background = "transparent"; }}
               >×</button>
             )}
           </div>
