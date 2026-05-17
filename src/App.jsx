@@ -19,6 +19,7 @@ import NotificationBell from "./components/NotificationBell.jsx";
 import MyBeltIndicator from "./components/MyBeltIndicator.jsx";
 import BeltAnnouncementModal from "./components/BeltAnnouncementModal.jsx";
 import GlobalSearch from "./components/GlobalSearch.jsx";
+import MandatorySurveyModal from "./components/MandatorySurveyModal.jsx";
 // Lazy — only loaded when the user opens the composer from the topbar
 // (or from the dashboard action bar, but that fallback path is gone).
 const AnnouncementForm = lazy(() => import("./components/dashboard/AnnouncementForm.jsx"));
@@ -999,6 +1000,12 @@ function AppInner(){
         </div>
       </div>
     </div>}
+
+    {/* ═══ MANDATORY SURVEY — blocks until the user submits ═══
+        Renders self-contained: pulls the active survey, checks for an
+        existing response, only mounts the UI if there's something
+        outstanding. No-ops otherwise. */}
+    <MandatorySurveyModal/>
 
     {/* ═══ DAILY REFRESH GATE — after 12 KSA, blocks until user reloads ═══ */}
     {showDailyRefresh&&<div role="dialog" aria-modal="true" aria-label="Daily refresh" style={{
