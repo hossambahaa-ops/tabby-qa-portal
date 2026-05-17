@@ -4,6 +4,7 @@ import { sb } from "../../lib/supabase.js";
 import { safeError } from "../../lib/utils.js";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 
 export default function APActivePlanCard({
   plan,
@@ -310,7 +311,7 @@ export default function APActivePlanCard({
               <button className="btn btn-outline btn-sm" disabled={savingDate} onClick={() => setEditingStartDate(null)} style={{ fontSize: 11, padding: "3px 8px" }}>✕</button>
             </div>
           ) : (
-            <button className="btn btn-outline btn-sm" style={{ color: "var(--accent-text)", marginLeft: "auto" }} onClick={e => { e.stopPropagation(); setEditingStartDate(plan.start_date || new Date().toISOString().split("T")[0]); }}>
+            <button className="btn btn-outline btn-sm" style={{ color: "var(--accent-text)", marginLeft: "auto" }} onClick={e => { e.stopPropagation(); setEditingStartDate(plan.start_date || riyadhTodayStr()); }}>
               <Icon d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" size={14} />Edit dates
             </button>
           ))}

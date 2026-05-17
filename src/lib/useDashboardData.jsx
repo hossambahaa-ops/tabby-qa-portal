@@ -7,6 +7,7 @@ import { listPlans, listPlanWeeks } from "../api/plans.js";
 import { getScore } from "./dashboardScore.js";
 import { useAutoRefresh } from "./hooks.jsx";
 import { nameFromEmail } from "./utils.js";
+import { riyadhTodayStr } from "./attendancePlan.js";
 
 // Bulk loader for the home dashboard. Pulls MTD (last 6 months), roster,
 // profiles, DAM flags, plans, plan weeks, dismissals, escalation steps,
@@ -36,7 +37,7 @@ export function useDashboardData(token, profile) {
 
   const refresh = useCallback(async () => {
     try {
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = riyadhTodayStr();
       const sixAgo = new Date();
       sixAgo.setMonth(sixAgo.getMonth() - 6);
       const minMonth = sixAgo.toISOString().slice(0, 7);

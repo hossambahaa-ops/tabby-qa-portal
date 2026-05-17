@@ -1,6 +1,7 @@
 import React from "react";
 import { sortMonthsDesc } from "../../lib/constants.js";
 import { Icon, icons } from "../Icons.jsx";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 
 export default function APCreateForm({
   // State
@@ -105,7 +106,7 @@ export default function APCreateForm({
           </div>
           <div className="form-group">
             <label className="form-label">Start date</label>
-            <input type="date" className="form-input" value={planStartDate || ""} onChange={e => setPlanStartDate(e.target.value)} max={new Date().toISOString().split("T")[0]} />
+            <input type="date" className="form-input" value={planStartDate || ""} onChange={e => setPlanStartDate(e.target.value)} max={riyadhTodayStr()} />
             <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 4 }}>Defaults to today. Backdate for plans that already started.</div>
           </div>
           <div className="form-group" style={{ gridColumn: "1/-1" }}>

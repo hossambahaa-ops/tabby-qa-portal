@@ -7,6 +7,7 @@ import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
 import CoachingTimeline from "../components/coaching/CoachingTimeline.jsx";
 import RichText from "../components/RichText.jsx";
+import { riyadhTodayStr } from "../lib/attendancePlan.js";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import { useQaProfileData, bustBulkCache } from "../lib/useQaProfileData.jsx";
 import { useFreshness } from "../lib/useFreshness.js";
@@ -271,7 +272,7 @@ function QAProfilePage() {
           }
         }
         // Today's attendance status (from already-loaded qaAttendance)
-        const todayStr = new Date().toISOString().split("T")[0];
+        const todayStr = riyadhTodayStr();
         const todayAtt = (qaAttendance || []).find(a => matchQA(a.email) && a.date === todayStr);
         const todayCode = todayAtt?.status;
         const todayType = todayCode ? ATT_MAP[todayCode] : null;
@@ -606,7 +607,7 @@ function QAProfilePage() {
           <AttendanceHealthCard
             attendance={(qaAttendance || []).filter(a => matchQA(a.email))}
             emails={[qa.email.toLowerCase()]}
-            monthYM={new Date().toISOString().slice(0,7)}
+            monthYM={riyadhTodayStr().slice(0,7)}
             mode="personal"
           />
         </div>

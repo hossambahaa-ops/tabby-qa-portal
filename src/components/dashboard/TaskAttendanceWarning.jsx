@@ -1,5 +1,6 @@
 import React from "react";
 import Modal from "../Modal.jsx";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 
 // "Sara is on Annual Leave today — assign anyway?" portal modal that
 // fires before saveTask when the QA's attendance row for the task's
@@ -7,7 +8,7 @@ import Modal from "../Modal.jsx";
 // saveTask(force=true) callback so it can resume the original flow.
 export default function TaskAttendanceWarning({ attWarning, onCancel, onAssignAnyway }) {
   if (!attWarning) return null;
-  const today = new Date().toISOString().split("T")[0];
+  const today = riyadhTodayStr();
   const dateLabel = (() => {
     if (!attWarning.date || attWarning.date === today) return "today";
     const d = new Date(attWarning.date + "T00:00:00");

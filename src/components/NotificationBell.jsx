@@ -11,7 +11,7 @@ import { listEscalations } from "../api/escalations.js";
 import { listRoster } from "../api/roster.js";
 import { loadTeamForViewer } from "../lib/teamScope.js";
 import { fetchUnreadReleases, ackRelease } from "../lib/featureReleases.js";
-import { isMismatch, isMissingCheckIn, isAutoNsnc, PLAN_FEATURE_START, seenPlanKey, isPlanUnseen } from "../lib/attendancePlan.js";
+import { isMismatch, isMissingCheckIn, isAutoNsnc, PLAN_FEATURE_START, seenPlanKey, isPlanUnseen, riyadhTodayStr } from "../lib/attendancePlan.js";
 import { listProfiles } from "../api/profiles.js";
 import { emailsMatchLoose, nameFromEmail } from "../lib/utils.js";
 import { isLive as annIsLive, matchesAudience as annMatchesAudience } from "../lib/announcementUtils.js";
@@ -260,7 +260,7 @@ function NotificationBell({ onNavigate }) {
         ];
         // Daily task reminders — check auto-close tasks vs daily_scores
         try {
-          const todayStr = new Date().toISOString().split("T")[0];
+          const todayStr = riyadhTodayStr();
           const [dailyDs, allTodayTasks] = await Promise.all([
             sb.query("daily_scores", {select:"*",filters:`date=eq.${todayStr}`,token}).catch(()=>[]),
             listTasks({ token, select: "id,title,assigned_to,target_metric,target_value,auto_close,status,due_date", filters: `due_date=eq.${todayStr}&auto_close=eq.true&status=eq.pending` }),

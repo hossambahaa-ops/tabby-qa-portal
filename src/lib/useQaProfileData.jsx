@@ -10,6 +10,7 @@ import { listTeamTargets } from "../api/teamTargets.js";
 import { listPlans } from "../api/plans.js";
 import { listDamFlags } from "../api/damFlags.js";
 import { listAttendance } from "../api/attendance.js";
+import { riyadhTodayStr } from "./attendancePlan.js";
 import { listDailyScores } from "../api/dailyScores.js";
 
 // Module-level short-term cache: survives React re-renders/unmounts but
@@ -99,8 +100,8 @@ export function useQaProfileData(token, profile) {
       };
     })();
 
-    const curMonth = new Date().toISOString().slice(0, 7);
-    const today = new Date().toISOString().split("T")[0];
+    const curMonth = riyadhTodayStr().slice(0, 7);
+    const today = riyadhTodayStr();
     const detailPromise = (async () => {
       const [s, ap, t, f, att, ds, tgt] = await Promise.all([
         listCoachingSessions({ token, select: "id,qa_email,sender_email,cc_email,meeting_type,session_date,performance_rating,outcome,topics,strengths,weaknesses,goals,action_items,notes,agenda,follow_up,next_steps,email_subject,conclusion,ap_week_pass,observation_empathy,observation_clarity,observation_specificity,observation_note,observed_by,observed_at", filters: "order=session_date.desc" }),
@@ -184,7 +185,7 @@ export function useQaProfileData(token, profile) {
   // cheap because it's the smallest table.
   const refreshDailyScores = useCallback(async () => {
     if (!token) return;
-    const today = new Date().toISOString().split("T")[0];
+    const today = riyadhTodayStr();
     const ds = await listDailyScores({ token, filters: `date=eq.${today}` });
     setDailyScores(Array.isArray(ds) ? ds : []);
   }, [token]);

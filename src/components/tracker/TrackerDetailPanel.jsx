@@ -5,6 +5,7 @@ import {
 } from "../../lib/initiatives.js";
 import { nameFromEmail } from "../../lib/utils.js";
 import SearchableSelect from "../SearchableSelect.jsx";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 
 // TrackerDetailPanel — top-centered modal, fades over a dimmed
 // backdrop. The previous right-side slide-out put the form in the
@@ -277,7 +278,7 @@ export default function TrackerDetailPanel({
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   {directChildren.map(c => {
                     const sm = STATUS_COLORS[c.status] || {};
-                    const overdue = c.eta_date && c.status !== "Done" && c.eta_date < new Date().toISOString().slice(0, 10);
+                    const overdue = c.eta_date && c.status !== "Done" && c.eta_date < riyadhTodayStr();
                     return (
                       <button
                         key={c.id}

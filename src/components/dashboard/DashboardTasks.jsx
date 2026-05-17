@@ -8,6 +8,7 @@ import { Icon, icons } from "../Icons.jsx";
 import SearchableSelect from "../SearchableSelect.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import { teamEmailsFor } from "../../lib/scope.js";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 import { priorityConfig } from "../../lib/taskUI.js";
 import TaskAttendanceWarning from "./TaskAttendanceWarning.jsx";
 import TaskDetailModal from "./TaskDetailModal.jsx";
@@ -66,7 +67,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
   // Auto-close tasks based on daily_scores data
   useEffect(()=>{
     if(!dailyScores.length||!userTasks.length)return;
-    const todayStr=new Date().toISOString().split("T")[0];
+    const todayStr=riyadhTodayStr();
     const pendingAutoTasks=userTasks.filter(t=>t.auto_close&&t.target_metric&&t.target_value&&t.status==="pending"&&t.due_date===todayStr);
     if(!pendingAutoTasks.length)return;
     (async()=>{
@@ -139,7 +140,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
         assignees=roster.filter(r=>leadSet.has(r.manager_email?.toLowerCase())).map(r=>r.email?.toLowerCase()).filter(Boolean);
       }
       if(assignees.length===0){globalToast("error","No QAs found to assign. Make sure you have team members or select 'All QAs'.");return;}
-      const today=new Date().toISOString().split("T")[0];
+      const today=riyadhTodayStr();
       const absentStatuses=new Set(["AL","Paid SL","ML","UL","NSNC","OFF","X"]);
       let todayAtt=[];
       try{todayAtt=await sb.query("qa_attendance",{select:"email,status",filters:`date=eq.${today}`,token}).catch(()=>[]);}catch{}
@@ -278,7 +279,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
       try{
         // Check attendance for the task's target day, not today. Priority:
         // eta_date > due_date > today.
-        const checkDate = taskForm.eta_date || taskForm.due_date || new Date().toISOString().split("T")[0];
+        const checkDate = taskForm.eta_date || taskForm.due_date || riyadhTodayStr();
         const absentStatuses=new Set(["AL","Paid SL","ML","UL","NSNC","OFF","X"]);
         for(const em of assignees){
           const attCheck=await sb.query("qa_attendance",{select:"status",filters:`email=eq.${em.toLowerCase()}&date=eq.${checkDate}`,token}).catch(()=>[]);

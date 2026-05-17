@@ -9,9 +9,10 @@
 // own edit affordances on the Schedule page).
 import React, { useState, useEffect } from "react";
 import { SUPABASE_URL, SUPABASE_ANON } from "../../lib/supabase.js";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 
 export default function AttendanceQuickSet({ myEmail, todayAttendance, token, globalToast }) {
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = riyadhTodayStr();
   const propStatus = todayAttendance?.find(a => a.email?.toLowerCase() === myEmail)?.status || null;
   const [localStatus, setLocalStatus] = useState(propStatus);
   const [submitting, setSubmitting] = useState(false);

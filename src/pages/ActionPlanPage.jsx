@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
+import { riyadhTodayStr } from "../lib/attendancePlan.js";
 import { nameFromEmail, initialsFromEmail, safeError, logActivity } from "../lib/utils.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
@@ -43,7 +44,7 @@ function ActionPlanPage() {
   const [selQaEmail, setSelQaEmail] = useState("");
   const [planType, setPlanType] = useState("ap"); // ap | pip
   const [planDuration, setPlanDuration] = useState(4);
-  const [planStartDate, setPlanStartDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [planStartDate, setPlanStartDate] = useState(() => riyadhTodayStr());
   const [planReason, setPlanReason] = useState("");
   const [planTargets, setPlanTargets] = useState([]);
   const [selectedKpis, setSelectedKpis] = useState([]);
@@ -281,7 +282,7 @@ function ActionPlanPage() {
     setSelQaEmail(qaEmail || "");
     setPlanType(type || "ap");
     setPlanDuration(type === "pip" ? 8 : 4);
-    setPlanStartDate(new Date().toISOString().split("T")[0]);
+    setPlanStartDate(riyadhTodayStr());
     setPlanReason("");
     setSelectedKpis([]);
     setPlanTargets([]);
@@ -350,7 +351,7 @@ function ActionPlanPage() {
 
     setLoading(true);
     try {
-      const startDate = planStartDate || new Date().toISOString().split("T")[0];
+      const startDate = planStartDate || riyadhTodayStr();
       const startMs = new Date(startDate + "T00:00:00").getTime();
       const periodDays = followUpMode === "monthly" ? planDuration * 30 : planDuration * 7;
       const endDate = new Date(startMs + periodDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];

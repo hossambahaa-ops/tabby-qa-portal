@@ -3,6 +3,7 @@ import { sb } from "../lib/supabase.js";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { PulseLoader } from "./Charts.jsx";
+import { riyadhTodayStr } from "../lib/attendancePlan.js";
 
 function isoMonday(d) {
   const dt = new Date(d + "T12:00:00");
@@ -44,7 +45,7 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState("daily");
   const [refreshing, setRefreshing] = useState(false);
-  const today = new Date().toISOString().split("T")[0];
+  const today = riyadhTodayStr();
   // Default range: from May 1 (when productivity_history started) to
   // today, so weekly + monthly views show something useful out of the
   // box. The lead can still narrow it via the date picker.

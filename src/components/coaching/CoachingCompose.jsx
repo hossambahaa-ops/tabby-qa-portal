@@ -7,6 +7,7 @@ import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import RichTextField from "./RichTextField.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 import {
   MEETING_TYPES,
   MEETING_TYPE_ENUM,
@@ -93,7 +94,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
   // Form state
   const [toEmail, setToEmail] = useState("");
   const [ccEmail, setCcEmail] = useState("");
-  const [sessionDate, setSessionDate] = useState(new Date().toISOString().split("T")[0]);
+  const [sessionDate, setSessionDate] = useState(riyadhTodayStr());
   const [meetingType, setMeetingType] = useState("WPR");
   const [topics, setTopics] = useState("");
   const [strengths, setStrengths] = useState("");
@@ -214,7 +215,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
     setToEmail("");
     setCcEmail("");
     ccUserEditedRef.current = false;
-    setSessionDate(new Date().toISOString().split("T")[0]);
+    setSessionDate(riyadhTodayStr());
     setMeetingType("WPR");
     setTopics("");
     setStrengths("");

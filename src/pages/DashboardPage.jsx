@@ -6,6 +6,7 @@ import { nameFromEmail, initialsFromEmail, safeError, logActivity, csatPctValue,
 import { parseRawD, KPI_SLABS_D, calcSlabD, getScore, MAX_SCORE, scoreColor, scoreBg } from "../lib/dashboardScore.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { useDashboardData } from "../lib/useDashboardData.jsx";
+import { riyadhTodayStr } from "../lib/attendancePlan.js";
 import { useFreshness } from "../lib/useFreshness.js";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 import FreshnessBadge from "../components/FreshnessBadge.jsx";
@@ -377,7 +378,7 @@ function DashboardPage(){
       {/* Team Attendance Health — MTD show-up rate vs scheduled days */}
       {allTeamEmails.length > 0 && (
         <div style={{ marginBottom: 16 }}>
-          <AttendanceHealthCard attendance={monthAttendance} emails={allTeamEmails} monthYM={new Date().toISOString().slice(0,7)} mode="team" />
+          <AttendanceHealthCard attendance={monthAttendance} emails={allTeamEmails} monthYM={riyadhTodayStr().slice(0,7)} mode="team" />
         </div>
       )}
 
@@ -444,7 +445,7 @@ function DashboardPage(){
         the team Health card above. */}
     {!isLead && !isSupervisor && myEmail && (
       <div style={{ marginBottom: 16 }}>
-        <AttendanceHealthCard attendance={monthAttendance} emails={[myEmail]} monthYM={new Date().toISOString().slice(0,7)} mode="personal" compact />
+        <AttendanceHealthCard attendance={monthAttendance} emails={[myEmail]} monthYM={riyadhTodayStr().slice(0,7)} mode="personal" compact />
       </div>
     )}
 

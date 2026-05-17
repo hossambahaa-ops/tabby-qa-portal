@@ -4,6 +4,7 @@ import { useApp } from "../../lib/AppContext.jsx";
 import { listInitiatives } from "../../api/initiatives.js";
 import { STATUS_COLORS, PRIORITY_COLORS } from "../../lib/initiatives.js";
 import { Icon, icons } from "../Icons.jsx";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 
 // Compact "My Tracker tasks" card. Shown only to senior_qa+ via the
 // caller — this component itself doesn't gate. Loads on its own to
@@ -44,7 +45,7 @@ export default function MyTrackerWidget() {
   // Don't add chrome when there's nothing to show — keeps the dashboard tidy.
   if (rows.length === 0) return null;
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = riyadhTodayStr();
   const top = rows.slice(0, 4);
 
   return (

@@ -1,5 +1,6 @@
 import React from "react";
 import Modal from "../Modal.jsx";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 
 // "Pick a new due date + reason" modal. State (postponeDate /
 // postponeReason) is owned by the parent so the existing postponeTask
@@ -22,7 +23,7 @@ export default function TaskPostponeModal({
             className="form-input"
             value={postponeDate}
             onChange={e => setPostponeDate(e.target.value)}
-            min={new Date().toISOString().split("T")[0]}
+            min={riyadhTodayStr()}
           />
         </div>
         <div className="form-group" style={{ marginBottom: 12 }}>

@@ -3,6 +3,7 @@ import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { PRIORITY_COLORS, TEAM_COLORS, TASK_TYPE_COLORS, STATUS_COLORS, trkRef } from "../../lib/initiatives.js";
 import { nameFromEmail } from "../../lib/utils.js";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 
 // Single Tracker card. Used inside TrackerBoard (draggable) and the
 // table view (non-draggable summary). The board variant wraps the
@@ -33,7 +34,7 @@ export default function TrackerCard({ row, onOpen, draggable = false, childCount
       }
     : undefined;
 
-  const overdue = row.eta_date && row.status !== "Done" && row.eta_date < new Date().toISOString().slice(0, 10);
+  const overdue = row.eta_date && row.status !== "Done" && row.eta_date < riyadhTodayStr();
   const teamChips = (row.team || []).slice(0, 3);
   const typeChips = (row.task_type || []).slice(0, 2);
 
@@ -129,7 +130,7 @@ export default function TrackerCard({ row, onOpen, draggable = false, childCount
           >
             {children.map(child => {
               const sm = STATUS_COLORS[child.status] || {};
-              const childOverdue = child.eta_date && child.status !== "Done" && child.eta_date < new Date().toISOString().slice(0, 10);
+              const childOverdue = child.eta_date && child.status !== "Done" && child.eta_date < riyadhTodayStr();
               return (
                 <button
                   key={child.id}

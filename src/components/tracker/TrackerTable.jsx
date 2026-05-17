@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useCallback } from "react";
 import { STATUS_COLORS, PRIORITY_COLORS, TEAM_COLORS, TASK_TYPE_COLORS, trkRef } from "../../lib/initiatives.js";
 import { nameFromEmail } from "../../lib/utils.js";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 
 // Sortable, hierarchical table view. Children render indented under
 // their parent (any depth) with a chevron toggle. The current sort key
@@ -121,7 +122,7 @@ export default function TrackerTable({ rows, onOpen }) {
           {flatTree.map(({ row: r, depth, hasChildren }) => {
             const sm = STATUS_COLORS[r.status] || {};
             const pm = r.priority ? PRIORITY_COLORS[r.priority] : null;
-            const overdue = r.eta_date && r.status !== "Done" && r.eta_date < new Date().toISOString().slice(0, 10);
+            const overdue = r.eta_date && r.status !== "Done" && r.eta_date < riyadhTodayStr();
             const isCollapsed = collapsed.has(r.id);
             return (
               <tr
