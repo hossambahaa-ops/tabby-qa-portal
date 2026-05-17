@@ -8,8 +8,11 @@
 // values (shouldn't exist, but defensive) are ignored.
 export const PLAN_FEATURE_START = "2026-05-01";
 
-// Riyadh is UTC+3 year-round (no DST). Cutoff for "missing check-in"
-// flag converts at 7 PM Riyadh = 16:00 UTC.
+// Riyadh is UTC+3 year-round (no DST). Default cutoff for "missing
+// check-in" flag (7 PM Riyadh = 16:00 UTC) — used as a fallback when
+// a row has no shift_end. Per-row cutoffs are now shift_end + 1h so
+// late-shift QAs (e.g. 14–23) aren't flagged at 19:00 while still mid
+// shift. Same 1h grace the auto-NSNC cron uses.
 export const CHECKIN_CUTOFF_HOUR_RIYADH = 19;
 const CHECKIN_CUTOFF_HOUR_UTC = CHECKIN_CUTOFF_HOUR_RIYADH - 3; // 16
 
@@ -48,12 +51,37 @@ export function isMissingCheckIn(row, now = new Date()) {
   if (!row || row.mismatch_approved) return false;
   const planned = row.planned_code;
   if (planned !== "H" && planned !== "P") return false;
+  // status NULL is the new "not yet checked in" sentinel (NOT NULL was
+  // dropped 2026-05-17). A row with status set to a real outcome (P/H
+  // self-check-in, AL/SL/PH leave, NSNC) is already resolved.
   if (row.status) return false;
+  if (row.checked_in_at) return false;
   if (!row.date) return false;
   if (row.date < PLAN_FEATURE_START) return false;
-  // 7 PM Riyadh on row.date == 16:00 UTC on that date
-  const cutoff = new Date(`${row.date}T${String(CHECKIN_CUTOFF_HOUR_UTC).padStart(2,"0")}:00:00Z`);
-  return now.getTime() >= cutoff.getTime();
+  // Per-row cutoff = shift_end + 1h Riyadh (the same grace the auto-
+  // NSNC cron uses). Falls back to 19:00 Riyadh (16:00 UTC) when the
+  // row has no shift_end set — late-shift folks then aren't flagged
+  // mid-shift, and early-shift folks still get a flag at 7 PM.
+  const cutoffMs = (() => {
+    const se = row.shift_end;
+    if (typeof se === "string" && /^\d{2}:\d{2}/.test(se)) {
+      const [hh, mm = "00"] = se.split(":");
+      const h = Number(hh);
+      const m = Number(mm) || 0;
+      // shift_end is stored as Riyadh local time; +1h grace, then -3h
+      // to convert to the UTC moment on row.date.
+      const utcHour = (h + 1) - 3;
+      // If the grace pushes past midnight Riyadh, the cutoff lands on
+      // the NEXT calendar day. Compute via epoch arithmetic to avoid
+      // hand-rolling day rollover.
+      const baseUtc = Date.parse(`${row.date}T00:00:00Z`);
+      if (Number.isNaN(baseUtc)) return null;
+      return baseUtc + (utcHour * 60 + m) * 60 * 1000;
+    }
+    return Date.parse(`${row.date}T${String(CHECKIN_CUTOFF_HOUR_UTC).padStart(2,"0")}:00:00Z`);
+  })();
+  if (cutoffMs == null) return false;
+  return now.getTime() >= cutoffMs;
 }
 
 // Convenience: any flag (used to power the bell count + visual badges).
@@ -116,20 +144,30 @@ export function computeAttendanceHealth(rows, monthYM, now = new Date()) {
     r.date && r.date >= monthStart && r.date <= todayStr &&
     (r.planned_code === "H" || r.planned_code === "P")
   );
-  // Today's planned-P rows are "pending" if status is still the default
-  // 'P' and the QA hasn't actually checked in yet. They shouldn't count
-  // as healthy OR absent — they're in flight. Exclude them from both
-  // numerator and denominator so the percentage doesn't whiplash as the
-  // QA checks in or the auto-NSNC cron fires.
+  // Today's planned-P rows are "pending" if the QA hasn't checked in
+  // yet AND the cron hasn't auto-flipped them to NSNC. They shouldn't
+  // count as healthy OR absent — they're in flight. Exclude them from
+  // both numerator and denominator so the percentage doesn't whiplash
+  // as the QA checks in or the auto-NSNC cron fires.
+  //
+  // Post 2026-05-17 the plan-grid no longer auto-syncs status, so the
+  // canonical "not yet" sentinel is status === null. The earlier
+  // status === "P" check is kept for the few rows leads pre-filled
+  // before the cleanup ran.
   const isPendingToday = (r) =>
     r.date === todayStr &&
     r.planned_code === "P" &&
-    r.status === "P" &&
-    !r.checked_in_at;
+    !r.checked_in_at &&
+    r.status !== "NSNC" &&
+    !["AL","SL","PH"].includes(r.status);
   const resolved = scheduled.filter(r => !isPendingToday(r));
   const scheduledDays = resolved.length;
   if (scheduledDays === 0) return { healthPct: null, healthyDays: 0, absentDays: 0, scheduledDays: 0 };
-  const absentDays = resolved.filter(r => !r.status || r.status === "NSNC").length;
+  // A past scheduled day with no check-in and no resolution counts as
+  // absent — auto-NSNC may not have fired (cron paused, edge case),
+  // but the QA still didn't show. Treats status NULL and "NSNC" the
+  // same way; both indicate no successful check-in.
+  const absentDays = resolved.filter(r => !r.status || r.status === "NSNC" || (!r.checked_in_at && r.date < todayStr)).length;
   const healthyDays = scheduledDays - absentDays;
   return {
     healthPct: (healthyDays / scheduledDays) * 100,

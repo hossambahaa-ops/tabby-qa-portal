@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ATT_MAP } from "../../lib/attendance.js";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 import CalendarDayCell from "./CalendarDayCell.jsx";
 
 // MyMonthCalendar — Google-Calendar-style 7-column month grid for the
@@ -42,7 +43,11 @@ export default function MyMonthCalendar({
     ) || null;
   };
 
-  const todayDateStr = new Date().toISOString().split("T")[0];
+  // Riyadh-local "today" so the highlight + collapse-around-this-week
+  // logic agrees with the auto-NSNC cron and the digest. Between 00:00
+  // and 03:00 Riyadh, UTC is still yesterday — using toISOString here
+  // pointed at the wrong cell.
+  const todayDateStr = riyadhTodayStr();
 
   const monthLabel = new Date(year, monthNum - 1, 1).toLocaleDateString(
     "en-US",

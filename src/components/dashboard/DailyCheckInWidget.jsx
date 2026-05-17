@@ -30,14 +30,20 @@ export default function DailyCheckInWidget() {
     if (!token || !myEmail) { setLoading(false); return; }
     try {
       // Pull both possible email fields and any cross-domain variant.
-      const local = myEmail.split("@")[0];
+      // Encode the local-part so emails with commas, parens, asterisks
+      // or other PostgREST-meaningful chars don't break the filter
+      // (would have silently fetched zero rows). Real emails don't
+      // contain these chars, but group aliases or future identities
+      // might — defensive.
+      const local = encodeURIComponent(myEmail.split("@")[0]);
+      const encMyEmail = encodeURIComponent(myEmail);
       const rows = await sb.query("qa_attendance", {
         token,
         select: "id,email,date,status,planned_code,justification,mismatch_approved",
         // PostgREST: use * (not %) as the ilike wildcard — bare % in a
         // URL gets mis-parsed as a percent-encoded byte by some edges
         // and the request is dropped before CORS headers are added.
-        filters: `date=eq.${today}&or=(email.ilike.${local}@*,email.eq.${myEmail})`,
+        filters: `date=eq.${today}&or=(email.ilike.${local}@*,email.eq.${encMyEmail})`,
       });
       const mine = (rows || []).find((r) => emailsMatchLoose(r.email, myEmail));
       setRow(mine || null);
@@ -51,6 +57,15 @@ export default function DailyCheckInWidget() {
 
   const checkIn = async (code) => {
     if (saving) return;
+    // Hard guard: never overwrite an approved-leave or NSNC row via the
+    // check-in widget. Two fast taps shouldn't be able to flip "AL" or
+    // "NSNC" into "H/P" silently — leads need to handle those manually.
+    // The widget is also hidden when isLeave is true (line ~116), but a
+    // stale render or in-flight load could expose the buttons briefly.
+    if (row && ["AL", "SL", "PH", "NSNC"].includes(row.status)) {
+      globalToast("info", `Today is marked ${row.status}. Ask your lead to change it before checking in.`);
+      return;
+    }
     setSaving(true);
     try {
       // created_by is NOT NULL on qa_attendance, so include it for first-

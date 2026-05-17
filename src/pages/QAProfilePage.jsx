@@ -581,8 +581,13 @@ function QAProfilePage() {
       </div>
 
       {/* Attendance Health (MTD) — uses qaAttendance which is loaded
-          for the visible month with planned_code + status. */}
-      {qa?.email && (
+          for the visible month with planned_code + status. Restricted
+          to super_admin (2026-05-17) so leads / supervisors don't see
+          another QA's daily check-in trail from the profile — the
+          team grid on the Attendance page is the canonical surface
+          for that, and it already has the right role gating. The QA
+          viewing their own profile still sees it (self-access). */}
+      {qa?.email && (isSuperAdmin || viewingSelf) && (
         <div style={{marginBottom:16}}>
           <AttendanceHealthCard
             attendance={(qaAttendance || []).filter(a => matchQA(a.email))}

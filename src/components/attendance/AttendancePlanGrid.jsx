@@ -260,9 +260,12 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
       // only carries the columns that actually changed — merge-duplicates
       // preserves the rest.
       //
-      // Auto-sync: when the plan is set for a FUTURE date (strictly
-      // after today in Riyadh), also stamp `status` to match the new
-      // planned_code. Past dates are NEVER touched.
+      // IMPORTANT: status is intentionally NOT auto-synced from
+      // planned_code anymore (removed 2026-05-17 after it produced 356
+      // phantom-P rows that fooled the check-in widget and the auto-
+      // NSNC cron). The plan and the actual outcome are now fully
+      // independent — only the QA's self-check-in (DailyCheckInWidget /
+      // calendar cell) or the auto-NSNC cron writes `status`.
       const creator = profile?.email || myEmail;
       const todayStr = riyadhTodayStr();
       const allKeys = new Set([...Object.keys(pendingChanges), ...Object.keys(pendingShifts)]);
@@ -302,7 +305,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
         const row = { email, date, created_by: creator };
         if (planChanged) {
           row.planned_code = newPlan;
-          if (date > todayStr && newPlan) row.status = newPlan; // sync actual to plan for future dates
+          // status auto-sync removed 2026-05-17 — see block comment above.
         }
         if (shiftChanged) {
           row.shift_start = newShiftStart;

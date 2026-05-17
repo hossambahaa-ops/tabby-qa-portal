@@ -1,4 +1,5 @@
 import React, { useRef } from "react";
+import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 import CellPicker from "./CellPicker.jsx";
 
 // One day-square inside MyMonthCalendar. Anchors CellPicker via a div ref.
@@ -26,7 +27,7 @@ export default function CalendarDayCell({
   };
   // True when the QA is on a planned-P day but hasn't checked in yet.
   // Distinct visual state — neither "Present" nor "NSNC" yet.
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = riyadhTodayStr();
   const isPlannedNoCheckIn = enhanced && planned === "P" && !checkInAt && st !== "NSNC" && !["AL","SL","PH"].includes(st);
   const isFutureDay = dateStr > todayIso;
   return (

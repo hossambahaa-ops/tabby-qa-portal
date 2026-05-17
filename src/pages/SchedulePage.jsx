@@ -25,6 +25,7 @@ import CellPicker from "../components/schedule/CellPicker.jsx";
 import CalendarDayCell from "../components/schedule/CalendarDayCell.jsx";
 import MyMonthCalendar from "../components/schedule/MyMonthCalendar.jsx";
 import DayCell from "../components/schedule/DayCell.jsx";
+import { riyadhTodayStr } from "../lib/attendancePlan.js";
 
 function SchedulePage() {
   const{token,profile,gf,globalToast,realProfile}=useApp();
@@ -135,9 +136,14 @@ function SchedulePage() {
           (async () => {
             try {
               if (last.oldStatus) {
+                // Preserve the original checked_in_at so undo doesn't
+                // turn a self-checked-in row into a fresh auto-NSNC
+                // candidate.
+                const undoBody = {email: last.email, date: last.date, status: last.oldStatus, created_by: myEmailRef.current};
+                if (last.oldCheckedInAt) undoBody.checked_in_at = last.oldCheckedInAt;
                 await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
                   method: "POST", headers: {"Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${tokenRef.current}`, "Prefer": "resolution=merge-duplicates,return=minimal"},
-                  body: JSON.stringify({email: last.email, date: last.date, status: last.oldStatus, created_by: myEmailRef.current})
+                  body: JSON.stringify(undoBody)
                 });
               } else {
                 await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(last.email)}&date=eq.${last.date}`, {
@@ -163,9 +169,11 @@ function SchedulePage() {
           (async () => {
             try {
               if (last.newStatus) {
+                const redoBody = {email: last.email, date: last.date, status: last.newStatus, created_by: myEmailRef.current};
+                if (last.newCheckedInAt) redoBody.checked_in_at = last.newCheckedInAt;
                 await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?on_conflict=email,date`, {
                   method: "POST", headers: {"Content-Type": "application/json", "apikey": SUPABASE_ANON, "Authorization": `Bearer ${tokenRef.current}`, "Prefer": "resolution=merge-duplicates,return=minimal"},
-                  body: JSON.stringify({email: last.email, date: last.date, status: last.newStatus, created_by: myEmailRef.current})
+                  body: JSON.stringify(redoBody)
                 });
               } else {
                 await fetch(`${SUPABASE_URL}/rest/v1/qa_attendance?email=eq.${encodeURIComponent(last.email)}&date=eq.${last.date}`, {
@@ -235,7 +243,31 @@ function SchedulePage() {
   }, [token]);
   const qaLeadSet = new Set(profiles.filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase()));
 
-  // Visible QAs
+  // Synthesize roster-shaped rows for QA Leads themselves. qa_roster
+  // only contains QAs / Sr.QAs (leads aren't synced), but leads now
+  // need to mark their own attendance too — so we lift them out of
+  // `profiles` and shape them like roster entries the grid expects.
+  // `__isLead` is a marker the renderer can use to group / style them
+  // at the top of their team without changing the table contract.
+  const leadRosterRows = (profiles || [])
+    .filter(p => p.role === "qa_lead" && p.email)
+    .map(p => {
+      const em = p.email;
+      const domain = em.toLowerCase().endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
+      return {
+        email: em,
+        manager_email: null,
+        queue: null,
+        domain,
+        role: "qa_lead",
+        __isLead: true,
+      };
+    });
+
+  // Visible QAs — now includes the relevant QA Leads at the top of
+  // their team. Sr.QAs are already in qa_roster as QAs of a lead so
+  // they fall in via the existing allQAs filter; only QA Leads need
+  // to be lifted in from profiles.
   const visibleQAs = (() => {
     const allQAs = roster.filter(r => {
       const mgr = r.manager_email?.toLowerCase();
@@ -243,20 +275,53 @@ function SchedulePage() {
     });
     if (isQA) return allQAs.filter(r => r.email?.toLowerCase() === myEmail);
     if (isLead && !hasRole(profile?.role, "qa_supervisor")) {
-      return allQAs.filter(r => r.manager_email?.toLowerCase() === myEmail);
+      const team = allQAs.filter(r => r.manager_email?.toLowerCase() === myEmail);
+      const meRow = leadRosterRows.find(r => r.email?.toLowerCase() === myEmail);
+      return meRow ? [meRow, ...team] : team;
     }
     // For supervisors / admins viewing the calendar tab, allow narrowing
     // by a specific QA Lead (selectedLeadFilter, set via the dropdown
-    // added on the page header). Empty string = show everyone.
+    // added on the page header). Empty string = show everyone, grouped
+    // by lead.
     if (selectedLeadFilter) {
       const sel = selectedLeadFilter.toLowerCase();
       const selLocal = sel.split("@")[0];
-      return allQAs.filter(r => {
+      const team = allQAs.filter(r => {
         const mgr = (r.manager_email || "").toLowerCase();
         return mgr === sel || mgr.split("@")[0] === selLocal;
       });
+      const leadRow = leadRosterRows.find(r => {
+        const em = r.email?.toLowerCase();
+        return em === sel || em?.split("@")[0] === selLocal;
+      });
+      return leadRow ? [leadRow, ...team] : team;
     }
-    return allQAs;
+    // No filter: group every lead with their team. Each lead row is
+    // emitted before their direct reports so leads appear at the top
+    // of each cluster. Any orphan QAs (manager not in qaLeadSet) fall
+    // through to the bottom as a "no lead" group.
+    const grouped = [];
+    const used = new Set();
+    const sortedLeads = [...leadRosterRows].sort((a, b) =>
+      (a.email || "").localeCompare(b.email || "")
+    );
+    for (const lead of sortedLeads) {
+      const le = lead.email?.toLowerCase();
+      grouped.push(lead);
+      used.add(le);
+      const team = allQAs.filter(r => {
+        const mgr = (r.manager_email || "").toLowerCase();
+        return mgr === le || (mgr && le && mgr.split("@")[0] === le.split("@")[0]);
+      });
+      for (const t of team) {
+        grouped.push(t);
+        used.add(t.email?.toLowerCase());
+      }
+    }
+    for (const q of allQAs) {
+      if (!used.has(q.email?.toLowerCase())) grouped.push(q);
+    }
+    return grouped;
   })();
 
   const [year, month] = selMonth.split("-").map(Number);
@@ -326,7 +391,7 @@ function SchedulePage() {
     // attendance page — doesn't matter for the auto-NSNC cron + digest.
     // Leads / supervisors editing a QA's row do NOT stamp the timestamp
     // — that would defeat the "the QA never checked in" signal.
-    const todayIso = new Date().toISOString().slice(0, 10);
+    const todayIso = riyadhTodayStr();
     const isOwnTodayCheckIn =
       email?.toLowerCase() === myEmail &&
       dateStr === todayIso &&
@@ -360,7 +425,11 @@ function SchedulePage() {
         });
         if (!resp.ok) throw new Error(await resp.text());
       }
-      setUndoStack(prev => [...prev.slice(-50), {email: email.toLowerCase(), date: dateStr, oldStatus, newStatus: status}]);
+      // Capture checked_in_at alongside status so Undo / Redo can
+       // restore the timestamp. Without it, undoing a self-check-in
+       // re-inserted the old status but wiped checked_in_at, which
+       // then made the row a fresh auto-NSNC candidate at shift_end+1h.
+      setUndoStack(prev => [...prev.slice(-50), {email: email.toLowerCase(), date: dateStr, oldStatus, oldCheckedInAt: existing?.checked_in_at || null, newStatus: status, newCheckedInAt: checkedInAt || null}]);
       setRedoStack([]);
       setAttendance(prev => {
         const filtered = prev.filter(a => !(a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr));
@@ -820,7 +889,7 @@ function SchedulePage() {
             {isLead&&<button className="btn btn-primary btn-sm" disabled={monthIsLocked} style={{opacity:monthIsLocked?0.5:1}} onClick={()=>{if(monthIsLocked){globalToast("error","Month is locked.");return;}setBulkModal(true);setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);setBulkStatus("P");setBulkDayFilter("all");}}>
               <Icon d={icons.plus} size={14}/>Bulk set
             </button>}
-            <button className="btn btn-outline btn-sm" disabled={monthIsLocked} style={{opacity:monthIsLocked?0.5:1,fontSize:11,color:"#0D9488",borderColor:"#0D9488"}} onClick={()=>{if(monthIsLocked){globalToast("error","Month is locked.");return;}const todayStr=new Date().toISOString().split("T")[0];setOtModal(true);setOtFrom(todayStr);setOtTo(todayStr);setOtTarget(isQA?myEmail:"");setOtNote("");}}>
+            <button className="btn btn-outline btn-sm" disabled={monthIsLocked} style={{opacity:monthIsLocked?0.5:1,fontSize:11,color:"#0D9488",borderColor:"#0D9488"}} onClick={()=>{if(monthIsLocked){globalToast("error","Month is locked.");return;}const todayStr=riyadhTodayStr();setOtModal(true);setOtFrom(todayStr);setOtTo(todayStr);setOtTarget(isQA?myEmail:"");setOtNote("");}}>
               ⏱ {isQA ? "Request OT" : "Add OT"}
             </button>
             {isLead&&<button className="btn btn-outline btn-sm" onClick={downloadCsvTemplate} style={{fontSize:11}}><Icon d={icons.upload} size={13}/>Download CSV</button>}
@@ -875,7 +944,7 @@ function SchedulePage() {
             Remove the gate entirely once approved. */}
         {(realProfile?.role === "super_admin" || isSuperAdmin) && (() => {
           const fmtTime = (ts) => ts ? new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
-          const todayIso = new Date().toISOString().slice(0, 10);
+          const todayIso = riyadhTodayStr();
           // ── Today's huddle data (only meaningful if there's a team) ──
           const teamEmails = (visibleQAs || []).map(r => r.email?.toLowerCase()).filter(Boolean);
           const todayTeam = (attendance || [])

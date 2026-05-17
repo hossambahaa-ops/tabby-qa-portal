@@ -107,9 +107,18 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
   // save errors. Starting from tomorrow avoids the conflict; the
   // single-cell click-to-edit path is still the right tool for today.
   const tomorrowStr = useMemo(() => {
+    // Stay in Riyadh-local for both ends of this calc. The previous
+    // version computed "today" via riyadhTodayStr() but then formatted
+    // the +1 via toISOString(), which undoes the Riyadh shift between
+    // 21:00–24:00 UTC and yields TODAY's date as "tomorrow". Format
+    // via local components instead so the min-date guard actually
+    // works for late-evening edits from UTC.
     const d = new Date(riyadhTodayStr() + "T00:00:00");
     d.setDate(d.getDate() + 1);
-    return d.toISOString().split("T")[0];
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
   }, [open]);
   useEffect(() => {
     if (!open) return;
