@@ -2873,3 +2873,113 @@ html.dark .skeleton-shimmer {
   animation: skeletonShine 1.2s linear infinite;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   Mobile fixes (appended 2026-05-17)
+   ─────────────────────────────────────────────────────────────
+   Two real bugs reported on phones:
+
+   1. "Split screen when scrolling right" — horizontal page
+      overflow that the body's `overflow-x: hidden` was failing to
+      contain. Root cause: the Aurora cards block (around line 2229)
+      set `padding: 28px !important` and `border-radius: 32px
+      !important` for every .card with no mobile override. 28px on
+      either side of a 360px viewport eats 56px of content area —
+      anything inside with `min-width` declarations (avatars + flex
+      rows + table cells) then pushes the card itself wider than the
+      page, dragging horizontal scroll onto the document despite
+      `overflow-x: hidden` on .main-content (because flex children
+      with min-width: auto can still expand their parent).
+
+   2. "Content stretched under the bottom nav" — the bottom-nav-clear
+      padding lived only on `.main-content > .page-animate`. If
+      anything renders outside that wrapper (full-bleed modals,
+      stacked banners, pages that re-mount their own outer div),
+      the page content slides under the fixed 60px bar.
+
+   Both fixed below in one block so the source order beats the
+   Aurora `!important` rules without needing higher specificity.
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* Card sizing: tighter padding, smaller radius. The Aurora look
+     stays (glass, blur, shadow), just sized for a phone instead of
+     a 1440 desktop. Important matches the Aurora block's important. */
+  .card,
+  .stat-card {
+    border-radius: 18px !important;
+    padding: 16px !important;
+  }
+
+  /* Card minimum width — never below the viewport's content area.
+     Stops a single cell with `min-width: 220` from pushing the
+     whole card wider than the screen. The card's own
+     overflow-x: auto (line 1683) then handles internal scroll. */
+  .card,
+  .stat-card,
+  .welcome-banner {
+    max-width: 100% !important;
+    box-sizing: border-box;
+  }
+
+  /* Flex children: let them shrink below their content. Without
+     this, a flex item with `min-width: auto` (the default) can
+     refuse to shrink and pushes its parent past 100vw. Scoped to
+     direct children of .page and .card so it doesn't blanket-
+     break unrelated flex layouts. */
+  .page > *,
+  .card > *,
+  .welcome-banner > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Bottom-nav clearance — belt-and-suspenders. Apply to .page
+     itself so the rule isn't dependent on the .page-animate
+     wrapper. 80px = 60 nav + 20 breathing room. The safe-area
+     inset accounts for the iPhone home indicator. */
+  .page {
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  /* Hard horizontal-overflow clip on every layer that could leak.
+     body already clips (line 69); this catches any descendant
+     that establishes its own scroll context. */
+  .app-layout,
+  .main-content,
+  .page-animate,
+  .page {
+    overflow-x: hidden !important;
+    max-width: 100vw !important;
+  }
+
+  /* Tables that aren't inside a .card don't get the .card
+     overflow-x: auto treatment. Wrap them in a horizontal scroll
+     container of their own so wide tables don't push the page. */
+  .page > table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  /* Images / videos / iframes — never exceed their container. */
+  img, video, iframe { max-width: 100% !important; height: auto; }
+
+  /* Long emails / URLs / IDs: break inside any text container so
+     a single non-spaceable string doesn't widen the row. Limited
+     to text-y elements so we don't shred tabular numbers. */
+  p, li, span, dd, dt, label, .form-label, .nav-item-label, .stat-label, .kpi-strip-label, .kpi-strip-sub {
+    overflow-wrap: anywhere;
+  }
+
+  /* Topbar title: truncate gracefully instead of forcing the
+     header wider than the screen. */
+  .topbar-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
