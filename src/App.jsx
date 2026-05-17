@@ -7,6 +7,7 @@ import { sb, SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { fetchUnreadReleases, ackRelease } from "./lib/featureReleases.js";
 import { avatarStyle, initialsFromEmail as initialsForAvatar } from "./lib/avatar.js";
 import { nameFromEmail } from "./lib/utils.js";
+import { riyadhTodayStr } from "./lib/attendancePlan.js";
 import { startVersionCheck } from "./lib/versionCheck.js";
 import { startHeartbeat } from "./lib/heartbeat.js";
 import { initErrorLog } from "./lib/errorLog.js";
@@ -440,6 +441,41 @@ function AppInner(){
       setPendingAnnouncements(prev=>prev.filter(a=>a.id!==annId));
     }catch(e){console.error("Ack error:",e);}
   };
+
+  // ── Daily refresh enforcement ─────────────────────────────────────
+  // After 12:00 KSA each day, prompt the user to reload Pulse once.
+  // The reload picks up the latest deployed build + clears stale
+  // in-memory state from sessions that have been open since the morning.
+  // Tracked in localStorage so we don't nag the same user twice per day.
+  // Re-checks on a 1-minute tick + on tab focus so the modal appears
+  // at noon even for users who never interact with the page.
+  const [showDailyRefresh,setShowDailyRefresh]=useState(false);
+  useEffect(()=>{
+    if(!session)return;
+    const check=()=>{
+      const now=new Date();
+      // Riyadh = UTC+3, no DST. Compute KSA hour directly so this
+      // works regardless of the user's device timezone.
+      const ksaHour=(now.getUTCHours()+3)%24;
+      const todayKsa=riyadhTodayStr(now);
+      let lastAck=null;
+      try{lastAck=localStorage.getItem("pulse_daily_refresh_ack");}catch{}
+      setShowDailyRefresh(ksaHour>=12&&lastAck!==todayKsa);
+    };
+    check();
+    const id=setInterval(check,60_000);
+    const onFocus=()=>check();
+    window.addEventListener("focus",onFocus);
+    return()=>{clearInterval(id);window.removeEventListener("focus",onFocus);};
+  },[session]);
+  const acknowledgeDailyRefresh=()=>{
+    try{localStorage.setItem("pulse_daily_refresh_ack",riyadhTodayStr());}catch{}
+    // Hard reload — bypasses bfcache + asks Service Worker / browser to
+    // fetch fresh assets. The localStorage write above prevents the
+    // modal from re-appearing once the new page finishes loading.
+    window.location.reload();
+  };
+
   // ── Hooks that MUST run before any early return (Rules of Hooks) ──
   const globalToast=useGlobalToast();
   const realRole=profile?.role||"qa";
@@ -503,7 +539,7 @@ function AppInner(){
         </div>
       </div>
       <div className="login-v2-hero">
-        <div className="login-v2-eyebrow"><span>QA Performance Platform</span></div>
+        <div className="login-v2-eyebrow"><span>Tabby Pulse</span></div>
         <h1 className="login-v2-h1">
           Where Tabby measures<br/>
           <span className="login-v2-h1-accent">customer experience.</span>
@@ -931,6 +967,54 @@ function AppInner(){
             onMouseEnter={e=>{e.currentTarget.style.background="var(--tabby-purple-light,#8B4D99)";e.currentTarget.style.transform="translateY(-1px)";}}
             onMouseLeave={e=>{e.currentTarget.style.background="var(--tabby-purple,#6A2C79)";e.currentTarget.style.transform="translateY(0)";}}
           >I Acknowledge</button>
+        </div>
+      </div>
+    </div>}
+
+    {/* ═══ DAILY REFRESH GATE — after 12 KSA, blocks until user reloads ═══ */}
+    {showDailyRefresh&&<div role="dialog" aria-modal="true" aria-label="Daily refresh" style={{
+      position:"fixed",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(8px)",
+      display:"flex",alignItems:"center",justifyContent:"center",zIndex:10001,
+      animation:"fadeIn .3s cubic-bezier(.4,0,.2,1)",
+    }}>
+      <div style={{
+        width:"100%",maxWidth:480,margin:20,background:"var(--bg3)",borderRadius:20,
+        boxShadow:"0 32px 64px rgba(0,0,0,.4)",border:"1px solid var(--bd)",overflow:"hidden",
+      }}>
+        {/* Header — same purple gradient as the announcement modal so users
+            recognise it as a "must acknowledge" surface. */}
+        <div style={{
+          padding:"20px 24px",background:"linear-gradient(135deg, var(--tabby-purple-dark,#4A1B56), var(--tabby-purple,#6A2C79))",
+          color:"#fff",
+        }}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4}}>
+            <span style={{fontSize:22}}>🔄</span>
+            <span style={{fontSize:16,fontWeight:700}}>Daily refresh required</span>
+          </div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>Triggered daily at 12:00 KSA</div>
+        </div>
+        {/* Body */}
+        <div style={{padding:"24px"}}>
+          <p style={{fontSize:14,color:"var(--tx2)",lineHeight:1.65,margin:"0 0 12px"}}>
+            Pulse ships updates throughout the day. To make sure you're working on
+            the latest version — and to clear any stale data from a long session —
+            please refresh once before continuing.
+          </p>
+          <p style={{fontSize:13,color:"var(--tx3)",lineHeight:1.55,margin:0}}>
+            This takes ~1 second and only happens once per day.
+          </p>
+        </div>
+        {/* Footer — must acknowledge */}
+        <div style={{padding:"16px 24px",borderTop:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <span style={{fontSize:11,color:"var(--tx3)"}}>You must refresh to continue</span>
+          <button onClick={acknowledgeDailyRefresh} style={{
+            padding:"10px 24px",borderRadius:10,border:"none",
+            background:"var(--tabby-purple,#6A2C79)",color:"#fff",fontSize:13,fontWeight:700,
+            cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",
+          }}
+            onMouseEnter={e=>{e.currentTarget.style.background="var(--tabby-purple-light,#8B4D99)";e.currentTarget.style.transform="translateY(-1px)";}}
+            onMouseLeave={e=>{e.currentTarget.style.background="var(--tabby-purple,#6A2C79)";e.currentTarget.style.transform="translateY(0)";}}
+          >Refresh now</button>
         </div>
       </div>
     </div>}
