@@ -308,13 +308,11 @@ function AppInner(){
             if(p.length>0){setProfile(p[0]);}else if(s.user?.id){
               // Auto-create profile for any signed-in @tabby.* Google
               // account so legitimate new hires can land in the app
-              // immediately. Roster-membership is checked AFTER the
-              // INSERT, and if the email isn't on the admin-curated
-              // qa_roster we surface an alert in the admin bell with a
-              // "Remove user" action. Admins decide whether to add the
-              // person to roster (keep) or remove them (delete). This
-              // replaces the earlier hard-block which would have stopped
-              // new hires from signing in before admin action.
+              // immediately. (The "not on roster" admin alert + the
+              // badge in Admin → Users were removed 2026-05-17 — the
+              // canonical roster sync runs daily from the Google
+              // Sheet and wipes any manual additions, so the alerts
+              // would have been re-firing every morning.)
               const email=s.user.email||"";
               const domain=email.endsWith("@tabby.sa")?"tabby.sa":"tabby.ai";
               const name=s.user.user_metadata?.full_name||s.user.user_metadata?.name||email.split("@")[0].split(".").map(p=>p.charAt(0).toUpperCase()+p.slice(1)).join(" ");
@@ -322,35 +320,6 @@ function AppInner(){
                 await sb.query("profiles",{token:s.access_token,method:"POST",body:{id:s.user.id,email,display_name:name,role:"qa",domain,operational_domain:domain,status:"active",avatar_url:s.user.user_metadata?.avatar_url||null}});
                 const p2=await sb.query("profiles",{select:"id,email,display_name,avatar_url,role,domain,operational_domain,team_id,status",filters:`id=eq.${s.user.id}`,token:s.access_token});
                 if(p2.length>0)setProfile(p2[0]);
-                // Background roster-membership check. If the new hire
-                // isn't on the roster yet, log an activity entry the
-                // admin notification bell picks up. Doesn't block the
-                // sign-in or fail the boot path if it errors.
-                (async () => {
-                  try {
-                    const local = email.toLowerCase().split("@")[0];
-                    const rosterMatch = await sb.query("qa_roster",{
-                      select: "email",
-                      token: s.access_token,
-                      filters: `or=(email.ilike.${encodeURIComponent(local)}@*,email.eq.${encodeURIComponent(email)})`,
-                    });
-                    if (!rosterMatch || rosterMatch.length === 0) {
-                      await sb.query("activity_log", {
-                        token: s.access_token,
-                        method: "POST",
-                        body: {
-                          actor_email: email,
-                          action: "profile_no_roster_match",
-                          target_type: "profiles",
-                          target_id: s.user.id,
-                          details: `New sign-in not on qa_roster: ${email} (${name}). Admin: add to roster or remove user.`,
-                        },
-                      });
-                    }
-                  } catch (rosterErr) {
-                    console.warn("roster-check failed (non-fatal):", rosterErr);
-                  }
-                })();
               }catch(e){console.error("Auto-create profile:",e);}
             }
           }catch(e){console.error("Profile:",e);}

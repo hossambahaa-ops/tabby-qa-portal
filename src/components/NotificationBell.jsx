@@ -123,18 +123,12 @@ function NotificationBell({ onNavigate }) {
           newErrorsIdx = queries.length;
           queries.push(sb.query("client_errors", { select: "id,source,message,user_email,created_at", filters: `created_at=gte.${since}&order=created_at.desc&limit=10`, token }).catch(() => []));
         }
-        // Admins also see sign-ins from emails not on the qa_roster.
-        // The auto-create now provisions them but logs a heads-up so
-        // the admin can either add them to roster or remove the user.
-        let noRosterIdx = -1;
-        if (isAdmin) {
-          noRosterIdx = queries.length;
-          queries.push(sb.query("activity_log", {
-            select: "id,actor_email,target_id,details,created_at",
-            filters: "action=eq.profile_no_roster_match&order=created_at.desc&limit=20",
-            token,
-          }).catch(() => []));
-        }
+        // (Removed 2026-05-17: the "not on roster" admin alert pulled
+        // from activity_log. The canonical roster sync runs daily and
+        // wipes any manual additions, so the alerts would re-fire
+        // every morning. If you bring this back later, also restore
+        // the "+ Add" button + badge in AdminUsersPage and the
+        // activity_log write in App.jsx.)
         // Tracker initiatives assigned to me. The dashboard "tasks" table
         // (queried at index 0) is separate from the "initiatives" table
         // that powers the Tracker page — assigning a TRK-N item didn't
@@ -166,7 +160,6 @@ function NotificationBell({ onNavigate }) {
         const pendingAtt = attReqIdx >= 0 ? (results[attReqIdx] || []) : [];
         const newFeedback = newFeedbackIdx >= 0 ? (results[newFeedbackIdx] || []) : [];
         const newErrors  = newErrorsIdx  >= 0 ? (results[newErrorsIdx]  || []) : [];
-        const noRosterAlerts = noRosterIdx >= 0 ? (results[noRosterIdx] || []) : [];
         const myInitiatives = trackerIdx >= 0 ? (results[trackerIdx] || []) : [];
 
         // Filter attendance requests to the viewer's effective team.
@@ -244,18 +237,6 @@ function NotificationBell({ onNavigate }) {
             sub: `From ${nameFromEmail(a.sent_by || "")}${a.priority && a.priority !== "normal" ? " · " + a.priority : ""}`,
             time: a.created_at,
             page: "dashboard",
-          })),
-          // Sign-ins from emails not on qa_roster (admin-only). Clicking
-          // opens AdminUsersPage so the admin can add them to roster
-          // or remove the auto-created profile.
-          ...noRosterAlerts.map(a => ({
-            id: "nr-" + a.id,
-            type: "no_roster",
-            title: `⚠ Not on roster: ${nameFromEmail(a.actor_email || "")}`,
-            sub: `${a.actor_email || ""} — review & add to roster, or remove`,
-            time: a.created_at,
-            page: "admin",
-            adminTab: "users",
           })),
         ];
         // Daily task reminders — check auto-close tasks vs daily_scores

@@ -26,7 +26,6 @@ function AdminUsersPage({teams}){
   const[editTeamIds,setEditTeamIds]=useState([]);
   const[userTeamsMap,setUserTeamsMap]=useState({});
   const[deletingId,setDeletingId]=useState(null);
-  const[addingRosterId,setAddingRosterId]=useState(null);
   const[viewMode,setViewMode]=useState("list"); // "list" | "role"
   const[selected,setSelected]=useState(new Set());
   const[bulkRole,setBulkRole]=useState("");
@@ -159,51 +158,13 @@ function AdminUsersPage({teams}){
   // Filter
   const filtered=search?users.filter(u=>(u.display_name||"").toLowerCase().includes(search.toLowerCase())||u.email?.toLowerCase().includes(search.toLowerCase())):users;
 
-  // Roster-membership index — checks each profile's email against the
-  // qa_roster on local-part (so @tabby.ai vs @tabby.sa variants of the
-  // same person resolve together). Profiles whose email isn't in the
-  // roster get a visible "Not in roster" badge so admins can decide
-  // whether to add to roster or delete the user. The notification
-  // bell separately surfaces a notification on new auto-sign-ins.
-  const rosterLocalSet = new Set(
-    (roster || [])
-      .map(r => (r.email || "").toLowerCase().split("@")[0])
-      .filter(Boolean)
-  );
-  const isInRoster = (email) => {
-    if (!email) return true; // unknown → don't accuse
-    const local = email.toLowerCase().split("@")[0];
-    return rosterLocalSet.has(local);
-  };
-
-  // One-click "Add to roster" for the auto-signed-in users flagged by
-  // the bell. Inserts the minimum needed (email + display_name + domain
-  // hint via direct_manager=null), nothing else — admin still picks the
-  // team / manager / queue afterwards in the canonical roster sync.
-  // Optimistically updates local state so the NOT IN ROSTER badge
-  // disappears immediately; full reload runs after.
-  const addToRoster = async (u) => {
-    if (!u?.email) return;
-    setAddingRosterId(u.id);
-    try {
-      const body = {
-        email: u.email,
-        display_name: u.display_name || nameFromEmail(u.email),
-        country: u.domain === "tabby.sa" ? "KSA" : "Egypt",
-      };
-      await sb.query("qa_roster", { token, method: "POST", body });
-      setRoster(prev => [...prev, body]);
-      dataCache.invalidate("qa_roster");
-      globalToast(
-        "success",
-        `${nameFromEmail(u.email)} added to roster — set their team & manager next.`
-      );
-      logActivity(token, actorEmail, "roster_added", "qa_roster", null, `Added: ${u.email} (from out-of-roster sign-in)`);
-    } catch (e) {
-      globalToast("error", safeError(e));
-    }
-    setAddingRosterId(null);
-  };
+  // (Removed 2026-05-17: roster-membership index + isInRoster() badge +
+  // one-click addToRoster() inline button. The canonical roster sync
+  // runs daily from the Google Sheet and wipes any manual addition,
+  // so the badge would have come back the next morning and the button
+  // would have been a temporary patch only. Roster membership is now
+  // managed in the source Google Sheet — the daily sync at 05:30 UTC
+  // owns this table.)
 
   // Group by role
   const roleGroups=Object.entries(ROLE_LABELS).map(([key,label])=>{
@@ -223,43 +184,7 @@ function AdminUsersPage({teams}){
         <td style={{width:32,padding:"8px 4px 8px 12px"}}>
           <input type="checkbox" checked={isSelected} onChange={()=>toggleSelect(u.id)} style={{cursor:"pointer",accentColor:"var(--tabby-purple)"}}/>
         </td>
-        <td style={{fontWeight:500}}>
-          {nameFromEmail(u.email)}
-          {!isInRoster(u.email) && (
-            <span style={{display:"inline-flex",alignItems:"center",gap:6,marginLeft:8,verticalAlign:"middle"}}>
-              <span
-                title="This user signed in via Google but their email isn't in qa_roster. Use the + button to add them, or Delete to remove the user."
-                style={{
-                  display:"inline-block",
-                  padding:"1px 6px",
-                  borderRadius:4,
-                  fontSize:10,
-                  fontWeight:700,
-                  background:"var(--amber-bg,#fef3c7)",
-                  color:"var(--amber,#b45309)",
-                  border:"1px solid var(--amber,#b45309)",
-                }}
-              >NOT IN ROSTER</span>
-              <button
-                onClick={()=>addToRoster(u)}
-                disabled={addingRosterId===u.id}
-                title="Add to roster (sets email + display name; pick team/manager later in roster sync)"
-                style={{
-                  padding:"1px 8px",
-                  borderRadius:4,
-                  fontSize:10,
-                  fontWeight:700,
-                  background:"var(--green-bg,#d1fae5)",
-                  color:"var(--green,#047857)",
-                  border:"1px solid var(--green,#047857)",
-                  cursor:addingRosterId===u.id?"default":"pointer",
-                  opacity:addingRosterId===u.id?0.5:1,
-                  fontFamily:"var(--font)",
-                }}
-              >{addingRosterId===u.id?"…":"+ Add"}</button>
-            </span>
-          )}
-        </td>
+        <td style={{fontWeight:500}}>{nameFromEmail(u.email)}</td>
         <td style={{color:"var(--tx2)",fontSize:13}}>{u.email}</td>
         <td>{isEditing?<SearchableSelect options={Object.entries(ROLE_LABELS).map(([k,v])=>({value:k,label:v}))} value={editRole} onChange={setEditRole} placeholder="Select role"/>:<span className={`role-badge role-${u.role}`}>{ROLE_LABELS[u.role]}</span>}</td>
         <td><span className={`domain-badge domain-${u.domain==="tabby.ai"?"ai":"sa"}`}>{u.domain}</span></td>
