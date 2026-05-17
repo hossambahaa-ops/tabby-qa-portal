@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
-import { nameFromEmail, initialsFromEmail } from "../lib/utils.js";
+import { nameFromEmail, initialsFromEmail, emailsMatchLoose } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -353,13 +353,13 @@ function LeaderboardPage() {
         let visibleRanked = ranked;
         if (profile?.role === "senior_qa") {
           // Senior QA: only their own row
-          const myRankIdx = ranked.findIndex(r => r.qa_email?.toLowerCase() === myEmailInd);
+          const myRankIdx = ranked.findIndex(r => emailsMatchLoose(r.qa_email, myEmailInd));
           const myEntry = myRankIdx >= 0 ? ranked[myRankIdx] : null;
           visibleRanked = myEntry ? [{ ...myEntry, _myRank: myRankIdx + 1 }] : [];
         } else if (profile?.role === "qa") {
           // QA: top 3 + their own rank
           const top3 = ranked.slice(0, 3);
-          const myRankIdx = ranked.findIndex(r => r.qa_email?.toLowerCase() === myEmailInd);
+          const myRankIdx = ranked.findIndex(r => emailsMatchLoose(r.qa_email, myEmailInd));
           const myEntry = myRankIdx >= 0 ? ranked[myRankIdx] : null;
           visibleRanked = [...top3];
           if (myEntry && myRankIdx >= 3) visibleRanked.push({ ...myEntry, _myRank: myRankIdx + 1 });
@@ -367,7 +367,7 @@ function LeaderboardPage() {
           visibleRanked = visibleRanked.filter(r => { const e = r.qa_email?.toLowerCase(); if (seen.has(e)) return false; seen.add(e); return true; });
         } else if (isLeadInd && myTeamEmailsInd.length > 0) {
           // Leads: their team
-          visibleRanked = ranked.filter(r => myTeamEmailsInd.includes(r.qa_email?.toLowerCase()) || r.qa_email?.toLowerCase() === myEmailInd);
+          visibleRanked = ranked.filter(r => myTeamEmailsInd.includes(r.qa_email?.toLowerCase()) || emailsMatchLoose(r.qa_email, myEmailInd));
         }
         // "Show pinned only" — replaces the old focus-mode + multi-
         // select. One source of truth (pinnedEmails) drives both the
@@ -403,7 +403,7 @@ function LeaderboardPage() {
           // Row + rank for the chosen month
           const monthRows = data.filter(r => r.month === viewMonth);
           const monthRanked = [...monthRows].sort((a, b) => getTotalScore(b) - getTotalScore(a));
-          const myRankIdx = monthRanked.findIndex(r => r.qa_email?.toLowerCase() === myEmailInd);
+          const myRankIdx = monthRanked.findIndex(r => emailsMatchLoose(r.qa_email, myEmailInd));
           const myRow = myRankIdx >= 0 ? monthRanked[myRankIdx] : null;
           if (!myRow) return null;
           const myKpis = getKpiScores(myRow);
@@ -412,7 +412,7 @@ function LeaderboardPage() {
           // tied to the chosen view month — so the bars stay stable while
           // you hop around).
           const history = months.slice(0,6).reverse().map(m => {
-            const row = data.find(r => r.month === m && r.qa_email?.toLowerCase() === myEmailInd);
+            const row = data.find(r => r.month === m && emailsMatchLoose(r.qa_email, myEmailInd));
             if (!row) return { month: m, score: null };
             const ks = getKpiScores(row);
             return { month: m, score: ks.reduce((s,k) => s + k.score, 0) };
@@ -627,7 +627,7 @@ function LeaderboardPage() {
             {visibleRanked.map((r, i) => {
               const rank = r._myRank || (ranked.findIndex(x => x.qa_email?.toLowerCase() === r.qa_email?.toLowerCase()) + 1);
               const isExp = expandedRow === r.id;
-              const isMe = r.qa_email?.toLowerCase() === myEmailInd;
+              const isMe = emailsMatchLoose(r.qa_email, myEmailInd);
               const showGap = isQaInd && r._myRank && r._myRank > 4;
               const kpis = getKpiScores(r);
               const total = kpis.reduce((s, k) => s + k.score, 0);
@@ -820,14 +820,14 @@ function LeaderboardPage() {
         let visibleQas;
         if (isAdminQ) { visibleQas = allQas; }
         else if (isSupervisorQ) { visibleQas = allQas.filter(qa => qa.email?.endsWith("@" + myDomainQ)); }
-        else if (isLeadQ) { visibleQas = allQas.filter(qa => teamEmailsQ.includes(qa.email?.toLowerCase()) || qa.email?.toLowerCase() === myEmailQ); }
+        else if (isLeadQ) { visibleQas = allQas.filter(qa => teamEmailsQ.includes(qa.email?.toLowerCase()) || emailsMatchLoose(qa.email, myEmailQ)); }
         else {
           // Both qa and senior_qa see ONLY their own row in the quarterly
           // view — matches the requirement "just their own numbers". The
           // rank value still reflects their real position across the
           // whole roster, just without revealing other people's names.
-          const myEntry = allQas.find(qa => qa.email?.toLowerCase() === myEmailQ);
-          const myRankIdx = allQas.findIndex(qa => qa.email?.toLowerCase() === myEmailQ);
+          const myEntry = allQas.find(qa => emailsMatchLoose(qa.email, myEmailQ));
+          const myRankIdx = allQas.findIndex(qa => emailsMatchLoose(qa.email, myEmailQ));
           visibleQas = myEntry ? [{ ...myEntry, _myRank: myRankIdx + 1 }] : [];
         }
 
@@ -932,7 +932,7 @@ function LeaderboardPage() {
             </tr></thead><tbody>
               {visibleQas.map((qa, i) => {
                 const actualRank = qa._myRank || (allQas.findIndex(q => q.email === qa.email) + 1);
-                const isMe = qa.email?.toLowerCase() === myEmailQ;
+                const isMe = emailsMatchLoose(qa.email, myEmailQ);
                 const showGap = isQaQ && qa._myRank && qa._myRank > 4;
                 return (<React.Fragment key={qa.email}>
                   {showGap && <tr><td colSpan={3 + qMonths.length} style={{textAlign:"center",padding:"6px",color:"var(--tx3)",fontSize:12,background:"var(--bg)"}}>···</td></tr>}

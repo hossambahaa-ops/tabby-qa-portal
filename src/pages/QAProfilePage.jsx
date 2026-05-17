@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb, dataCache, SUPABASE_URL, SUPABASE_ANON } from "../lib/supabase.js";
-import { nameFromEmail, csatPctValue, csatColor, safeError, logActivity } from "../lib/utils.js";
+import { nameFromEmail, csatPctValue, csatColor, safeError, logActivity, emailsMatchLoose } from "../lib/utils.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
@@ -147,7 +147,20 @@ function QAProfilePage() {
   const qaMtd = (() => {
     const raw = mtd.filter(m => matchQA(m.qa_email));
     const months = sortMonthsDesc([...new Set(raw.map(m=>m.month))]);
-    return months.map(mo => raw.find(m=>m.month===mo)).filter(Boolean);
+    // For each month, prefer the row with the freshest synced_at when
+    // the QA has both @tabby.ai and @tabby.sa entries (cross-domain
+    // split). The old code just took the first one Array.find()
+    // returned, which was undefined ordering and silently picked the
+    // wrong domain's CSAT / coaching% half the time.
+    return months.map(mo => {
+      const matches = raw.filter(m => m.month === mo);
+      if (matches.length <= 1) return matches[0] || null;
+      return matches.sort((a, b) => {
+        const ta = a?.synced_at ? new Date(a.synced_at).getTime() : 0;
+        const tb = b?.synced_at ? new Date(b.synced_at).getTime() : 0;
+        return tb - ta;
+      })[0];
+    }).filter(Boolean);
   })();
   // Use the latest month that has data (first in chronologically sorted array)
   const latestMtd = qaMtd.length > 0 ? qaMtd[0] : null;
@@ -517,7 +530,7 @@ function QAProfilePage() {
           .filter(r => r.email && r.email.toLowerCase() !== selectedQA?.toLowerCase())
           .map(r => ({ value: r.email.toLowerCase(), label: nameFromEmail(r.email) }))
           .sort((a, b) => a.label.localeCompare(b.label));
-        const compareLatest = compareQA ? mtd.filter(m => m.qa_email?.toLowerCase() === compareQA.toLowerCase()).sort((a, b) => (b.month || "").localeCompare(a.month || ""))[0] : null;
+        const compareLatest = compareQA ? mtd.filter(m => emailsMatchLoose(m.qa_email, compareQA)).sort((a, b) => (b.month || "").localeCompare(a.month || ""))[0] : null;
         const myLatest = (() => {
           const rows = mtd.filter(m => matchQA(m.qa_email)).sort((a, b) => (b.month || "").localeCompare(a.month || ""));
           return rows[0];

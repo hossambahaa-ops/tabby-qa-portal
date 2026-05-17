@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb } from "../lib/supabase.js";
-import { csatPctValue, csatColor, normalizeTopic, nameFromEmail } from "../lib/utils.js";
+import { csatPctValue, csatColor, normalizeTopic, nameFromEmail, emailsMatchLoose } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -153,14 +153,21 @@ export default function CSATPage() {
   })();
   // Map qa_email (lowercased) → previous-month CSAT % (number) so we
   // can compute the per-QA delta without re-scanning data per row.
+  // Keyed by local-part so the same QA's cross-domain previous-month
+  // row (e.g. @tabby.sa last month, @tabby.ai this month) is found.
   const prevByEmail = {};
   if (prevMonth) {
     data.filter(r => r.month === prevMonth).forEach(r => {
       const v = csatPctValue(r.csat_pct);
       const s = Number(r.csat_total || 0);
-      if (v != null && s > 0) prevByEmail[r.qa_email?.toLowerCase()] = { v, s };
+      const key = (r.qa_email || "").toLowerCase().split("@")[0];
+      if (v != null && s > 0 && key) prevByEmail[key] = { v, s };
     });
   }
+  const lookupPrev = (email) => {
+    const k = (email || "").toLowerCase().split("@")[0];
+    return k ? prevByEmail[k] : null;
+  };
   const rosterMap = {}; roster.forEach(r => { rosterMap[r.email?.toLowerCase()] = r; });
   // Skip compound LOBs ("CCU, Escalation, Dispute") that occasionally
   // sneak in from the roster CSV — they're never a real team.
@@ -573,7 +580,7 @@ export default function CSATPage() {
                       <td style={{fontSize:11.5,color:"var(--tx2)",padding:"4px 8px",whiteSpace:"nowrap"}} title={r.qa_tl||""}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
                       <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)",padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{r.csat_total ?? "—"}</td>
                       {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,fontSize:12.5,color:csatColor(v,s),padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
-                      {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const cur=(v!=null&&s>0)?v:null;const p=prevByEmail[r.qa_email?.toLowerCase()];return renderDelta(cur, p?.v ?? null);})()}
+                      {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const cur=(v!=null&&s>0)?v:null;const p=lookupPrev(r.qa_email);return renderDelta(cur, p?.v ?? null);})()}
                     </tr>
                     {isExpanded && <tr>
                       <td colSpan={6} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>

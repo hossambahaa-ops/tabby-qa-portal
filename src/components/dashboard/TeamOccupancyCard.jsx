@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { sb } from "../../lib/supabase.js";
 import { hasRole } from "../../lib/constants.js";
 import { useApp } from "../../lib/AppContext.jsx";
-import { nameFromEmail } from "../../lib/utils.js";
+import { nameFromEmail, emailVariants } from "../../lib/utils.js";
 import { listTeamTargets } from "../../api/teamTargets.js";
 import { listMtd } from "../../api/mtd.js";
 import { loadTeamForViewer } from "../../lib/teamScope.js";
@@ -130,7 +130,11 @@ export default function TeamOccupancyCard() {
         //    to over-fetch by one day and discard the today row in JS.
         const todayIso = todayRiyadhIso();
         const isoFrom = monthStartRiyadhIso();
-        const inList = teamEmails.map(e => `"${e}"`).join(",");
+        // Expand each roster email to both @tabby.ai + @tabby.sa
+        // variants so the IN.() server filter doesn't silently drop
+        // cross-domain rows. Post-fetch we collapse by local-part.
+        const expanded = [...new Set(teamEmails.flatMap(e => emailVariants(e)))];
+        const inList = expanded.map(e => `"${e}"`).join(",");
         const phRows = await sb.query("productivity_history", {
           token,
           select: "qa_email,date,occupancy_pct,pending_side_minutes,side_task_minutes",
@@ -143,7 +147,7 @@ export default function TeamOccupancyCard() {
         const perQa = new Map();
         for (const r of (Array.isArray(phRows) ? phRows : [])) {
           if (r.date >= todayIso) continue; // skip today's partial row
-          const k = (r.qa_email || "").toLowerCase();
+          const k = (r.qa_email || "").toLowerCase().split("@")[0];
           if (!perQa.has(k)) perQa.set(k, []);
           perQa.get(k).push(r);
         }
@@ -161,7 +165,7 @@ export default function TeamOccupancyCard() {
         }).catch(() => []);
         const wdsByEmail = new Map();
         for (const r of (Array.isArray(mtdRows) ? mtdRows : [])) {
-          const k = (r.qa_email || "").toLowerCase();
+          const k = (r.qa_email || "").toLowerCase().split("@")[0];
           const n = Number(r.working_days);
           if (k && n > 0) wdsByEmail.set(k, n);
         }
@@ -185,8 +189,11 @@ export default function TeamOccupancyCard() {
         //    cumulative pending as of that day's end.
         //    Members with no prior-day rows in window are dropped.
         const out = team.map(r => {
+          // perQa + wdsByEmail are now keyed by local-part so we
+          // catch the cross-domain rows fetched via emailVariants.
           const lower = r.email.toLowerCase();
-          const rows = perQa.get(lower);
+          const local = lower.split("@")[0];
+          const rows = perQa.get(local);
           if (!rows || rows.length === 0) return null;
           const shiftMin = findShiftMin(r.email, r.queue);
           // Sum the QA's occupancy across all prior-day rows this
@@ -198,7 +205,7 @@ export default function TeamOccupancyCard() {
           // for this QA (e.g. brand-new joiner) — same as the old
           // behavior in that edge case so the row stays meaningful.
           const occSum = rows.reduce((s, x) => s + (Number(x.occupancy_pct ?? 0)), 0);
-          const wds = wdsByEmail.get(lower);
+          const wds = wdsByEmail.get(local);
           const denom = wds && wds > 0 ? wds : rows.length;
           const current = occSum / denom;
           // Most recent prior-day pending snapshot (rows are sorted

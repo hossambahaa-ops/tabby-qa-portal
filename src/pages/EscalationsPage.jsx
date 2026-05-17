@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { hasRole, ROLE_LABELS } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
-import { nameFromEmail, safeError, logActivity } from "../lib/utils.js";
+import { nameFromEmail, safeError, logActivity, emailsMatchLoose } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listEscalations } from "../api/escalations.js";
@@ -119,9 +119,12 @@ function EscalationsPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(()=>{const h=()=>{dataCache.invalidate();load();};window.addEventListener("data-changed",h);return()=>window.removeEventListener("data-changed",h);},[load]);
 
-  const mySubmitted = escalations.filter(e => e.submitted_by?.toLowerCase() === myEmail);
+  // Loose-match both sides so a lead routed under their @tabby.sa
+  // identity still sees escalations even when they're signed in via
+  // the @tabby.ai alias (or vice versa). Same for submitter matching.
+  const mySubmitted = escalations.filter(e => emailsMatchLoose(e.submitted_by, myEmail));
   const routedToMe = escalations.filter(e => {
-    return e.routed_to?.toLowerCase() === myEmail && e.submitted_by?.toLowerCase() !== myEmail;
+    return emailsMatchLoose(e.routed_to, myEmail) && !emailsMatchLoose(e.submitted_by, myEmail);
   });
 
   const handleFileSelect = (e) => {

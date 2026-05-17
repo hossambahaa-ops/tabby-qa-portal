@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import DOMPurify from "dompurify";
 import { hasRole } from "../../lib/constants.js";
 import { sb } from "../../lib/supabase.js";
-import { nameFromEmail, safeError } from "../../lib/utils.js";
+import { nameFromEmail, safeError, emailsMatchLoose } from "../../lib/utils.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
@@ -118,7 +118,7 @@ export default function CoachingHistory({ sessions, onDelete }) {
   const myEmail = profile?.email?.toLowerCase() || "";
 
   const getScopedFiltered = () => {
-    let scopedSessions = isLeadOnly ? sessions.filter(s => s.sender_email?.toLowerCase() === myEmail) : historyFilterBy === "my_sessions" ? sessions.filter(s => s.sender_email?.toLowerCase() === myEmail) : sessions;
+    let scopedSessions = isLeadOnly ? sessions.filter(s => emailsMatchLoose(s.sender_email, myEmail)) : historyFilterBy === "my_sessions" ? sessions.filter(s => emailsMatchLoose(s.sender_email, myEmail)) : sessions;
     // Apply structured filters (date range / type / rating). Empty string
     // means "any value" for that axis.
     if (filterFrom)   scopedSessions = scopedSessions.filter(s => (s.session_date || "") >= filterFrom);

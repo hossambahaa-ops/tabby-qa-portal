@@ -590,7 +590,13 @@ function DashboardPage(){
       const svDomain=profile?.operational_domain||profile?.domain||"tabby.ai";
       const isAdminRole=hasRole(profile?.role,"admin");
       const svRoster=isAdminRole?roster:roster.filter(r=>r.email?.endsWith("@"+svDomain));
-      const svCurrent=isAdminRole?current:current.filter(r=>r.qa_email?.endsWith("@"+svDomain));
+      // Filter MTD by roster local-part membership (not raw domain
+      // suffix) so a supervisor in tabby.sa still sees their team
+      // member whose mtd_scores row happens to be keyed under
+      // @tabby.ai (cross-domain split). Previously these QAs vanished
+      // from the supervisor's team average + DSAT count entirely.
+      const svRosterLocals = new Set(svRoster.map(r => (r.email || "").toLowerCase().split("@")[0]).filter(Boolean));
+      const svCurrent=isAdminRole?current:current.filter(r=>svRosterLocals.has((r.qa_email || "").toLowerCase().split("@")[0]));
       const svRanked=isAdminRole?ranked:[...svCurrent].sort((a,b)=>getScore(b)-getScore(a));
       const svAvg=svRanked.length?svRanked.reduce((a,r)=>a+getScore(r),0)/svRanked.length:0;
       const svTotalDsat=svCurrent.reduce((a,r)=>a+(r.dsat||0),0);

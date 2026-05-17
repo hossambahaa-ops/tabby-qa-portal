@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { sb } from "../../lib/supabase.js";
 import { hasRole } from "../../lib/constants.js";
 import { useApp } from "../../lib/AppContext.jsx";
-import { nameFromEmail } from "../../lib/utils.js";
+import { nameFromEmail, emailVariants } from "../../lib/utils.js";
 import { loadTeamForViewer } from "../../lib/teamScope.js";
 
 // CoachingCadenceCard — Lead+ widget that answers "has every QA on
@@ -134,7 +134,13 @@ export default function CoachingCadenceCard() {
         if (t.length === 0) { setLoading(false); return; }
 
         const teamEmails = t.map(r => r.email.toLowerCase());
-        const inList = teamEmails.map(e => `"${e}"`).join(",");
+        // Local-part keys so cross-domain rows collapse on lookup.
+        const teamLocals = new Set(teamEmails.map(e => e.split("@")[0]));
+        // Expand each email to both @tabby.* domain variants for the
+        // server-side IN.() filter, otherwise a QA whose coaching /
+        // attendance row is keyed under the other domain is dropped.
+        const expanded = [...new Set(teamEmails.flatMap(e => emailVariants(e)))];
+        const inList = expanded.map(e => `"${e}"`).join(",");
 
         // 2. Pull all coaching sessions in this calendar month — covers
         //    both the WPR week (subset of month) and the MPR month.
@@ -152,7 +158,7 @@ export default function CoachingCadenceCard() {
         const wprSet = new Set();
         const mprSet = new Set();
         for (const s of (Array.isArray(sessions) ? sessions : [])) {
-          const em = (s.qa_email || "").toLowerCase();
+          const em = (s.qa_email || "").toLowerCase().split("@")[0];
           const inWeek = s.session_date >= periods.wStart && s.session_date <= periods.wEnd;
           if (!inWeek) continue;
           if (s.meeting_type === "weekly_1on1") wprSet.add(em);
@@ -169,7 +175,8 @@ export default function CoachingCadenceCard() {
         // Build per-member status map: email -> { iso: status }
         const byMember = new Map();
         for (const a of (Array.isArray(att) ? att : [])) {
-          const em = (a.email || "").toLowerCase();
+          const em = (a.email || "").toLowerCase().split("@")[0];
+          if (!em) continue;
           if (!byMember.has(em)) byMember.set(em, {});
           byMember.get(em)[a.date] = a.status || a.planned_code;
         }
@@ -192,9 +199,10 @@ export default function CoachingCadenceCard() {
         };
         const wprExcl = new Set();
         const mprExcl = new Set();
-        for (const em of teamEmails) {
-          if (isFullyOnLeave(em, wprWorkingDays)) wprExcl.add(em);
-          if (isFullyOnLeave(em, mprWorkingDays)) mprExcl.add(em);
+        // Iterate by local-part keys — matches byMember's new keying.
+        for (const local of teamLocals) {
+          if (isFullyOnLeave(local, wprWorkingDays)) wprExcl.add(local);
+          if (isFullyOnLeave(local, mprWorkingDays)) mprExcl.add(local);
         }
 
         if (!cancelled) {
@@ -218,20 +226,21 @@ export default function CoachingCadenceCard() {
   // not as a parallel bar — that was confusing because it implied
   // both were due in parallel.
   const stats = useMemo(() => {
-    const teamLower = team.map(r => r.email.toLowerCase());
+    // Match by local-part — wprDone/mprDone/wprExcluded/mprExcluded
+    // were all rebuilt under local-part keys above.
+    const teamLocals = team.map(r => (r.email || "").toLowerCase().split("@")[0]);
     const isMpr = periods.cadenceType === "MPR";
     const doneSet = isMpr ? mprDone : wprDone;
     const exclSet = isMpr ? mprExcluded : wprExcluded;
-    const denom = teamLower.filter(em => !exclSet.has(em));
+    const denom = teamLocals.filter(em => !exclSet.has(em));
     const num = denom.filter(em => doneSet.has(em)).length;
     const pct = denom.length > 0 ? Math.round((num / denom.length) * 100) : 0;
     const owed = team.filter(r => {
-      const em = r.email.toLowerCase();
+      const em = (r.email || "").toLowerCase().split("@")[0];
       return !exclSet.has(em) && !doneSet.has(em);
     });
-    // Month-so-far sub-line numbers (informational, not gating).
-    const wprMonthCount = teamLower.filter(em => wprDone.has(em)).length; // QAs who got at least one WPR this month
-    const mprMonthCount = teamLower.filter(em => mprDone.has(em)).length;
+    const wprMonthCount = teamLocals.filter(em => wprDone.has(em)).length;
+    const mprMonthCount = teamLocals.filter(em => mprDone.has(em)).length;
     return { num, denom: denom.length, pct, owed, wprMonthCount, mprMonthCount };
   }, [team, wprDone, mprDone, wprExcluded, mprExcluded, periods.cadenceType]);
 
@@ -251,7 +260,8 @@ export default function CoachingCadenceCard() {
       groups.get(lead).members.push(r);
     }
     return [...groups.values()].map(g => {
-      const ems = g.members.map(m => m.email.toLowerCase());
+      // Local-part keys to match the doneSet/exclSet rebuild above.
+      const ems = g.members.map(m => (m.email || "").toLowerCase().split("@")[0]);
       const den = ems.filter(em => !exclSet.has(em));
       const num = den.filter(em => doneSet.has(em)).length;
       return {

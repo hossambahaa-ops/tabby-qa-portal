@@ -26,6 +26,7 @@ function AdminUsersPage({teams}){
   const[editTeamIds,setEditTeamIds]=useState([]);
   const[userTeamsMap,setUserTeamsMap]=useState({});
   const[deletingId,setDeletingId]=useState(null);
+  const[addingRosterId,setAddingRosterId]=useState(null);
   const[viewMode,setViewMode]=useState("list"); // "list" | "role"
   const[selected,setSelected]=useState(new Set());
   const[bulkRole,setBulkRole]=useState("");
@@ -175,6 +176,35 @@ function AdminUsersPage({teams}){
     return rosterLocalSet.has(local);
   };
 
+  // One-click "Add to roster" for the auto-signed-in users flagged by
+  // the bell. Inserts the minimum needed (email + display_name + domain
+  // hint via direct_manager=null), nothing else — admin still picks the
+  // team / manager / queue afterwards in the canonical roster sync.
+  // Optimistically updates local state so the NOT IN ROSTER badge
+  // disappears immediately; full reload runs after.
+  const addToRoster = async (u) => {
+    if (!u?.email) return;
+    setAddingRosterId(u.id);
+    try {
+      const body = {
+        email: u.email,
+        display_name: u.display_name || nameFromEmail(u.email),
+        country: u.domain === "tabby.sa" ? "KSA" : "Egypt",
+      };
+      await sb.query("qa_roster", { token, method: "POST", body });
+      setRoster(prev => [...prev, body]);
+      dataCache.invalidate("qa_roster");
+      globalToast(
+        "success",
+        `${nameFromEmail(u.email)} added to roster — set their team & manager next.`
+      );
+      logActivity(token, actorEmail, "roster_added", "qa_roster", null, `Added: ${u.email} (from out-of-roster sign-in)`);
+    } catch (e) {
+      globalToast("error", safeError(e));
+    }
+    setAddingRosterId(null);
+  };
+
   // Group by role
   const roleGroups=Object.entries(ROLE_LABELS).map(([key,label])=>{
     const group=filtered.filter(u=>u.role===key);
@@ -196,21 +226,38 @@ function AdminUsersPage({teams}){
         <td style={{fontWeight:500}}>
           {nameFromEmail(u.email)}
           {!isInRoster(u.email) && (
-            <span
-              title="This user signed in via Google but their email isn't in qa_roster. Either add them to roster (qa_lead+ in the Roster tab) or delete the user."
-              style={{
-                display:"inline-block",
-                marginLeft:8,
-                padding:"1px 6px",
-                borderRadius:4,
-                fontSize:10,
-                fontWeight:700,
-                background:"var(--amber-bg,#fef3c7)",
-                color:"var(--amber,#b45309)",
-                border:"1px solid var(--amber,#b45309)",
-                verticalAlign:"middle",
-              }}
-            >NOT IN ROSTER</span>
+            <span style={{display:"inline-flex",alignItems:"center",gap:6,marginLeft:8,verticalAlign:"middle"}}>
+              <span
+                title="This user signed in via Google but their email isn't in qa_roster. Use the + button to add them, or Delete to remove the user."
+                style={{
+                  display:"inline-block",
+                  padding:"1px 6px",
+                  borderRadius:4,
+                  fontSize:10,
+                  fontWeight:700,
+                  background:"var(--amber-bg,#fef3c7)",
+                  color:"var(--amber,#b45309)",
+                  border:"1px solid var(--amber,#b45309)",
+                }}
+              >NOT IN ROSTER</span>
+              <button
+                onClick={()=>addToRoster(u)}
+                disabled={addingRosterId===u.id}
+                title="Add to roster (sets email + display name; pick team/manager later in roster sync)"
+                style={{
+                  padding:"1px 8px",
+                  borderRadius:4,
+                  fontSize:10,
+                  fontWeight:700,
+                  background:"var(--green-bg,#d1fae5)",
+                  color:"var(--green,#047857)",
+                  border:"1px solid var(--green,#047857)",
+                  cursor:addingRosterId===u.id?"default":"pointer",
+                  opacity:addingRosterId===u.id?0.5:1,
+                  fontFamily:"var(--font)",
+                }}
+              >{addingRosterId===u.id?"…":"+ Add"}</button>
+            </span>
           )}
         </td>
         <td style={{color:"var(--tx2)",fontSize:13}}>{u.email}</td>

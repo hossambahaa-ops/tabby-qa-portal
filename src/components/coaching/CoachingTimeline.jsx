@@ -31,6 +31,13 @@ const nextMonthLabel = (label) => {
   const monStr = Object.keys(MONTH_NUM).find(k => MONTH_NUM[k] === m);
   return `${monStr}-${y}`;
 };
+const prevMonthLabel = (label) => {
+  const [mon, yr] = label.split("-");
+  let m = MONTH_NUM[mon] - 1, y = parseInt(yr, 10);
+  if (m < 1) { m = 12; y -= 1; }
+  const monStr = Object.keys(MONTH_NUM).find(k => MONTH_NUM[k] === m);
+  return `${monStr}-${y}`;
+};
 const parsePct = (v) => {
   if (v == null || v === "") return null;
   const n = parseFloat(String(v).replace("%", "").replace(",", "."));
@@ -59,9 +66,25 @@ export default function CoachingTimeline({ sessions = [], mtd = [] }) {
   if (!sessions || sessions.length === 0) return null;
 
   const sorted = [...sessions].sort((a, b) => (b.session_date || "").localeCompare(a.session_date || ""));
-  // Index MTD rows by month label for O(1) lookup.
+  // Index MTD rows by month label for O(1) lookup. When the same QA
+  // has both @tabby.ai and @tabby.sa rows for a single month (cross-
+  // domain split) we now keep the one with more data filled in —
+  // previously the second iteration silently overwrote the first and
+  // the effectiveness baseline was whichever sync wrote last.
+  const rowRichness = (r) => {
+    if (!r) return -1;
+    let n = 0;
+    if (r.csat_pct != null && r.csat_pct !== "") n += 2;
+    if (r.coaching_completion_pct != null && r.coaching_completion_pct !== "") n += 2;
+    if (r.synced_at) n += 1;
+    return n;
+  };
   const mtdByMonth = {};
-  for (const m of mtd) if (m?.month) mtdByMonth[m.month] = m;
+  for (const m of mtd) {
+    if (!m?.month) continue;
+    const existing = mtdByMonth[m.month];
+    if (!existing || rowRichness(m) > rowRichness(existing)) mtdByMonth[m.month] = m;
+  }
 
   const observed = sessions.filter(s => s.observed_at).length;
 
@@ -84,8 +107,17 @@ export default function CoachingTimeline({ sessions = [], mtd = [] }) {
           {sorted.map(s => {
             const tone = ratingTone(s.performance_rating);
             const sessMonth = monthLabelFromDate(s.session_date);
-            const before = mtdByMonth[sessMonth];
-            const after = mtdByMonth[nextMonthLabel(sessMonth)];
+            // Effectiveness Δ = session's month vs the month BEFORE the
+            // session. Previously this used mtdByMonth[sessMonth] as
+            // the "before" baseline, but sessMonth is still in flight
+            // when the session is logged mid-cycle, so the baseline
+            // was a partially-incremented snapshot — inflating Δ for
+            // early-month sessions and shrinking it for late ones.
+            // Now: before = previous full month, after = session's
+            // own (closed) month. Reads as "where did the metric
+            // sit before this coaching, vs after the cycle closed".
+            const before = mtdByMonth[prevMonthLabel(sessMonth)];
+            const after = mtdByMonth[sessMonth];
             const csatBefore = parsePct(before?.csat_pct);
             const csatAfter = parsePct(after?.csat_pct);
             const compBefore = parsePct(before?.coaching_completion_pct);

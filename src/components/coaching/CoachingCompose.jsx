@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import DOMPurify from "dompurify";
 import { sb, SUPABASE_URL, SUPABASE_ANON } from "../../lib/supabase.js";
-import { safeError, logActivity, nameFromEmail } from "../../lib/utils.js";
+import { safeError, logActivity, nameFromEmail, emailsMatchLoose } from "../../lib/utils.js";
 import { listPlans } from "../../api/plans.js";
 import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
@@ -296,8 +296,8 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
     const email = pendingPrefillRef.current;
     const requestedType = pendingPrefillTypeRef.current;
     const wantType = requestedType === "PIP Review" ? "pip" : "ap";
-    const plan = plans.find(p => p.qa_email?.toLowerCase() === email.toLowerCase() && p.type === wantType)
-      || plans.find(p => p.qa_email?.toLowerCase() === email.toLowerCase());
+    const plan = plans.find(p => emailsMatchLoose(p.qa_email, email) && p.type === wantType)
+      || plans.find(p => emailsMatchLoose(p.qa_email, email));
     if (!plan) {
       if (plans.length === 0) {
         listPlans({ token, filters: `qa_email=eq.${email}&status=eq.active&type=eq.${wantType}` }).then(directPlans => {
@@ -310,7 +310,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
   }, [toEmail, plans.length]);
 
   // Get previous sessions for selected member
-  const memberHistory = sessions.filter(s => s.qa_email?.toLowerCase() === toEmail.toLowerCase()).slice(0, 5);
+  const memberHistory = sessions.filter(s => emailsMatchLoose(s.qa_email, toEmail)).slice(0, 5);
   const ENUM_TO_LABEL = {"weekly_1on1":"WPR","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
 
   // CC auto-fill: whenever the recipient changes (typed or picked), rebuild
@@ -329,7 +329,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
   }, [toEmail, candidates, profile?.email, teamSvMap, leadSvMap, hydrated]);
 
   // AP/PIP Integration: detect active plans for selected member
-  const memberPlans = plans.filter(p => p.qa_email?.toLowerCase() === toEmail.toLowerCase());
+  const memberPlans = plans.filter(p => emailsMatchLoose(p.qa_email, toEmail));
   const memberActivePlan = memberPlans.find(p => meetingType === "PIP Review" ? p.type === "pip" : p.type === "ap") || memberPlans[0];
   const memberPlanWeeks = memberActivePlan ? planWeeks.filter(w => w.plan_id === memberActivePlan.id).sort((a, b) => a.week_number - b.week_number) : [];
   const nextUnfilledWeek = memberPlanWeeks.find(w => !w.actual_data);
@@ -529,7 +529,7 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
               return actual !== null && actual !== undefined && target !== undefined && actual >= target;
             });
 
-            const latestSession = s.find(sess => sess.qa_email?.toLowerCase() === toEmail.toLowerCase() && sess.session_date === sessionDate);
+            const latestSession = s.find(sess => emailsMatchLoose(sess.qa_email, toEmail) && sess.session_date === sessionDate);
 
             await sb.query("action_plan_weeks", {
               token, method: "PATCH",

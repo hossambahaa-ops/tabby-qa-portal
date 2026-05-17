@@ -36,6 +36,41 @@ export const emailsMatchLoose = (a, b) => {
   return al.split("@")[0] === bl.split("@")[0];
 };
 
+// Both Tabby domain variants of an email. Use when building a
+// PostgREST `in.(…)` filter from a team-membership list — without
+// expanding the variants, server-side filtering silently drops the
+// cross-domain rows entirely (they never reach the post-fetch
+// local-part keying we use elsewhere). For a non-Tabby email,
+// returns the single lowercased value.
+//
+//   emailVariants("rana.x@tabby.sa") → ["rana.x@tabby.sa", "rana.x@tabby.ai"]
+//   emailVariants("alice@gmail.com") → ["alice@gmail.com"]
+export const emailVariants = (e) => {
+  if (!e) return [];
+  const lower = String(e).toLowerCase();
+  const at = lower.indexOf("@");
+  if (at < 0) return [lower];
+  const local = lower.slice(0, at);
+  const domain = lower.slice(at + 1);
+  if (domain === "tabby.ai") return [lower, `${local}@tabby.sa`];
+  if (domain === "tabby.sa") return [lower, `${local}@tabby.ai`];
+  return [lower];
+};
+
+// Build a PostgREST-safe in.() list from a set of emails, expanding
+// each one to both Tabby domain variants. Use as
+//   filters: `qa_email=in.(${emailsInList(team.map(r=>r.email))})`
+export const emailsInList = (emails) => {
+  const seen = new Set();
+  const out = [];
+  for (const e of emails || []) {
+    for (const v of emailVariants(e)) {
+      if (!seen.has(v)) { seen.add(v); out.push(v); }
+    }
+  }
+  return out.join(",");
+};
+
 // csat_pct comes in two shapes depending on which sync wrote it:
 //   - new mtd-sync edge function:  "100.00%" / "75.00%"  (already a percent)
 //   - legacy Apps-Script writes:    "0.875"               (fraction, ×100 to get %)

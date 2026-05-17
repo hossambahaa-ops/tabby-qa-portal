@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { sb } from "../../lib/supabase.js";
 import { hasRole } from "../../lib/constants.js";
 import { useApp } from "../../lib/AppContext.jsx";
-import { nameFromEmail } from "../../lib/utils.js";
+import { nameFromEmail, emailVariants } from "../../lib/utils.js";
 import { loadTeamForViewer } from "../../lib/teamScope.js";
 
 // Tiny widget for QA Leads (and above) showing how many side-task hours
@@ -47,22 +47,27 @@ export default function PendingSideTasksCard() {
         // 2. Pull the latest productivity_history row per QA in the team
         //    for the last 7 days. We only care about the most recent
         //    non-zero pending value per QA — that's what's currently
-        //    awaiting approval.
+        //    awaiting approval. emailVariants() expands each roster
+        //    email into both @tabby.ai and @tabby.sa variants so a QA
+        //    whose productivity row is keyed under the OTHER domain
+        //    (cross-domain split) still gets fetched.
         const fromDate = new Date();
         fromDate.setDate(fromDate.getDate() - 7);
         const isoFrom = fromDate.toISOString().split("T")[0];
-        const inList = teamEmails.map(e => `"${e}"`).join(",");
+        const expanded = [...new Set(teamEmails.flatMap(e => emailVariants(e)))];
+        const inList = expanded.map(e => `"${e}"`).join(",");
         const rows = await sb.query("productivity_history", {
           token,
           select: "qa_email,date,pending_side_minutes,synced_at",
           filters: `date=gte.${isoFrom}&qa_email=in.(${inList})&pending_side_minutes=gt.0&order=date.desc`,
         }).catch(() => []);
 
-        // Take the most-recent date per QA that has pending > 0.
+        // Take the most-recent date per QA that has pending > 0. Key
+        // by local-part so the two cross-domain variants collapse.
         const latestPerQa = new Map();
         for (const r of (Array.isArray(rows) ? rows : [])) {
-          const key = (r.qa_email || "").toLowerCase();
-          if (!latestPerQa.has(key)) latestPerQa.set(key, r);
+          const key = (r.qa_email || "").toLowerCase().split("@")[0];
+          if (key && !latestPerQa.has(key)) latestPerQa.set(key, r);
         }
 
         const qas = [...latestPerQa.values()];

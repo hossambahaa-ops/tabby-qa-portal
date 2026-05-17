@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { sb } from "../lib/supabase.js";
 import { useApp } from "../lib/AppContext.jsx";
+import { emailsMatchLoose } from "../lib/utils.js";
 
 // Landing page for the "I've read this" link in coaching emails. The
 // QA receiving the email clicks → the link opens the portal at
@@ -35,7 +36,11 @@ export default function CoachingAckPage() {
           if (!cancelled) setState({ loading: false, error: "We couldn't find this coaching session — the link may be expired.", alreadyAcked: false, session: null });
           return;
         }
-        if ((sess.qa_email || "").toLowerCase() !== profile.email.toLowerCase()) {
+        // Loose-match: a QA whose session was logged under @tabby.ai
+        // but who's signed in via @tabby.sa (or vice versa) should
+        // still be recognized as the legitimate recipient. RLS still
+        // validates server-side via the insert_self policy.
+        if (!emailsMatchLoose(sess.qa_email, profile.email)) {
           if (!cancelled) setState({ loading: false, error: "This acknowledgement link belongs to a different teammate. You're signed in as " + profile.email + ".", alreadyAcked: false, session: sess });
           return;
         }
