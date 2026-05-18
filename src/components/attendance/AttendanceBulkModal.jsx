@@ -1,6 +1,6 @@
 import React from "react";
 import SearchableSelect from "../SearchableSelect.jsx";
-import { ATTENDANCE_TYPES } from "../../lib/attendance.js";
+import { ATTENDANCE_TYPES, pickerCodesForDate } from "../../lib/attendance.js";
 import { hasRole } from "../../lib/constants.js";
 import { nameFromEmail } from "../../lib/utils.js";
 import Modal from "../Modal.jsx";
@@ -54,8 +54,12 @@ export default function AttendanceBulkModal({
           </div>
           <div className="form-group">
             <label className="form-label">Status</label>
+            {/* Use the start of the range to decide which picker list to
+                show. If the lead is bulk-setting May (or earlier), they
+                still get the full granular list; June 1 onwards is the
+                simplified 6-code set. */}
             <select className="select form-input" value={bulkStatus} onChange={e => setBulkStatus(e.target.value)}>
-              {ATTENDANCE_TYPES.map(t => <option key={t.code} value={t.code}>{t.code} — {t.label}</option>)}
+              {pickerCodesForDate(bulkFrom).map(t => <option key={t.code} value={t.code}>{t.code} — {t.label}</option>)}
             </select>
           </div>
           <div className="form-group">

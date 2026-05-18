@@ -138,6 +138,7 @@ const DayCell = React.memo(function DayCell({
           anchorEl={tdRef.current}
           em={em}
           dayNum={dayNum}
+          dateIso={dateIso}
           st={st}
           isQA={isQA}
           canApprove={canApprove}

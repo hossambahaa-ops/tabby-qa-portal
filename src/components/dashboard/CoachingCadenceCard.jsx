@@ -35,7 +35,7 @@ import { loadTeamForViewer } from "../../lib/teamScope.js";
 // list at the bottom. For Supervisor+, an extra "by lead" breakdown
 // table sits above the list.
 
-const LEAVE_STATUSES = new Set(["AL", "Paid SL", "Sick", "Sick Leave", "X"]);
+const LEAVE_STATUSES = new Set(["AL", "Paid SL", "ML", "UL", "EL", "Leave", "Sick", "Sick Leave", "X"]);
 
 // Riyadh-local YYYY-MM-DD for a given Date.
 function riyadhDateStr(d) {

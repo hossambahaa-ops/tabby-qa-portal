@@ -154,6 +154,7 @@ export default function CalendarDayCell({
           anchorEl={ref.current}
           em={em}
           dayNum={dayNum}
+          dateIso={dateStr}
           st={st}
           isQA={isQA}
           canApprove={canApprove}

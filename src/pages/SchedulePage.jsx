@@ -703,8 +703,14 @@ function SchedulePage() {
         if (!email || !email.includes("@")) continue;
         const entries = [];
         for (let j = 0; j < dayNums.length; j++) {
-          const val = cols[j + 1]?.trim().toUpperCase();
-          if (val && ATTENDANCE_TYPES.some(t => t.code === val)) entries.push({ day: dayNums[j], status: val });
+          const raw = cols[j + 1]?.trim();
+          if (!raw) continue;
+          // Don't .toUpperCase() — many codes are mixed-case ("Paid SL",
+          // "Tabby Day", "Leave"). Match case-insensitively against the
+          // canonical code so the CSV accepts whatever the user typed
+          // while we store the canonical spelling.
+          const match = ATTENDANCE_TYPES.find(t => t.code.toLowerCase() === raw.toLowerCase());
+          if (match) entries.push({ day: dayNums[j], status: match.code });
         }
         if (entries.length > 0) preview.push({ email, entries });
       }
@@ -782,7 +788,11 @@ function SchedulePage() {
       h: count(approved, "H"),
       ph: count(approved, "PH"),
       cdo: count(approved, "CDO"),
-      al: count(approved, "AL"),
+      // "al" used to be just count of legacy AL rows. From 2026-06-01
+      // QAs pick the umbrella "Leave" code instead, so we roll up
+      // every leave-family code under the same field. Existing UI
+      // labels still read "AL" but the value reflects all leave types.
+      al: count(approved, "AL", "Paid SL", "ML", "UL", "EL", "Leave"),
       tabbyDay: count(approved, "Tabby Day"),
       otApproved: approved.filter(a => a.status === "OT").reduce((s, a) => s + (parseFloat(a.ot_hours) || 0), 0),
       otPending: pending.filter(a => a.status === "OT").reduce((s, a) => s + (parseFloat(a.ot_hours) || 0), 0),

@@ -18,26 +18,62 @@ export const ATTENDANCE_TYPES = [
   { code: "X",         label: "Not Employed",             color: "#6B7280", bg: "#6B728010" },
   { code: "CDO",       label: "Cancel Day Off (worked)",  color: "#14B8A6", bg: "#14B8A620" },
   { code: "Tabby Day", label: "Tabby Day (annual perk)",  color: "#A855F7", bg: "#A855F720" },
+  // Umbrella "Leave" code introduced for the simplified picker from
+  // 2026-06-01. Replaces AL / Paid SL / ML / UL / EL in the QA-facing
+  // dropdown. Legacy granular codes stay valid for historical rows
+  // and admin-only flows (CSV upload, MtdAdjust, etc.).
+  { code: "Leave",   label: "Leave",                color: "#EF4444", bg: "#EF444420" },
 ];
 
 export const ATT_MAP = ATTENDANCE_TYPES.reduce((acc, t) => { acc[t.code] = t; return acc; }, {});
 
 // Codes that need lead approval when set by a QA themselves. Leads
 // setting these for their team approve them implicitly.
-export const APPROVAL_CODES = new Set(["OT", "PH", "CDO", "Tabby Day"]);
+export const APPROVAL_CODES = new Set(["OT", "PH", "CDO", "Tabby Day", "Leave"]);
 
 // Codes shown in the cell picker. OT is intentionally excluded — it's a
 // separate request flow behind the "Request OT" header button so it
 // can't be set by casually clicking around.
+//
+// `PICKER_TYPES` is the LEGACY full list — kept as the default export
+// so historical/admin call sites keep working. The simplified picker
+// (used in the cell + bulk + check-in flows from 2026-06-01) goes
+// through `pickerCodesForDate()` instead.
 export const PICKER_TYPES = ATTENDANCE_TYPES.filter(t => t.code !== "OT");
+
+// Simplification rollout — agreed cutover date. Picker switches to the
+// 6-code set on this date (and forward). Editing a row whose date is
+// before this still shows the legacy full list so leads can clean up
+// May with full granularity.
+export const ATT_SIMPLIFIED_START = "2026-06-01";
+const SIMPLIFIED_CODES = new Set(["P", "H", "CDO", "PH", "OFF", "Leave"]);
+const SIMPLIFIED_TYPES = ATTENDANCE_TYPES.filter(t => SIMPLIFIED_CODES.has(t.code));
+
+// Pick which dropdown list to use given the target date. Accepts:
+//   - "YYYY-MM-DD" string  (preferred — what every cell + bulk modal has)
+//   - Date object
+//   - anything falsy → returns simplified (forward-looking default)
+// On/after ATT_SIMPLIFIED_START → simplified 6-code list.
+// Before → legacy full list (excludes OT, same as before).
+export function pickerCodesForDate(date) {
+  let iso;
+  if (!date) iso = ATT_SIMPLIFIED_START;
+  else if (typeof date === "string") iso = date.slice(0, 10);
+  else if (date instanceof Date) iso = date.toISOString().slice(0, 10);
+  else iso = String(date).slice(0, 10);
+  return iso >= ATT_SIMPLIFIED_START ? SIMPLIFIED_TYPES : PICKER_TYPES;
+}
 
 // Approved-leave codes that should be excluded from auto-NSNC,
 // mismatch flags, "not yet checked in" lists, and adherence math.
 // Centralized here because the literal "Paid SL" (with the space)
 // diverged from many call sites that wrote ["AL","SL","PH"] — silently
-// letting sick-leave rows fall through every filter. Add new approved-
-// leave codes here and they propagate everywhere.
-export const LEAVE_CODES = new Set(["AL", "Paid SL", "PH", "ML", "UL"]);
+// letting sick-leave rows fall through every filter.
+//
+// The new umbrella "Leave" code is included so it gets the same
+// "approved, no check-in needed" treatment as the legacy granular
+// codes it replaces.
+export const LEAVE_CODES = new Set(["AL", "Paid SL", "PH", "ML", "UL", "Leave"]);
 
 // Convenience helper — leave + NSNC together cover every "resolved
 // without a check-in" state. Useful for callers that want one set

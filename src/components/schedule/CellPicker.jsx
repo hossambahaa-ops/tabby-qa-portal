@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import ReactDOM from "react-dom";
-import { APPROVAL_CODES, PICKER_TYPES } from "../../lib/attendance.js";
+import { APPROVAL_CODES, PICKER_TYPES, pickerCodesForDate } from "../../lib/attendance.js";
 
 // CellPicker — rendered into a portal at document.body so it can't be
 // clipped by the table's overflow:auto container and can't visually
@@ -12,11 +12,16 @@ import { APPROVAL_CODES, PICKER_TYPES } from "../../lib/attendance.js";
 // on data + layout. Public API unchanged — props match the original
 // definition byte-for-byte.
 export default function CellPicker({
-  anchorEl, em, dayNum, st, isQA, canApprove,
+  anchorEl, em, dayNum, dateIso, st, isQA, canApprove,
   pickerStage, pendingReason,
   onClose, onSetAtt, onApproveAtt, onClearAtt,
   setPendingReason, setPickerStage,
 }) {
+  // Pick the right code list for this date. Cells on/after the
+  // 2026-06-01 cutover show the simplified 6-code set; earlier cells
+  // keep the full legacy list so leads can still clean up May with
+  // granular AL / Paid SL / EL / UL / Tabby Day / L picks.
+  const codesForThisCell = pickerCodesForDate(dateIso);
   const PICKER_W = 220;     // a touch wider than before; codes never overlap text now
   const PICKER_H_EST = 110; // rough height for clamping decisions
 
@@ -132,7 +137,7 @@ export default function CellPicker({
         </div>
       ) : (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 3 }}>
-          {PICKER_TYPES.map((t) => {
+          {codesForThisCell.map((t) => {
             const SK = { P: "p", H: "h", L: "l", AL: "a", "Paid SL": "s", NSNC: "n", EL: "e", UL: "u", ML: "m" }[t.code];
             const needsReason = isQA && APPROVAL_CODES.has(t.code);
             return (

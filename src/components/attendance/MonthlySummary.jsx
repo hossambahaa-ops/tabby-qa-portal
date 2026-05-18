@@ -51,6 +51,12 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
       const hCount = count("H");
       const phCount = count("PH");
       const cdoCount = count("CDO");
+      // Aggregate leave count — rolls up the legacy granular codes
+      // (AL / Paid SL / ML / UL / EL) AND the new umbrella "Leave"
+      // code introduced 2026-06-01. From June onwards leads only
+      // pick "Leave"; this stays accurate across the cutover so
+      // payroll exports don't undercount.
+      const leaveAggregate = count("Leave", "AL", "Paid SL", "ML", "UL", "EL");
       return {
         email: em,
         name: nameFromEmail(em),
@@ -67,6 +73,7 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
         tabbyDay: count("Tabby Day"),
         elDays: count("EL"),
         lateDays: count("L"),
+        leaveDays: leaveAggregate,
         healthPct: health.healthPct,
         healthScheduled: health.scheduledDays,
         healthAbsent: health.absentDays,
@@ -88,16 +95,21 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
     acc.cdoDays   += r.cdoDays;
     acc.alDays    += r.alDays;
     acc.slDays    += r.slDays;
+    acc.leaveDays += r.leaveDays;
     acc.nsnc      += r.nsnc;
     return acc;
-  }, { wdPayable: 0, transDays: 0, otHours: 0, phDays: 0, cdoDays: 0, alDays: 0, slDays: 0, nsnc: 0 });
+  }, { wdPayable: 0, transDays: 0, otHours: 0, phDays: 0, cdoDays: 0, alDays: 0, slDays: 0, leaveDays: 0, nsnc: 0 });
 
   const downloadCsv = () => {
-    const headers = ["Name", "Email", "WD Payable", "Trans Days", "OT Hours", "PH Days", "CDO Days", "WFH Days", "AL Days", "SL Days", "UL Days", "Tabby Day", "EL Days", "Late Days", "NSNC", "Health %", "Scheduled Days", "Healthy Days"];
+    // Leave Days column added 2026-05-18: rolls up legacy granular
+    // codes (AL + Paid SL + ML + UL + EL) AND the new umbrella "Leave"
+    // code so the payroll CSV stays accurate across the June cutover.
+    const headers = ["Name", "Email", "WD Payable", "Trans Days", "OT Hours", "PH Days", "CDO Days", "WFH Days", "Leave (all)", "AL Days", "SL Days", "UL Days", "Tabby Day", "EL Days", "Late Days", "NSNC", "Health %", "Scheduled Days", "Healthy Days"];
     const csvRows = summaryRows.map(r => [
       `"${r.name}"`, r.email,
       r.wdPayable, r.transDays, r.otHours.toFixed(2),
       r.phDays, r.cdoDays, r.wfhDays,
+      r.leaveDays,
       r.alDays, r.slDays, r.ulDays, r.tabbyDay,
       r.elDays, r.lateDays, r.nsnc,
       r.healthPct === null ? "" : r.healthPct.toFixed(1),
@@ -139,8 +151,7 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
             ["OT Hours",  `${tot.otHours.toFixed(1)}h`, "#0D9488"],
             ["PH Days",   tot.phDays, "#8B5CF6"],
             ["CDO Days",  tot.cdoDays, "#14B8A6"],
-            ["AL Days",   tot.alDays, "var(--red)"],
-            ["SL Days",   tot.slDays, "#B91C1C"],
+            ["Leave",     tot.leaveDays, "var(--red)"],
             ["NSNC",      tot.nsnc, "var(--red)"],
           ].map(([label, val, color]) => (
             <div key={label} style={{ textAlign: "center", minWidth: 52 }}>
@@ -174,7 +185,8 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
               <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#8B5CF6", fontSize: 11 }}>PH</th>
               <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#14B8A6", fontSize: 11 }}>CDO</th>
               <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#3B82F6", fontSize: 11 }}>WFH</th>
-              <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "var(--red)", fontSize: 11 }}>AL</th>
+              <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 700, color: "var(--red)", fontSize: 11 }} title="All leave types — legacy AL + Paid SL + ML + UL + EL + the new umbrella Leave code (2026-06-01+)">Leave</th>
+              <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "var(--red)", fontSize: 11 }} title="Legacy granular Annual Leave count (still tracked for pre-June rows)">AL</th>
               <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#B91C1C", fontSize: 11 }}>SL</th>
               <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#6B7280", fontSize: 11 }}>UL</th>
               <th style={{ padding: "9px 12px", textAlign: "center", fontWeight: 600, color: "#A855F7", fontSize: 11 }} title="Tabby Day">TD</th>
@@ -199,6 +211,7 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
                 <td style={{ padding: "11px 12px", textAlign: "center", color: r.phDays > 0 ? "#8B5CF6" : "var(--tx3)" }}>{dash(r.phDays)}</td>
                 <td style={{ padding: "11px 12px", textAlign: "center", color: r.cdoDays > 0 ? "#14B8A6" : "var(--tx3)" }}>{dash(r.cdoDays)}</td>
                 <td style={{ padding: "11px 12px", textAlign: "center", color: r.wfhDays > 0 ? "#3B82F6" : "var(--tx3)" }}>{dash(r.wfhDays)}</td>
+                <td style={{ padding: "11px 12px", textAlign: "center", color: r.leaveDays > 0 ? "var(--red)" : "var(--tx3)", fontWeight: r.leaveDays > 0 ? 800 : 400 }} title={r.leaveDays > 0 ? `Includes AL (${r.alDays}) · SL (${r.slDays}) · UL (${r.ulDays}) · EL (${r.elDays}) · Leave (umbrella)` : "No leave taken this month"}>{dash(r.leaveDays)}</td>
                 <td style={{ padding: "11px 12px", textAlign: "center", color: r.alDays > 0 ? "var(--red)" : "var(--tx3)", fontWeight: r.alDays > 0 ? 700 : 400 }}>{dash(r.alDays)}</td>
                 <td style={{ padding: "11px 12px", textAlign: "center", color: r.slDays > 0 ? "#B91C1C" : "var(--tx3)" }}>{dash(r.slDays)}</td>
                 <td style={{ padding: "11px 12px", textAlign: "center", color: r.ulDays > 0 ? "#6B7280" : "var(--tx3)" }}>{dash(r.ulDays)}</td>
@@ -219,6 +232,7 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
               <td style={{ padding: "10px 12px", textAlign: "center", color: "#8B5CF6" }}>{dash(tot.phDays)}</td>
               <td style={{ padding: "10px 12px", textAlign: "center", color: "#14B8A6" }}>{dash(tot.cdoDays)}</td>
               <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--tx3)" }}>—</td>
+              <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--red)", fontWeight: 800 }}>{dash(tot.leaveDays)}</td>
               <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--red)" }}>{dash(tot.alDays)}</td>
               <td style={{ padding: "10px 12px", textAlign: "center", color: "#B91C1C" }}>{dash(tot.slDays)}</td>
               <td style={{ padding: "10px 12px", textAlign: "center", color: "var(--tx3)" }}>—</td>
