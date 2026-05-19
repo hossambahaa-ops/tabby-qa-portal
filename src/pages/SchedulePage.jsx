@@ -960,12 +960,13 @@ function SchedulePage() {
           </span>
         </div>}
 
-        {/* ── PREVIEW (super_admin only): "This week" strip + Today's huddle ──
-            Gated on the REAL profile's role, not the effective one, so the
-            preview survives a "View as" impersonation — Hossam can switch
-            into any QA Lead and still see how their team's huddle renders.
-            Remove the gate entirely once approved. */}
-        {(realProfile?.role === "super_admin" || isSuperAdmin) && (() => {
+        {/* ── Today's huddle + compact monthly grid ──
+            Visible to qa_lead and above (anyone with team context).
+            QAs and Senior QAs don't see these — their personal
+            MyMonthCalendar covers their own data without team-level
+            stats. Previously gated to super_admin while in preview;
+            opened to all team-facing roles on 2026-05-19. */}
+        {hasRole(profile?.role, "qa_lead") && (() => {
           const fmtTime = (ts) => ts ? new Date(ts).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
           const todayIso = riyadhTodayStr();
           // ── Today's huddle data (only meaningful if there's a team) ──
@@ -997,7 +998,6 @@ function SchedulePage() {
                 <div className="card" style={{ marginBottom: 14, padding: "18px 22px" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                     <div style={{ fontSize: 14, fontWeight: 700 }}>Today's huddle — {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</div>
-                    <span style={{ fontSize: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(201,160,255,.18)", color: "#C9A0FF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px" }}>preview · super admin only</span>
                   </div>
                   <div style={{ fontSize: 11.5, color: "var(--tx3)", marginBottom: 14 }}>Snapshot of the visible team. NSNC + not-yet first.</div>
                   {/* Stats banner */}
@@ -1220,9 +1220,7 @@ function SchedulePage() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, flexWrap: "wrap", gap: 8 }}>
                       <div style={{ fontSize: 14, fontWeight: 700 }}>
                         Team attendance · full month
-                        <span style={{ fontSize: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(106,44,121,.18)", color: "#C9A0FF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px", marginLeft: 10 }}>qa_lead+ compact</span>
                       </div>
-                      <span style={{ fontSize: 10, padding: "3px 9px", borderRadius: 999, background: "rgba(201,160,255,.18)", color: "#C9A0FF", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".6px" }}>preview · super admin only</span>
                     </div>
                     <div style={{ fontSize: 11.5, color: "var(--tx3)", marginBottom: 12 }}>{visibleQAs.length} specialists · plan badge top-right · status middle · check-in time bottom · today's column outlined</div>
                     {/* Stat strip */}
