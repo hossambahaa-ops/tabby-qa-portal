@@ -22,9 +22,12 @@ function GlobalSearch({ onNavigate, onClose }) {
         // PostgREST: use * (not %) as the ilike wildcard — bare % in a
         // URL is mis-parsed as a percent-encoded byte by edges/CDNs
         // and the request is dropped before CORS headers are added.
-        // Also drop any commas in the user's query because PostgREST
-        // uses comma as the in/or separator inside filter values.
-        const q = query.toLowerCase().replace(/,/g, " ");
+        // Allowlist the user's input to chars that can't break out of
+        // the filter value: drop , ( ) & = : * % # / \ etc. since those
+        // are PostgREST or URL-query separators and would let crafted
+        // input inject extra filters or query params.
+        const q = query.toLowerCase().replace(/[^a-z0-9 .@_\-]/g, " ").trim();
+        if (!q) { setResults([]); return; }
         const [profiles, violations, damFlags, escalations] = await Promise.all([
           listProfiles({ token, filters: `or=(email.ilike.*${q}*,display_name.ilike.*${q}*)&limit=5`, cache: false }),
           listViolations({ token, select: "id,qa_email,violation_type,status", filters: `qa_email.ilike.*${q}*&limit=5` }),

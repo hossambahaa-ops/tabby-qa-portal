@@ -60,14 +60,14 @@ export default function CoachingAckPage() {
         //    the same email link (user clicks twice) used to both
         //    pass the "not yet acked" check above and then both POST,
         //    creating duplicate ack rows when the table doesn't have
-        //    a uniqueness constraint on (session_id, qa_email).
+        //    a uniqueness constraint on (session_id, member_email).
         //    Prefer: resolution=ignore-duplicates makes PostgREST
         //    no-op the second insert; RLS still enforces ownership.
         const { error } = await sb.query("coaching_session_acks", {
           token,
           method: "POST",
           headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
-          body: { session_id: id, qa_email: profile.email },
+          body: { session_id: id, member_email: profile.email },
         }).then(d => ({ error: null, data: d })).catch(e => ({ error: e?.message || String(e), data: null }));
 
         if (error) {
