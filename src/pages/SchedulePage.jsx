@@ -1438,19 +1438,20 @@ function SchedulePage() {
             setPendingReason={setPendingReason}
             setPickerStage={setPickerStage}
             // Enhanced layout (collapsed past + future weeks, check-in
-            // time inside each cell) is gated to super-admin previewing
-            // via View-as. Drop the gate once approved for everyone.
-            enhanced={realProfile?.role === "super_admin"}
+            // time inside each cell) — approved for all QAs 2026-05-21,
+            // so always-on now.
+            enhanced={true}
           />
         )}
 
         {/* Calendar grid (leads / supervisors / admins) */}
-        {/* Wide team table — the original lead grid. Hidden when the new
-            compact full-month grid is rendering (super-admin viewing-as
-            qa_lead+) so leads don't see two side-by-side views. Drop
-            the second clause once the compact grid is approved for
-            everyone qa_lead+. */}
-        {!(isQA && !isLead) && !(realProfile?.role === "super_admin" && hasRole(profile?.role, "qa_lead")) && (<>
+        {/* Wide team table — the original lead grid. Replaced by the
+            new compact full-month grid above for every qa_lead+ as of
+            2026-05-21, so we only render this for non-QA roles that
+            don't have the new grid yet (currently none). Kept here as
+            a fallback while the compact grid stabilises; safe to delete
+            after a release cycle. */}
+        {!(isQA && !isLead) && !hasRole(profile?.role, "qa_lead") && (<>
         <div className="card" style={{overflow:"auto"}}>
           <table style={{fontSize:11,whiteSpace:"nowrap",minWidth:800}}>
             <thead>
