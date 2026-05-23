@@ -48,6 +48,9 @@ export const productColor = (product) => ({
   Universal: "var(--green)",
 }[product] || "var(--tx3)");
 
+// Single-month read: hits the persisted qa_expertise table (cheap, indexed).
+// For 2+ months, use fetchExpertiseForMonths — that re-pools raw CSAT
+// instead of averaging the per-month scores (which would be lossy).
 export const fetchExpertise = async ({ token, month, qaEmail }) => {
   const filters = [];
   if (month) filters.push(`month=eq.${encodeURIComponent(month)}`);
@@ -58,6 +61,23 @@ export const fetchExpertise = async ({ token, month, qaEmail }) => {
     filters: filters.join("&"),
     token,
   }).catch(() => []);
+};
+
+// Multi-month rollup. Calls compute_qa_expertise_for_months(text[], int)
+// which pools raw csat_by_topic across the listed months BEFORE running
+// the same star/tier/score math. Returns the same shape as fetchExpertise
+// (minus calculated_at — the rollup has no persisted timestamp).
+export const fetchExpertiseForMonths = async ({ token, months, override }) => {
+  const list = Array.isArray(months) ? months.filter(Boolean) : [];
+  if (list.length === 0) return [];
+  // Tag every row with the months window so the consumer can render a
+  // composite label (e.g. "Mar–May 2026") without re-deriving it.
+  const monthsLabel = list.slice().sort().join(",");
+  const rows = await sb.rpc("compute_qa_expertise_for_months", {
+    months: list,
+    min_surveys_override: override ?? null,
+  }, token).catch(() => []);
+  return (rows || []).map(r => ({ ...r, month: monthsLabel }));
 };
 
 // Returns the list of months that have any expertise data, newest first.
@@ -114,6 +134,20 @@ export const fetchCombinedExpertise = async ({ token, month, qaEmail }) => {
   }).catch(() => []);
 };
 
+// Multi-month combined-pool rollup. Same shape as fetchCombinedExpertise
+// (incl. combined_rank / combined_pool_size, re-ranked across the pooled
+// window).
+export const fetchCombinedExpertiseForMonths = async ({ token, months, override }) => {
+  const list = Array.isArray(months) ? months.filter(Boolean) : [];
+  if (list.length === 0) return [];
+  const monthsLabel = list.slice().sort().join(",");
+  const rows = await sb.rpc("compute_combined_expertise_for_months", {
+    months: list,
+    min_surveys_override: override ?? null,
+  }, token).catch(() => []);
+  return (rows || []).map(r => ({ ...r, month: monthsLabel }));
+};
+
 export const fetchCombinedExpertiseMonths = async ({ token }) => {
   const rows = await sb.query("combined_expertise", { select: "month", filters: "order=month.desc", token }).catch(() => []);
   return [...new Set((rows || []).map(r => r.month).filter(Boolean))];
@@ -123,9 +157,22 @@ export const fetchCombinedExpertiseMonths = async ({ token }) => {
 // header to show "N QAs + M Agents = N+M scorers". Threshold defaults
 // to 5 but can be overridden so the numbers track whatever the admin
 // has set on the Combined view.
-export const fetchCombinedPopulationCounts = async ({ token, month, threshold = 5 }) => {
-  if (!month) return { qaCount: 0, agentCount: 0 };
-  const f = `month=eq.${encodeURIComponent(month)}&surveys_count=gte.${threshold}`;
+// Accepts a single month string OR an array of months. For multiple months,
+// the threshold is applied per-row (not per-pool) — same behaviour as the
+// single-month case, just unioned across months and de-duplicated by email.
+// (The threshold check in the rollup view itself is done server-side by the
+// RPC; here we only need who has *any* qualifying row in the window.)
+export const fetchCombinedPopulationCounts = async ({ token, month, months, threshold = 5 }) => {
+  const list = Array.isArray(months) && months.length > 0
+    ? months.filter(Boolean)
+    : (month ? [month] : []);
+  if (list.length === 0) return { qaCount: 0, agentCount: 0 };
+  const monthFilter = list.length === 1
+    ? `month=eq.${encodeURIComponent(list[0])}`
+    // PostgREST in.() syntax — wrap each value in quotes to be safe
+    // for "May-2026" style hyphenated values.
+    : `month=in.(${list.map(m => `"${encodeURIComponent(m)}"`).join(",")})`;
+  const f = `${monthFilter}&surveys_count=gte.${threshold}`;
   const sel = "qa_email";
   const [qa, ag] = await Promise.all([
     sb.query("csat_by_topic", { select: sel, filters: f, token }).catch(() => []),

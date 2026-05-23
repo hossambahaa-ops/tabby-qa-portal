@@ -4,7 +4,7 @@ import { nameFromEmail } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { useApp } from "../lib/AppContext.jsx";
-import { fetchExpertise, fetchExpertiseMonths, fetchExpertiseConfig, saveExpertiseThreshold, recomputeExpertise, fetchCombinedExpertise, fetchCombinedExpertiseMonths, fetchCombinedPopulationCounts, recomputeCombinedExpertise, fetchCombinedThreshold, saveCombinedThreshold, renderStars, starColor, starLabel, productOf, productColor } from "../lib/expertise.js";
+import { fetchExpertise, fetchExpertiseForMonths, fetchExpertiseMonths, fetchExpertiseConfig, saveExpertiseThreshold, recomputeExpertise, fetchCombinedExpertise, fetchCombinedExpertiseForMonths, fetchCombinedExpertiseMonths, fetchCombinedPopulationCounts, recomputeCombinedExpertise, fetchCombinedThreshold, saveCombinedThreshold, renderStars, starColor, starLabel, productOf, productColor } from "../lib/expertise.js";
 import SkeletonPage from "../components/Skeleton.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -87,7 +87,11 @@ export default function ExpertisePage() {
   const [profiles, setProfiles] = useState([]);
   const [months, setMonths] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selMonth, setSelMonth] = useState("");
+  // Array of "MMM-YYYY" strings. length 1 = single-month, hits persisted
+  // qa_expertise / combined_expertise tables. length >= 2 = multi-month,
+  // calls compute_(qa|combined)_expertise_for_months RPC which re-pools
+  // raw CSAT before recomputing stars/score/tiers.
+  const [selMonths, setSelMonths] = useState([]);
   const [selDomain, setSelDomain] = useState("");
   const [selTeam, setSelTeam] = useState([]);
   const [selStar, setSelStar] = useState("");
@@ -138,8 +142,13 @@ export default function ExpertisePage() {
         setActiveCombinedThreshold(ct);
         setPendingCombinedThreshold(ct);
         setCombinedThresholdMeta({ updated_at: ccfg?.updated_at, updated_by: ccfg?.updated_by });
-        const initial = (gf?.month && sorted.includes(gf.month)) ? gf.month : sorted[0] || "";
-        setSelMonth(initial);
+        // Default: most recent 3 months when available — that's the
+        // intended "true" expertise window. Falls back to whatever exists.
+        // Single month from the global filter still wins if set explicitly.
+        const initial = (gf?.month && sorted.includes(gf.month))
+          ? [gf.month]
+          : sorted.slice(0, Math.min(3, sorted.length));
+        setSelMonths(initial);
       } catch (e) { console.error("Expertise initial:", e); }
       if (!cancelled) setLoading(false);
     })();
@@ -157,8 +166,10 @@ export default function ExpertisePage() {
       const res = await saveExpertiseThreshold({ token, minSurveys: v, actorEmail: profile?.email });
       setActiveThreshold(v);
       setThresholdMeta({ updated_at: new Date().toISOString(), updated_by: profile?.email });
-      // Refetch the current month's rows so the UI reflects the new scoring.
-      const data = await fetchExpertise({ token, month: selMonth });
+      // Refetch the current window's rows so the UI reflects the new scoring.
+      const data = selMonths.length <= 1
+        ? await fetchExpertise({ token, month: selMonths[0] })
+        : await fetchExpertiseForMonths({ token, months: selMonths });
       setRows(Array.isArray(data) ? data : []);
       const upserted = res?.rows_upserted ?? "?";
       globalToast?.("success", `Threshold set to ${v} surveys · ${upserted} rows recomputed`);
@@ -175,7 +186,9 @@ export default function ExpertisePage() {
     setRecomputing(true);
     try {
       const res = await recomputeExpertise({ token, month: null });
-      const data = await fetchExpertise({ token, month: selMonth });
+      const data = selMonths.length <= 1
+        ? await fetchExpertise({ token, month: selMonths[0] })
+        : await fetchExpertiseForMonths({ token, months: selMonths });
       setRows(Array.isArray(data) ? data : []);
       globalToast?.("success", `Recomputed · ${res?.rows_upserted ?? "?"} rows refreshed`);
     } catch (e) {
@@ -185,44 +198,56 @@ export default function ExpertisePage() {
     setRecomputing(false);
   };
 
-  // Reload rows when month changes
+  // Reload rows whenever the month window changes. Single month hits the
+  // persisted table (cheap); 2+ months call the rollup RPC so the math
+  // re-pools raw CSAT instead of averaging the per-month scores.
   useEffect(() => {
-    if (!token || !selMonth) return;
+    if (!token || selMonths.length === 0) return;
     let cancelled = false;
     (async () => {
-      const data = await fetchExpertise({ token, month: selMonth });
+      const data = selMonths.length === 1
+        ? await fetchExpertise({ token, month: selMonths[0] })
+        : await fetchExpertiseForMonths({ token, months: selMonths });
       if (!cancelled) setRows(Array.isArray(data) ? data : []);
     })();
     return () => { cancelled = true; };
-  }, [token, selMonth]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, selMonths.join(",")]);
 
   // Reload combined-view rows + population counts whenever month changes
   // OR the user switches to the Combined tab. Admin-only — non-admins
   // get empty arrays from the SELECT due to RLS, so the view degrades
   // gracefully even if accessed via URL.
   useEffect(() => {
-    if (!token || !selMonth || !isAdmin) return;
+    if (!token || selMonths.length === 0 || !isAdmin) return;
     let cancelled = false;
     (async () => {
+      const dataP = selMonths.length === 1
+        ? fetchCombinedExpertise({ token, month: selMonths[0] })
+        : fetchCombinedExpertiseForMonths({ token, months: selMonths });
       const [data, pop] = await Promise.all([
-        fetchCombinedExpertise({ token, month: selMonth }),
-        fetchCombinedPopulationCounts({ token, month: selMonth, threshold: activeCombinedThreshold }),
+        dataP,
+        fetchCombinedPopulationCounts({ token, months: selMonths, threshold: activeCombinedThreshold }),
       ]);
       if (cancelled) return;
       setCombinedRows(Array.isArray(data) ? data : []);
       setCombinedPopulation(pop || { qaCount: 0, agentCount: 0 });
     })();
     return () => { cancelled = true; };
-  }, [token, selMonth, isAdmin, view, activeCombinedThreshold]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, selMonths.join(","), isAdmin, view, activeCombinedThreshold]);
 
   // Recompute combined view (admin-only). Mirrors handleRecompute.
   const handleRecomputeCombined = async () => {
     setRecomputingCombined(true);
     try {
       const res = await recomputeCombinedExpertise({ token, month: null });
+      const dataP = selMonths.length === 1
+        ? fetchCombinedExpertise({ token, month: selMonths[0] })
+        : fetchCombinedExpertiseForMonths({ token, months: selMonths });
       const [data, pop] = await Promise.all([
-        fetchCombinedExpertise({ token, month: selMonth }),
-        fetchCombinedPopulationCounts({ token, month: selMonth, threshold: activeCombinedThreshold }),
+        dataP,
+        fetchCombinedPopulationCounts({ token, months: selMonths, threshold: activeCombinedThreshold }),
       ]);
       setCombinedRows(Array.isArray(data) ? data : []);
       setCombinedPopulation(pop || { qaCount: 0, agentCount: 0 });
@@ -244,9 +269,12 @@ export default function ExpertisePage() {
       const res = await saveCombinedThreshold({ token, minSurveys: v, actorEmail: profile?.email });
       setActiveCombinedThreshold(v);
       setCombinedThresholdMeta({ updated_at: new Date().toISOString(), updated_by: profile?.email });
+      const dataP = selMonths.length === 1
+        ? fetchCombinedExpertise({ token, month: selMonths[0] })
+        : fetchCombinedExpertiseForMonths({ token, months: selMonths, override: v });
       const [data, pop] = await Promise.all([
-        fetchCombinedExpertise({ token, month: selMonth }),
-        fetchCombinedPopulationCounts({ token, month: selMonth, threshold: v }),
+        dataP,
+        fetchCombinedPopulationCounts({ token, months: selMonths, threshold: v }),
       ]);
       setCombinedRows(Array.isArray(data) ? data : []);
       setCombinedPopulation(pop || { qaCount: 0, agentCount: 0 });
@@ -398,8 +426,24 @@ export default function ExpertisePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visibleRows, sort]);
 
+  // Friendly label for the selected window.
+  // 0 months → "(none)" (the empty-state branch below catches this anyway)
+  // 1 month → "May-2026"
+  // 2+ months → "Mar, Apr, May 2026" (oldest → newest) with the year only
+  //             once if all share the same year, else fully spelled out.
+  const sortedSel = useMemo(() => sortMonthsDesc(selMonths).slice().reverse(), [selMonths]);
+  const windowLabel = useMemo(() => {
+    if (sortedSel.length === 0) return "(no months selected)";
+    if (sortedSel.length === 1) return sortedSel[0];
+    const years = [...new Set(sortedSel.map(m => m.split("-")[1]))];
+    if (years.length === 1) {
+      return sortedSel.map(m => m.split("-")[0]).join(", ") + " " + years[0];
+    }
+    return sortedSel.join(" → ");
+  }, [sortedSel]);
+
   if (loading) return <div className="page"><SkeletonPage /></div>;
-  if (!selMonth || months.length === 0) {
+  if (selMonths.length === 0 || months.length === 0) {
     return (
       <div className="page">
         <div className="page-header">
@@ -422,9 +466,9 @@ export default function ExpertisePage() {
         <div>
           <div className="page-title">
             Expertise
-            <span title={`Pilot version — based on ${selMonth} data only. Expertise calls will sharpen as 3+ months accumulate.`} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: "var(--amber-bg)", color: "var(--amber)", marginLeft: 8, verticalAlign: "middle", cursor: "help" }}>PILOT</span>
+            <span title={`Pilot version — pick 3+ months for the most reliable expertise calls. Single-month rolls up the persisted snapshot; multi-month re-pools the underlying CSAT before scoring.`} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: "var(--amber-bg)", color: "var(--amber)", marginLeft: 8, verticalAlign: "middle", cursor: "help" }}>PILOT</span>
           </div>
-          <div className="page-subtitle">CSAT-driven topic mastery — {visibleRows.length} specialist{visibleRows.length === 1 ? "" : "s"} · {selMonth} · ≥{activeThreshold} survey{activeThreshold === 1 ? "" : "s"} per topic</div>
+          <div className="page-subtitle">CSAT-driven topic mastery — {visibleRows.length} specialist{visibleRows.length === 1 ? "" : "s"} · {windowLabel}{selMonths.length > 1 ? ` (${selMonths.length}-month window)` : ""} · ≥{activeThreshold} survey{activeThreshold === 1 ? "" : "s"} per topic</div>
         </div>
       </div>
 
@@ -465,7 +509,7 @@ export default function ExpertisePage() {
           <span style={{ fontSize: 13, fontWeight: 600 }}>
             <strong>{combinedPopulation.qaCount}</strong> QAs + <strong>{combinedPopulation.agentCount}</strong> Agents = <strong>{combinedPopulation.qaCount + combinedPopulation.agentCount}</strong> scorers
           </span>
-          <span style={{ fontSize: 11, color: "var(--tx3)" }}>· {activeCombinedThreshold}+ surveys per topic · {selMonth}</span>
+          <span style={{ fontSize: 11, color: "var(--tx3)" }}>· {activeCombinedThreshold}+ surveys per topic · {windowLabel}</span>
         </div>
       )}
 
@@ -589,7 +633,10 @@ export default function ExpertisePage() {
         onClear={() => { setSelDomain(""); setSelTeam([]); setSelStar(""); setSearch(""); }}
         searchProps={{ value: search, onChange: setSearch, placeholder: "Search name or email…" }}
       >
-        <SearchableSelect options={months} value={selMonth} onChange={setSelMonth} placeholder="Select month"/>
+        {/* Multi-select: pick 1 month for the snapshot view, 2+ for a
+            pooled-CSAT rollup. Defaults to the latest 3 months — the
+            "true" expertise window per design. */}
+        <SearchableSelect multi options={months} value={selMonths} onChange={setSelMonths} placeholder="Select months"/>
         {!isQAOnly && (
           <SearchableSelect
             options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]}
