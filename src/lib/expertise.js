@@ -157,30 +157,27 @@ export const fetchCombinedExpertiseMonths = async ({ token }) => {
 // header to show "N QAs + M Agents = N+M scorers". Threshold defaults
 // to 5 but can be overridden so the numbers track whatever the admin
 // has set on the Combined view.
-// Accepts a single month string OR an array of months. For multiple months,
-// the threshold is applied per-row (not per-pool) — same behaviour as the
-// single-month case, just unioned across months and de-duplicated by email.
-// (The threshold check in the rollup view itself is done server-side by the
-// RPC; here we only need who has *any* qualifying row in the window.)
-export const fetchCombinedPopulationCounts = async ({ token, month, months, threshold = 5 }) => {
+// Pool population for the Combined view header. Calls
+// combined_expertise_pool_population(text[], int) which applies the
+// EXACT same threshold + topic-exclusion logic as the rank pool, so
+// the header card "X QAs + Y Agents = N scorers" sums to the same N
+// that appears in each row's "Ranked #r of N" tooltip.
+//
+// Previous client-side version queried csat_by_topic / agents_csat
+// with surveys_count >= threshold per row. That over-counted people
+// whose only qualifying rows were on excluded topics ('-', '--',
+// 'Uncategorized'), causing a ~0.4% mismatch.
+export const fetchCombinedPopulationCounts = async ({ token, month, months, threshold }) => {
   const list = Array.isArray(months) && months.length > 0
     ? months.filter(Boolean)
     : (month ? [month] : []);
   if (list.length === 0) return { qaCount: 0, agentCount: 0 };
-  const monthFilter = list.length === 1
-    ? `month=eq.${encodeURIComponent(list[0])}`
-    // PostgREST in.() syntax — wrap each value in quotes to be safe
-    // for "May-2026" style hyphenated values.
-    : `month=in.(${list.map(m => `"${encodeURIComponent(m)}"`).join(",")})`;
-  const f = `${monthFilter}&surveys_count=gte.${threshold}`;
-  const sel = "qa_email";
-  const [qa, ag] = await Promise.all([
-    sb.query("csat_by_topic", { select: sel, filters: f, token }).catch(() => []),
-    sb.query("agents_csat",   { select: sel, filters: f, token }).catch(() => []),
-  ]);
-  const qaSet = new Set((qa || []).map(r => r.qa_email?.toLowerCase()).filter(Boolean));
-  const agSet = new Set((ag || []).map(r => r.qa_email?.toLowerCase()).filter(Boolean));
-  return { qaCount: qaSet.size, agentCount: agSet.size };
+  const rows = await sb.rpc("combined_expertise_pool_population", {
+    months: list,
+    min_surveys_override: typeof threshold === "number" ? threshold : null,
+  }, token).catch(() => []);
+  const r = Array.isArray(rows) && rows[0] ? rows[0] : null;
+  return r ? { qaCount: Number(r.qa_count) || 0, agentCount: Number(r.agent_count) || 0 } : { qaCount: 0, agentCount: 0 };
 };
 
 // Read the active combined threshold (single-row config table).

@@ -762,12 +762,12 @@ export default function ExpertisePage() {
                         {view === "combined" && (
                           <td style={{ textAlign: "right", whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
                             {r.combined_rank ? (
-                              <span title={`Ranked #${r.combined_rank} of ${r.combined_pool_size} scorers (QAs + Agents) with at least one qualified topic in this month's pool`}>
+                              <span title={`Ranked #${r.combined_rank} of ${r.combined_pool_size} scorers (QAs + Agents) with at least one qualified topic in ${selMonths.length > 1 ? `this ${selMonths.length}-month window` : "this month's"} pool`}>
                                 <span style={{ fontWeight: 700, fontSize: 14, color: r.combined_rank <= 50 ? "var(--green)" : r.combined_rank <= 200 ? "var(--blue)" : "var(--tx2)" }}>#{r.combined_rank}</span>
                                 <span style={{ fontSize: 11, color: "var(--tx3)", marginLeft: 4 }}>/ {r.combined_pool_size}</span>
                               </span>
                             ) : (
-                              <span title="Not enough qualified topics this month to enter the merged ranking pool" style={{ fontSize: 11, color: "var(--tx3)", fontStyle: "italic" }}>unranked</span>
+                              <span title={`Not enough qualified topics in ${selMonths.length > 1 ? `this ${selMonths.length}-month window` : "this month"} to enter the merged ranking pool`} style={{ fontSize: 11, color: "var(--tx3)", fontStyle: "italic" }}>unranked</span>
                             )}
                           </td>
                         )}
@@ -777,7 +777,7 @@ export default function ExpertisePage() {
                               {renderStars(r.star_level)}
                             </span>
                           ) : !hasSample(r) ? (
-                            <span aria-label={`Not enough surveys yet — needs at least ${activeThreshold} per topic`} title={`No topic met the ${activeThreshold}-survey threshold this month — keep handling chats and the score will follow`} style={{
+                            <span aria-label={`Not enough surveys yet — needs at least ${activeThreshold} per topic`} title={`No topic met the ${activeThreshold}-survey threshold ${selMonths.length > 1 ? `across the ${selMonths.length}-month window` : "this month"} — keep handling chats and the score will follow`} style={{
                               fontSize: 10, fontWeight: 600,
                               padding: "2px 8px", borderRadius: 8,
                               background: "var(--amber-bg)", color: "var(--amber)",
@@ -817,7 +817,7 @@ export default function ExpertisePage() {
                               Topic breakdown · {(r.topic_breakdown || []).length} qualified topic{(r.topic_breakdown || []).length === 1 ? "" : "s"}
                             </div>
                             {(!r.topic_breakdown || r.topic_breakdown.length === 0) ? (
-                              <span style={{ fontSize: 12, color: "var(--tx3)" }}>No topic met the {activeThreshold}-survey threshold this month.</span>
+                              <span style={{ fontSize: 12, color: "var(--tx3)" }}>No topic met the {activeThreshold}-survey threshold {selMonths.length > 1 ? `across this ${selMonths.length}-month window` : "this month"}.</span>
                             ) : (
                               <div className="table-wrap">
                                 <table style={{ fontSize: 12 }}>
