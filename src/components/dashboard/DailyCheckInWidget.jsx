@@ -118,8 +118,16 @@ export default function DailyCheckInWidget() {
 
   const planned = row?.planned_code;
   const actual = row?.status;
-  const checkedIn = actual === "H" || actual === "P";
-  const isLeave = actual && !checkedIn; // any non-H/P actual = leave/holiday/etc
+  // checkedIn is anchored on the durable timestamp, not on `status`.
+  // Previously this was `actual === "H" || actual === "P"`, which made
+  // any plan-defaulted P/H row LOOK checked-in and hid the buttons —
+  // the QA had no way to actually log themselves. Fixed 2026-05-24.
+  const checkedIn = !!row?.checked_in_at;
+  // Restrict isLeave to the canonical resolved-no-checkin set instead of
+  // "any non-H/P". Otherwise a status like "P" with no checked_in_at
+  // would falsely test as leave under the new checkedIn rule and hide
+  // the widget entirely. Matches the SchedulePage's leave handling.
+  const isLeave = actual && RESOLVED_NO_CHECKIN.has(actual);
   // Mismatch logic mirrors lib/attendancePlan.js: H/P plan + opposite check-in,
   // OR OFF plan + any H/P check-in (worked when planned off).
   const mismatch = !row?.mismatch_approved && (
