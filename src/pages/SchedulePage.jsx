@@ -1154,9 +1154,16 @@ function SchedulePage() {
                     variant = status === "H" ? "h" : "p";
                     statText = status || "P";
                     timeText = fmtTime(ci);
-                  } else if (plan && status && plan !== status) {
+                  } else if (plan && status && plan !== status && ci) {
                     // Mismatch (e.g. planned P, actual H by lead override).
                     // Worth surfacing — keep the status badge visible.
+                    //
+                    // Guard added 2026-05-24: require checked_in_at before
+                    // treating status as a real outcome. Without it, a
+                    // status ≠ plan row is phantom data (left over from
+                    // the pre-2026-05-17 auto-sync bug) and should fall
+                    // through to the plan-only branches below, not render
+                    // a big middle letter that looks like a check-in.
                     variant = status === "H" ? "h" : status === "P" ? "p" : "off";
                     statText = status;
                   } else if (plan === "H") {
