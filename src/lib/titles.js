@@ -7,7 +7,7 @@
 // to everyone.
 
 import { csatPctValue } from "./utils.js";
-import { getTotalScore, KPI_SLABS } from "./leaderboardScore.js";
+import { getTotalScore, KPI_SLABS, compareForRank } from "./leaderboardScore.js";
 import { MONTH_IDX, sortMonthsDesc } from "./constants.js";
 
 // MTD rows use month strings like "Apr-2026" / "May-2026" (Mon-YYYY),
@@ -186,39 +186,48 @@ export function computeTitleHolders(allRows, selectedMonth) {
   const result = { pulse_sovereign: null, heartwarden: null, pulseforge: null, ironpulse: null, risen_phoenix: null };
 
   // 👑 Pulse Sovereign — leaderboard #1 by total slab-based score.
-  // Uses getTotalScore (same function the leaderboard sorts by) so the
-  // belt holder always matches the visible #1 row, not raw final_performance.
-  let topPerf = null;
-  monthRows.forEach((r) => {
-    const s = getTotalScore(r);
-    if (!isFinite(s) || s <= 0) return;
-    if (!topPerf || s > topPerf.value) topPerf = { qa_email: r.qa_email, value: s };
-  });
-  if (topPerf) result.pulse_sovereign = { ...topPerf, display: topPerf.value.toFixed(1) + " / " + MAX_LB_SCORE };
+  // Uses compareForRank (same cascade the leaderboard uses) so the belt
+  // holder always matches the visible #1 row even on score ties. Before
+  // this change, with 11+ QAs commonly tied at the top score, the
+  // belt-holder was effectively random.
+  const sovereignSorted = monthRows
+    .filter((r) => { const s = getTotalScore(r); return isFinite(s) && s > 0; })
+    .slice()
+    .sort(compareForRank);
+  if (sovereignSorted.length) {
+    const winner = sovereignSorted[0];
+    result.pulse_sovereign = { qa_email: winner.qa_email, value: getTotalScore(winner), display: getTotalScore(winner).toFixed(1) + " / " + MAX_LB_SCORE };
+  }
 
   // 💞 Heartwarden — highest CSAT % with min surveys.
-  let topCsat = null;
-  monthRows.forEach((r) => {
-    const surveys = Number(r.csat_total || 0);
-    if (surveys < MIN_CSAT_SURVEYS) return;
-    const c = csatPctValue(r.csat_pct);
-    if (c === null) return;
-    if (!topCsat || c > topCsat.value || (c === topCsat.value && surveys > topCsat.surveys)) {
-      topCsat = { qa_email: r.qa_email, value: c, surveys };
-    }
-  });
-  if (topCsat) result.heartwarden = { qa_email: topCsat.qa_email, value: topCsat.value, display: topCsat.value.toFixed(1) + "% (" + topCsat.surveys + " surveys)" };
+  // Tie-break: csat desc → surveys desc → qa_email asc (deterministic).
+  const heartSorted = monthRows
+    .map((r) => ({ r, surveys: Number(r.csat_total || 0), csat: csatPctValue(r.csat_pct) }))
+    .filter((x) => x.surveys >= MIN_CSAT_SURVEYS && x.csat !== null)
+    .sort((a, b) => {
+      if (a.csat !== b.csat) return b.csat - a.csat;
+      if (a.surveys !== b.surveys) return b.surveys - a.surveys;
+      return String(a.r.qa_email || "").localeCompare(String(b.r.qa_email || ""));
+    });
+  if (heartSorted.length) {
+    const w = heartSorted[0];
+    result.heartwarden = { qa_email: w.r.qa_email, value: w.csat, display: w.csat.toFixed(1) + "% (" + w.surveys + " surveys)" };
+  }
 
   // ⚒️ Pulseforge — most evaluations (sbs + non_sbs).
-  let topVol = null;
-  monthRows.forEach((r) => {
-    const sbs = num(r.sbs) || 0;
-    const non = num(r.non_sbs) || 0;
-    const total = sbs + non;
-    if (total <= 0) return;
-    if (!topVol || total > topVol.value) topVol = { qa_email: r.qa_email, value: total };
-  });
-  if (topVol) result.pulseforge = { ...topVol, display: Math.round(topVol.value).toLocaleString() + " evals" };
+  // Tie-break: evals desc → surveys desc → qa_email asc.
+  const forgeSorted = monthRows
+    .map((r) => ({ r, evals: (num(r.sbs) || 0) + (num(r.non_sbs) || 0), surveys: Number(r.csat_total || 0) }))
+    .filter((x) => x.evals > 0)
+    .sort((a, b) => {
+      if (a.evals !== b.evals) return b.evals - a.evals;
+      if (a.surveys !== b.surveys) return b.surveys - a.surveys;
+      return String(a.r.qa_email || "").localeCompare(String(b.r.qa_email || ""));
+    });
+  if (forgeSorted.length) {
+    const w = forgeSorted[0];
+    result.pulseforge = { qa_email: w.r.qa_email, value: w.evals, display: Math.round(w.evals).toLocaleString() + " evals" };
+  }
 
   // 🛡️ Ironpulse — longest consecutive on-target streak ending at selectedMonth.
   // Group rows per QA, then walk months back from selectedMonth.
@@ -230,19 +239,32 @@ export function computeTitleHolders(allRows, selectedMonth) {
     if (!byQa[e]) byQa[e] = { rowsByMonth: {}, anyEmail: r.qa_email };
     byQa[e].rowsByMonth[r.month] = r;
   });
-  let topStreak = null;
+  // Tie-break for streak: streak length desc → current-month score desc
+  // → qa_email asc. Without this, two QAs on identical streaks swap the
+  // belt randomly per render.
+  const streakCandidates = [];
   Object.entries(byQa).forEach(([, q]) => {
     const s = onTargetStreak(q.rowsByMonth, selectedMonth, allMonths);
     if (s < 2) return; // 1-month "streak" is not a streak
-    if (!topStreak || s > topStreak.value) topStreak = { qa_email: q.anyEmail, value: s };
+    const curr = q.rowsByMonth[selectedMonth];
+    streakCandidates.push({ qa_email: q.anyEmail, streak: s, currScore: curr ? getTotalScore(curr) : 0 });
   });
-  if (topStreak) result.ironpulse = { ...topStreak, display: topStreak.value + " month streak" };
+  streakCandidates.sort((a, b) => {
+    if (a.streak !== b.streak) return b.streak - a.streak;
+    if (a.currScore !== b.currScore) return b.currScore - a.currScore;
+    return String(a.qa_email || "").localeCompare(String(b.qa_email || ""));
+  });
+  if (streakCandidates.length) {
+    const w = streakCandidates[0];
+    result.ironpulse = { qa_email: w.qa_email, value: w.streak, display: w.streak + " month streak" };
+  }
 
   // 🔥 Risen Phoenix — biggest leaderboard-score climb vs previous month.
   // "Previous month" is the QA's most recent prior row (handles gaps for
   // leave / vacation). Uses getTotalScore so the delta is on the same
   // scale the rest of the app talks in.
-  let topPhoenix = null;
+  // Tie-break for Phoenix: delta desc → current-month score desc → qa_email asc.
+  const phoenixCandidates = [];
   monthRows.forEach((curr) => {
     const e = curr.qa_email?.toLowerCase();
     if (!e || !byQa[e]) return;
@@ -260,9 +282,17 @@ export function computeTitleHolders(allRows, selectedMonth) {
     if (!isFinite(prevScore)) return;
     const delta = currScore - prevScore;
     if (delta < 5) return; // don't crown someone for noise
-    if (!topPhoenix || delta > topPhoenix.value) topPhoenix = { qa_email: curr.qa_email, value: delta };
+    phoenixCandidates.push({ qa_email: curr.qa_email, delta, currScore });
   });
-  if (topPhoenix) result.risen_phoenix = { ...topPhoenix, display: "+" + topPhoenix.value.toFixed(1) + " pts" };
+  phoenixCandidates.sort((a, b) => {
+    if (a.delta !== b.delta) return b.delta - a.delta;
+    if (a.currScore !== b.currScore) return b.currScore - a.currScore;
+    return String(a.qa_email || "").localeCompare(String(b.qa_email || ""));
+  });
+  if (phoenixCandidates.length) {
+    const w = phoenixCandidates[0];
+    result.risen_phoenix = { qa_email: w.qa_email, value: w.delta, display: "+" + w.delta.toFixed(1) + " pts" };
+  }
 
   return result;
 }

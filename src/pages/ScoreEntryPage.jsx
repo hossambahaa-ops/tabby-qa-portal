@@ -611,7 +611,7 @@ function ScoreEntryPage(){
         <div style={{width:1,height:32,background:"var(--bd)"}}/>
         <div style={{textAlign:"center"}}>
           <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>Avg Score</div>
-          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px"}}>{(()=>{const vals=sorted.map(r=>parseFloat(r.final_performance)||0).filter(v=>v>0);return vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length*100).toFixed(1)+"%":"—";})()}</div>
+          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px"}}>{(()=>{const vals=sorted.map(r=>{const n=parseFloat(r.final_performance);return Number.isFinite(n)?n:null;}).filter(v=>v!==null);return vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length*100).toFixed(1)+"%":"—";})()}</div>
         </div>
         <div style={{width:1,height:32,background:"var(--bd)"}}/>
         <div style={{textAlign:"center"}}>
@@ -928,8 +928,9 @@ function ScoreEntryPage(){
           // Same as pushPos but normalises fractional percentages (e.g., 0.95)
           // to whole percentages (95). Most rows already arrive as 0-100 but
           // some upstream paths return 0-1, and mixing both in one average
-          // produces nonsense. Heuristic matches fmtPct elsewhere.
-          const pushPctPos=(arr,raw)=>{let v=parseFloat(raw);if(isNaN(v)||v<=0)return;if(v<=2)v*=100;arr.push(v);};
+          // produces nonsense. Threshold is <= 1 (not <= 2) so a legitimate
+          // "1.5%" stays as 1.5 instead of being misread as 150.
+          const pushPctPos=(arr,raw)=>{let v=parseFloat(raw);if(isNaN(v)||v<=0)return;if(v<=1)v*=100;arr.push(v);};
           const leadMap={};
           sorted.forEach(r=>{
             const tl=(r.qa_tl||"unknown").toLowerCase();

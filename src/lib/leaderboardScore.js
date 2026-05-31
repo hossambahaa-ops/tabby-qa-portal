@@ -43,3 +43,31 @@ export const fmtRaw = (val) => {
   if (val === null || val === undefined) return "—";
   return val.toFixed(1) + "%";
 };
+
+// Deterministic tie-break for ranking. The slab system buckets each KPI
+// into 4 possible values, so ~30% of QAs share scores with at least one
+// teammate in any given month. Without a cascade, sort order is whatever
+// V8 happens to do — ranks shuffle on every page load.
+//
+// Cascade (most-meaningful first):
+//  1. Total score desc        — the primary ranking metric
+//  2. CSAT % desc             — public-facing, customer-driven signal
+//  3. Total surveys desc      — more data = more confidence in the CSAT tie-break
+//  4. DSAT asc                — fewer penalties = better
+//  5. qa_email asc            — final alphabetic fallback (deterministic)
+//
+// Use this in EVERY .sort() that produces a rank — monthly, team-card,
+// quarterly, time-travel re-rank. Mixing with a bare score-desc sort
+// re-introduces the randomness.
+export const compareForRank = (a, b) => {
+  const sa = getTotalScore(a), sb = getTotalScore(b);
+  if (sa !== sb) return sb - sa;
+  const ca = parseRaw(a?.csat_pct), cb = parseRaw(b?.csat_pct);
+  const cav = ca == null ? -Infinity : ca, cbv = cb == null ? -Infinity : cb;
+  if (cav !== cbv) return cbv - cav;
+  const va = Number(a?.csat_total || 0), vb = Number(b?.csat_total || 0);
+  if (va !== vb) return vb - va;
+  const da = Number(a?.dsat || 0), db = Number(b?.dsat || 0);
+  if (da !== db) return da - db;
+  return String(a?.qa_email || "").localeCompare(String(b?.qa_email || ""));
+};

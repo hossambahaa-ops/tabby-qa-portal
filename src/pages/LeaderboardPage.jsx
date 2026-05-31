@@ -5,7 +5,7 @@ import { nameFromEmail, initialsFromEmail, emailsMatchLoose } from "../lib/utils
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
-import { parseRaw, KPI_SLABS, calcSlab, getKpiScores, getTotalScore, fmtRaw } from "../lib/leaderboardScore.js";
+import { parseRaw, KPI_SLABS, calcSlab, getKpiScores, getTotalScore, fmtRaw, compareForRank } from "../lib/leaderboardScore.js";
 import { Icon, icons } from "../components/Icons.jsx";
 import { ProgressRing } from "../components/Charts.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
@@ -190,7 +190,7 @@ function LeaderboardPage() {
   // gf.people / gf.teams were dropped in the filter unification —
   // Leaderboard's selTeam + name-search input cover the same ground.
   // Rank by calculated total score
-  const ranked = [...filtered].sort((a, b) => getTotalScore(b) - getTotalScore(a));
+  const ranked = [...filtered].sort(compareForRank);
 
   const teamData = (() => {
     const tlMap = {};
@@ -206,7 +206,15 @@ function LeaderboardPage() {
       highest: t.members.length ? Math.max(...t.members.map(m => getTotalScore(m))) : 0,
       lowest: t.members.length ? Math.min(...t.members.map(m => getTotalScore(m))) : 0,
       totalDsat: t.members.reduce((a, m) => a + (m.dsat || 0), 0),
-    })).sort((a, b) => b.avgScore - a.avgScore);
+    })).sort((a, b) => {
+      // Tie-break for team rank: avgScore desc → highest member desc
+      // → totalDsat asc → tl email asc. Otherwise teams with identical
+      // avgScore swap positions on every render.
+      if (a.avgScore !== b.avgScore) return b.avgScore - a.avgScore;
+      if (a.highest !== b.highest) return b.highest - a.highest;
+      if (a.totalDsat !== b.totalDsat) return a.totalDsat - b.totalDsat;
+      return String(a.tl || "").localeCompare(String(b.tl || ""));
+    });
   })();
 
   const maxScore = 55; // total weight of 5 non-CSAT KPIs
@@ -402,7 +410,7 @@ function LeaderboardPage() {
           const isHistView = !!histMonth && histMonth !== selMonth;
           // Row + rank for the chosen month
           const monthRows = data.filter(r => r.month === viewMonth);
-          const monthRanked = [...monthRows].sort((a, b) => getTotalScore(b) - getTotalScore(a));
+          const monthRanked = [...monthRows].sort(compareForRank);
           const myRankIdx = monthRanked.findIndex(r => emailsMatchLoose(r.qa_email, myEmailInd));
           const myRow = myRankIdx >= 0 ? monthRanked[myRankIdx] : null;
           if (!myRow) return null;
@@ -736,7 +744,7 @@ function LeaderboardPage() {
               <div><div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px"}}>Total DSAT</div><div style={{fontSize:16,fontWeight:600,color:"var(--tx)"}}>{team.totalDsat}</div></div>
             </div>
             <div style={{fontSize:11,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>Members</div>
-            {team.members.sort((a,b)=>getTotalScore(b)-getTotalScore(a)).map((m,mi) => {
+            {team.members.slice().sort(compareForRank).map((m,mi) => {
               const mScore = getTotalScore(m);
               return (
               <div key={m.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 0",borderBottom:mi<team.members.length-1?"1px solid var(--bd2)":"none"}}>
@@ -798,11 +806,24 @@ function LeaderboardPage() {
           qaMap[email].monthlyScores.push(monthScore);
         });
 
-        // Quarterly total = sum of monthly raw scores
+        // Quarterly total = sum of monthly raw scores.
+        // Tie-break cascade mirrors compareForRank but uses the
+        // quarterly aggregates we already have:
+        //   1. totalScore desc        — primary
+        //   2. months_present desc    — completing all 3 months > 1
+        //   3. totalDsat asc          — fewer customer escalations
+        //   4. totalTickets desc      — higher productivity
+        //   5. email asc              — deterministic fallback
         const allQas = Object.values(qaMap).map(qa => {
           const totalScore = qa.monthlyScores.reduce((s, p) => s + p, 0);
           return { ...qa, totalScore };
-        }).sort((a, b) => b.totalScore - a.totalScore);
+        }).sort((a, b) => {
+          if (a.totalScore !== b.totalScore) return b.totalScore - a.totalScore;
+          if (a.months_present !== b.months_present) return b.months_present - a.months_present;
+          if (a.totalDsat !== b.totalDsat) return a.totalDsat - b.totalDsat;
+          if (a.totalTickets !== b.totalTickets) return b.totalTickets - a.totalTickets;
+          return String(a.email || "").localeCompare(String(b.email || ""));
+        });
 
         // Visibility
         const myEmailQ = profile?.email?.toLowerCase();
