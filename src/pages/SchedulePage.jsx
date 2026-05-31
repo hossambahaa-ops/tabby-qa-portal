@@ -22,6 +22,7 @@ import AttendancePlanGrid from "../components/attendance/AttendancePlanGrid.jsx"
 // Calendar/cell subcomponents — extracted from this file 2026-05-08 to
 // keep SchedulePage focused on data loading + page layout.
 import CellPicker from "../components/schedule/CellPicker.jsx";
+import CompactGridCell from "../components/schedule/CompactGridCell.jsx";
 import CalendarDayCell from "../components/schedule/CalendarDayCell.jsx";
 import MyMonthCalendar from "../components/schedule/MyMonthCalendar.jsx";
 import DayCell from "../components/schedule/DayCell.jsx";
@@ -1283,16 +1284,41 @@ function SchedulePage() {
                               {days.map(d => {
                                 const desc = cellDesc(qaLower, d);
                                 const vs = variantStyle(desc.variant, d.isToday);
+                                const ck = `${qa.email}-${d.dnum}`;
+                                const editing = editCell === ck;
+                                const row = monthRows.find(a => (a.email || "").toLowerCase() === qaLower && a.date === d.iso);
+                                // canEdit: same rules as the legacy wide
+                                // table — leads can edit any cell, QAs
+                                // (viewing as themselves) can edit only
+                                // their own row. Month-lock still wins.
+                                const cellCanEdit = (isLead || qaLower === myEmail) && !monthIsLocked;
+                                const cellCanApprove = row?.approval_status === "pending" && isLead && qaLower !== myEmail;
                                 return (
-                                  <div
-                                    key={`${qa.email}-${d.dnum}`}
-                                    onClick={() => setEditCell(`${qa.email}-${d.dnum}`)}
+                                  <CompactGridCell
+                                    key={ck}
+                                    cellKey={ck}
+                                    em={qa.email}
+                                    dayNum={d.dnum}
+                                    dateIso={d.iso}
+                                    st={row?.status || null}
+                                    isEditing={editing}
+                                    canEdit={cellCanEdit}
+                                    isQA={isQA}
+                                    canApprove={cellCanApprove}
+                                    pickerStage={editing ? pickerStage : null}
+                                    pendingReason={editing ? pendingReason : ""}
+                                    onOpen={() => { setEditCell(ck); setPendingReason(""); }}
+                                    onClose={() => { setEditCell(null); setPendingReason(""); }}
+                                    onSetAtt={setAtt}
+                                    onApproveAtt={approveAtt}
+                                    onClearAtt={clearAtt}
+                                    setPendingReason={setPendingReason}
+                                    setPickerStage={setPickerStage}
                                     title={`${d.iso} · plan ${desc.plan || "—"} · ${desc.statText}${desc.timeText ? " · " + desc.timeText : ""}`}
                                     style={{
                                       minHeight: 58,
                                       borderRadius: 7,
                                       padding: "3px 4px",
-                                      cursor: "pointer",
                                       transition: "transform .15s, box-shadow .15s",
                                       display: "flex",
                                       flexDirection: "column",
@@ -1324,7 +1350,7 @@ function SchedulePage() {
                                     {desc.timeText && (
                                       <div style={{ fontSize: 8.5, opacity: .8, fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 2 }}>{desc.timeText}</div>
                                     )}
-                                  </div>
+                                  </CompactGridCell>
                                 );
                               })}
                             </React.Fragment>
