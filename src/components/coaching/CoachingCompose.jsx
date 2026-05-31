@@ -609,9 +609,16 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
                   const mine = sessions.filter(s => (s.qa_email || "").toLowerCase() === lower);
                   if (mine.length === 0) return { label: "never coached", color: "var(--amber)" };
                   const lastDate = mine.reduce((m, s) => (s.session_date && s.session_date > m ? s.session_date : m), "");
-                  const days = lastDate ? Math.max(0, Math.round((Date.now() - new Date(lastDate + "T00:00:00").getTime()) / 86400000)) : null;
-                  const since = new Date(); since.setDate(since.getDate() - 90);
-                  const last90 = mine.filter(s => s.session_date && s.session_date >= since.toISOString().split("T")[0]).length;
+                  // Ordinal-day delta: compare YYYY-MM-DD strings, not raw
+                  // timestamps. Avoids the previous bug where (Date.now() -
+                  // local-midnight)/86400000 + Math.round could flip between
+                  // N and N+1 depending on the user's local time of day.
+                  const todayStr = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                  const days = lastDate ? Math.max(0, Math.round((new Date(todayStr).getTime() - new Date(lastDate).getTime()) / 86400000)) : null;
+                  // 90-day cutoff: derive an ordinal cutoff string. setDate
+                  // wraps correctly on month/year boundaries.
+                  const cutoff = (() => { const d = new Date(todayStr); d.setDate(d.getDate() - 90); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; })();
+                  const last90 = mine.filter(s => s.session_date && s.session_date >= cutoff).length;
                   const color = days == null ? "var(--tx3)" : days >= 30 ? "var(--red)" : days >= 14 ? "var(--amber)" : "var(--green)";
                   return { label: `${days}d ago · ${last90}× / 90d`, color };
                 };

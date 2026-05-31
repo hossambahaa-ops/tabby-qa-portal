@@ -131,10 +131,18 @@ export default function CoachingHistory({ sessions, onDelete }) {
       const va = extractor(a), vb = extractor(b);
       if (va < vb) return sortDir === "asc" ? -1 : 1;
       if (va > vb) return sortDir === "asc" ? 1 : -1;
+      // Tie-break 1: session_date desc (same column already? then this is
+      // a no-op and we fall through). 7 same-day same-QA sessions exist
+      // in real data so this isn't theoretical.
       const da = a.session_date || "", db = b.session_date || "";
-      if (da < db) return 1;
-      if (da > db) return -1;
-      return 0;
+      if (da !== db) return da < db ? 1 : -1;
+      // Tie-break 2: created_at desc — finer-grained ordering ensures
+      // identical session_date pairs always render the same way across
+      // refreshes (Array.sort stability varies by engine).
+      const ca = a.created_at || "", cb = b.created_at || "";
+      if (ca !== cb) return ca < cb ? 1 : -1;
+      // Tie-break 3: id asc — guaranteed deterministic fallback.
+      return String(a.id || "").localeCompare(String(b.id || ""));
     });
     return list;
   })();
