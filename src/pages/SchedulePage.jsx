@@ -253,8 +253,18 @@ function SchedulePage() {
   // `profiles` and shape them like roster entries the grid expects.
   // `__isLead` is a marker the renderer can use to group / style them
   // at the top of their team without changing the table contract.
+  //
+  // Only include leads who actually have at least one direct report in
+  // the roster. A "lead" with zero team members (e.g. team migrated to
+  // a new lead, role not yet downgraded) has no team to anchor and
+  // would just appear as a stray single-row group on the grid.
+  const leadsWithTeam = new Set(
+    (roster || [])
+      .map(r => (r.manager_email || "").toLowerCase())
+      .filter(Boolean)
+  );
   const leadRosterRows = (profiles || [])
-    .filter(p => p.role === "qa_lead" && p.email)
+    .filter(p => p.role === "qa_lead" && p.email && leadsWithTeam.has(p.email.toLowerCase()))
     .map(p => {
       const em = p.email;
       const domain = em.toLowerCase().endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
@@ -313,10 +323,14 @@ function SchedulePage() {
       const le = lead.email?.toLowerCase();
       grouped.push(lead);
       used.add(le);
-      const team = allQAs.filter(r => {
-        const mgr = (r.manager_email || "").toLowerCase();
-        return mgr === le || (mgr && le && mgr.split("@")[0] === le.split("@")[0]);
-      });
+      const team = allQAs
+        .filter(r => {
+          const mgr = (r.manager_email || "").toLowerCase();
+          return mgr === le || (mgr && le && mgr.split("@")[0] === le.split("@")[0]);
+        })
+        // Sort QAs alphabetically within their team so the grid is
+        // predictable across renders (was previously roster-insertion order).
+        .sort((a, b) => (a.display_name || a.email || "").localeCompare(b.display_name || b.email || ""));
       for (const t of team) {
         grouped.push(t);
         used.add(t.email?.toLowerCase());
@@ -1268,12 +1282,15 @@ function SchedulePage() {
                           const adhColor = adhPct == null ? "var(--tx3)" : adhPct >= 90 ? "var(--green)" : adhPct >= 70 ? "var(--amber)" : "var(--red)";
                           return (
                             <React.Fragment key={`row-${qa.email}`}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px", fontSize: 11.5, fontWeight: 600, position: "sticky", left: 0, background: "rgba(15,13,20,.92)", backdropFilter: "blur(8px)", zIndex: 2, minHeight: 58, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                                <span style={{ width: 22, height: 22, borderRadius: "50%", background: "linear-gradient(135deg, #6A2C79, #C9A0FF)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 9.5, flexShrink: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 8px", fontSize: 11.5, fontWeight: 600, position: "sticky", left: 0, background: qa.__isLead ? "rgba(106,44,121,.18)" : "rgba(15,13,20,.92)", backdropFilter: "blur(8px)", zIndex: 2, minHeight: 58, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", borderLeft: qa.__isLead ? "3px solid var(--tabby-purple)" : "none" }}>
+                                <span style={{ width: 22, height: 22, borderRadius: "50%", background: qa.__isLead ? "linear-gradient(135deg, #3CFFA5, #6A2C79)" : "linear-gradient(135deg, #6A2C79, #C9A0FF)", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 9.5, flexShrink: 0 }}>
                                   {_nameFromEmail(qa.email).split(" ").map(p => p[0]).join("").slice(0, 2).toUpperCase()}
                                 </span>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 1, overflow: "hidden", minWidth: 0 }}>
-                                  <span style={{ fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{_nameFromEmail(qa.email)}</span>
+                                  <span style={{ fontSize: qa.__isLead ? 12 : 11.5, fontWeight: qa.__isLead ? 800 : 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center", gap: 5 }}>
+                                    {_nameFromEmail(qa.email)}
+                                    {qa.__isLead && <span style={{ fontSize: 8.5, fontWeight: 700, padding: "1px 5px", borderRadius: 3, background: "rgba(60,255,165,.18)", color: "#3CFFA5", letterSpacing: ".4px", textTransform: "uppercase" }}>Lead</span>}
+                                  </span>
                                   <span style={{ fontSize: 9.5, color: adhColor, fontVariantNumeric: "tabular-nums", fontWeight: 700, letterSpacing: ".2px" }} title={`${st.adhered} of ${st.eligible} P/H days matched plan${st.nsnc > 0 ? ` · ${st.nsnc} NSNC` : ""} · approved leave (AL/SL/PH) excluded from adherence`}>
                                     {st.eligible > 0
                                       ? `${st.adhered}/${st.eligible} · ${adhPct.toFixed(0)}%${st.nsnc > 0 ? ` · ${st.nsnc} NSNC` : ""}`
