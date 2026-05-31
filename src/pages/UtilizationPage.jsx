@@ -193,7 +193,7 @@ export default function UtilizationPage() {
                   <tr><td colSpan={5} style={{ textAlign: "center", padding: 24, color: "var(--tx3)" }}>No activity in window.</td></tr>
                 )}
                 {userRows.map(u => {
-                  const online = (Date.now() - new Date(u.last_seen_at).getTime()) < ONLINE_THRESHOLD_MIN * 60 * 1000;
+                  const online = (Date.now() - new Date(u.last_seen_at).getTime()) <= ONLINE_THRESHOLD_MIN * 60 * 1000;
                   const isExpanded = expandedUser === u.email;
                   const pageEntries = Object.entries(u.page_visits || {})
                     .sort((a, b) => b[1] - a[1])
