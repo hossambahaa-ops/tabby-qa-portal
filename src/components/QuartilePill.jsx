@@ -13,7 +13,9 @@ import React from "react";
 //
 // Pass `dim` for compact contexts (table rows) and the default for
 // header-style places (QA Profile). `size = "sm" | "md"` for sizing.
-export default function QuartilePill({ quartile, size = "sm" }) {
+// `lob` (optional) shows up in the tooltip so the QA sees which
+// cohort they're being compared against.
+export default function QuartilePill({ quartile, size = "sm", lob = null }) {
   const isSm = size === "sm";
   const baseStyle = {
     display: "inline-flex",
@@ -30,10 +32,12 @@ export default function QuartilePill({ quartile, size = "sm" }) {
     fontFamily: "var(--font)",
   };
 
+  const cohortLabel = lob ? `${lob} cohort (same domain + LOB)` : "your domain cohort";
+
   if (quartile == null) {
     return (
       <span
-        title="Not enough survey data this month to rank. Needs ≥5 surveys in a domain pool of ≥8 ranked QAs."
+        title={`Not enough QAs in ${cohortLabel} this month to assign a quartile. Pool needs ≥4 QAs with CSAT recorded.`}
         style={{
           ...baseStyle,
           background: "rgba(156,163,175,0.12)",
@@ -58,7 +62,7 @@ export default function QuartilePill({ quartile, size = "sm" }) {
   const c = colors[q] || colors[4];
   return (
     <span
-      title={`CSAT quartile within this domain for the selected month — Q${q} (${c.label})`}
+      title={`Q${q} (${c.label}) — CSAT ranked within ${cohortLabel} for the selected month.`}
       style={{ ...baseStyle, background: c.bg, color: c.fg }}
     >
       Q{q}

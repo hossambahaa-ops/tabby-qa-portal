@@ -477,7 +477,7 @@ function QAProfilePage() {
               <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
                 <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span>CSAT ({latestMtd?.month || "—"})</span>
-                  <QuartilePill quartile={latestMtd?.csat_quartile} size="sm" />
+                  <QuartilePill quartile={latestMtd?.csat_quartile} lob={latestMtd?.lob} size="sm" />
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>CSAT %</span>
