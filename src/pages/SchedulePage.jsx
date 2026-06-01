@@ -1184,6 +1184,18 @@ function SchedulePage() {
                     variant = "nsnc"; statText = "NSNC"; timeText = "auto";
                   } else if (LEAVE_CODES.has(status)) {
                     variant = "al"; statText = status; timeText = ci ? fmtTime(ci) : "lead";
+                  } else if (status === "OFF") {
+                    // Lead-set OFF on a past day (e.g. backfilling a non-
+                    // working day that wasn't pre-planned). Render the
+                    // label explicitly so the lead can see the change
+                    // landed — previously the cell just dropped to the
+                    // grey "no plan, no status" variant with no text,
+                    // which looked indistinguishable from an unset cell.
+                    variant = "off"; statText = "OFF"; timeText = "lead";
+                  } else if (status === "CDO") {
+                    // Same treatment for CDO (cancel-day-off / worked
+                    // on planned-OFF). Was falling through to "off".
+                    variant = "p"; statText = "CDO"; timeText = ci ? fmtTime(ci) : "lead";
                   } else if (ci) {
                     // QA self-checked-in. Show their actual status in the middle.
                     variant = status === "H" ? "h" : "p";
