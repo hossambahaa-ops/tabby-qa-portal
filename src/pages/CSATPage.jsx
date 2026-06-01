@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { hasRole, sortMonthsDesc } from "../lib/constants.js";
 import { sb } from "../lib/supabase.js";
 import { csatPctValue, csatColor, normalizeTopic, nameFromEmail, emailsMatchLoose } from "../lib/utils.js";
+import QuartilePill from "../components/QuartilePill.jsx";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -539,6 +540,7 @@ export default function CSATPage() {
                   <th>TL</th>
                   <th style={{textAlign:"right",width:80}}>Surveys</th>
                   <th style={{textAlign:"right",width:90}}>CSAT %</th>
+                  <th style={{textAlign:"center",width:80}} title="Per-domain CSAT quartile this month (Q1 = top 25%). Needs ≥5 surveys + ≥8 ranked QAs in the domain to assign.">Quartile</th>
                   <th style={{textAlign:"right",width:100}} title={prevMonth?`Change vs ${prevMonth}`:"No previous month available"}>Δ vs prev</th>
                 </tr>
               </thead>
@@ -588,10 +590,11 @@ export default function CSATPage() {
                       <td style={{fontSize:11.5,color:"var(--tx2)",padding:"4px 8px",whiteSpace:"nowrap"}} title={r.qa_tl||""}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
                       <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)",padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{r.csat_total ?? "—"}</td>
                       {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,fontSize:12.5,color:csatColor(v,s),padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
+                      <td style={{textAlign:"center",padding:"4px 8px"}}><QuartilePill quartile={r.csat_quartile} /></td>
                       {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const cur=(v!=null&&s>0)?v:null;const p=lookupPrev(r.qa_email);return renderDelta(cur, p?.v ?? null);})()}
                     </tr>
                     {isExpanded && <tr>
-                      <td colSpan={6} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
+                      <td colSpan={7} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
                         {isLoading ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>Loading topics…</div>
                          : !t || t.length === 0 ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
                          : <table style={{width:"100%",marginTop:4,borderCollapse:"collapse"}}>
@@ -656,6 +659,7 @@ export default function CSATPage() {
                       {renderDelta(l.csat ?? null, l.prevCsat ?? null)}
                     </tr>
                     {isExpanded && <tr>
+                      {/* Lead aggregation table — no quartile column, colSpan stays 6 */}
                       <td colSpan={6} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
                         {isLoading ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>Loading topics…</div>
                          : !t || t.length === 0 ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>

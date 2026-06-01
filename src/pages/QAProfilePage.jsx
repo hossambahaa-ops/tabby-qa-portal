@@ -5,6 +5,7 @@ import { nameFromEmail, csatPctValue, csatColor, safeError, logActivity, emailsM
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
+import QuartilePill from "../components/QuartilePill.jsx";
 import CoachingTimeline from "../components/coaching/CoachingTimeline.jsx";
 import RichText from "../components/RichText.jsx";
 import { riyadhTodayStr } from "../lib/attendancePlan.js";
@@ -474,7 +475,10 @@ function QAProfilePage() {
                 </div>
               </div>
               <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
-                <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>CSAT ({latestMtd?.month || "—"})</div>
+                <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span>CSAT ({latestMtd?.month || "—"})</span>
+                  <QuartilePill quartile={latestMtd?.csat_quartile} size="sm" />
+                </div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>CSAT %</span>
                   {(()=>{const v=csatPctValue(latestMtd?.csat_pct);const s=Number(latestMtd?.csat_total||0);const show=v!=null&&s>0;return <span style={{fontSize:13,fontWeight:700,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</span>;})()}
