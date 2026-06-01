@@ -358,7 +358,7 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
               <th>{view === "daily" ? "Date" : view === "weekly" ? "Week" : "Month"}</th>
               {view !== "daily" && <th style={{ textAlign: "center" }}>Days</th>}
               <th style={{ textAlign: "center" }}>SBS</th>
-              <th style={{ textAlign: "center" }}>Non-SBS</th>
+              <th style={{ textAlign: "center" }} title="Non-SBS evaluations (regular + DSAT). DSATs share the same per-eval duration as regular non-SBS evals, so they roll up into the same productivity bucket.">Non-SBS</th>
               <th style={{ textAlign: "center" }}>Coaching</th>
               <th style={{ textAlign: "center" }} title="Approved side-task minutes. Already counted toward Occupancy.">Side Tasks</th>
               <th style={{ textAlign: "center" }} title="Side-task minutes logged but not yet approved. NOT counted in Occupancy until approved.">
@@ -370,21 +370,52 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
             </tr></thead>
             <tbody>
               {(view === "daily" ? [...data].reverse() : view === "weekly" ? [...weeklyData].reverse() : [...monthlyData].reverse()).map((r, i) => {
-                const sbs = view === "daily" ? num(r.sbs) : r.sbs;
-                const nsbs = view === "daily" ? num(r.non_sbs) : r.non_sbs;
-                const coaching = view === "daily" ? num(r.coaching_sessions) : r.coaching;
-                const side = view === "daily" ? num(r.side_task_minutes) : r.side;
-                // Monthly occ: recompute from this month's aggregated
-                // productivity_history totals (the rows we already have),
-                // but use MTD's official working_days as the denominator
-                // instead of "days with any activity". Weekly stays on
-                // daily-avg (MTD has no weekly breakdown).
+                // For monthly view, the counts shown in the table come
+                // straight from MTD (sbs + non_sbs+dsat + coaching + side)
+                // so what the user sees matches what the occupancy math
+                // below uses. Daily/weekly stay sourced from
+                // productivity_history aggregates as before.
+                const monthMtdRow = view === "monthly" ? mtdByYM.get(r.monthStart) : null;
+                const sbs =
+                  view === "daily"  ? num(r.sbs) :
+                  monthMtdRow       ? Number(monthMtdRow.sbs || 0) :
+                                      r.sbs;
+                const nsbs =
+                  view === "daily"  ? num(r.non_sbs) :
+                  monthMtdRow       ? Number(monthMtdRow.non_sbs || 0) + Number(monthMtdRow.dsat || 0) :
+                                      r.non_sbs;
+                const coaching =
+                  view === "daily"  ? num(r.coaching_sessions) :
+                  monthMtdRow       ? Number(monthMtdRow.coaching_sessions || 0) :
+                                      r.coaching;
+                const side =
+                  view === "daily"  ? num(r.side_task_minutes) :
+                  monthMtdRow       ? Number(monthMtdRow.side_tasks_duration_mins || 0) :
+                                      r.side;
+                // Monthly view sources eval counts + side-task minutes
+                // from MTD directly (the canonical totals), aggregating
+                // non_sbs + dsat as one "Evaluations" bucket since both
+                // categories share the same per-eval duration in the
+                // productive-minutes formula.
+                //   productive = sbs * sbs_dur
+                //              + (non_sbs + dsat) * non_sbs_dur
+                //              + coaching * coaching_dur
+                //              + side_task_minutes
+                //   occ = productive / (mtd_wds * shift_min) * 100
+                // For Hagar May 2026 that's (0×20) + (315×15) + (0×30)
+                // + 3566 = 8291, ÷ (15 × 480) = 7200, × 100 = 115.15%
+                // — matches MTD's stored value exactly.
+                const mtdRow = view === "monthly" ? mtdByYM.get(r.monthStart) : null;
                 const mtdWds = view === "monthly" ? mtdWdsForKey(r.monthStart) : null;
-                const monthlyProductive = view === "monthly"
-                  ? (r.sbs * sbsDur) + (r.non_sbs * nonSbsDur) + (r.coaching * coachingDur) + r.side
-                  : 0;
-                const monthlyOccFromMtd = (mtdWds && shiftMins > 0)
-                  ? (monthlyProductive / (mtdWds * shiftMins)) * 100
+                const monthlyOccFromMtd = (mtdRow && mtdWds && shiftMins > 0)
+                  ? (() => {
+                      const mSbs    = Number(mtdRow.sbs || 0);
+                      const mEvals  = Number(mtdRow.non_sbs || 0) + Number(mtdRow.dsat || 0);
+                      const mCoach  = Number(mtdRow.coaching_sessions || 0);
+                      const mSide   = Number(mtdRow.side_tasks_duration_mins || 0);
+                      const prod    = (mSbs * sbsDur) + (mEvals * nonSbsDur) + (mCoach * coachingDur) + mSide;
+                      return (prod / (mtdWds * shiftMins)) * 100;
+                    })()
                   : null;
                 const occ =
                   view === "daily"   ? occForRow(r) :
@@ -392,9 +423,9 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
                                        (r.workDays > 0 ? r.occSum / r.workDays : 0);
                 const pending =
                   view === "daily" ? num(r.pending_side_minutes) : r.pending;
-                // Projection uses the same denominator. If pending side
-                // minutes were approved, they'd flow into productive and
-                // raise the rate by pending / (wds * shift) * 100.
+                // Projection: same MTD-based denominator. Pending minutes
+                // come from productivity_history aggregate since MTD's
+                // side_tasks_duration_mins is the APPROVED-only sum.
                 const projOcc =
                   view === "daily"   ? projOccForRow(r) :
                   view === "monthly" && monthlyOccFromMtd != null
