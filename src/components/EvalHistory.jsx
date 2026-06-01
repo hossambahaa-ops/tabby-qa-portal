@@ -164,12 +164,13 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
     return Object.values(groups).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
   })();
 
-  // MTD lookup keyed by "YYYY-MM" so monthly rows can pull the official
-  // working_days + stored occupancy_pct instead of recomputing from
-  // productivity_history alone. Without this, monthly occ averaged each
-  // day's pct over the count of any-activity days — Hagar's 27 nonzero
+  // MTD lookup keyed by "YYYY-MM" so monthly rows can pull the OFFICIAL
+  // working_days denominator (excludes weekends + approved leave) but
+  // still run the occ math on raw productivity_history aggregates the
+  // app already has. Without this, the monthly row averaged each day's
+  // own pct over the count of any-activity days — Hagar's 27 nonzero
   // days drove the average down to 63% while MTD (which uses 15 official
-  // working_days) correctly showed 115%.
+  // working_days) correctly hit 115%.
   const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const mtdByYM = new Map(
     (qaMtd || [])
@@ -182,11 +183,16 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
       })
       .filter(Boolean)
   );
-  const mtdOccForKey = (ymKey) => {
+  // Working-days denominator for a "YYYY-MM" key. MTD stores
+  // working_days as the regular business-day count; ramadan_wds is
+  // additive (shorter Ramadan workdays counted alongside regular days).
+  // Returns null when there's no MTD row for that month yet, so the
+  // caller can fall back to the daily-avg approach.
+  const mtdWdsForKey = (ymKey) => {
     const mtd = mtdByYM.get(ymKey);
-    if (!mtd?.occupancy_pct) return null;
-    const v = parseFloat(String(mtd.occupancy_pct).replace("%", "").replace(",", "."));
-    return isNaN(v) ? null : v;
+    if (!mtd) return null;
+    const wds = Number(mtd.working_days || 0) + Number(mtd.ramadan_wds || 0);
+    return wds > 0 ? wds : null;
   };
 
   // Monthly aggregation — same shape as weekly, keyed by YYYY-MM.
@@ -368,23 +374,31 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
                 const nsbs = view === "daily" ? num(r.non_sbs) : r.non_sbs;
                 const coaching = view === "daily" ? num(r.coaching_sessions) : r.coaching;
                 const side = view === "daily" ? num(r.side_task_minutes) : r.side;
-                // For monthly view, prefer MTD's official occupancy_pct
-                // (uses roster-derived working_days, excludes leave /
-                // weekends). Falls back to daily-avg if MTD has no row.
-                // Weekly stays as daily-avg — MTD doesn't track weeks.
-                const mtdOccVal = view === "monthly" ? mtdOccForKey(r.monthStart) : null;
+                // Monthly occ: recompute from this month's aggregated
+                // productivity_history totals (the rows we already have),
+                // but use MTD's official working_days as the denominator
+                // instead of "days with any activity". Weekly stays on
+                // daily-avg (MTD has no weekly breakdown).
+                const mtdWds = view === "monthly" ? mtdWdsForKey(r.monthStart) : null;
+                const monthlyProductive = view === "monthly"
+                  ? (r.sbs * sbsDur) + (r.non_sbs * nonSbsDur) + (r.coaching * coachingDur) + r.side
+                  : 0;
+                const monthlyOccFromMtd = (mtdWds && shiftMins > 0)
+                  ? (monthlyProductive / (mtdWds * shiftMins)) * 100
+                  : null;
                 const occ =
                   view === "daily"   ? occForRow(r) :
-                  view === "monthly" ? (mtdOccVal != null ? mtdOccVal : (r.workDays > 0 ? r.occSum / r.workDays : 0)) :
+                  view === "monthly" ? (monthlyOccFromMtd != null ? monthlyOccFromMtd : (r.workDays > 0 ? r.occSum / r.workDays : 0)) :
                                        (r.workDays > 0 ? r.occSum / r.workDays : 0);
                 const pending =
                   view === "daily" ? num(r.pending_side_minutes) : r.pending;
-                // Projection: when we used MTD's official occ, project on
-                // top of THAT (not the daily-avg) so the delta is honest.
+                // Projection uses the same denominator. If pending side
+                // minutes were approved, they'd flow into productive and
+                // raise the rate by pending / (wds * shift) * 100.
                 const projOcc =
                   view === "daily"   ? projOccForRow(r) :
-                  view === "monthly" && mtdOccVal != null
-                    ? mtdOccVal + minutesAsOccPct(r.pending)
+                  view === "monthly" && monthlyOccFromMtd != null
+                    ? monthlyOccFromMtd + ((r.pending / (mtdWds * shiftMins)) * 100)
                     : (r.workDays > 0 ? r.projOccSum / r.workDays : 0);
                 const projDelta = projOcc - occ;
                 const total = sbs + nsbs;
