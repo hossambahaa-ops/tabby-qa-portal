@@ -29,6 +29,11 @@ function ScoreEntryPage(){
   const [selTL, setSelTL] = useState([]);
   const [selDomain, setSelDomain] = useState("");
   const [selTeam, setSelTeam] = useState([]);
+  // Track whether filter init has run. The data-load effect re-fires
+  // every 60s via reloadKey for live refresh — but the seeded-from-gf
+  // filter init below must only run ONCE, otherwise every minute the
+  // user's manual filter choices get overwritten by gf defaults.
+  const didInitFiltersRef = useRef(false);
   const [mtdView, setMtdView] = useState("qa"); // qa | lead
   // Upload modal state
   const [showUpload, setShowUpload] = useState(false);
@@ -140,20 +145,25 @@ function ScoreEntryPage(){
         setData(filtered);
         const uniqueMonths = sortMonthsDesc([...new Set(filtered.map(r => r.month))]);
         setMonths(uniqueMonths);
-        if (uniqueMonths.length > 0) setSelMonth(uniqueMonths[0]);
-        // Auto-scope supervisors to their domain
-        if (hasRole(profile?.role,"qa_supervisor") && !hasRole(profile?.role,"admin") && !selDomain) {
-          const svDomain = profile?.operational_domain || profile?.domain || "";
-          if (svDomain) setSelDomain(svDomain);
+        // Seed-from-defaults block — ONLY runs on first load.
+        // Re-runs (auto-refresh every 60s, manual ↻ Refresh button)
+        // skip this so they don't overwrite filters the user has
+        // actively changed since first load.
+        if (!didInitFiltersRef.current) {
+          if (uniqueMonths.length > 0) setSelMonth(uniqueMonths[0]);
+          if (hasRole(profile?.role,"qa_supervisor") && !hasRole(profile?.role,"admin")) {
+            const svDomain = profile?.operational_domain || profile?.domain || "";
+            if (svDomain) setSelDomain(svDomain);
+          }
+          if (gf?.domain) setSelDomain(gf.domain);
+          if (gf?.month && uniqueMonths.includes(gf.month)) setSelMonth(gf.month);
+          // setSelTeam expects an array (later code does
+          // selTeam.includes(...)). Previously this passed a single
+          // string from gf.teams[0], which made `.includes(queue)` a
+          // substring test on a string instead of an Array.includes.
+          if (gf?.teams?.length > 0) setSelTeam(gf.teams.filter(Boolean));
+          didInitFiltersRef.current = true;
         }
-        // Sync from global filters
-        if (gf?.domain) setSelDomain(gf.domain);
-        if (gf?.month && uniqueMonths.includes(gf.month)) setSelMonth(gf.month);
-        // setSelTeam expects an array (later code does
-        // selTeam.includes(...)). Previously this passed a single
-        // string from gf.teams[0], which made `.includes(queue)` a
-        // substring test on a string instead of an Array.includes.
-        if (gf?.teams?.length > 0) setSelTeam(gf.teams.filter(Boolean));
       } catch (e) { console.error("MTD Scores:", e); }
       setLoading(false);
     })();
