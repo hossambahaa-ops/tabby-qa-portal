@@ -38,7 +38,7 @@ function fmtMonth(yyyymm) {
   return dt.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
 }
 
-function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
+function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
   const { token, globalToast } = useApp();
   const [data, setData] = useState(null);
   // Start in the loading state — the auto-load effect kicks in on mount.
@@ -163,6 +163,31 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
     });
     return Object.values(groups).sort((a, b) => a.weekStart.localeCompare(b.weekStart));
   })();
+
+  // MTD lookup keyed by "YYYY-MM" so monthly rows can pull the official
+  // working_days + stored occupancy_pct instead of recomputing from
+  // productivity_history alone. Without this, monthly occ averaged each
+  // day's pct over the count of any-activity days — Hagar's 27 nonzero
+  // days drove the average down to 63% while MTD (which uses 15 official
+  // working_days) correctly showed 115%.
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const mtdByYM = new Map(
+    (qaMtd || [])
+      .map(m => {
+        const parts = (m?.month || "").split("-");
+        const idx = MONTHS.indexOf(parts[0]);
+        const yr = parts[1];
+        if (idx < 0 || !yr) return null;
+        return [`${yr}-${String(idx + 1).padStart(2, "0")}`, m];
+      })
+      .filter(Boolean)
+  );
+  const mtdOccForKey = (ymKey) => {
+    const mtd = mtdByYM.get(ymKey);
+    if (!mtd?.occupancy_pct) return null;
+    const v = parseFloat(String(mtd.occupancy_pct).replace("%", "").replace(",", "."));
+    return isNaN(v) ? null : v;
+  };
 
   // Monthly aggregation — same shape as weekly, keyed by YYYY-MM.
   const monthlyData = (() => {
@@ -343,14 +368,24 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa }) {
                 const nsbs = view === "daily" ? num(r.non_sbs) : r.non_sbs;
                 const coaching = view === "daily" ? num(r.coaching_sessions) : r.coaching;
                 const side = view === "daily" ? num(r.side_task_minutes) : r.side;
+                // For monthly view, prefer MTD's official occupancy_pct
+                // (uses roster-derived working_days, excludes leave /
+                // weekends). Falls back to daily-avg if MTD has no row.
+                // Weekly stays as daily-avg — MTD doesn't track weeks.
+                const mtdOccVal = view === "monthly" ? mtdOccForKey(r.monthStart) : null;
                 const occ =
-                  view === "daily" ? occForRow(r) :
-                  (r.workDays > 0 ? r.occSum / r.workDays : 0);
+                  view === "daily"   ? occForRow(r) :
+                  view === "monthly" ? (mtdOccVal != null ? mtdOccVal : (r.workDays > 0 ? r.occSum / r.workDays : 0)) :
+                                       (r.workDays > 0 ? r.occSum / r.workDays : 0);
                 const pending =
                   view === "daily" ? num(r.pending_side_minutes) : r.pending;
+                // Projection: when we used MTD's official occ, project on
+                // top of THAT (not the daily-avg) so the delta is honest.
                 const projOcc =
-                  view === "daily" ? projOccForRow(r) :
-                  (r.workDays > 0 ? r.projOccSum / r.workDays : 0);
+                  view === "daily"   ? projOccForRow(r) :
+                  view === "monthly" && mtdOccVal != null
+                    ? mtdOccVal + minutesAsOccPct(r.pending)
+                    : (r.workDays > 0 ? r.projOccSum / r.workDays : 0);
                 const projDelta = projOcc - occ;
                 const total = sbs + nsbs;
                 const dateLabel =

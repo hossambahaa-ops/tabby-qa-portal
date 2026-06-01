@@ -827,7 +827,7 @@ function QAProfilePage() {
         {/* Evaluation History first — leads asked for the daily / weekly /
             monthly productivity feed at the top of this tab so they see
             the freshest data without scrolling past the MTD card. */}
-        {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} />}
+        {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} qaMtd={qaMtd} />}
         {/* Performance + Trend in 2-col */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16,marginTop:16}}>
           {/* Performance metrics with month selector */}
