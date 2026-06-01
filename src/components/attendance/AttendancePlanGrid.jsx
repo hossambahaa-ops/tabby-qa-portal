@@ -117,7 +117,14 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
           .filter((r) => emailsMatchLoose(r.manager_email, selLead))
           .map((r) => r.email?.toLowerCase()),
       );
-      list = list.filter((q) => leadEmails.has(q.email?.toLowerCase()));
+      // Include the lead's own row too (synthesized in qaList with
+      // manager_email = null), so the team header still appears when
+      // the lead filter is active.
+      const selLeadLc = selLead.toLowerCase();
+      list = list.filter((q) => {
+        const em = q.email?.toLowerCase();
+        return leadEmails.has(em) || em === selLeadLc;
+      });
     }
     if (search.trim()) {
       const q = search.toLowerCase().trim();
@@ -127,7 +134,43 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
           nameFromEmail(qa.email).toLowerCase().includes(q),
       );
     }
-    return list.sort((a, b) => (a.email || "").localeCompare(b.email || ""));
+    // Re-group: lead rows first, their team members sorted alphabetically
+    // beneath. Orphan QAs (whose lead isn't in the filtered list) fall to
+    // the bottom. Mirrors the Calendar tab's layout so leads see the same
+    // team blocks in the same order on both tabs.
+    const leadRows = list.filter((q) => q.__isLead);
+    const memberRows = list.filter((q) => !q.__isLead);
+    const sortedLeads = [...leadRows].sort((a, b) =>
+      (a.email || "").localeCompare(b.email || ""),
+    );
+    const grouped = [];
+    const used = new Set();
+    for (const lead of sortedLeads) {
+      const le = (lead.email || "").toLowerCase();
+      grouped.push(lead);
+      used.add(le);
+      const team = memberRows
+        .filter((m) => {
+          const mgr = (m.manager_email || "").toLowerCase();
+          return (
+            mgr === le ||
+            (mgr && le && mgr.split("@")[0] === le.split("@")[0])
+          );
+        })
+        .sort((a, b) =>
+          (a.display_name || a.email || "").localeCompare(
+            b.display_name || b.email || "",
+          ),
+        );
+      for (const t of team) {
+        grouped.push(t);
+        used.add((t.email || "").toLowerCase());
+      }
+    }
+    for (const m of memberRows) {
+      if (!used.has((m.email || "").toLowerCase())) grouped.push(m);
+    }
+    return grouped;
   }, [qaList, roster, selDomain, selTeam, selLead, search]);
 
   // Effective planned_code for a cell — considers pending changes first
@@ -556,14 +599,22 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                     style={{
                       position: "sticky",
                       left: 0,
-                      background: "var(--bg)",
+                      background: qa.__isLead ? "rgba(106,44,121,.10)" : "var(--bg)",
                       zIndex: 2,
                       padding: "6px 12px",
                       fontSize: 12,
                       borderRight: "1px solid var(--bd2)",
+                      borderLeft: qa.__isLead ? "3px solid var(--tabby-purple)" : "none",
                     }}
                   >
-                    <div style={{ fontWeight: 600 }}>{nameFromEmail(em)}</div>
+                    <div style={{ fontWeight: qa.__isLead ? 800 : 600, display: "flex", alignItems: "center", gap: 6 }}>
+                      {nameFromEmail(em)}
+                      {qa.__isLead && (
+                        <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(60,255,165,.18)", color: "#3CFFA5", letterSpacing: ".4px", textTransform: "uppercase" }}>
+                          Lead
+                        </span>
+                      )}
+                    </div>
                     <div style={{ fontSize: 10, color: "var(--tx3)" }}>{em}</div>
                   </td>
                   {days.map((d) => {
