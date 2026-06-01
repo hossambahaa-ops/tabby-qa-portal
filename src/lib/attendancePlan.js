@@ -120,12 +120,18 @@ export function isWorkdayDate(dateStr) {
   return wd !== 5 && wd !== 6;
 }
 
-// Returns true if the date is editable in the plan grid (≥ feature start
-// AND not in the past relative to today's Riyadh date — leads can only
-// plan today and forward).
-export function isPlanEditableDate(dateStr, now = new Date()) {
+// Returns true if the date is editable in the plan grid.
+// Default rules (leads + below):
+//   - date must be ≥ PLAN_FEATURE_START
+//   - date must be today (Riyadh) or later
+// Super-admin override (opts.allowPast = true):
+//   - the "no past dates" rule is lifted so super-admin can backfill
+//     past months (e.g. correct a PH or CDO day that slipped through
+//     the source spreadsheet). The PLAN_FEATURE_START floor still
+//     applies — there's no plan schema before May-2026.
+export function isPlanEditableDate(dateStr, now = new Date(), opts = {}) {
   if (!dateStr || dateStr < PLAN_FEATURE_START) return false;
-  if (dateStr < riyadhTodayStr(now)) return false;
+  if (!opts.allowPast && dateStr < riyadhTodayStr(now)) return false;
   return true;
 }
 

@@ -297,10 +297,13 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
           </button>
         </div>
 
-        {/* From / To — bulk plan-set is for the future. The date pickers
-            cap at tomorrow so today's already-recorded attendance can't
-            be overwritten by a stray bulk apply. Use the calendar's
-            click-to-edit for today specifically if you need it. */}
+        {/* From / To — bulk plan-set is normally for the future. Super-
+            admins can backfill: their min drops to PLAN_FEATURE_START
+            (2026-05-01) so they can correct past months (e.g. a PH or
+            CDO day that slipped through the source spreadsheet). The
+            today-skip guard in the parent still protects today's row's
+            status lifecycle, so even a super-admin backfill won't
+            overwrite today's recorded attendance. */}
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
           <div className="form-group">
             <label className="form-label">From</label>
@@ -308,10 +311,14 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
               type="date"
               className="form-input"
               value={from}
-              min={tomorrowStr}
+              min={isSuperAdmin ? "2026-05-01" : tomorrowStr}
               onChange={(e) => setFrom(e.target.value)}
             />
-            <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 4 }}>Earliest: tomorrow ({tomorrowStr})</div>
+            <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 4 }}>
+              {isSuperAdmin
+                ? `Super-admin: backfill allowed from 2026-05-01 · today is skipped`
+                : `Earliest: tomorrow (${tomorrowStr})`}
+            </div>
           </div>
           <div className="form-group">
             <label className="form-label">To</label>
@@ -319,7 +326,7 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
               type="date"
               className="form-input"
               value={to}
-              min={tomorrowStr}
+              min={isSuperAdmin ? "2026-05-01" : tomorrowStr}
               onChange={(e) => setTo(e.target.value)}
             />
           </div>

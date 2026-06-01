@@ -201,7 +201,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
 
   // Click handler: empty → H → P → OFF → empty
   const cycleCell = (email, date) => {
-    if (!isPlanEditableDate(date)) return;
+    if (!isPlanEditableDate(date, undefined, { allowPast: isSuperAdmin })) return;
     const current = cellPlan(email, date);
     let next;
     if (current === null || current === undefined) next = "H";
@@ -234,7 +234,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
       if (!em) return;
       dates.forEach((d) => {
         if (d === todayBulkSkip) { skippedTodayCount++; return; }
-        if (!isPlanEditableDate(d)) return;
+        if (!isPlanEditableDate(d, undefined, { allowPast: isSuperAdmin })) return;
         if (valueChanged) {
           nextChanges[`${em}__${d}`] = value; // null = clear plan
           planCount++;
@@ -431,6 +431,23 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
 
   return (
     <div>
+      {/* Super-admin backfill banner — surfaces the past-date override
+          so it's obvious why cells normally locked are clickable, and
+          so nobody mistakes it for a UI bug. */}
+      {isSuperAdmin && (
+        <div className="card" style={{
+          padding: "8px 12px", marginBottom: 12,
+          borderLeft: "3px solid var(--tabby-purple)",
+          background: "rgba(106,44,121,.08)",
+          display: "flex", alignItems: "center", gap: 10, fontSize: 12,
+        }}>
+          <span style={{ fontSize: 14 }}>🔓</span>
+          <span style={{ color: "var(--tx)" }}>
+            <strong>Super-admin backfill mode.</strong> You can edit any date from 2026-05-01 forward. Past-day edits update planned_code only — today's recorded status / approval lifecycle is still protected.
+          </span>
+        </div>
+      )}
+
       {/* Filter bar */}
       <div
         style={{
@@ -487,7 +504,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
             for (const qa of visibleQAs) {
               const em = (qa.email || "").toLowerCase();
               for (const d of days) {
-                if (!isPlanEditableDate(d.date)) continue;
+                if (!isPlanEditableDate(d.date, undefined, { allowPast: isSuperAdmin })) continue;
                 // Determine the planned status for this cell — pending change wins, then DB row.
                 const key = `${em}__${d.date}`;
                 const dbRow = attendance.find(a => a.email?.toLowerCase() === em && a.date === d.date);
@@ -620,7 +637,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                   {days.map((d) => {
                     // Fri/Sat are styled lighter but still editable —
                     // some QAs work weekends.
-                    const editable = isPlanEditableDate(d.date);
+                    const editable = isPlanEditableDate(d.date, undefined, { allowPast: isSuperAdmin });
                     const planned = cellPlan(em, d.date);
                     const original = attMap[`${em}__${d.date}`]?.planned_code || null;
                     const isPending = planned !== original;
