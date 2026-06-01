@@ -652,15 +652,35 @@ function SchedulePage() {
     if (targets.length === 0) { globalToast("error", "No QAs selected"); return; }
     const start = new Date(bulkFrom + "T00:00:00");
     const end = new Date(bulkTo + "T00:00:00");
+    const todayIso = riyadhTodayStr();
     const rows = [];
+    let skippedFuture = 0;
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dow = d.getDay();
       if (bulkDayFilter === "weekdays" && (dow === 5 || dow === 6)) continue;
       if (bulkDayFilter === "weekends" && dow !== 5 && dow !== 6) continue;
       const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+      // Guardrail: this modal writes `status` (the actual outcome).
+      // Setting status='P' for future days creates phantom check-ins that
+      // dominate the "My month" widget, get counted as attended in
+      // adherence math, and block the QA's own check-in flow. The plan
+      // tab (planned_code) is the right tool for future scheduling.
+      // Super-admin bypasses this — they may need to bulk-correct a
+      // mistakenly-set future day or set an approved future leave code.
+      if (dateStr > todayIso && !isSuperAdmin) { skippedFuture++; continue; }
       for (const em of targets) rows.push({email: em, date: dateStr, status: bulkStatus, created_by: myEmail});
     }
-    if (rows.length === 0) { globalToast("error", "No matching days in range"); return; }
+    if (rows.length === 0) {
+      if (skippedFuture > 0) {
+        globalToast("error", `Bulk attendance is for today and past only — ${skippedFuture} future day${skippedFuture===1?"":"s"} skipped. Use the Plan tab to schedule future days.`);
+      } else {
+        globalToast("error", "No matching days in range");
+      }
+      return;
+    }
+    if (skippedFuture > 0) {
+      globalToast("info", `${skippedFuture} future day${skippedFuture===1?" was":"s were"} skipped — use the Plan tab for future scheduling.`);
+    }
     try {
       const batchSize = 200;
       for (let i = 0; i < rows.length; i += batchSize) {
