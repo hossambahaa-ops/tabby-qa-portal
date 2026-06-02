@@ -655,6 +655,7 @@ function SchedulePage() {
     const todayIso = riyadhTodayStr();
     const rows = [];
     let skippedFuture = 0;
+    let planFuture = 0;
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dow = d.getDay();
       if (bulkDayFilter === "weekdays" && (dow === 5 || dow === 6)) continue;
@@ -663,11 +664,21 @@ function SchedulePage() {
       // Guardrail: this modal writes `status` (the actual outcome).
       // Setting status='P' for future days creates phantom check-ins that
       // dominate the "My month" widget, get counted as attended in
-      // adherence math, and block the QA's own check-in flow. The plan
-      // tab (planned_code) is the right tool for future scheduling.
-      // Super-admin bypasses this — they may need to bulk-correct a
-      // mistakenly-set future day or set an approved future leave code.
-      if (dateStr > todayIso && !isSuperAdmin) { skippedFuture++; continue; }
+      // adherence math, and block the QA's own check-in flow.
+      //
+      // Future days:
+      //   - Regular leads → skipped (Plan tab is the right tool).
+      //   - Super-admin → written as a PLAN (planned_code) only, never
+      //     as actual attendance. Keeps the "bulk-schedule a team ahead"
+      //     ability without manufacturing phantom check-ins. The payload
+      //     deliberately omits `status`, so a merge-upsert leaves any
+      //     real status/check-in on that row untouched.
+      if (dateStr > todayIso) {
+        if (!isSuperAdmin) { skippedFuture++; continue; }
+        for (const em of targets) rows.push({email: em, date: dateStr, planned_code: bulkStatus, created_by: myEmail});
+        planFuture++;
+        continue;
+      }
       for (const em of targets) rows.push({email: em, date: dateStr, status: bulkStatus, created_by: myEmail});
     }
     if (rows.length === 0) {
@@ -680,6 +691,9 @@ function SchedulePage() {
     }
     if (skippedFuture > 0) {
       globalToast("info", `${skippedFuture} future day${skippedFuture===1?" was":"s were"} skipped — use the Plan tab for future scheduling.`);
+    }
+    if (planFuture > 0) {
+      globalToast("info", `${planFuture} future day${planFuture===1?" was":"s were"} written as a PLAN (${bulkStatus}), not actual attendance.`);
     }
     try {
       const batchSize = 200;
