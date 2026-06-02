@@ -167,6 +167,93 @@ function QAProfilePage() {
   })();
   // Use the latest month that has data (first in chronologically sorted array)
   const latestMtd = qaMtd.length > 0 ? qaMtd[0] : null;
+
+  // Per-month occupancy computed in-app from productivity_history rows
+  // (the daily feed) using MTD's working_days as the denominator.
+  // Bypasses MTD's stored occupancy_pct which can lag behind the feed
+  // when the source spreadsheet is mid-refresh or has gaps.
+  // Formula:
+  //   productive = sbs*sbs_dur + non_sbs*non_sbs_dur
+  //              + coaching*coach_dur + side_task_minutes
+  //   occ        = productive / (mtd_working_days * shift_min) * 100
+  // productivity_history.non_sbs already includes DSATs, so no extra
+  // term for them. Falls back to MTD's stored value when the daily
+  // feed has no data for the month.
+  const [prodHistRows, setProdHistRows] = useState([]);
+  useEffect(() => {
+    if (!token || !selectedQA) { setProdHistRows([]); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        // Cross-domain fetch: pull both @tabby.ai and @tabby.sa variants
+        // so a QA mid-migration doesn't lose data.
+        const variants = [...new Set([
+          selectedQA.toLowerCase(),
+          selectedQA.toLowerCase().endsWith("@tabby.ai")
+            ? selectedQA.toLowerCase().replace("@tabby.ai", "@tabby.sa")
+            : selectedQA.toLowerCase().endsWith("@tabby.sa")
+              ? selectedQA.toLowerCase().replace("@tabby.sa", "@tabby.ai")
+              : selectedQA.toLowerCase(),
+        ])];
+        const inList = variants.map(e => `"${e}"`).join(",");
+        const rows = await sb.query("productivity_history", {
+          token,
+          select: "date,qa_email,sbs,non_sbs,coaching_sessions,side_task_minutes,pending_side_minutes",
+          filters: `qa_email=in.(${inList})&order=date.desc&limit=2000`,
+        }).catch(() => []);
+        if (!cancelled) setProdHistRows(Array.isArray(rows) ? rows : []);
+      } catch { if (!cancelled) setProdHistRows([]); }
+    })();
+    return () => { cancelled = true; };
+  }, [token, selectedQA]);
+
+  // Build a per-(YYYY-MM) → computed occupancy% map. Recomputes when
+  // either the feed rows or MTD list changes. Used by both the
+  // Performance card row and the trend chart so they agree.
+  const computedOccByYM = (() => {
+    // Pull QA-specific target durations (with per-team / per-QA overrides
+    // honored by team_targets — already loaded in qaTargetsTL state).
+    // Without targets in scope here, fall back to standard defaults so
+    // the math always runs.
+    const SBS_DUR = 20, NSBS_DUR = 15, COACH_DUR = 30, SHIFT_MIN = 480;
+    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const mtdByYM = new Map((qaMtd || []).map(m => {
+      const [mon, yr] = (m?.month || "").split("-");
+      const idx = MONTHS.indexOf(mon);
+      if (idx < 0 || !yr) return null;
+      const wds = Number(m.working_days || 0) + Number(m.ramadan_wds || 0);
+      return [`${yr}-${String(idx + 1).padStart(2, "0")}`, wds > 0 ? wds : null];
+    }).filter(Boolean));
+    const sumsByYM = new Map();
+    for (const d of (prodHistRows || [])) {
+      const ym = (d.date || "").slice(0, 7);
+      if (!ym) continue;
+      const s = sumsByYM.get(ym) || { sbs: 0, non_sbs: 0, coach: 0, side: 0 };
+      s.sbs   += Number(d.sbs || 0);
+      s.non_sbs += Number(d.non_sbs || 0);
+      s.coach += Number(d.coaching_sessions || 0);
+      s.side  += Number(d.side_task_minutes || 0);
+      sumsByYM.set(ym, s);
+    }
+    const out = new Map();
+    for (const [ym, s] of sumsByYM) {
+      const wds = mtdByYM.get(ym);
+      if (!wds) continue;
+      const prod = (s.sbs * SBS_DUR) + (s.non_sbs * NSBS_DUR) + (s.coach * COACH_DUR) + s.side;
+      out.set(ym, (prod / (wds * SHIFT_MIN)) * 100);
+    }
+    return out;
+  })();
+  // Look up by MTD month string ("May-2026") for convenience at call sites.
+  const computedOccForMonth = (mtdMonth) => {
+    if (!mtdMonth) return null;
+    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const [mon, yr] = mtdMonth.split("-");
+    const idx = MONTHS.indexOf(mon);
+    if (idx < 0 || !yr) return null;
+    return computedOccByYM.get(`${yr}-${String(idx + 1).padStart(2, "0")}`) ?? null;
+  };
+
   const qaSessions = sessions.filter(s => matchQA(s.qa_email)).slice(0, 10);
   const qaPlans = plans.filter(p => matchQA(p.qa_email));
   const qaTasks = tasks.filter(t => matchQA(t.assigned_to) || (matchQA(t.created_by) && !t.assigned_to));
@@ -883,7 +970,14 @@ function QAProfilePage() {
                   return "—";
                 })()],
                 ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"],
-                ["Occupancy", fmtPct(m.occupancy_pct)],["JKQ", m.jkq_score || "—"],
+                ["Occupancy", (() => {
+                  // Prefer the feed-computed value (matches EvalHistory's
+                  // monthly row). Falls back to MTD's stored value if the
+                  // feed is empty for this month.
+                  const computed = computedOccForMonth(m.month);
+                  if (computed != null) return computed.toFixed(1) + "%";
+                  return fmtPct(m.occupancy_pct);
+                })()],["JKQ", m.jkq_score || "—"],
                 ["CSAT %", (() => { const v = csatPctValue(m.csat_pct); const s = Number(m.csat_total || 0); return (v != null && s > 0) ? v.toFixed(1) + "%" : "—"; })()],
                 ["Surveys", m.csat_total ?? "—"],
               ];
@@ -920,7 +1014,13 @@ function QAProfilePage() {
                   const x = 35 + i * (chartW - 50) / (trendData.length - 1 || 1);
                   const perf = (parseFloat(d.final_performance) || 0) * 100;
                   const y = chartH - 8 - (perf / Math.max(maxPerf, 50)) * (chartH - 25);
-                  return { x, y, perf, month: d.month?.split("-")[0]?.slice(0,3) || "", dsat: d.dsat || 0, occ: parseFloat(d.occupancy_pct) || 0 };
+                  // Trend chart occ now reflects the same in-app calc
+                  // as the Performance card + EvalHistory monthly row.
+                  // Fall back to MTD's stored occupancy if the feed
+                  // has no data for that month.
+                  const computedOccTrend = computedOccForMonth(d.month);
+                  const occForChart = computedOccTrend != null ? computedOccTrend : (parseFloat(d.occupancy_pct) || 0);
+                  return { x, y, perf, month: d.month?.split("-")[0]?.slice(0,3) || "", dsat: d.dsat || 0, occ: occForChart };
                 });
                 const line = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x} ${p.y}`).join(" ");
                 const areaPath = line + ` L${points[points.length-1].x} ${chartH-8} L${points[0].x} ${chartH-8} Z`;
@@ -939,7 +1039,13 @@ function QAProfilePage() {
                   <div style={{display:"flex",gap:16,justifyContent:"center",flexWrap:"wrap",marginTop:4}}>
                     {trendData.map((d, i) => <div key={i} style={{textAlign:"center",fontSize:10,color:"var(--tx3)"}}>
                       <div style={{fontWeight:600,color:"var(--tx2)"}}>{d.month?.split("-")[0]?.slice(0,3)}</div>
-                      <div>Occ: {d.occupancy_pct ? (parseFloat(d.occupancy_pct) > 2 ? parseFloat(d.occupancy_pct).toFixed(1) : (parseFloat(d.occupancy_pct)*100).toFixed(1)) : "—"}%</div>
+                      <div>Occ: {(() => {
+                        const c = computedOccForMonth(d.month);
+                        if (c != null) return c.toFixed(1);
+                        if (!d.occupancy_pct) return "—";
+                        const n = parseFloat(d.occupancy_pct);
+                        return (n > 2 ? n : n * 100).toFixed(1);
+                      })()}%</div>
                       <div style={{color:"var(--tx3)"}}>DSAT: {d.dsat||0}</div>
                     </div>)}
                   </div>
