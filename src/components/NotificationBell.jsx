@@ -381,6 +381,25 @@ function NotificationBell({ onNavigate }) {
             }
           });
 
+          // QLeads/supervisors aren't QA emails, so the QA-gated self
+          // block above skips them — but they record attendance too and
+          // can be auto-NSNC'd. Surface their OWN auto-NSNC here (plan
+          // flags stay QA-only; NSNC is a status that applies to anyone).
+          if (!isQaEmail(myEmail)) {
+            (myAttRows || [])
+              .filter(r => emailsMatchLoose(r.email, myEmail) && isAutoNsnc(r))
+              .forEach(r => {
+                all.push({
+                  id: "att-nsnc-" + r.id,
+                  type: "attendance_auto_nsnc",
+                  title: `🚨 Auto-marked NSNC on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
+                  sub: `No attendance recorded by 9 PM Riyadh — your supervisor can adjust if needed.`,
+                  time: r.date + "T19:00:00Z",
+                  page: "schedule",
+                });
+              });
+          }
+
           // Lead+: same flags for their effective team. Reuses
           // teamEmails from the attendance-approval block above when
           // available; otherwise resolves via loadTeamForViewer so
@@ -436,6 +455,43 @@ function NotificationBell({ onNavigate }) {
                   });
                 }
               });
+            }
+          }
+
+          // Supervisor+: surface auto-NSNC for the QLEADS reporting to me
+          // (teams.supervisor_id = my profile). loadTeamForViewer returns
+          // only QAs, so a QLead's own NSNC would otherwise never reach
+          // their supervisor's bell.
+          if (isSv) {
+            const meProf = await sb.query("profiles", { token, select: "id", filters: `email=eq.${profile?.email}` }).catch(() => []);
+            const myId = Array.isArray(meProf) && meProf[0]?.id;
+            if (myId) {
+              const myTeams = await sb.query("teams", { token, select: "lead_id", filters: `supervisor_id=eq.${myId}` }).catch(() => []);
+              const leadIds = [...new Set((myTeams || []).map(t => t.lead_id).filter(Boolean))];
+              if (leadIds.length > 0) {
+                const leadProfs = await sb.query("profiles", { token, select: "id,email", filters: `id=in.(${leadIds.join(",")})` }).catch(() => []);
+                const leadEmails = (leadProfs || []).map(p => (p.email || "").toLowerCase()).filter(Boolean);
+                if (leadEmails.length > 0) {
+                  const orList = leadEmails.slice(0, 50).map(e => `email.eq.${e}`).join(",");
+                  const leadAtt = await sb.query("qa_attendance", {
+                    select: "id,email,date,status,planned_code,auto_nsnc",
+                    filters: `date=gte.${sinceDate}&or=(${orList})&order=date.desc&limit=200`,
+                    token,
+                  }).catch(() => []);
+                  (leadAtt || []).forEach(r => {
+                    if (isAutoNsnc(r)) {
+                      all.push({
+                        id: "latt-nsnc-" + r.id,
+                        type: "attendance_auto_nsnc",
+                        title: `🚨 ${nameFromEmail(r.email)} (lead) — auto-NSNC on ${new Date(r.date+"T00:00:00").toLocaleDateString("en-GB",{day:"numeric",month:"short"})}`,
+                        sub: `No attendance recorded by 9 PM Riyadh. Click to adjust.`,
+                        time: r.date + "T19:00:00Z",
+                        page: "schedule",
+                      });
+                    }
+                  });
+                }
+              }
             }
           }
         } catch (e) { console.error("Attendance plan notifications:", e); }
