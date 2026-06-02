@@ -538,6 +538,7 @@ export default function CSATPage() {
                   <th style={{width:22}}></th>
                   <th>Specialist</th>
                   <th>TL</th>
+                  <th style={{width:90}} title="QA's primary Line of Business — drives the quartile cohort.">LOB</th>
                   <th style={{textAlign:"right",width:80}}>Surveys</th>
                   <th style={{textAlign:"right",width:90}}>CSAT %</th>
                   <th style={{textAlign:"center",width:80}} title="Per-domain CSAT quartile this month (Q1 = top 25%). Needs ≥5 surveys + ≥8 ranked QAs in the domain to assign.">Quartile</th>
@@ -588,13 +589,14 @@ export default function CSATPage() {
                         </div>
                       </td>
                       <td style={{fontSize:11.5,color:"var(--tx2)",padding:"4px 8px",whiteSpace:"nowrap"}} title={r.qa_tl||""}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
+                      <td style={{fontSize:11.5,color:"var(--tx2)",padding:"4px 8px",whiteSpace:"nowrap"}} title={r.lob || "LOB not set in mtd_scores"}>{r.lob || "—"}</td>
                       <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)",padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{r.csat_total ?? "—"}</td>
                       {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,fontSize:12.5,color:csatColor(v,s),padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                       <td style={{textAlign:"center",padding:"4px 8px"}}><QuartilePill quartile={r.csat_quartile} lob={r.lob} /></td>
                       {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const cur=(v!=null&&s>0)?v:null;const p=lookupPrev(r.qa_email);return renderDelta(cur, p?.v ?? null);})()}
                     </tr>
                     {isExpanded && <tr>
-                      <td colSpan={7} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
+                      <td colSpan={8} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
                         {isLoading ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>Loading topics…</div>
                          : !t || t.length === 0 ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
                          : <table style={{width:"100%",marginTop:4,borderCollapse:"collapse"}}>
