@@ -46,8 +46,8 @@ export const PICKER_TYPES = ATTENDANCE_TYPES.filter(t => t.code !== "OT");
 // before this still shows the legacy full list so leads can clean up
 // May with full granularity.
 export const ATT_SIMPLIFIED_START = "2026-06-01";
-const SIMPLIFIED_CODES = new Set(["P", "H", "CDO", "PH", "OFF", "Leave"]);
-const SIMPLIFIED_TYPES = ATTENDANCE_TYPES.filter(t => SIMPLIFIED_CODES.has(t.code));
+export const SIMPLIFIED_CODES = new Set(["P", "H", "PH", "OFF", "CDO", "Leave"]);
+export const SIMPLIFIED_TYPES = ATTENDANCE_TYPES.filter(t => SIMPLIFIED_CODES.has(t.code));
 
 // Pick which dropdown list to use given the target date. Accepts:
 //   - "YYYY-MM-DD" string  (preferred — what every cell + bulk modal has)

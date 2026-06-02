@@ -11,7 +11,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES, LEAVE_CODES, RESOLVED_NO_CHECKIN } from "../lib/attendance.js";
+import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES, SIMPLIFIED_TYPES, LEAVE_CODES, RESOLVED_NO_CHECKIN } from "../lib/attendance.js";
 import AttendanceBulkModal from "../components/attendance/AttendanceBulkModal.jsx";
 import AttendanceCsvUpload from "../components/attendance/AttendanceCsvUpload.jsx";
 import AttendanceOtModal from "../components/attendance/AttendanceOtModal.jsx";
@@ -1453,7 +1453,7 @@ function SchedulePage() {
         <div className="card" style={{padding:"10px 16px",marginBottom:16}}>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
             <span style={{fontSize:11,color:"var(--tx3)",fontWeight:600}}>Legend:</span>
-            {ATTENDANCE_TYPES.map(t => (
+            {SIMPLIFIED_TYPES.map(t => (
               <span key={t.code} style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:t.bg,color:t.color,fontWeight:700,border:`1px solid ${t.color}30`}}>{t.code}</span>
             ))}
           </div>
