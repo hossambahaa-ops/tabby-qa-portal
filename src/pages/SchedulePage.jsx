@@ -1201,6 +1201,16 @@ function SchedulePage() {
                     variant = status === "H" ? "h" : "p";
                     statText = status || "P";
                     timeText = fmtTime(ci);
+                  } else if (status === "P" || status === "H") {
+                    // Lead / admin set the status manually (no plan, no
+                    // self check-in). Without this branch the row falls
+                    // all the way through to the final "off" else and the
+                    // cell renders empty — which made every lead-set P/H
+                    // disappear from the calendar. Surface the letter and
+                    // mark it "lead" to mirror OFF/CDO behaviour above.
+                    variant = status === "H" ? "h" : "p";
+                    statText = status;
+                    timeText = "lead";
                   } else if (plan && status && plan !== status && ci) {
                     // Mismatch (e.g. planned P, actual H by lead override).
                     // Worth surfacing — keep the status badge visible.
