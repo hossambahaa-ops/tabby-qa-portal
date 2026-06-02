@@ -439,7 +439,15 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
                                        fmtMonth(r.monthStart);
                 return <tr key={i}>
                   <td style={{ fontWeight: 500, whiteSpace: "nowrap" }}>{dateLabel}</td>
-                  {view !== "daily" && <td style={{ textAlign: "center", color: "var(--tx3)" }}>{r.days}</td>}
+                  {view !== "daily" && (
+                    <td style={{ textAlign: "center", color: "var(--tx3)" }} title={
+                      view === "monthly" && mtdWds
+                        ? `${mtdWds} official working days (from MTD) · ${r.days} days had activity in productivity feed`
+                        : null
+                    }>
+                      {view === "monthly" && mtdWds != null ? mtdWds : r.days}
+                    </td>
+                  )}
                   <td style={{ textAlign: "center", color: "var(--green)", fontWeight: 600 }}>{sbs || "—"}</td>
                   <td style={{ textAlign: "center", color: "var(--blue)", fontWeight: 600 }}>{nsbs || "—"}</td>
                   <td style={{ textAlign: "center" }}>{coaching || "—"}</td>
