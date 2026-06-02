@@ -30,6 +30,10 @@ export default function APActivePlanCard({
   const { token, profile, globalToast } = useApp();
   const [editingWeek, setEditingWeek] = useState(null); // week id being manually edited
   const [manualValues, setManualValues] = useState({});
+  // Separate map for target edits. Lets the lead bump a week's target
+  // (e.g., raise the CSAT bar from 90% to 95% mid-plan) without losing
+  // their actuals entry. Same edit session writes both at once.
+  const [editingTargets, setEditingTargets] = useState({});
   const [editingStartDate, setEditingStartDate] = useState(null); // null | YYYY-MM-DD while super-admin is editing
   const [savingDate, setSavingDate] = useState(false);
 
@@ -79,14 +83,34 @@ export default function APActivePlanCard({
 
   const saveManualActuals = async (weekId, targets, week) => {
     if (!week) return;
-    const targetData = safeJson(week.target_data);
+    // Start from the existing targets, then overlay any edits the lead
+    // typed in this session. Lets them tweak just one metric's target
+    // without having to retype the others.
+    const targetData = { ...safeJson(week.target_data) };
+    targets.forEach(t => {
+      const key = t.kpi_key || t.label;
+      const v = editingTargets[key];
+      if (v !== undefined && v !== "") {
+        const n = parseFloat(v);
+        if (!isNaN(n)) targetData[key] = n;
+      }
+    });
+
     const actualData = {};
     targets.forEach(t => {
       const key = t.kpi_key || t.label;
       const val = manualValues[key];
       if (val !== undefined && val !== "") actualData[key] = parseFloat(val);
     });
-    if (Object.keys(actualData).length === 0) { globalToast("error", "Enter at least one value"); return; }
+
+    // If neither targets nor actuals have any new content, nothing to save.
+    const targetsEdited = Object.keys(editingTargets).some(k => editingTargets[k] !== undefined && editingTargets[k] !== "");
+    if (Object.keys(actualData).length === 0 && !targetsEdited) {
+      globalToast("error", "Enter at least one value");
+      return;
+    }
+
+    // met_targets re-derives against the (possibly updated) target set.
     const metTargets = Object.keys(targetData).every(key => {
       const actual = actualData[key];
       const target = targetData[key];
@@ -95,15 +119,28 @@ export default function APActivePlanCard({
       return Number(actual) >= Number(target);
     });
     try {
+      // Build patch body. target_data only sent when the lead changed
+      // it, so unrelated saves don't churn the column.
+      const body = {
+        actual_data: Object.keys(actualData).length > 0 ? JSON.stringify(actualData) : week.actual_data,
+        met_targets: metTargets,
+        updated_at: new Date().toISOString(),
+      };
+      if (targetsEdited) body.target_data = JSON.stringify(targetData);
+
       await sb.query("action_plan_weeks", {
-        token, method: "PATCH",
-        body: { actual_data: JSON.stringify(actualData), met_targets: metTargets, updated_at: new Date().toISOString() },
-        filters: `id=eq.${weekId}`,
+        token, method: "PATCH", body, filters: `id=eq.${weekId}`,
       });
-      globalToast("success", "Actuals saved manually");
-      setWeeks(prev => prev.map(w => w.id === weekId ? { ...w, actual_data: JSON.stringify(actualData), met_targets: metTargets } : w));
+      globalToast("success", targetsEdited ? "Targets and actuals saved" : "Actuals saved manually");
+      setWeeks(prev => prev.map(w => w.id === weekId ? {
+        ...w,
+        actual_data: body.actual_data,
+        target_data: targetsEdited ? body.target_data : w.target_data,
+        met_targets: metTargets,
+      } : w));
       setEditingWeek(null);
       setManualValues({});
+      setEditingTargets({});
     } catch (e) { globalToast("error", safeError(e)); }
   };
 
@@ -214,13 +251,39 @@ export default function APActivePlanCard({
                       const isEditing = editingWeek === week.id;
                       return (
                         <td key={tKey} style={{ textAlign: "center" }}>
-                          <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target !== undefined ? target + (t.is_custom ? "" : "%") : "—"}</div>
-                          {isEditing ? <input type="number" step="0.01" className="form-input" style={{width:60,fontSize:11,padding:"3px 6px",textAlign:"center",fontWeight:600}}
-                            placeholder="—" value={manualValues[tKey]??""}
-                            onChange={e=>setManualValues(prev=>({...prev,[tKey]:e.target.value}))} /> :
-                          hasActuals ? <div style={{ fontSize: 12, fontWeight: 600, color: met ? "var(--green)" : "var(--red)" }}>
-                            A: {actual !== null && actual !== undefined ? (typeof actual === "number" ? actual.toFixed(1) + "%" : actual) : "—"}
-                          </div> : null}
+                          {isEditing ? (
+                            <>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginBottom: 3 }}>
+                                <span style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600, width: 14 }}>T:</span>
+                                <input
+                                  type="number" step="0.01" className="form-input"
+                                  style={{ width: 56, fontSize: 11, padding: "2px 5px", textAlign: "center", fontWeight: 600, color: "var(--accent-text)" }}
+                                  placeholder={target !== undefined ? String(target) : "—"}
+                                  value={editingTargets[tKey] ?? (target !== undefined ? String(target) : "")}
+                                  onChange={e => setEditingTargets(prev => ({ ...prev, [tKey]: e.target.value }))}
+                                  title="Target for this week — editable by the lead. Defaults to the value set at plan creation."
+                                />
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4 }}>
+                                <span style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600, width: 14 }}>A:</span>
+                                <input
+                                  type="number" step="0.01" className="form-input"
+                                  style={{ width: 56, fontSize: 11, padding: "2px 5px", textAlign: "center", fontWeight: 600 }}
+                                  placeholder="—"
+                                  value={manualValues[tKey] ?? ""}
+                                  onChange={e => setManualValues(prev => ({ ...prev, [tKey]: e.target.value }))}
+                                  title="Actual value for this week."
+                                />
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target !== undefined ? target + (t.is_custom ? "" : "%") : "—"}</div>
+                              {hasActuals && <div style={{ fontSize: 12, fontWeight: 600, color: met ? "var(--green)" : "var(--red)" }}>
+                                A: {actual !== null && actual !== undefined ? (typeof actual === "number" ? actual.toFixed(1) + "%" : actual) : "—"}
+                              </div>}
+                            </>
+                          )}
                         </td>
                       );
                     })}
@@ -234,12 +297,12 @@ export default function APActivePlanCard({
                     <td>
                       {editingWeek === week.id ? <div style={{display:"flex",gap:4}}>
                         <button className="btn btn-primary btn-sm" onClick={()=>saveManualActuals(week.id,targets,week)} style={{fontSize:10,padding:"2px 8px"}}>Save</button>
-                        <button className="btn btn-outline btn-sm" onClick={()=>{setEditingWeek(null);setManualValues({});}} style={{fontSize:10,padding:"2px 6px"}}>✕</button>
+                        <button className="btn btn-outline btn-sm" onClick={()=>{setEditingWeek(null);setManualValues({});setEditingTargets({});}} style={{fontSize:10,padding:"2px 6px"}}>✕</button>
                       </div> : <div style={{display:"flex",gap:4,flexDirection:"column"}}>
                         {!hasActuals && <button className="btn btn-outline btn-sm" onClick={() => updateWeekActuals(week.id, plan.qa_email)} style={{ fontSize: 10, padding: "2px 8px" }}>
                           Pull MTD
                         </button>}
-                        <button className="btn btn-outline btn-sm" onClick={()=>{setEditingWeek(week.id);setManualValues(hasActuals?{...actualData}:{});}} style={{fontSize:10,padding:"2px 8px",color:"var(--accent-text)"}}>
+                        <button className="btn btn-outline btn-sm" onClick={()=>{setEditingWeek(week.id);setManualValues(hasActuals?{...actualData}:{});setEditingTargets({});}} style={{fontSize:10,padding:"2px 8px",color:"var(--accent-text)"}}>
                           {hasActuals?"Edit":"Manual"}
                         </button>
                       </div>}
