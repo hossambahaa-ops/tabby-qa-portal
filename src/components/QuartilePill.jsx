@@ -1,20 +1,20 @@
 import React from "react";
 
 // Renders a Q1/Q2/Q3/Q4 pill from a numeric quartile (1..4) or NULL.
-// Source: mtd_scores.csat_quartile — computed per (domain, month) by
-// recalculate_csat_quartiles, with a survey-floor + min-pool guard.
+// Source: mtd_scores.csat_quartile — computed by recalculate_csat_quartiles
+// which now ranks each QA against the FULL population (agents + QAs)
+// in their primary LOB for the month, sourced from the
+// csat_population staging table (Ops "agent CSAT" sheet).
 //
 // Color language:
-//   Q1 — mint  (top 25% in their domain for that month)
+//   Q1 — mint  (top 25% of all resolvers in their primary LOB this month)
 //   Q2 — blue  (next 25%)
 //   Q3 — amber (next 25%)
 //   Q4 — grey  (bottom 25%)
 //   null — slim "not enough data" pill so the column never looks empty
 //
-// Pass `dim` for compact contexts (table rows) and the default for
-// header-style places (QA Profile). `size = "sm" | "md"` for sizing.
-// `lob` (optional) shows up in the tooltip so the QA sees which
-// cohort they're being compared against.
+// `size = "sm" | "md"` for sizing. `lob` (optional) shows up in the
+// tooltip so the QA sees which cohort they're being compared against.
 export default function QuartilePill({ quartile, size = "sm", lob = null }) {
   const isSm = size === "sm";
   const baseStyle = {
@@ -32,12 +32,14 @@ export default function QuartilePill({ quartile, size = "sm", lob = null }) {
     fontFamily: "var(--font)",
   };
 
-  const cohortLabel = lob ? `${lob} cohort (same domain + LOB)` : "your domain cohort";
+  const cohortLabel = lob
+    ? `the full ${lob} population (agents + QAs)`
+    : "the full population in your primary LOB";
 
   if (quartile == null) {
     return (
       <span
-        title={`Not enough QAs in ${cohortLabel} this month to assign a quartile. Pool needs ≥4 QAs with CSAT recorded.`}
+        title={`No CSAT activity in ${cohortLabel} this month, or the LOB pool is < 4 resolvers, so no quartile is assigned.`}
         style={{
           ...baseStyle,
           background: "rgba(156,163,175,0.12)",
@@ -62,7 +64,7 @@ export default function QuartilePill({ quartile, size = "sm", lob = null }) {
   const c = colors[q] || colors[4];
   return (
     <span
-      title={`Q${q} (${c.label}) — CSAT ranked within ${cohortLabel} for the selected month.`}
+      title={`Q${q} (${c.label}) — CSAT ranked against ${cohortLabel} for the selected month.`}
       style={{ ...baseStyle, background: c.bg, color: c.fg }}
     >
       Q{q}
