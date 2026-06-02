@@ -375,23 +375,15 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
                 // so what the user sees matches what the occupancy math
                 // below uses. Daily/weekly stay sourced from
                 // productivity_history aggregates as before.
-                const monthMtdRow = view === "monthly" ? mtdByYM.get(r.monthStart) : null;
-                const sbs =
-                  view === "daily"  ? num(r.sbs) :
-                  monthMtdRow       ? Number(monthMtdRow.sbs || 0) :
-                                      r.sbs;
-                const nsbs =
-                  view === "daily"  ? num(r.non_sbs) :
-                  monthMtdRow       ? Number(monthMtdRow.non_sbs || 0) + Number(monthMtdRow.dsat || 0) :
-                                      r.non_sbs;
-                const coaching =
-                  view === "daily"  ? num(r.coaching_sessions) :
-                  monthMtdRow       ? Number(monthMtdRow.coaching_sessions || 0) :
-                                      r.coaching;
-                const side =
-                  view === "daily"  ? num(r.side_task_minutes) :
-                  monthMtdRow       ? Number(monthMtdRow.side_tasks_duration_mins || 0) :
-                                      r.side;
+                // Displayed counts now come from productivity_history
+                // aggregates for ALL views (daily, weekly, monthly), so
+                // they match the new occupancy formula. Previously
+                // monthly used MTD totals — diverged from the calc when
+                // MTD lagged behind the daily feed.
+                const sbs       = view === "daily" ? num(r.sbs)              : r.sbs;
+                const nsbs      = view === "daily" ? num(r.non_sbs)          : r.non_sbs;
+                const coaching  = view === "daily" ? num(r.coaching_sessions): r.coaching;
+                const side      = view === "daily" ? num(r.side_task_minutes): r.side;
                 // Monthly view sources eval counts + side-task minutes
                 // from MTD directly (the canonical totals), aggregating
                 // non_sbs + dsat as one "Evaluations" bucket since both
@@ -405,31 +397,38 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
                 // For Hagar May 2026 that's (0×20) + (315×15) + (0×30)
                 // + 3566 = 8291, ÷ (15 × 480) = 7200, × 100 = 115.15%
                 // — matches MTD's stored value exactly.
-                const mtdRow = view === "monthly" ? mtdByYM.get(r.monthStart) : null;
+                // Monthly occ now sources its NUMERATOR from
+                // productivity_history aggregates (r.sbs / r.non_sbs /
+                // r.coaching / r.side — the same numbers EvalHistory's
+                // daily view shows), and only uses MTD for the
+                // DENOMINATOR's working_days. Per user direction:
+                // "take the occupancy from the QA Profile, not the MTD,
+                // just take the working days from the MTD." Avoids the
+                // gap that opens when MTD's side_tasks_duration_mins
+                // lags behind the productivity feed (e.g., Lama May
+                // 2026 — MTD had 4340 min while the feed had 5780).
+                // productivity_history's non_sbs already includes
+                // DSATs (they're not split in the daily feed), so
+                // it's the all-evaluations bucket.
                 const mtdWds = view === "monthly" ? mtdWdsForKey(r.monthStart) : null;
-                const monthlyOccFromMtd = (mtdRow && mtdWds && shiftMins > 0)
+                const monthlyOccFromFeed = (mtdWds && shiftMins > 0)
                   ? (() => {
-                      const mSbs    = Number(mtdRow.sbs || 0);
-                      const mEvals  = Number(mtdRow.non_sbs || 0) + Number(mtdRow.dsat || 0);
-                      const mCoach  = Number(mtdRow.coaching_sessions || 0);
-                      const mSide   = Number(mtdRow.side_tasks_duration_mins || 0);
-                      const prod    = (mSbs * sbsDur) + (mEvals * nonSbsDur) + (mCoach * coachingDur) + mSide;
+                      const prod = (r.sbs * sbsDur) + (r.non_sbs * nonSbsDur) + (r.coaching * coachingDur) + r.side;
                       return (prod / (mtdWds * shiftMins)) * 100;
                     })()
                   : null;
                 const occ =
                   view === "daily"   ? occForRow(r) :
-                  view === "monthly" ? (monthlyOccFromMtd != null ? monthlyOccFromMtd : (r.workDays > 0 ? r.occSum / r.workDays : 0)) :
+                  view === "monthly" ? (monthlyOccFromFeed != null ? monthlyOccFromFeed : (r.workDays > 0 ? r.occSum / r.workDays : 0)) :
                                        (r.workDays > 0 ? r.occSum / r.workDays : 0);
                 const pending =
                   view === "daily" ? num(r.pending_side_minutes) : r.pending;
-                // Projection: same MTD-based denominator. Pending minutes
-                // come from productivity_history aggregate since MTD's
-                // side_tasks_duration_mins is the APPROVED-only sum.
+                // Projection: same denominator. Pending minutes come
+                // from productivity_history aggregate (r.pending).
                 const projOcc =
                   view === "daily"   ? projOccForRow(r) :
-                  view === "monthly" && monthlyOccFromMtd != null
-                    ? monthlyOccFromMtd + ((r.pending / (mtdWds * shiftMins)) * 100)
+                  view === "monthly" && monthlyOccFromFeed != null
+                    ? monthlyOccFromFeed + ((r.pending / (mtdWds * shiftMins)) * 100)
                     : (r.workDays > 0 ? r.projOccSum / r.workDays : 0);
                 const projDelta = projOcc - occ;
                 const total = sbs + nsbs;
