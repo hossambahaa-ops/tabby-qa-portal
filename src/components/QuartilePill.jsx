@@ -2,9 +2,9 @@ import React from "react";
 
 // Renders a Q1/Q2/Q3/Q4 pill from a numeric quartile (1..4) or NULL.
 // Source: mtd_scores.csat_quartile — computed by recalculate_csat_quartiles
-// which now ranks each QA against the FULL population (agents + QAs)
-// in their primary LOB for the month, sourced from the
-// csat_population staging table (Ops "agent CSAT" sheet).
+// which ranks each QA against the FULL population (agents + QAs) inside
+// their domain (tabby.ai or tabby.sa) and primary LOB for the month,
+// sourced from the csat_population staging table (Ops "agent CSAT" sheet).
 //
 // Color language:
 //   Q1 — mint  (top 25% of all resolvers in their primary LOB this month)
@@ -33,8 +33,8 @@ export default function QuartilePill({ quartile, size = "sm", lob = null }) {
   };
 
   const cohortLabel = lob
-    ? `the full ${lob} population (agents + QAs)`
-    : "the full population in your primary LOB";
+    ? `the full ${lob} population in your domain (agents + QAs, same @tabby.ai or @tabby.sa)`
+    : "the full population in your domain + primary LOB";
 
   if (quartile == null) {
     return (
