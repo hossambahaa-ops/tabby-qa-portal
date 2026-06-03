@@ -22,7 +22,7 @@ const dayNumOf = (dateStr) => {
 };
 
 export default function PendingApprovals({
-  attendance, roster, visibleQAs, profile, myEmail, isLead,
+  attendance, pendingRequests, roster, visibleQAs, profile, myEmail, isLead,
   selMonth, approveAtt, denyAtt, bulkApprove, bulkDeny, onViewOnCalendar
 }) {
   const [denyingKey, setDenyingKey] = useState(null);
@@ -34,13 +34,16 @@ export default function PendingApprovals({
 
   const visibleEmails = new Set(visibleQAs.map(q => q.email?.toLowerCase()));
 
-  const allPending = attendance
+  // Show pending from ANY month — a lead shouldn't have to switch the
+  // month selector to find an approval. `pendingRequests` is the page's
+  // unbounded all-months fetch; fall back to the monthly slice if absent.
+  const source = Array.isArray(pendingRequests) ? pendingRequests : attendance;
+  const allPending = source
     .filter(a =>
       a.approval_status === "pending" &&
-      visibleEmails.has(a.email?.toLowerCase()) &&
-      (a.date || "").startsWith(selMonth)
+      visibleEmails.has(a.email?.toLowerCase())
     )
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => (a.date || "").localeCompare(b.date || ""));
 
   const rows = isLead
     ? allPending
@@ -103,8 +106,8 @@ export default function PendingApprovals({
         <div style={{ fontSize: 15, fontWeight: 700, color: "var(--tx)", marginBottom: 6 }}>No pending requests</div>
         <div style={{ fontSize: 12, color: "var(--tx3)" }}>
           {isLead
-            ? "Your team has no pending attendance requests for this month."
-            : "You have no pending attendance requests for this month."}
+            ? "Your team has no pending attendance requests."
+            : "You have no pending attendance requests."}
         </div>
       </div>
     );
@@ -116,7 +119,7 @@ export default function PendingApprovals({
       <div style={{ marginBottom: 12, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <span style={{ fontSize: 12, color: "var(--tx3)" }}>
           <strong style={{ color: "var(--tx)" }}>{groups.length}</strong> request{groups.length !== 1 ? "s" : ""}
-          {rows.length !== groups.length && <> · <strong style={{ color: "var(--tx)" }}>{rows.length}</strong> days</>} for {selMonth}
+          {rows.length !== groups.length && <> · <strong style={{ color: "var(--tx)" }}>{rows.length}</strong> days</>} · <span style={{ color:"var(--tx2)" }}>all months</span>
         </span>
         {isLead && selectedRows.length > 0 && (
           <>
@@ -230,7 +233,7 @@ export default function PendingApprovals({
                         </button>
                       ) : (
                         <button
-                          onClick={() => onViewOnCalendar(g.email, dayNumOf(g.from))}
+                          onClick={() => onViewOnCalendar(g.email, g.from)}
                           style={{ background: "none", border: "none", cursor: "pointer", color: "var(--tabby-purple)", fontFamily: "var(--font)", fontSize: 12, padding: 0, fontWeight: 500, textDecoration: "underline", textUnderlineOffset: 2 }}
                           title="View on calendar"
                         >
@@ -278,7 +281,7 @@ export default function PendingApprovals({
                           {g.rows.slice().sort((a, b) => (a.date || "").localeCompare(b.date || "")).map(r => (
                             <button
                               key={r.id}
-                              onClick={() => onViewOnCalendar(r.email, dayNumOf(r.date))}
+                              onClick={() => onViewOnCalendar(r.email, r.date)}
                               style={{ fontSize: 10.5, padding: "3px 8px", borderRadius: 4, border: "1px solid var(--bd)", background: "var(--bg3)", color: "var(--tx2)", cursor: "pointer", fontFamily: "var(--font)" }}
                               title="View on calendar"
                             >

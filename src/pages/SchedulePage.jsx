@@ -31,6 +31,10 @@ import { riyadhTodayStr } from "../lib/attendancePlan.js";
 function SchedulePage() {
   const{token,profile,gf,globalToast,realProfile}=useApp();
   const [attendance, setAttendance] = useState([]);
+  // Pending requests across ALL months — the monthly `attendance` fetch
+  // only covers selMonth, so the Pending tab fetches its own unbounded
+  // list so a lead never has to switch months to find a pending approval.
+  const [allPending, setAllPending] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   // Namespaced (was "tab") so cross-nav from /admin or /quality
@@ -104,7 +108,21 @@ function SchedulePage() {
     setLoading(false);
   }, [token, selMonth]);
 
+  // Fetch every pending request regardless of date so the Pending tab is
+  // month-independent. RLS already scopes this to the viewer's team / self.
+  const loadAllPending = useCallback(async () => {
+    if (!token) return;
+    try {
+      const r = await fetch(
+        `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,request_note,ot_hours&approval_status=eq.pending&order=date.asc&limit=2000`,
+        { headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${token}` } }
+      ).then(res => res.json());
+      setAllPending(Array.isArray(r) ? r : []);
+    } catch { /* keep prior list on a transient failure */ }
+  }, [token]);
+
   useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { loadAllPending(); }, [loadAllPending]);
 
   // Reset picker sub-stage whenever the open cell changes (or picker closes)
   useEffect(() => { setPickerStage(null); }, [editCell]);
@@ -484,8 +502,9 @@ function SchedulePage() {
       setEditCell(null);
       globalToast("success", `Approved ${existing.status} for ${nameFromEmail(email)}`);
       await actionsRef.current.logAttendanceEvent("attendance_request_approved", email.toLowerCase(), { date: dateStr, status: existing.status });
+      loadAllPending();
     } catch(e) { globalToast("error", safeError(e)); }
-  }, [token, myEmail, globalToast]);
+  }, [token, myEmail, globalToast, loadAllPending]);
 
   // ── denyAtt ───────────────────────────────────────────────────────────────
   const denyAtt = useCallback(async (email, dayNum, reason) => {
@@ -508,8 +527,9 @@ function SchedulePage() {
       setEditCell(null);
       globalToast("success", `Denied ${existing.status} for ${nameFromEmail(email)}`);
       await actionsRef.current.logAttendanceEvent("attendance_request_denied", email.toLowerCase(), { date: dateStr, status: existing.status, denial_reason: reason || null });
+      loadAllPending();
     } catch(e) { globalToast("error", safeError(e)); }
-  }, [token, myEmail, globalToast]);
+  }, [token, myEmail, globalToast, loadAllPending]);
 
   // ── clearAtt (remove a cell's attendance record) ──────────────────────────
   const clearAtt = useCallback(async (email, dayNum) => {
@@ -550,6 +570,7 @@ function SchedulePage() {
           for (const r of rows) {
             await logAttendanceEvent("attendance_request_approved", r.email?.toLowerCase(), { date: r.date, status: r.status });
           }
+          loadAllPending();
         } catch(e) { globalToast("error", safeError(e)); }
       },
       "Approve all",
@@ -574,6 +595,7 @@ function SchedulePage() {
           for (const r of rows) {
             await logAttendanceEvent("attendance_request_denied", r.email?.toLowerCase(), { date: r.date, status: r.status, denial_reason: reason || null });
           }
+          loadAllPending();
         } catch(e) { globalToast("error", safeError(e)); }
       },
       "Deny all",
@@ -856,18 +878,16 @@ function SchedulePage() {
   // Pending count scoped to team (for the chip)
   const myTeamPendingCount = (() => {
     if (!isQA) return 0;
-    return attendance.filter(a => a.email?.toLowerCase() === myEmail && a.approval_status === "pending").length;
+    return allPending.filter(a => a.email?.toLowerCase() === myEmail && a.approval_status === "pending").length;
   })();
 
   if (loading) return <div className="page"><SkeletonPage/></div>;
 
   const TABS = [
     { key: "calendar", label: "Calendar", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
-    { key: "pending",  label: "Pending",  icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z", badge: isLead ? attendance.filter(a => {
-      // Scope badge to the currently selected month so switching from
-      // May → April doesn't leave May's pending count hanging on the
-      // tab. attendance.date is YYYY-MM-DD; selMonth is YYYY-MM.
-      if (selMonth && a.date && !a.date.startsWith(selMonth)) return false;
+    { key: "pending",  label: "Pending",  icon: "M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z", badge: isLead ? allPending.filter(a => {
+      // Count pending across ALL months (matches the Pending tab, which
+      // is month-independent), scoped to the viewer's direct reports.
       const mgr = roster.find(r => r.email?.toLowerCase() === a.email?.toLowerCase())?.manager_email?.toLowerCase();
       return a.approval_status === "pending" && mgr === myEmail;
     }).length : 0 },
@@ -1559,6 +1579,7 @@ function SchedulePage() {
       {activeTab === "pending" && (
         <PendingApprovals
           attendance={attendance}
+          pendingRequests={allPending}
           roster={roster}
           visibleQAs={visibleQAs}
           profile={profile}
@@ -1569,9 +1590,16 @@ function SchedulePage() {
           denyAtt={denyAtt}
           bulkApprove={bulkApprove}
           bulkDeny={bulkDeny}
-          onViewOnCalendar={(email, dayNum) => {
-            setActiveTab("calendar");
-            setEditCell(`${email.toLowerCase()}-${dayNum}`);
+          onViewOnCalendar={(email, dateStr) => {
+            // dateStr is YYYY-MM-DD. Switch month first if the request is
+            // from a different month, then open that day's cell.
+            if (typeof dateStr === "string" && dateStr.length >= 10) {
+              const ym = dateStr.slice(0, 7);
+              if (ym !== selMonth) setSelMonth(ym);
+              const dayNum = parseInt(dateStr.slice(8, 10), 10);
+              setActiveTab("calendar");
+              setEditCell(`${email.toLowerCase()}-${dayNum}`);
+            }
           }}
         />
       )}
