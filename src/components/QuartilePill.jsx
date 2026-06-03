@@ -39,7 +39,7 @@ export default function QuartilePill({ quartile, size = "sm", lob = null }) {
   if (quartile == null) {
     return (
       <span
-        title={`No CSAT activity in ${cohortLabel} this month, or the LOB pool is < 4 resolvers, so no quartile is assigned.`}
+        title={`No quartile — the QA needs ≥5 CSAT surveys this month to be ranked (or ${cohortLabel} has < 4 resolvers in the pool).`}
         style={{
           ...baseStyle,
           background: "rgba(156,163,175,0.12)",

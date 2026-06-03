@@ -540,7 +540,7 @@ export default function CSATPage() {
           <div style={{ padding: "10px 14px 0" }}>
             <details>
               <summary style={{ cursor:"pointer", fontSize:11, color:"var(--tx3)", fontWeight:600, userSelect:"none" }}>
-                Quartile thresholds — {selMonth} · a QA&apos;s CSAT% is ranked against their domain + LOB cohort. Q1 ≥ the value shown; below it → Q2 / Q3 / Q4.
+                Quartile thresholds — {selMonth} · a QA&apos;s CSAT% (needs ≥5 surveys) is ranked against the full population in their domain + LOB. Q1 ≥ the value shown; below it → Q2 / Q3 / Q4.
               </summary>
               <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:8 }}>
                 {cutoffs.map(c => {
