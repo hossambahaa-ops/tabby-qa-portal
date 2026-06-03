@@ -536,29 +536,51 @@ export default function CSATPage() {
             )}
           </div>
         </div>
-        {csatView !== "topic" && cutoffs.length > 0 && (
-          <div style={{ padding: "10px 14px 0" }}>
-            <details>
-              <summary style={{ cursor:"pointer", fontSize:11, color:"var(--tx3)", fontWeight:600, userSelect:"none" }}>
-                Quartile thresholds — {selMonth} · a QA&apos;s CSAT% (needs ≥5 surveys) is ranked against the full population in their domain + LOB. Q1 ≥ the value shown; below it → Q2 / Q3 / Q4.
-              </summary>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:8 }}>
-                {cutoffs.map(c => {
-                  const label = {general:"Front Line",disputes:"Dispute",escalations:"Escalation",partners:"Partners",customer_care_unit:"CCU",social_media:"Social Media",collection:"Collection",b2b_collection:"B2B Collection",integrations:"Integrations",am_ops_retention:"AM/Retention"}[c.lob] || c.lob;
-                  return (
-                    <div key={`${c.domain}-${c.lob}`} style={{ border:"1px solid var(--bd)", borderRadius:6, padding:"6px 10px", fontSize:11, background:"var(--bg3)" }}>
-                      <div style={{ fontWeight:700, color:"var(--tx)" }}>{label} · {String(c.domain).toUpperCase()} <span style={{ color:"var(--tx3)", fontWeight:400 }}>({c.cohort_size} in pool)</span></div>
-                      <div style={{ color:"var(--tx2)", marginTop:2, fontVariantNumeric:"tabular-nums" }}>
-                        <span style={{ color:"#3CFFA5", fontWeight:700 }}>Q1 ≥ {Number(c.p75)}%</span>
-                        <span style={{ color:"var(--tx3)" }}> · Q2 ≥ {Number(c.p50)}% · Q3 ≥ {Number(c.p25)}%</span>
+        {csatView !== "topic" && cutoffs.length > 0 && (() => {
+          // QA-facing LOBs only — Collection / Social Media / agent-only
+          // lines are filtered out. Ordered for a consistent layout.
+          const LOB_LABEL = { general:"Front Line", disputes:"Dispute", escalations:"Escalation", partners:"Partners", customer_care_unit:"CCU" };
+          const ORDER = ["general","disputes","escalations","partners","customer_care_unit"];
+          const shown = cutoffs
+            .filter(c => ORDER.includes(c.lob))
+            .sort((a,b) => (ORDER.indexOf(a.lob) - ORDER.indexOf(b.lob)) || String(a.domain).localeCompare(String(b.domain)));
+          if (shown.length === 0) return null;
+          return (
+            <div style={{ padding: "2px 14px 6px" }}>
+              <details open>
+                <summary style={{ cursor:"pointer", fontSize:11, color:"var(--tx3)", fontWeight:600, userSelect:"none", padding:"3px 0" }}>
+                  Quartile thresholds · <strong style={{color:"var(--tx2)"}}>{selMonth}</strong> — a QA (≥5 surveys) is ranked vs the full population in their domain + LOB · <span style={{color:"#3CFFA5"}}>Q1 ≥ value</span>, below it → Q2 / Q3 / Q4
+                </summary>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(212px, 1fr))", gap:10, marginTop:10 }}>
+                  {shown.map(c => {
+                    const dom = String(c.domain).toUpperCase();
+                    const domColor = c.domain === "sa" ? "#8B5CF6" : "#60A5FA";
+                    const tiers = [["Q1", c.p75, "#3CFFA5"], ["Q2", c.p50, "#60A5FA"], ["Q3", c.p25, "#F59E0B"]];
+                    return (
+                      <div key={`${c.domain}-${c.lob}`} style={{ borderRadius:10, padding:"11px 12px", background:"var(--bg3)", border:"1px solid var(--bd)", boxShadow:"0 1px 3px rgba(0,0,0,.14)" }}>
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:9 }}>
+                          <span style={{ fontWeight:700, fontSize:13, color:"var(--tx)", letterSpacing:.2 }}>{LOB_LABEL[c.lob] || c.lob}</span>
+                          <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
+                            <span style={{ fontSize:9, fontWeight:800, letterSpacing:.5, color:domColor, background:`${domColor}22`, borderRadius:5, padding:"2px 7px" }}>{dom}</span>
+                            <span style={{ fontSize:10, color:"var(--tx3)", fontVariantNumeric:"tabular-nums" }}>{c.cohort_size}</span>
+                          </span>
+                        </div>
+                        <div style={{ display:"flex", gap:5, fontVariantNumeric:"tabular-nums" }}>
+                          {tiers.map(([q, v, col]) => (
+                            <div key={q} style={{ flex:1, textAlign:"center", borderRadius:7, padding:"5px 2px", background:`${col}14`, border:`1px solid ${col}33` }}>
+                              <div style={{ fontSize:8.5, fontWeight:800, color:col, letterSpacing:.4 }}>{q} ≥</div>
+                              <div style={{ fontSize:12.5, fontWeight:700, color:"var(--tx)", marginTop:1 }}>{Number(v)}%</div>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </details>
-          </div>
-        )}
+                    );
+                  })}
+                </div>
+              </details>
+            </div>
+          );
+        })()}
         {csatView === "topic" ? (
           <CsatTopicMatrix
             matrix={matrix}
