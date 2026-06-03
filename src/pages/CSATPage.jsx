@@ -26,6 +26,7 @@ export default function CSATPage() {
   const { token, profile, gf } = useApp();
   const [data, setData] = useState([]);
   const [roster, setRoster] = useState([]);
+  const [cutoffs, setCutoffs] = useState([]); // CSAT quartile cutoffs for the selected month
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState([]);
   // Filter state — persistent ones go through useUrlState so refresh
@@ -60,6 +61,22 @@ export default function CSATPage() {
     const id = setInterval(() => setReloadKey(k => k + 1), 60000);
     return () => clearInterval(id);
   }, []);
+
+  // Per-(domain, LOB) quartile cutoffs for the selected month, written by
+  // recalculate_csat_quartiles. Surfaced as a reference strip so leads can
+  // see the Q1 threshold (p75): a QA at/above it is Q1, below it Q2/Q3/Q4.
+  useEffect(() => {
+    if (!selMonth || !token) { setCutoffs([]); return; }
+    let alive = true;
+    sb.query("csat_quartile_cutoffs", {
+      token,
+      select: "domain,lob,cohort_size,p75,p50,p25",
+      filters: `month=eq.${encodeURIComponent(selMonth)}&order=lob.asc,domain.asc`,
+    }).then(rows => { if (alive) setCutoffs(Array.isArray(rows) ? rows : []); })
+      .catch(() => { if (alive) setCutoffs([]); });
+    return () => { alive = false; };
+  }, [selMonth, token, reloadKey]);
+
   const lastFilterKey = useRef("");
 
   useEffect(() => {
@@ -519,6 +536,29 @@ export default function CSATPage() {
             )}
           </div>
         </div>
+        {csatView !== "topic" && cutoffs.length > 0 && (
+          <div style={{ padding: "10px 14px 0" }}>
+            <details>
+              <summary style={{ cursor:"pointer", fontSize:11, color:"var(--tx3)", fontWeight:600, userSelect:"none" }}>
+                Quartile thresholds — {selMonth} · a QA&apos;s CSAT% is ranked against their domain + LOB cohort. Q1 ≥ the value shown; below it → Q2 / Q3 / Q4.
+              </summary>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginTop:8 }}>
+                {cutoffs.map(c => {
+                  const label = {general:"Front Line",disputes:"Dispute",escalations:"Escalation",partners:"Partners",customer_care_unit:"CCU",social_media:"Social Media",collection:"Collection",b2b_collection:"B2B Collection",integrations:"Integrations",am_ops_retention:"AM/Retention"}[c.lob] || c.lob;
+                  return (
+                    <div key={`${c.domain}-${c.lob}`} style={{ border:"1px solid var(--bd)", borderRadius:6, padding:"6px 10px", fontSize:11, background:"var(--bg3)" }}>
+                      <div style={{ fontWeight:700, color:"var(--tx)" }}>{label} · {String(c.domain).toUpperCase()} <span style={{ color:"var(--tx3)", fontWeight:400 }}>({c.cohort_size} in pool)</span></div>
+                      <div style={{ color:"var(--tx2)", marginTop:2, fontVariantNumeric:"tabular-nums" }}>
+                        <span style={{ color:"#3CFFA5", fontWeight:700 }}>Q1 ≥ {Number(c.p75)}%</span>
+                        <span style={{ color:"var(--tx3)" }}> · Q2 ≥ {Number(c.p50)}% · Q3 ≥ {Number(c.p25)}%</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </details>
+          </div>
+        )}
         {csatView === "topic" ? (
           <CsatTopicMatrix
             matrix={matrix}
