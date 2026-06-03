@@ -74,6 +74,10 @@ function QAProfilePage() {
     if (refreshing) return;
     setRefreshing(true);
     try {
+      // Productivity first, awaited, so mtd-sync's chained occupancy/WD
+      // recompute reads the fresh feed (occupancy is the number people
+      // most often refresh for). Then the rest in parallel.
+      const prod = await callEdgeFunction("productivity-history-sync", { token });
       const [daily, mtdRes, csat] = await Promise.all([
         callEdgeFunction("daily-scores-sync", { token }),
         callEdgeFunction("mtd-sync", { token }),
@@ -81,6 +85,7 @@ function QAProfilePage() {
       ]);
       // Re-fetch the rows the page reads from, in parallel.
       await Promise.all([refreshDailyScores(), refreshMtd()]);
+      setProdHistKey(k => k + 1); // re-pull productivity_history (occupancy + WD)
       // Extract the most descriptive error message from an edge-function response.
       const syncErr = (name, res) => {
         if (res.ok && res.data?.success) return null;
@@ -91,12 +96,14 @@ function QAProfilePage() {
         return `${name}${step}: ${msg}`;
       };
       const fail = [
+        syncErr("productivity", prod),
         syncErr("daily", daily),
         syncErr("mtd",   mtdRes),
         syncErr("csat",  csat),
       ].filter(Boolean);
       if (fail.length === 0) {
         const parts = [];
+        if (prod.data?.rows_upserted) parts.push(`${prod.data.rows_upserted} prod`);
         if (daily.data.rows_upserted) parts.push(`${daily.data.rows_upserted} daily`);
         if (mtdRes.data.rows_upserted) parts.push(`${mtdRes.data.rows_upserted} MTD`);
         if (csat.data.rows_aggregated) parts.push(`${csat.data.rows_aggregated} CSAT topics`);
@@ -180,6 +187,7 @@ function QAProfilePage() {
   // term for them. Falls back to MTD's stored value when the daily
   // feed has no data for the month.
   const [prodHistRows, setProdHistRows] = useState([]);
+  const [prodHistKey, setProdHistKey] = useState(0); // bump to force a re-pull after a live sync
   useEffect(() => {
     if (!token || !selectedQA) { setProdHistRows([]); return; }
     let cancelled = false;
@@ -205,7 +213,7 @@ function QAProfilePage() {
       } catch { if (!cancelled) setProdHistRows([]); }
     })();
     return () => { cancelled = true; };
-  }, [token, selectedQA]);
+  }, [token, selectedQA, prodHistKey]);
 
   // Build a per-(YYYY-MM) → computed occupancy% map. Recomputes when
   // either the feed rows or MTD list changes. Used by both the
