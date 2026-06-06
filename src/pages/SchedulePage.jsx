@@ -972,7 +972,7 @@ function SchedulePage() {
             {isLead&&<button className="btn btn-outline btn-sm" style={{fontSize:11,color:monthLock?"var(--amber)":"var(--tx2)",borderColor:monthLock?"var(--amber)":"var(--bd)"}} onClick={toggleLock} title={monthLock?`Locked by ${_nameFromEmail(monthLock.locked_by)}`:"Lock this month"}>
               {monthLock ? "🔓 Unlock" : "🔒 Lock month"}
             </button>}
-            {isLead&&<button className="btn btn-primary btn-sm" disabled={monthIsLocked} style={{opacity:monthIsLocked?0.5:1}} onClick={()=>{if(monthIsLocked){globalToast("error","Month is locked.");return;}setBulkModal(true);setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);setBulkStatus("P");setBulkDayFilter("all");}}>
+            {hasRole(profile?.role,"qa_supervisor")&&<button className="btn btn-primary btn-sm" disabled={monthIsLocked} style={{opacity:monthIsLocked?0.5:1}} onClick={()=>{if(monthIsLocked){globalToast("error","Month is locked.");return;}setBulkModal(true);setBulkFrom(`${selMonth}-01`);setBulkTo(`${selMonth}-${String(daysInMonth).padStart(2,"0")}`);setBulkStatus("P");setBulkDayFilter("all");}}>
               <Icon d={icons.plus} size={14}/>Bulk set
             </button>}
             <button className="btn btn-outline btn-sm" disabled={monthIsLocked} style={{opacity:monthIsLocked?0.5:1,fontSize:11,color:"#0D9488",borderColor:"#0D9488"}} onClick={()=>{if(monthIsLocked){globalToast("error","Month is locked.");return;}const todayStr=riyadhTodayStr();setOtModal(true);setOtFrom(todayStr);setOtTo(todayStr);setOtTarget(isQA?myEmail:"");setOtNote("");}}>
@@ -1536,8 +1536,9 @@ function SchedulePage() {
           </div>;
         })()}
 
-        {/* Selection bulk bar */}
-        {isLead&&selectedQAs.size>0&&<div className="card" style={{padding:"10px 16px",marginBottom:12,background:"var(--accent-light)",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+        {/* Selection bulk bar — supervisors+ only; QA Leads can no longer
+            bulk-set attendance on the Calendar tab (use the Plan tab instead). */}
+        {hasRole(profile?.role,"qa_supervisor")&&selectedQAs.size>0&&<div className="card" style={{padding:"10px 16px",marginBottom:12,background:"var(--accent-light)",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
           <span style={{fontSize:13,fontWeight:600,color:"var(--accent-text)"}}>{selectedQAs.size} QAs selected</span>
           <button className="btn btn-primary btn-sm" style={{fontSize:11}} onClick={()=>{setBulkScope("selected");setBulkModal(true);}}>Bulk mark attendance</button>
           <button className="btn btn-outline btn-sm" style={{fontSize:11}} onClick={()=>setSelectedQAs(new Set())}>Clear</button>
