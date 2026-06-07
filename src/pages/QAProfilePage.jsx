@@ -504,7 +504,11 @@ function QAProfilePage() {
         const nonSbsDur = parseFloat(findTgt("non_sbs_duration_minutes")?.target_value) || 15;
         const coachingDur = parseFloat(findTgt("coaching_duration_minutes")?.target_value) || 30;
         const shiftMins = whTarget * 60;
-        const productiveMins = (sbs * sbsDur) + (nonSbs * nonSbsDur) + (coaching * coachingDur) + stMins + loginMins;
+        // Occupancy = QA-task time / shift. Login hours are NOT productive
+        // output and were inflating today's occupancy above what MTD,
+        // Leaderboard and EvalHistory show (all of which exclude login).
+        // Login hours are still displayed separately in the card below.
+        const productiveMins = (sbs * sbsDur) + (nonSbs * nonSbsDur) + (coaching * coachingDur) + stMins;
         const occPct = shiftMins > 0 ? (productiveMins / shiftMins) * 100 : 0;
         const workingHrs = productiveMins / 60;
         const target = sbsTarget + nonSbsTarget;
@@ -631,9 +635,14 @@ function QAProfilePage() {
           .filter(r => r.email && r.email.toLowerCase() !== selectedQA?.toLowerCase())
           .map(r => ({ value: r.email.toLowerCase(), label: nameFromEmail(r.email) }))
           .sort((a, b) => a.label.localeCompare(b.label));
-        const compareLatest = compareQA ? mtd.filter(m => emailsMatchLoose(m.qa_email, compareQA)).sort((a, b) => (b.month || "").localeCompare(a.month || ""))[0] : null;
+        // Chronological "latest month" — NOT string localeCompare, which
+        // ordered "May-2026" above "Jun-2026" alphabetically and headlined
+        // the wrong month's CSAT/score in the compare strip.
+        const _M = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const monthKey = (m) => { const [mon, yr] = (m || "").split("-"); return (Number(yr) || 0) * 100 + (_M.indexOf(mon) + 1); };
+        const compareLatest = compareQA ? mtd.filter(m => emailsMatchLoose(m.qa_email, compareQA)).sort((a, b) => monthKey(b.month) - monthKey(a.month))[0] : null;
         const myLatest = (() => {
-          const rows = mtd.filter(m => matchQA(m.qa_email)).sort((a, b) => (b.month || "").localeCompare(a.month || ""));
+          const rows = mtd.filter(m => matchQA(m.qa_email)).sort((a, b) => monthKey(b.month) - monthKey(a.month));
           return rows[0];
         })();
         const fmtPct = (v) => (v == null || isNaN(v) ? "—" : Number(v).toFixed(1) + "%");
