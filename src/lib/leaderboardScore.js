@@ -62,7 +62,11 @@ export const fmtRaw = (val) => {
 export const compareForRank = (a, b) => {
   const sa = getTotalScore(a), sb = getTotalScore(b);
   if (sa !== sb) return sb - sa;
-  const ca = parseRaw(a?.csat_pct), cb = parseRaw(b?.csat_pct);
+  // CSAT only counts as a tie-breaker when there are real surveys behind it
+  // — a stored "0%"/stale value on a 0-survey QA must not rank them above or
+  // below anyone on phantom CSAT. No surveys → treated as no data.
+  const ca = Number(a?.csat_total || 0) > 0 ? parseRaw(a?.csat_pct) : null;
+  const cb = Number(b?.csat_total || 0) > 0 ? parseRaw(b?.csat_pct) : null;
   const cav = ca == null ? -Infinity : ca, cbv = cb == null ? -Infinity : cb;
   if (cav !== cbv) return cbv - cav;
   const va = Number(a?.csat_total || 0), vb = Number(b?.csat_total || 0);
