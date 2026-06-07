@@ -1213,7 +1213,14 @@ function SchedulePage() {
                   let statText = "";
                   let timeText = "";
                   if (!row || (!plan && !status)) {
-                    variant = "off";
+                    // Split the three "empty" states that previously all
+                    // collapsed into the same grey 'off' cell: a KSA weekend
+                    // (Fri/Sat — nothing expected), a future day, and a real
+                    // GAP on a past/today workday (no plan + no status — the
+                    // case a lead actually needs to notice).
+                    if (d.isWeekend) variant = "weekend";
+                    else if (d.iso > todayIso) variant = "future";
+                    else variant = "gap";
                   } else if (status === "NSNC") {
                     variant = "nsnc"; statText = "NSNC"; timeText = "auto";
                   } else if (LEAVE_CODES.has(status)) {
@@ -1299,6 +1306,13 @@ function SchedulePage() {
                     nsnc:   { bg: "rgba(255,107,107,.18)", bd: "rgba(255,107,107,.32)", fg: "var(--red)"       },
                     pending:{ bg: "rgba(255,255,255,.04)", bd: "rgba(255,255,255,.18)", fg: "rgba(255,255,255,.6)", dashed: true },
                     future: { bg: "rgba(255,255,255,.025)",bd: "rgba(255,255,255,.06)", fg: "rgba(255,255,255,.4)" },
+                    // Weekend (Fri/Sat): diagonal hatch so it reads as a
+                    // non-working day at a glance, never confused with a gap.
+                    weekend:{ bg: "repeating-linear-gradient(45deg, rgba(255,255,255,.015) 0 5px, rgba(255,255,255,.055) 5px 10px)", bd: "rgba(255,255,255,.05)", fg: "rgba(255,255,255,.3)" },
+                    // Gap: a past/today WORKDAY with nothing recorded (pre-NSNC,
+                    // or a person the auto-NSNC can't see). Amber dashed so the
+                    // lead notices it instead of it hiding as plain grey.
+                    gap:    { bg: "rgba(255,177,59,.06)", bd: "rgba(255,177,59,.30)", fg: "rgba(255,177,59,.75)", dashed: true },
                     off:    { bg: "rgba(245,243,248,.04)", bd: "rgba(245,243,248,.08)", fg: "rgba(245,243,248,.45)" },
                   }[v];
                   return {
@@ -1335,6 +1349,26 @@ function SchedulePage() {
                           <div style={{ fontSize: 17, fontWeight: 700, color: c, letterSpacing: "-.3px", fontVariantNumeric: "tabular-nums" }}>{val}</div>
                           <div style={{ fontSize: 9.5, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>{label}</div>
                         </div>
+                      ))}
+                    </div>
+                    {/* Legend — the grid was previously unlabelled, so a
+                        weekend, a gap, and an OFF all looked alike. This makes
+                        every cell state self-describing. */}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 14px", marginBottom: 12, fontSize: 10.5, color: "var(--tx3)" }}>
+                      {[
+                        ["Checked-in", { background: "rgba(60,255,165,.12)", border: "1px solid rgba(60,255,165,.22)" }],
+                        ["Holiday", { background: "rgba(255,177,59,.10)", border: "1px solid rgba(255,177,59,.20)" }],
+                        ["Awaiting check-in", { background: "rgba(255,255,255,.04)", border: "1px dashed rgba(255,255,255,.18)" }],
+                        ["NSNC", { background: "rgba(255,107,107,.18)", border: "1px solid rgba(255,107,107,.32)" }],
+                        ["Leave", { background: "rgba(120,150,255,.10)", border: "1px solid rgba(120,150,255,.22)" }],
+                        ["OFF", { background: "rgba(245,243,248,.04)", border: "1px solid rgba(245,243,248,.08)" }],
+                        ["Weekend", { background: "repeating-linear-gradient(45deg, rgba(255,255,255,.015) 0 5px, rgba(255,255,255,.055) 5px 10px)", border: "1px solid rgba(255,255,255,.05)" }],
+                        ["No data (workday)", { background: "rgba(255,177,59,.06)", border: "1px dashed rgba(255,177,59,.30)" }],
+                      ].map(([label, sw]) => (
+                        <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                          <span style={{ width: 14, height: 14, borderRadius: 3, display: "inline-block", ...sw }} />
+                          {label}
+                        </span>
                       ))}
                     </div>
                     {/* Grid */}
