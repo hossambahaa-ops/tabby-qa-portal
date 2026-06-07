@@ -286,7 +286,7 @@ function SchedulePage() {
       .filter(Boolean)
   );
   const leadRosterRows = (profiles || [])
-    .filter(p => (p.role === "qa_lead" || p.role === "qa_supervisor") && p.email && leadsWithTeam.has(p.email.toLowerCase()))
+    .filter(p => p.role === "qa_lead" && p.email && leadsWithTeam.has(p.email.toLowerCase()))
     .map(p => {
       const em = p.email;
       const domain = em.toLowerCase().endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
