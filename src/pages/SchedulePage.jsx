@@ -263,7 +263,11 @@ function SchedulePage() {
   useEffect(() => {
     listProfiles({ token, select: "email,role", filters: "", cache: false }).then(p => setProfiles(Array.isArray(p)?p:[]));
   }, [token]);
-  const qaLeadSet = new Set(profiles.filter(p=>p.role==="qa_lead").map(p=>p.email?.toLowerCase()));
+  // Calendar group-heads = QA Leads AND supervisors who DIRECTLY manage QAs.
+  // Some Sr.QAs report straight to a supervisor with no lead in between
+  // (e.g. george/ramadan under amer.saad); without including supervisors here
+  // the grid's allQAs filter drops them off the calendar entirely.
+  const qaLeadSet = new Set(profiles.filter(p=>p.role==="qa_lead"||p.role==="qa_supervisor").map(p=>p.email?.toLowerCase()));
 
   // Synthesize roster-shaped rows for QA Leads themselves. qa_roster
   // only contains QAs / Sr.QAs (leads aren't synced), but leads now
@@ -282,7 +286,7 @@ function SchedulePage() {
       .filter(Boolean)
   );
   const leadRosterRows = (profiles || [])
-    .filter(p => p.role === "qa_lead" && p.email && leadsWithTeam.has(p.email.toLowerCase()))
+    .filter(p => (p.role === "qa_lead" || p.role === "qa_supervisor") && p.email && leadsWithTeam.has(p.email.toLowerCase()))
     .map(p => {
       const em = p.email;
       const domain = em.toLowerCase().endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
