@@ -1292,6 +1292,11 @@ function SchedulePage() {
                     // Past planned-P with default-P status, no check-in.
                     // Plan badge is enough — keep statText empty.
                     variant = "p";
+                  } else if (status) {
+                    // Any recorded code not matched above (e.g. "Tabby Day",
+                    // legacy AL/SL variants, or a stray "X") — show the label
+                    // instead of an invisible grey cell so leads can see/fix it.
+                    variant = "al"; statText = status; timeText = ci ? fmtTime(ci) : "lead";
                   } else {
                     variant = "off";
                   }
