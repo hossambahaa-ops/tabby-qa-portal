@@ -417,18 +417,19 @@ function SchedulePage() {
     if (monthIsLockedRef.current) { globalToast("error", "Month is locked. Ask a lead to unlock first."); return; }
     const sm = selMonthRef.current;
     const dateStr = `${sm}-${String(dayNum).padStart(2,"0")}`;
-    // Self-only check-in guard (mirrors the qa_attendance DB trigger): only the
-    // person may mark themselves present (P/H), and only for today or earlier.
-    // Admins / super-admins may correct on someone's behalf. Planning
-    // (planned_code) and leave codes are not affected by this.
+    // Self-only check-in guard (mirrors the qa_attendance DB trigger): the
+    // person may mark themselves present (P/H); supervisors and above may
+    // correct it on someone's behalf; leads/QAs may not. No present-mark may
+    // land on a future date (everyone). Planning (planned_code) and leave
+    // codes are not affected by this.
     if (status === "P" || status === "H") {
       const todayStr = riyadhTodayStr();
       if (dateStr > todayStr) {
         globalToast("error", "Check-in is only allowed for today or earlier — not future dates.");
         setEditCell(null); setPendingReason(""); return;
       }
-      if (email?.toLowerCase() !== myEmail && !hasRole(profile?.role, "admin")) {
-        globalToast("error", "Only the person can mark their own attendance present (P/H).");
+      if (email?.toLowerCase() !== myEmail && !hasRole(profile?.role, "qa_supervisor")) {
+        globalToast("error", "Only the person — or a supervisor/admin — can mark attendance present (P/H).");
         setEditCell(null); setPendingReason(""); return;
       }
     }
