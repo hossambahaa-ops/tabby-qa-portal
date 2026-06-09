@@ -34,26 +34,26 @@ export default function QualityPrinciple({ variant = "inline", principle }) {
   if (variant === "loading") {
     return (
       <div style={{ marginTop: 20, maxWidth: 440, textAlign: "center", fontFamily: "var(--font)" }}>
-        <div style={{ textTransform: "uppercase", letterSpacing: ".9px", fontSize: 9.5, fontWeight: 700, color: "var(--muted, #94a3b8)", marginBottom: 6 }}>{EYEBROW}</div>
-        <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--text-soft, #475569)", fontStyle: "italic" }}>{p.text}</div>
+        <div style={{ textTransform: "uppercase", letterSpacing: ".9px", fontSize: 9.5, fontWeight: 700, color: "var(--tx3)", marginBottom: 6 }}>{EYEBROW}</div>
+        <div style={{ fontSize: 13.5, lineHeight: 1.6, color: "var(--tx2)", fontStyle: "italic" }}>{p.text}</div>
       </div>
     );
   }
 
   if (variant === "strip") {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 12, background: "linear-gradient(90deg, rgba(99,102,241,.09), rgba(99,102,241,.02))", border: "1px solid rgba(99,102,241,.16)", fontFamily: "var(--font)", marginBottom: 16 }}>
-        <span aria-hidden style={{ fontSize: 15, lineHeight: 1, color: "rgba(99,102,241,.85)" }}>✦</span>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 14px", borderRadius: 12, background: "var(--bg3)", border: "1px solid var(--bd)", borderLeft: "3px solid var(--accent)", fontFamily: "var(--font)", marginBottom: 16 }}>
+        <span aria-hidden style={{ fontSize: 15, lineHeight: 1, color: "var(--accent)" }}>✦</span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <span style={{ textTransform: "uppercase", letterSpacing: ".6px", fontSize: 9.5, fontWeight: 700, color: "rgba(99,102,241,.9)", marginRight: 8 }}>{EYEBROW}</span>
-          <span style={{ fontSize: 13, color: "var(--text, #1e293b)" }}>{p.text}</span>
-          <span style={{ fontSize: 11, color: "var(--muted, #94a3b8)", marginLeft: 8, whiteSpace: "nowrap" }}>· {p.tag}</span>
+          <span style={{ textTransform: "uppercase", letterSpacing: ".6px", fontSize: 9.5, fontWeight: 700, color: "var(--accent-text)", marginRight: 8 }}>{EYEBROW}</span>
+          <span style={{ fontSize: 13, color: "var(--tx)" }}>{p.text}</span>
+          <span style={{ fontSize: 11, color: "var(--tx3)", marginLeft: 8, whiteSpace: "nowrap" }}>· {p.tag}</span>
         </div>
         <button
           onClick={() => { try { localStorage.setItem(dismissId, "1"); } catch {} setDismissed(true); }}
           aria-label="Dismiss for today"
           title="Dismiss for today"
-          style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--muted, #94a3b8)", fontSize: 17, lineHeight: 1, padding: "2px 4px" }}
+          style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--tx3)", fontSize: 17, lineHeight: 1, padding: "2px 4px" }}
         >×</button>
       </div>
     );
