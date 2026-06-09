@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { lazyWithRetry as lazy } from "./lib/lazyWithRetry.js";
+import QualityPrinciple from "./components/QualityPrinciple.jsx";
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import "./index.css";
 import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc } from "./lib/constants.js";
@@ -34,6 +35,7 @@ import useKeyboard from "./lib/useKeyboard.jsx";
 import PulseMark from "./components/PulseMark.jsx";
 import TabbyPulseWordmark from "./components/TabbyPulseWordmark.jsx";
 const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
+const QualityDNAPage = lazy(() => import("./pages/QualityDNAPage.jsx"));
 const ScoreEntryPage = lazy(() => import("./pages/ScoreEntryPage.jsx"));
 const CSATPage = lazy(() => import("./pages/CSATPage.jsx"));
 const TargetsPage = lazy(() => import("./pages/TargetsPage.jsx"));
@@ -67,6 +69,7 @@ const TrackerPage = lazy(() => import("./pages/TrackerPage.jsx"));
 const safePrefetch = (loader) => () => { loader().catch(() => {}); };
 const PAGE_PREFETCH = {
   dashboard:   safePrefetch(() => import("./pages/DashboardPage.jsx")),
+  "quality-dna": safePrefetch(() => import("./pages/QualityDNAPage.jsx")),
   scores:      safePrefetch(() => import("./pages/ScoreEntryPage.jsx")),
   csat:        safePrefetch(() => import("./pages/CSATPage.jsx")),
   targets:     safePrefetch(() => import("./pages/TargetsPage.jsx")),
@@ -96,6 +99,7 @@ const safe = (v) => {
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
   {key:"leaderboard",label:"Leaderboard",icon:icons.podium},
+  {key:"quality-dna",label:"Quality DNA",icon:icons.northstar},
   {key:"profile",label:"QA Profile",icon:icons.profile,section:"Performance"},
   {key:"scores",label:"MTD",icon:icons.scores},
   {key:"csat",label:"CSAT",icon:icons.csat},
@@ -128,6 +132,7 @@ function AppInner(){
     "escalations",
     "hr",
     "utilization",
+    "quality-dna",
   ]), []);
   const location=useLocation();
   const page=location.pathname.replace(/^\//,"") || "dashboard";
@@ -607,6 +612,7 @@ function AppInner(){
             <span>Continue with Google</span>
           </button>
           <p className="login-v2-sso">SSO via <code>@tabby.ai</code> or <code>@tabby.sa</code></p>
+          <QualityPrinciple variant="login"/>
         </div>
       </div>
       <div className="login-v2-rail">
@@ -939,8 +945,9 @@ function AppInner(){
     {/* First-of-month championship belts splash. Self-contained: fetches its
         own data, decides whether to show, marks itself "seen" on dismiss. */}
     <BeltAnnouncementModal/>
-    <div className="page-animate"><Suspense fallback={<div style={{display:"flex",justifyContent:"center",alignItems:"center",minHeight:200}}><div className="pulse-loader"/></div>}><Routes>
+    <div className="page-animate"><Suspense fallback={<div style={{display:"flex",flexDirection:"column",justifyContent:"center",alignItems:"center",minHeight:240,gap:4}}><div className="pulse-loader"/><QualityPrinciple variant="loading"/></div>}><Routes>
       <Route path="/dashboard" element={<DashboardPage/>}/>
+      <Route path="/quality-dna" element={<QualityDNAPage/>}/>
       <Route path="/scores" element={<ScoreEntryPage/>}/>
       <Route path="/csat" element={<CSATPage/>}/>
       <Route path="/expertise" element={hasRole(userRole,"admin")?<ExpertisePage/>:<PlaceholderPage title="Expertise" icon={icons.expertise} minRole="admin" userRole={userRole}/>}/>

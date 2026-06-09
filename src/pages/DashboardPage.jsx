@@ -13,6 +13,7 @@ import FreshnessBadge from "../components/FreshnessBadge.jsx";
 import HelpTip from "../components/HelpTip.jsx";
 import { helpFor } from "../lib/metricHelp.js";
 import { Icon, icons } from "../components/Icons.jsx";
+import QualityPrinciple from "../components/QualityPrinciple.jsx";
 import { ProgressRing, MiniBarChart, SparkLine } from "../components/Charts.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -109,6 +110,7 @@ function DashboardPage(){
   const freshness=useFreshness(token,freshnessKey);
 
   return(<div className="page">
+    <QualityPrinciple variant="strip"/>
     {/* Admin/Supervisor action bar — "Send announcement" moved to the
         topbar so every page can reach it. Only the super-admin "Refresh
         live" button remains here. */}

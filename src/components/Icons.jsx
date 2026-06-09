@@ -26,6 +26,8 @@ export const icons={
   // buttons, headers, and modals across the app.
   // Podium 1-2-3 (Leaderboard).
   podium:"M3 22V15h5v7zM10 22V9h5v13zM17 22v-4h5v4z",
+  // Four-point "north star" — Quality DNA (vision/values).
+  northstar:"M12 3l1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8L12 3z",
   // ID card with head + shoulders + two text lines (QA Profile).
   profile:"M3 5h18v14H3zM9 12a2 2 0 100-4 2 2 0 000 4zM6 17a3 3 0 016 0M14 11h5M14 15h4",
   // Speedometer arc with needle + center pivot (CSAT score reading).
