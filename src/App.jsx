@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, Suspense } from "react";
+import React, { useState, useEffect, useRef, useMemo, Suspense } from "react";
 import { lazyWithRetry as lazy } from "./lib/lazyWithRetry.js";
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import "./index.css";
@@ -617,7 +617,13 @@ function AppInner(){
     return !n.minRole || hasRole(userRole, n.minRole);
   });let curSec=null;
   const guardRole=(role,component,fallbackProps)=>hasRole(userRole,role)?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
-  const appCtx={token:session?.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast,realProfile:profile,impersonating};
+  // Memoised so the context value keeps a stable identity across renders
+  // (route changes, interval ticks, toasts). Without this, every render
+  // built a fresh object and re-rendered every useApp() consumer — i.e.
+  // every page. globalRoster is in the deps because window.__gfRoster /
+  // __gfRosterMgr are populated alongside setGlobalRoster, so it keeps
+  // rosterMap / rosterMgrMap fresh for DAM / Coaching-violations pages.
+  const appCtx=useMemo(()=>({token:session?.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast,realProfile:profile,impersonating}),[session,effectiveProfile,profile,globalFilters,userRole,globalRoster,globalToast,setProfile,impersonating]);
 
   // ── Block QA / senior_qa roles on mobile devices ──
   // They must use a desktop browser. Leads and admins may use mobile.
