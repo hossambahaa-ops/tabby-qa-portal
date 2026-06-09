@@ -507,6 +507,13 @@ function AppInner(){
   // so they render the impersonated identity (avatar, name, role,
   // domain badge) instead of the admin's real profile.
   const impersonating=!!viewAsUser;
+  // Memoised AppContext value with a stable identity across renders so
+  // route changes / interval ticks / toasts don't re-render every
+  // useApp() consumer. MUST live here — before the loading / login /
+  // mobile early returns — to satisfy the Rules of Hooks. globalRoster is
+  // in the deps because window.__gfRoster / __gfRosterMgr are populated
+  // alongside setGlobalRoster, keeping rosterMap / rosterMgrMap fresh.
+  const appCtx=useMemo(()=>({token:session?.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast,realProfile:profile,impersonating}),[session,effectiveProfile,profile,globalFilters,userRole,globalRoster,globalToast,setProfile,impersonating]);
   // Show role-specific onboarding tour once per user
   useEffect(()=>{
     if(!profile?.email)return;
@@ -617,13 +624,7 @@ function AppInner(){
     return !n.minRole || hasRole(userRole, n.minRole);
   });let curSec=null;
   const guardRole=(role,component,fallbackProps)=>hasRole(userRole,role)?component:<PlaceholderPage {...fallbackProps} minRole={role} userRole={userRole}/>;
-  // Memoised so the context value keeps a stable identity across renders
-  // (route changes, interval ticks, toasts). Without this, every render
-  // built a fresh object and re-rendered every useApp() consumer — i.e.
-  // every page. globalRoster is in the deps because window.__gfRoster /
-  // __gfRosterMgr are populated alongside setGlobalRoster, so it keeps
-  // rosterMap / rosterMgrMap fresh for DAM / Coaching-violations pages.
-  const appCtx=useMemo(()=>({token:session?.access_token,profile:effectiveProfile,gf:globalFilters,session,setProfile,userRole,rosterMap:window.__gfRoster||{},rosterMgrMap:window.__gfRosterMgr||{},globalToast,realProfile:profile,impersonating}),[session,effectiveProfile,profile,globalFilters,userRole,globalRoster,globalToast,setProfile,impersonating]);
+  // appCtx is memoised earlier, before the early returns (Rules of Hooks).
 
   // ── Block QA / senior_qa roles on mobile devices ──
   // They must use a desktop browser. Leads and admins may use mobile.
