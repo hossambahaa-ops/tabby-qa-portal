@@ -16,7 +16,7 @@ import APActivePlanCard from "../components/actionplan/APActivePlanCard.jsx";
 import APHistoryTab from "../components/actionplan/APHistoryTab.jsx";
 import useKeyboard from "../lib/useKeyboard.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-import { KPI_SLABS, parseRaw, calcSlab, scoreColor, scoreBg, safeJson, safeJsonArr, parseTargets, getKpiScores, getTotalScore, generateTargets as buildTargets, computeDetections } from "../lib/actionPlan.js";
+import { KPI_SLABS, parseRaw, calcSlab, scoreColor, scoreBg, safeJson, safeJsonArr, parseTargets, getKpiScores, getTotalScore, generateTargets as buildTargets, computeDetections, buildPlanCandidates } from "../lib/actionPlan.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -684,6 +684,10 @@ function ActionPlanPage() {
   const myTeamLocal = myEmail?.split("@")[0]||"";
   const myEmailAltAP = myEmail?(myEmail.endsWith("@tabby.ai")?myTeamLocal+"@tabby.sa":myTeamLocal+"@tabby.ai"):"";
   const myTeamEmails = roster.filter(r => {const m=r.manager_email?.toLowerCase();return m&&(m===myEmail||m===myEmailAltAP||m===myTeamLocal);}).map(r => r.email?.toLowerCase());
+  // Picker pool: front-line QA roster + (for supervisors/admins) the
+  // in-scope leads, so a supervisor can open a PIP/AP on one of their
+  // leads (who aren't in qa_roster). See buildPlanCandidates.
+  const planCandidates = buildPlanCandidates({ roster, profiles, isSupervisor, isAdmin, myEmail, myDomain, nameFromEmail });
   const visiblePlans = isAdmin ? plans : isSupervisor ? plans.filter(p =>
     p.qa_email?.endsWith("@" + myDomain)
   ) : plans.filter(p =>
@@ -783,7 +787,7 @@ function ActionPlanPage() {
         followUpMode={followUpMode}
         customMetrics={customMetrics}
         loading={loading}
-        roster={roster}
+        roster={planCandidates}
         mtd={mtd}
         KPI_SLABS={KPI_SLABS}
         handleQaEmailChange={handleQaEmailChange}

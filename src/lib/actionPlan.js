@@ -28,6 +28,41 @@ export const calcSlab = (rawPct, th) => {
 };
 
 export const scoreColor = (v) => v >= 55 * 0.7 ? "var(--green)" : v >= 55 * 0.4 ? "var(--amber)" : "var(--red)";
+
+// Build the candidate list for the create-plan picker. Always includes
+// the front-line QA roster. For supervisors and above, also includes the
+// in-scope leads (and, for admins, supervisors too) — they aren't in
+// qa_roster (they're management, with no MTD row) so they were impossible
+// to put on a PIP/AP. A supervisor gets leads in their own domain; an
+// admin gets all leads/supervisors. Management rows are shaped like
+// roster rows (with a roleLabel) so the picker treats them uniformly;
+// their plan targets are entered manually, which the form already
+// supports (the save path falls back to the creator for tl_email).
+export function buildPlanCandidates({
+  roster = [], profiles = [], isSupervisor = false, isAdmin = false,
+  myEmail = "", myDomain = "", nameFromEmail = (e) => e,
+} = {}) {
+  if (!isSupervisor) return roster;
+  const allowRoles = isAdmin ? ["qa_lead", "qa_supervisor"] : ["qa_lead"];
+  const me = (myEmail || "").toLowerCase();
+  const rosterEmails = new Set(roster.map(r => (r.email || "").toLowerCase()).filter(Boolean));
+  const mgmt = (profiles || []).filter(p => {
+    const em = (p.email || "").toLowerCase();
+    if (!em || em === me || rosterEmails.has(em)) return false;
+    if (!allowRoles.includes(p.role)) return false;
+    if (isAdmin) return true;
+    const pd = p.operational_domain || p.domain;
+    return pd ? pd === myDomain : em.endsWith("@" + myDomain);
+  }).map(p => ({
+    email: p.email,
+    display_name: p.display_name || nameFromEmail(p.email),
+    manager_email: null,
+    queue: null,
+    country: null,
+    roleLabel: p.role === "qa_supervisor" ? "Supervisor" : "Lead",
+  }));
+  return [...roster, ...mgmt];
+}
 export const scoreBg = (v) => v >= 55 * 0.7 ? "var(--green-bg)" : v >= 55 * 0.4 ? "var(--amber-bg)" : "var(--red-bg)";
 
 export const safeJson = (str) => { try { return JSON.parse(str || "{}"); } catch { return {}; } };
