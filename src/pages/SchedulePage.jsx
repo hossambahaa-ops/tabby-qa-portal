@@ -1240,6 +1240,12 @@ function SchedulePage() {
                   let variant = "future";
                   let statText = "";
                   let timeText = "";
+                  // Assigned shift (HH:MM–HH:MM) — rendered on the cell
+                  // whenever set, INCLUDING after check-in, so the schedule
+                  // stays visible (previously it only appeared as a today-
+                  // pending window hint and vanished once the QA checked in).
+                  const toMM = (t) => (typeof t === "string" ? t.slice(0, 5) : "");
+                  const shift = (row?.shift_start && row?.shift_end) ? `${toMM(row.shift_start)}–${toMM(row.shift_end)}` : "";
                   if (!row || (!plan && !status)) {
                     // Split the three "empty" states that previously all
                     // collapsed into the same grey 'off' cell: a KSA weekend
@@ -1296,24 +1302,10 @@ function SchedulePage() {
                     // Planned holiday, no actual outcome yet — plan badge tells the story.
                     variant = "h";
                   } else if (plan === "P" && d.iso === todayIso) {
-                    // Today's planned-P, not yet checked in. Show the
-                    // ACTUAL check-in window (shift_start through
-                    // shift_end + 1h grace, matching the auto-NSNC cutoff).
+                    // Today's planned-P, not yet checked in. The assigned
+                    // shift line (below) now shows the expected window;
+                    // keep the dashed "pending" styling until they check in.
                     variant = "pending";
-                    const s = row?.shift_start; const e = row?.shift_end;
-                    const toMM = (t) => (typeof t === "string" ? t.slice(0, 5) : "");
-                    const plusGrace = (t) => {
-                      // shift_end + 1h grace, rolling over past
-                      // midnight (e.g. 23:30 → 00:30). Was previously
-                      // clamped at 23:00 — silently shortened the
-                      // window for anyone on a late shift.
-                      if (typeof t !== "string") return "";
-                      const [h, m] = t.split(":").map(Number);
-                      const minutes = ((h || 0) + 1) * 60 + (m || 0);
-                      const hh = Math.floor(minutes / 60) % 24;
-                      return `${String(hh).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`;
-                    };
-                    timeText = (s && e) ? `${toMM(s)}–${plusGrace(e)}` : "09:00–19:00";
                   } else if (plan === "P" && d.iso > todayIso) {
                     variant = "future";
                   } else if (plan === "P" && d.iso < todayIso) {
@@ -1328,7 +1320,7 @@ function SchedulePage() {
                   } else {
                     variant = "off";
                   }
-                  return { variant, statText, timeText, plan };
+                  return { variant, statText, timeText, plan, shift };
                 };
                 // Variant -> background/border/colour map
                 const variantStyle = (v, isToday) => {
@@ -1509,6 +1501,10 @@ function SchedulePage() {
                                     {/* check-in time */}
                                     {desc.timeText && (
                                       <div style={{ fontSize: 8.5, opacity: .8, fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 2 }}>{desc.timeText}</div>
+                                    )}
+                                    {/* assigned shift — stays visible after check-in */}
+                                    {desc.shift && (
+                                      <div style={{ fontSize: 7.5, opacity: .6, fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 1 }} title="Assigned shift">🕒 {desc.shift}</div>
                                     )}
                                   </CompactGridCell>
                                 );
