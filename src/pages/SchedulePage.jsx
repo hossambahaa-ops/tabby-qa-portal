@@ -11,7 +11,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES, SIMPLIFIED_TYPES, LEAVE_CODES, RESOLVED_NO_CHECKIN, reconcileAttendanceEmails } from "../lib/attendance.js";
+import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES, SIMPLIFIED_TYPES, LEAVE_CODES, RESOLVED_NO_CHECKIN, reconcileAttendanceEmails, shiftBadge, SHIFT_LEGEND } from "../lib/attendance.js";
 import AttendanceBulkModal from "../components/attendance/AttendanceBulkModal.jsx";
 import AttendanceCsvUpload from "../components/attendance/AttendanceCsvUpload.jsx";
 import AttendanceOtModal from "../components/attendance/AttendanceOtModal.jsx";
@@ -1240,12 +1240,10 @@ function SchedulePage() {
                   let variant = "future";
                   let statText = "";
                   let timeText = "";
-                  // Assigned shift (HH:MM–HH:MM) — rendered on the cell
-                  // whenever set, INCLUDING after check-in, so the schedule
-                  // stays visible (previously it only appeared as a today-
-                  // pending window hint and vanished once the QA checked in).
-                  const toMM = (t) => (typeof t === "string" ? t.slice(0, 5) : "");
-                  const shift = (row?.shift_start && row?.shift_end) ? `${toMM(row.shift_start)}–${toMM(row.shift_end)}` : "";
+                  // Assigned shift → compact colour-coded pill {label,color}.
+                  // Rendered on every cell that has a shift, including after
+                  // check-in (previously only a today-pending window hint).
+                  const shift = shiftBadge(row?.shift_start, row?.shift_end);
                   if (!row || (!plan && !status)) {
                     // Split the three "empty" states that previously all
                     // collapsed into the same grey 'off' cell: a KSA weekend
@@ -1357,6 +1355,14 @@ function SchedulePage() {
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4, flexWrap: "wrap", gap: 8 }}>
                       <div style={{ fontSize: 14, fontWeight: 700 }}>
                         Team attendance · full month
+                      </div>
+                      <div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--tx3)", flexWrap: "wrap", alignItems: "center" }} title="Shift colour by start time">
+                        <span style={{ fontWeight: 600 }}>Shift</span>
+                        {SHIFT_LEGEND.map(b => (
+                          <span key={b.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: 99, background: b.color, flex: "none" }}/>{b.label}
+                          </span>
+                        ))}
                       </div>
                     </div>
                     <div style={{ fontSize: 11.5, color: "var(--tx3)", marginBottom: 12 }}>{visibleQAs.length} specialists · plan badge top-right · status middle · check-in time bottom · today's column outlined</div>
@@ -1502,9 +1508,11 @@ function SchedulePage() {
                                     {desc.timeText && (
                                       <div style={{ fontSize: 8.5, opacity: .8, fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 2 }}>{desc.timeText}</div>
                                     )}
-                                    {/* assigned shift — stays visible after check-in */}
+                                    {/* assigned shift — colour-coded pill, stays visible after check-in */}
                                     {desc.shift && (
-                                      <div style={{ fontSize: 7.5, opacity: .6, fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 1 }} title="Assigned shift">🕒 {desc.shift}</div>
+                                      <div style={{ marginTop: 1, textAlign: "center" }}>
+                                        <span style={{ display: "inline-block", fontSize: 8, fontWeight: 700, padding: "0 5px", borderRadius: 5, background: desc.shift.color + "22", color: desc.shift.color, fontVariantNumeric: "tabular-nums", lineHeight: 1.5 }} title="Assigned shift">{desc.shift.label}</span>
+                                      </div>
                                     )}
                                   </CompactGridCell>
                                 );

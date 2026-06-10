@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import { riyadhTodayStr } from "../../lib/attendancePlan.js";
-import { LEAVE_CODES } from "../../lib/attendance.js";
+import { LEAVE_CODES, shiftBadge } from "../../lib/attendance.js";
 import CellPicker from "./CellPicker.jsx";
 
 // One day-square inside MyMonthCalendar. Anchors CellPicker via a div ref.
@@ -117,9 +117,7 @@ export default function CalendarDayCell({
           they've checked in (previously the shift vanished on check-in
           and only ever showed as a pre-check-in window hint on today). */}
       {enhanced && (checkInAt || isPlannedNoCheckIn || (att?.shift_start && att?.shift_end)) && (() => {
-        const toMM = (t) => (typeof t === "string" ? t.slice(0, 5) : "");
-        const hasShift = att?.shift_start && att?.shift_end;
-        const shiftStr = hasShift ? `${toMM(att.shift_start)}–${toMM(att.shift_end)}` : "";
+        const badge = shiftBadge(att?.shift_start, att?.shift_end);
         const timing = checkInAt
           ? `✓ ${fmtTime(checkInAt)}`
           : isFutureDay
@@ -128,8 +126,8 @@ export default function CalendarDayCell({
               ? "⏳ not in yet"
               : "Not yet";
         return (
-          <div style={{ marginTop: "auto", paddingTop: 4, fontSize: 9.5, color: "var(--tx3)", fontVariantNumeric: "tabular-nums", fontWeight: 500, display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: 6, rowGap: 1 }}>
-            {hasShift && <span title="Assigned shift" style={{ color: "var(--tx2)" }}>🕒 {shiftStr}</span>}
+          <div style={{ marginTop: "auto", paddingTop: 4, fontSize: 9.5, color: "var(--tx3)", fontVariantNumeric: "tabular-nums", fontWeight: 500, display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 6, rowGap: 2 }}>
+            {badge && <span title="Assigned shift" style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 6, background: badge.color + "22", color: badge.color }}>{badge.label}</span>}
             <span>{timing}</span>
           </div>
         );

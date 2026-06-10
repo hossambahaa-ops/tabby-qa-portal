@@ -24,6 +24,36 @@ export function reconcileAttendanceEmails(attendance = [], roster = []) {
   });
 }
 
+// Compact label + colour for a shift, used by the calendar shift pills.
+// Input is the HH:MM[:SS] shift_start / shift_end stored on qa_attendance.
+// The colour buckets by start hour so a column of cells is scannable at a
+// glance — early (blue) / morning (green) / midday (amber) / late
+// (purple). Minutes are dropped when :00 (e.g. "10:00"→"10"). Returns
+// null when no shift is set.
+export function shiftBadge(shiftStart, shiftEnd) {
+  if (!shiftStart || !shiftEnd) return null;
+  const hhmm = (t) => {
+    const s = String(t).slice(0, 5);
+    return s.endsWith(":00") ? s.slice(0, 2) : s;
+  };
+  const startH = parseInt(String(shiftStart).slice(0, 2), 10) || 0;
+  const color =
+    startH < 9   ? "#3B82F6" :
+    startH <= 10 ? "#22C55E" :
+    startH <= 13 ? "#F59E0B" :
+                   "#A855F7";
+  return { label: `${hhmm(shiftStart)}–${hhmm(shiftEnd)}`, color };
+}
+
+// Legend rows for the shift-start colour buckets above. Keep in sync with
+// shiftBadge's thresholds.
+export const SHIFT_LEGEND = [
+  { label: "≤8", color: "#3B82F6" },
+  { label: "9–10", color: "#22C55E" },
+  { label: "11–13", color: "#F59E0B" },
+  { label: "14+", color: "#A855F7" },
+];
+
 export const ATTENDANCE_TYPES = [
   { code: "P",       label: "Present",            color: "#22C55E", bg: "#22C55E20" },
   { code: "H",       label: "Work from Home",     color: "#3B82F6", bg: "#3B82F620" },
