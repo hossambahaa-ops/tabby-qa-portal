@@ -110,42 +110,27 @@ export default function CalendarDayCell({
           {planned === "H" ? "Home" : planned === "P" ? "Office" : "Day off"}
         </div>
       )}
-      {/* Enhanced-mode footer: check-in time (or "Not yet" / "window")
-          on its own line beneath the status. Keeps the timing trail
-          visible without competing with the status badge above.
-          Window string reflects shift_start through shift_end + 1h
-          (the auto-NSNC grace), which is the actual check-in window
-          the QA still has. Falls back to 09:00–19:00 (default 9-18 +
-          1h grace) when the row has no shift times. */}
-      {enhanced && (checkInAt || isPlannedNoCheckIn) && (() => {
-        const windowText = (() => {
-          const s = att?.shift_start;
-          const e = att?.shift_end;
-          const toMM = (t) => (typeof t === "string" ? t.slice(0, 5) : "");
-          const plusGrace = (t) => {
-            // shift_end + 1h grace, preserving minutes and rolling
-            // over past midnight for late shifts (e.g. 23:30 → 00:30
-            // next day). The previous Math.min(23, h+1) implementation
-            // clamped at 23:00, silently shortening the window for
-            // anyone working past 22:00.
-            if (typeof t !== "string") return "";
-            const [h, m] = t.split(":").map(Number);
-            const minutes = ((h || 0) + 1) * 60 + (m || 0);
-            const hh = Math.floor(minutes / 60) % 24;
-            return `${String(hh).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}`;
-          };
-          if (s && e) return `${toMM(s)}–${plusGrace(e)}`;
-          return "09:00–19:00";
-        })();
+      {/* Enhanced-mode footer: the assigned shift (when set) plus the
+          timing trail. The actual check-in time replaces the hint once
+          present, but the shift window stays visible alongside it — so a
+          viewer can always see which shift the QA was on, including after
+          they've checked in (previously the shift vanished on check-in
+          and only ever showed as a pre-check-in window hint on today). */}
+      {enhanced && (checkInAt || isPlannedNoCheckIn || (att?.shift_start && att?.shift_end)) && (() => {
+        const toMM = (t) => (typeof t === "string" ? t.slice(0, 5) : "");
+        const hasShift = att?.shift_start && att?.shift_end;
+        const shiftStr = hasShift ? `${toMM(att.shift_start)}–${toMM(att.shift_end)}` : "";
+        const timing = checkInAt
+          ? `✓ ${fmtTime(checkInAt)}`
+          : isFutureDay
+            ? "planned"
+            : isToday
+              ? "⏳ not in yet"
+              : "Not yet";
         return (
-          <div style={{ marginTop: "auto", paddingTop: 4, fontSize: 9.5, color: "var(--tx3)", fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>
-            {checkInAt
-              ? `✓ ${fmtTime(checkInAt)}`
-              : isFutureDay
-                ? "— planned"
-                : isToday
-                  ? `⏳ window ${windowText}`
-                  : "Not yet"}
+          <div style={{ marginTop: "auto", paddingTop: 4, fontSize: 9.5, color: "var(--tx3)", fontVariantNumeric: "tabular-nums", fontWeight: 500, display: "flex", flexWrap: "wrap", alignItems: "baseline", columnGap: 6, rowGap: 1 }}>
+            {hasShift && <span title="Assigned shift" style={{ color: "var(--tx2)" }}>🕒 {shiftStr}</span>}
+            <span>{timing}</span>
           </div>
         );
       })()}
