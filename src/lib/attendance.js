@@ -26,33 +26,28 @@ export function reconcileAttendanceEmails(attendance = [], roster = []) {
 
 // Compact label + colour for a shift, used by the calendar shift pills.
 // Input is the HH:MM[:SS] shift_start / shift_end stored on qa_attendance.
-// The colour buckets by start hour so a column of cells is scannable at a
-// glance — early (blue) / morning (green) / midday (amber) / late
-// (purple). Minutes are dropped when :00 (e.g. "10:00"→"10"). Returns
-// null when no shift is set.
+//
+// One STABLE, DISTINCT colour per distinct shift. The colour is a pure
+// function of the start–end, so the same shift always renders the same
+// colour everywhere (team grid AND single-person month view), and two
+// different shifts don't collapse to the same colour. The previous
+// start-hour buckets caused exactly that discrepancy — 09–18 and 10–19
+// were both green, and the near-identical 13–22 / 14–22 were split across
+// amber and purple. A polynomial hash of the start–end spreads the few
+// real shifts around the hue wheel; fixed S/L keeps every colour legible
+// on the neutral pill chip. Minutes drop when :00 ("10:00"→"10").
 export function shiftBadge(shiftStart, shiftEnd) {
   if (!shiftStart || !shiftEnd) return null;
   const hhmm = (t) => {
     const s = String(t).slice(0, 5);
     return s.endsWith(":00") ? s.slice(0, 2) : s;
   };
-  const startH = parseInt(String(shiftStart).slice(0, 2), 10) || 0;
-  const color =
-    startH < 9   ? "#3B82F6" :
-    startH <= 10 ? "#22C55E" :
-    startH <= 13 ? "#F59E0B" :
-                   "#A855F7";
-  return { label: `${hhmm(shiftStart)}–${hhmm(shiftEnd)}`, color };
+  const key = `${String(shiftStart).slice(0, 5)}${String(shiftEnd).slice(0, 5)}`;
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) hash = (hash * 131 + key.charCodeAt(i)) >>> 0;
+  const hue = hash % 360;
+  return { label: `${hhmm(shiftStart)}–${hhmm(shiftEnd)}`, color: `hsl(${hue} 70% 60%)`, key };
 }
-
-// Legend rows for the shift-start colour buckets above. Keep in sync with
-// shiftBadge's thresholds.
-export const SHIFT_LEGEND = [
-  { label: "≤8", color: "#3B82F6" },
-  { label: "9–10", color: "#22C55E" },
-  { label: "11–13", color: "#F59E0B" },
-  { label: "14+", color: "#A855F7" },
-];
 
 export const ATTENDANCE_TYPES = [
   { code: "P",       label: "Present",            color: "#22C55E", bg: "#22C55E20" },

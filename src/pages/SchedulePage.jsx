@@ -11,7 +11,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES, SIMPLIFIED_TYPES, LEAVE_CODES, RESOLVED_NO_CHECKIN, reconcileAttendanceEmails, shiftBadge, SHIFT_LEGEND } from "../lib/attendance.js";
+import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES, SIMPLIFIED_TYPES, LEAVE_CODES, RESOLVED_NO_CHECKIN, reconcileAttendanceEmails, shiftBadge } from "../lib/attendance.js";
 import AttendanceBulkModal from "../components/attendance/AttendanceBulkModal.jsx";
 import AttendanceCsvUpload from "../components/attendance/AttendanceCsvUpload.jsx";
 import AttendanceOtModal from "../components/attendance/AttendanceOtModal.jsx";
@@ -1356,14 +1356,27 @@ function SchedulePage() {
                       <div style={{ fontSize: 14, fontWeight: 700 }}>
                         Team attendance · full month
                       </div>
-                      <div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--tx3)", flexWrap: "wrap", alignItems: "center" }} title="Shift colour by start time">
-                        <span style={{ fontWeight: 600 }}>Shift</span>
-                        {SHIFT_LEGEND.map(b => (
-                          <span key={b.label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: 99, background: b.color, flex: "none" }}/>{b.label}
-                          </span>
-                        ))}
-                      </div>
+                      {(() => {
+                        // Legend lists the distinct shifts actually present this
+                        // month, each with its stable colour from shiftBadge.
+                        const seen = new Map();
+                        for (const a of attendance) {
+                          const b = (a?.shift_start && a?.shift_end) ? shiftBadge(a.shift_start, a.shift_end) : null;
+                          if (b && !seen.has(b.label)) seen.set(b.label, b.color);
+                        }
+                        const items = [...seen.entries()].sort((x, y) => x[0].localeCompare(y[0]));
+                        if (!items.length) return null;
+                        return (
+                          <div style={{ display: "flex", gap: 10, fontSize: 10, color: "var(--tx3)", flexWrap: "wrap", alignItems: "center" }} title="Shift colour by shift">
+                            <span style={{ fontWeight: 600 }}>Shifts</span>
+                            {items.map(([label, color]) => (
+                              <span key={label} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                                <span style={{ width: 8, height: 8, borderRadius: 99, background: color, flex: "none" }}/>{label}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div style={{ fontSize: 11.5, color: "var(--tx3)", marginBottom: 12 }}>{visibleQAs.length} specialists · plan badge top-right · status middle · check-in time bottom · today's column outlined</div>
                     {/* Stat strip */}
