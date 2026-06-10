@@ -262,7 +262,7 @@ export default function CSATPage() {
     const map = {};
     csatSorted.forEach(r => {
       const tl = (r.qa_tl || "unknown").toLowerCase();
-      if (!map[tl]) map[tl] = { tl: r.qa_tl || "Unknown", emails: [], count: 0, weightedSum: 0, weight: 0, simpleSum: 0, simpleCount: 0, surveys: 0 };
+      if (!map[tl]) map[tl] = { tl: r.qa_tl || "Unknown", emails: [], count: 0, weightedSum: 0, weight: 0, simpleSum: 0, simpleCount: 0, surveys: 0, good: 0, bad: 0 };
       const l = map[tl];
       l.emails.push(r.qa_email);
       l.count++;
@@ -272,6 +272,8 @@ export default function CSATPage() {
         l.simpleSum += score; l.simpleCount++;
         if (surveys > 0) { l.weightedSum += score * surveys; l.weight += surveys; }
         l.surveys += surveys;
+        l.good += Number(r.csat_good || 0);
+        l.bad += Number(r.csat_bad || 0);
       }
     });
     // Prev-month weighted CSAT per lead — same formula as current,
@@ -601,6 +603,8 @@ export default function CSATPage() {
                   <th>Specialist</th>
                   <th>TL</th>
                   <th style={{width:90}} title="QA's primary Line of Business — drives the quartile cohort.">LOB</th>
+                  <th style={{textAlign:"right",width:52,color:"var(--green)"}} title="Good (satisfied) surveys">Good</th>
+                  <th style={{textAlign:"right",width:52,color:"var(--red)"}} title="Bad (dissatisfied) surveys">Bad</th>
                   <th style={{textAlign:"right",width:80}}>Surveys</th>
                   <th style={{textAlign:"right",width:90}}>CSAT %</th>
                   <th style={{textAlign:"center",width:80}} title="Per-domain CSAT quartile this month (Q1 = top 25%). Needs ≥5 surveys + ≥8 ranked QAs in the domain to assign.">Quartile</th>
@@ -652,13 +656,15 @@ export default function CSATPage() {
                       </td>
                       <td style={{fontSize:11.5,color:"var(--tx2)",padding:"4px 8px",whiteSpace:"nowrap"}} title={r.qa_tl||""}>{r.qa_tl?nameFromEmail(r.qa_tl):"—"}</td>
                       <td style={{fontSize:11.5,color:"var(--tx2)",padding:"4px 8px",whiteSpace:"nowrap"}} title={r.lob || "LOB not set in mtd_scores"}>{r.lob || "—"}</td>
+                      <td style={{textAlign:"right",fontSize:12,color:"var(--green)",opacity:.9,padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{r.csat_good ?? "—"}</td>
+                      <td style={{textAlign:"right",fontSize:12,color:"var(--red)",opacity:.9,padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{r.csat_bad ?? "—"}</td>
                       <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)",padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{r.csat_total ?? "—"}</td>
                       {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,fontSize:12.5,color:csatColor(v,s),padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                       <td style={{textAlign:"center",padding:"4px 8px"}}><QuartilePill quartile={r.csat_quartile} lob={r.lob} /></td>
                       {(()=>{const v=csatPctValue(r.csat_pct);const s=Number(r.csat_total||0);const cur=(v!=null&&s>0)?v:null;const p=lookupPrev(r.qa_email);return renderDelta(cur, p?.v ?? null);})()}
                     </tr>
                     {isExpanded && <tr>
-                      <td colSpan={8} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
+                      <td colSpan={10} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
                         {isLoading ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>Loading topics…</div>
                          : !t || t.length === 0 ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
                          : <table style={{width:"100%",marginTop:4,borderCollapse:"collapse"}}>
@@ -690,6 +696,8 @@ export default function CSATPage() {
                   <th style={{width:22}}></th>
                   <th>Lead</th>
                   <th style={{textAlign:"right",width:70}}>QAs</th>
+                  <th style={{textAlign:"right",width:52,color:"var(--green)"}} title="Good (satisfied) surveys">Good</th>
+                  <th style={{textAlign:"right",width:52,color:"var(--red)"}} title="Bad (dissatisfied) surveys">Bad</th>
                   <th style={{textAlign:"right",width:80}}>Surveys</th>
                   <th style={{textAlign:"right",width:90}}>CSAT %</th>
                   <th style={{textAlign:"right",width:100}} title={prevMonth?`Change vs ${prevMonth}`:"No previous month available"}>Δ vs prev</th>
@@ -718,13 +726,15 @@ export default function CSATPage() {
                         </div>
                       </td>
                       <td style={{textAlign:"right",fontWeight:600,fontSize:12,padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{l.count}</td>
+                      <td style={{textAlign:"right",fontSize:12,color:"var(--green)",opacity:.9,padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{l.good || "—"}</td>
+                      <td style={{textAlign:"right",fontSize:12,color:"var(--red)",opacity:.9,padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{l.bad || "—"}</td>
                       <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)",padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{l.surveys || "—"}</td>
                       {(()=>{const s=Number(l.surveys||0);const show=l.csat!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,fontSize:12.5,color:csatColor(l.csat,s),padding:"4px 8px",fontVariantNumeric:"tabular-nums"}}>{show?l.csat.toFixed(1)+"%":"—"}</td>;})()}
                       {renderDelta(l.csat ?? null, l.prevCsat ?? null)}
                     </tr>
                     {isExpanded && <tr>
-                      {/* Lead aggregation table — no quartile column, colSpan stays 6 */}
-                      <td colSpan={6} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
+                      {/* Lead aggregation table — no quartile column, colSpan 8 (Good/Bad added) */}
+                      <td colSpan={8} style={{padding:"0 12px 10px 42px",background:"var(--bg)"}}>
                         {isLoading ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>Loading topics…</div>
                          : !t || t.length === 0 ? <div style={{padding:"8px 0",fontSize:11.5,color:"var(--tx3)"}}>No per-topic CSAT data for {selMonth}.</div>
                          : <table style={{width:"100%",marginTop:4,borderCollapse:"collapse"}}>
