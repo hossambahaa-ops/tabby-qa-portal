@@ -1502,18 +1502,23 @@ function SchedulePage() {
                                     )}
                                     {/* status text — only when there's a real outcome */}
                                     {desc.statText && (
-                                      <div style={{ fontSize: 10.5, fontWeight: 800, lineHeight: 1.1, marginTop: 12, marginBottom: "auto" }}>{desc.statText}</div>
+                                      <div style={{ fontSize: 10.5, fontWeight: 800, lineHeight: 1.1, marginTop: 12 }}>{desc.statText}</div>
                                     )}
-                                    {/* check-in time */}
-                                    {desc.timeText && (
-                                      <div style={{ fontSize: 8.5, opacity: .8, fontVariantNumeric: "tabular-nums", fontWeight: 500, marginTop: 2 }}>{desc.timeText}</div>
-                                    )}
-                                    {/* assigned shift — colour-coded pill, stays visible after check-in */}
-                                    {desc.shift && (
-                                      <div style={{ marginTop: 1, textAlign: "center" }}>
-                                        <span style={{ display: "inline-block", fontSize: 8, fontWeight: 700, padding: "0 5px", borderRadius: 5, background: desc.shift.color + "22", color: desc.shift.color, fontVariantNumeric: "tabular-nums", lineHeight: 1.5 }} title="Assigned shift">{desc.shift.label}</span>
-                                      </div>
-                                    )}
+                                    {/* check-in time + assigned shift — pinned to the bottom so the
+                                        layout is consistent whether or not the cell has a status.
+                                        The shift pill uses a neutral chip + colour dot so it stays
+                                        legible on the status-tinted cell backgrounds (a coloured
+                                        pill blended into same-hue cells, e.g. green shift on a P). */}
+                                    <div style={{ marginTop: "auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 1, width: "100%" }}>
+                                      {desc.timeText && (
+                                        <div style={{ fontSize: 8.5, opacity: .8, fontVariantNumeric: "tabular-nums", fontWeight: 500 }}>{desc.timeText}</div>
+                                      )}
+                                      {desc.shift && (
+                                        <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 8, fontWeight: 700, padding: "0 5px", borderRadius: 5, background: "rgba(130,130,150,.18)", color: desc.shift.color, fontVariantNumeric: "tabular-nums", lineHeight: 1.7 }} title="Assigned shift">
+                                          <span style={{ width: 4.5, height: 4.5, borderRadius: 99, background: desc.shift.color, flex: "none" }}/>{desc.shift.label}
+                                        </span>
+                                      )}
+                                    </div>
                                   </CompactGridCell>
                                 );
                               })}

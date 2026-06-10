@@ -127,7 +127,7 @@ export default function CalendarDayCell({
               : "Not yet";
         return (
           <div style={{ marginTop: "auto", paddingTop: 4, fontSize: 9.5, color: "var(--tx3)", fontVariantNumeric: "tabular-nums", fontWeight: 500, display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 6, rowGap: 2 }}>
-            {badge && <span title="Assigned shift" style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 6, background: badge.color + "22", color: badge.color }}>{badge.label}</span>}
+            {badge && <span title="Assigned shift" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, fontWeight: 700, padding: "1px 7px", borderRadius: 6, background: "rgba(130,130,150,.18)", color: badge.color }}><span style={{ width: 5, height: 5, borderRadius: 99, background: badge.color, flex: "none" }}/>{badge.label}</span>}
             <span>{timing}</span>
           </div>
         );
