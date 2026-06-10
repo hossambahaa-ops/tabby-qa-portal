@@ -2,6 +2,28 @@
 // Schedule page (cell picker, calendar grid, bulk-set, CSV upload, OT
 // modal) and by anywhere else that has to render or validate a code.
 
+import { emailsMatchLoose } from "./utils.js";
+
+// Remap each attendance row's email onto the matching roster QA's
+// canonical email, bridging the @tabby.ai / @tabby.sa alias split. The
+// calendar matches each cell to attendance by EXACT email, so a QA whose
+// roster row uses one alias while their attendance rows carry the other
+// renders blank. Row ids and every other field are preserved, so edits
+// still PATCH the original DB row by id. No-op for rows whose email
+// already matches a roster entry exactly (the common case) and for rows
+// with no roster match at all.
+export function reconcileAttendanceEmails(attendance = [], roster = []) {
+  if (!Array.isArray(attendance) || !attendance.length) return attendance;
+  if (!Array.isArray(roster) || !roster.length) return attendance;
+  const exact = new Set(roster.map(r => r.email?.toLowerCase()).filter(Boolean));
+  return attendance.map(a => {
+    const em = a?.email?.toLowerCase();
+    if (!em || exact.has(em)) return a;
+    const match = roster.find(r => emailsMatchLoose(r.email, a.email));
+    return match ? { ...a, email: match.email } : a;
+  });
+}
+
 export const ATTENDANCE_TYPES = [
   { code: "P",       label: "Present",            color: "#22C55E", bg: "#22C55E20" },
   { code: "H",       label: "Work from Home",     color: "#3B82F6", bg: "#3B82F620" },

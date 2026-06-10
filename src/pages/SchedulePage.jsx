@@ -11,7 +11,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES, SIMPLIFIED_TYPES, LEAVE_CODES, RESOLVED_NO_CHECKIN } from "../lib/attendance.js";
+import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES, SIMPLIFIED_TYPES, LEAVE_CODES, RESOLVED_NO_CHECKIN, reconcileAttendanceEmails } from "../lib/attendance.js";
 import AttendanceBulkModal from "../components/attendance/AttendanceBulkModal.jsx";
 import AttendanceCsvUpload from "../components/attendance/AttendanceCsvUpload.jsx";
 import AttendanceOtModal from "../components/attendance/AttendanceOtModal.jsx";
@@ -97,8 +97,16 @@ function SchedulePage() {
         fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(mid)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
         fetch(`${base}&date=gte.${fmtD(mid+1)}&date=lte.${fmtD(dim)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
       ]);
-      setRoster(Array.isArray(r) ? r : []);
-      const allAtt = [...(Array.isArray(a1)?a1:[]), ...(Array.isArray(a2)?a2:[])];
+      const rosterList = Array.isArray(r) ? r : [];
+      setRoster(rosterList);
+      // Bridge @tabby.ai / @tabby.sa alias splits so attendance logged
+      // under one alias still lands on a roster row that uses the other
+      // (e.g. roster from the Distro sheet uses @tabby.ai but the rows are
+      // @tabby.sa). Keeps row ids, so edits still PATCH the right DB row.
+      const allAtt = reconcileAttendanceEmails(
+        [...(Array.isArray(a1)?a1:[]), ...(Array.isArray(a2)?a2:[])],
+        rosterList,
+      );
       setAttendance(allAtt);
       try {
         const lock = await sb.query("attendance_month_locks", { token, select: "year_month,locked_by,locked_at", filters: `year_month=eq.${selMonth}&limit=1` }).catch(() => []);
