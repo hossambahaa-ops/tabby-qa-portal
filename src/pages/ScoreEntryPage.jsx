@@ -52,12 +52,12 @@ function ScoreEntryPage(){
   const ctxMenu = useRowContextMenu();
   // Click-to-sort on the By QA table. Default = performance descending,
   // matching the previous static sort. Two-state cycle: desc ↔ asc.
-  const [qaSort, setQaSort] = useState({ key: "performance", dir: "desc" });
+  const [qaSort, setQaSort] = useState({ key: "csat_pct", dir: "desc" });
   // Same pattern for the By Lead aggregation table. Previously the
   // lead view was a hard-coded sort on avg(performance) desc with no
   // user control. Mirroring qaSort keeps the keyboard model consistent
   // across the two views.
-  const [leadSort, setLeadSort] = useState({ key: "performance", dir: "desc" });
+  const [leadSort, setLeadSort] = useState({ key: "csat", dir: "desc" });
   // Collapsible column groups on the By QA table. Defaults to
   // collapsed for both Evaluations and Coachings — that's the
   // headline layout the user asked for; click the column header to
@@ -449,13 +449,10 @@ function ScoreEntryPage(){
   const toggleQaSort = (key) => setQaSort(prev => {
     if (prev.key !== key) return { key, dir: "desc" };
     if (prev.dir === "desc") return { key, dir: "asc" };
-    return { key: "performance", dir: "desc" }; // back to default
+    return { key: "csat_pct", dir: "desc" }; // back to default
   });
   const qaSortArrow = (key) => qaSort.key === key ? (qaSort.dir === "asc" ? " ▲" : " ▼") : "";
 
-  // Hoisted because the column renderers reference them.
-  const fpColor = (v) => v >= 0.4 ? "var(--green)" : v >= 0.25 ? "var(--amber)" : "var(--red)";
-  const fpBg = (v) => v >= 0.4 ? "var(--green-bg)" : v >= 0.25 ? "var(--amber-bg)" : "var(--red-bg)";
 
   // Single source of truth for the MTD By-QA table columns. Each entry
   // controls header label, alignment, sort key (matches qaSortVal), the
@@ -595,13 +592,8 @@ function ScoreEntryPage(){
       </div>
       {sorted.length>0&&<div style={{display:"flex",gap:16,alignItems:"center"}}>
         <div style={{textAlign:"center"}}>
-          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>Specialists</div>
+          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>QAs</div>
           <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px"}}>{sorted.length}</div>
-        </div>
-        <div style={{width:1,height:32,background:"var(--bd)"}}/>
-        <div style={{textAlign:"center"}}>
-          <div style={{fontSize:11,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px"}}>Avg Score</div>
-          <div style={{fontSize:22,fontWeight:800,letterSpacing:"-1px"}}>{(()=>{const vals=sorted.map(r=>{const n=parseFloat(r.final_performance);return Number.isFinite(n)?n:null;}).filter(v=>v!==null);return vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length*100).toFixed(1)+"%":"—";})()}</div>
         </div>
         <div style={{width:1,height:32,background:"var(--bd)"}}/>
         <div style={{textAlign:"center"}}>
@@ -779,7 +771,7 @@ function ScoreEntryPage(){
             </div>
             <span style={{fontSize:12,color:"var(--tx3)"}}>Synced: {sorted[0]?.synced_at ? new Date(sorted[0].synced_at).toLocaleString() : "—"}</span>
             <button className="btn btn-outline btn-sm" onClick={()=>{
-              const csv=["Specialist,Email,TL,SBS,Non-SBS,DSAT,Late,Never,Valid,Invalid,Sessions,On-time Coaching,Eligible,Not Coached,RTR,RTR Score,Observations,Obs %,Calibrations,Calib %,Completion %,On-time %,JKQ,JKQ Result,Tickets/day,Occupancy %,Working Days,ST Time (mins),ST Time,Performance %,CSAT %,Surveys"];
+              const csv=["QA,Email,TL,SBS,Non-SBS,DSAT,Late,Never,Valid,Invalid,Sessions,On-time Coaching,Eligible,Not Coached,RTR,RTR Score,Observations,Obs %,Calibrations,Calib %,Completion %,On-time %,JKQ,JKQ Result,Tickets/day,Occupancy %,Working Days,ST Time (mins),ST Time,CSAT %,Surveys"];
               sorted.forEach(r=>{
                 const stMins=r.side_tasks_duration_mins||0;
                 const stFormatted=stMins?`${Math.floor(stMins/60)}h ${stMins%60}m`:"";
@@ -791,7 +783,7 @@ function ScoreEntryPage(){
                   r.calibration_count||0,r.avg_calibration_match_rate||0,
                   r.coaching_completion_pct||0,r.ontime_coaching_pct||0,
                   r.jkq_score||"",`"${r.jkq_result||""}"`,r.ticket_per_day||0,r.occupancy_pct||0,
-                  r.working_days||0,stMins,`"${stFormatted}"`,((r.final_performance||0)*100).toFixed(1),
+                  r.working_days||0,stMins,`"${stFormatted}"`,
                   csatPctValue(r.csat_pct)!=null?csatPctValue(r.csat_pct).toFixed(1):"",r.csat_total??0
                 ].join(","));
               });
@@ -801,7 +793,7 @@ function ScoreEntryPage(){
               <Icon d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" size={13}/>Export CSV
             </button>
             <button className="btn btn-outline btn-sm" onClick={()=>{
-              const header="Specialist\tEmail\tTL\tSBS\tNon-SBS\tDSAT\tLate\tNever\tValid\tInvalid\tSessions\tOn-time Coaching\tEligible\tNot Coached\tRTR\tRTR Score\tObservations\tObs %\tCalibrations\tCalib %\tCompletion %\tOn-time %\tJKQ\tJKQ Result\tTickets/day\tOccupancy %\tWorking Days\tST Time (mins)\tST Time\tPerformance %\tCSAT %\tSurveys";
+              const header="QA\tEmail\tTL\tSBS\tNon-SBS\tDSAT\tLate\tNever\tValid\tInvalid\tSessions\tOn-time Coaching\tEligible\tNot Coached\tRTR\tRTR Score\tObservations\tObs %\tCalibrations\tCalib %\tCompletion %\tOn-time %\tJKQ\tJKQ Result\tTickets/day\tOccupancy %\tWorking Days\tST Time (mins)\tST Time\tCSAT %\tSurveys";
               const rows=sorted.map(r=>{
                 const stMins=r.side_tasks_duration_mins||0;
                 const stFormatted=stMins?`${Math.floor(stMins/60)}h ${stMins%60}m`:"";
@@ -813,7 +805,7 @@ function ScoreEntryPage(){
                   r.calibration_count||0,r.avg_calibration_match_rate||0,
                   r.coaching_completion_pct||0,r.ontime_coaching_pct||0,
                   r.jkq_score||"",r.jkq_result||"",r.ticket_per_day||0,r.occupancy_pct||0,
-                  r.working_days||0,stMins,stFormatted,((r.final_performance||0)*100).toFixed(1),
+                  r.working_days||0,stMins,stFormatted,
                   csatPctValue(r.csat_pct)!=null?csatPctValue(r.csat_pct).toFixed(1):"",r.csat_total??0
                 ].join("\t");
               });
@@ -966,7 +958,9 @@ function ScoreEntryPage(){
               case "rtr":          return l.rtr;
               case "avg_rtr":      return avg(l.rtr_scores);
               case "obs":          return l.obs;
+              case "co_score":     return avg(l.obs_scores);
               case "calib":        return l.calib;
+              case "calib_pct":    return avg(l.calib_scores);
               case "completion":   return avg(l.completion);
               case "tickets":      return avg(l.tickets);
               case "occupancy":    return avg(l.occupancy);
@@ -977,26 +971,24 @@ function ScoreEntryPage(){
             }
           };
           const leadCols = [
-            { k: "lead",        label: "Lead",            align: "left", style: { minWidth: 160 } },
+            { k: "lead",        label: "Lead",                 align: "left", style: { minWidth: 160 } },
             { k: "qas",         label: "QAs" },
+            { k: "days",        label: "WDs" },
             { k: "csat",        label: "CSAT %" },
             { k: "surveys",     label: "Surveys" },
             { k: "sbs",         label: "SBS" },
             { k: "non_sbs",     label: "Non-SBS" },
             { k: "dsat",        label: "DSAT" },
-            { k: "sessions",    label: "Sessions" },
-            { k: "ontime",      label: "On-time" },
-            { k: "not_coached", label: "Not coached" },
-            { k: "rtr",         label: "RTR" },
-            { k: "avg_rtr",     label: "Avg RTR" },
-            { k: "obs",         label: "Obs." },
-            { k: "calib",       label: "Calib." },
-            { k: "completion",  label: "Avg Completion" },
-            { k: "tickets",     label: "Avg Tickets/d" },
-            { k: "occupancy",   label: "Avg Occupancy" },
-            { k: "days",        label: "Total Days" },
+            { k: "sessions",    label: "Coachings" },
+            { k: "completion",  label: "Coachings Completion" },
+            { k: "rtr",         label: "RTR#" },
+            { k: "avg_rtr",     label: "RTR Score" },
+            { k: "obs",         label: "CO#" },
+            { k: "co_score",    label: "CO Score" },
+            { k: "calib_pct",   label: "Calibration %" },
+            { k: "tickets",     label: "Tickets/D" },
+            { k: "occupancy",   label: "Occupancy" },
             { k: "st_time",     label: "ST Time" },
-            { k: "performance", label: "Avg Performance" },
           ];
           const leads = Object.values(leadMap).sort((a, b) => {
             const av = leadSortVal(a, leadSort.key);
@@ -1013,7 +1005,7 @@ function ScoreEntryPage(){
           const toggleLeadSort = (k) => setLeadSort(prev => {
             if (prev.key !== k) return { key: k, dir: "desc" };
             if (prev.dir === "desc") return { key: k, dir: "asc" };
-            return { key: "performance", dir: "desc" };
+            return { key: "csat", dir: "desc" };
           });
           const leadSortArrow = (k) => leadSort.key === k ? (leadSort.dir === "asc" ? " ▲" : " ▼") : "";
           return <div className="table-wrap table-wrap-sticky"><table>
@@ -1032,7 +1024,6 @@ function ScoreEntryPage(){
             </tr></thead>
             <tbody>
               {leads.map(l=>{
-                const avgPerf=avg(l.performance);
                 return <tr key={l.tl}>
                   <td><div style={{display:"flex",alignItems:"center",gap:8}}>
                     <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>
@@ -1041,28 +1032,22 @@ function ScoreEntryPage(){
                     <div><div style={{fontWeight:600,fontSize:13}}>{nameFromEmail(l.tl)}</div><div style={{fontSize:10,color:"var(--tx3)"}}>{l.count} QA{l.count!==1?"s":""}</div></div>
                   </div></td>
                   <td style={{textAlign:"right",fontWeight:600}}>{l.count}</td>
+                  <td style={{textAlign:"right"}}>{l.days}</td>
                   {(()=>{const v=leadCsat(l);const s=Number(l.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
                   <td style={{textAlign:"right"}}>{l.csat_total || "—"}</td>
                   <td style={{textAlign:"right"}}>{l.sbs}</td>
                   <td style={{textAlign:"right"}}>{l.non_sbs}</td>
                   <td style={{textAlign:"right",color:"var(--tx2)"}}>{l.dsat}</td>
                   <td style={{textAlign:"right"}}>{l.sessions}</td>
-                  <td style={{textAlign:"right"}}>{l.ontime}</td>
-                  <td style={{textAlign:"right",color:l.not_coached>0?"var(--amber)":"var(--tx3)"}}>{l.not_coached}</td>
+                  <td style={{textAlign:"right"}}>{avg(l.completion).toFixed(1)}%</td>
                   <td style={{textAlign:"right"}}>{l.rtr}</td>
                   <td style={{textAlign:"right"}}>{avg(l.rtr_scores).toFixed(1)}</td>
                   <td style={{textAlign:"right"}}>{l.obs}</td>
-                  <td style={{textAlign:"right"}}>{l.calib}</td>
-                  <td style={{textAlign:"right"}}>{avg(l.completion).toFixed(1)}%</td>
+                  <td style={{textAlign:"right"}}>{avg(l.obs_scores).toFixed(1)}%</td>
+                  <td style={{textAlign:"right"}}>{avg(l.calib_scores).toFixed(1)}%</td>
                   <td style={{textAlign:"right"}}>{avg(l.tickets).toFixed(1)}</td>
                   <td style={{textAlign:"right"}}>{avg(l.occupancy).toFixed(1)}%</td>
-                  <td style={{textAlign:"right"}}>{l.days}</td>
                   <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)"}}>{l.st_mins?`${Math.floor(l.st_mins/60)}h ${l.st_mins%60}m`:"—"}</td>
-                  <td style={{textAlign:"right"}}>
-                    <span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(avgPerf),color:fpColor(avgPerf)}}>
-                      {(avgPerf*100).toFixed(1)}%
-                    </span>
-                  </td>
                 </tr>;
               })}
             </tbody>

@@ -983,7 +983,6 @@ function QAProfilePage() {
                 ["Coaching on-time", (() => {
                   const elig = Number(m.coaching_eligibility_count || 0);
                   if (elig > 0) return fmtPct(m.ontime_coaching_pct);
-                  if (m.crm_pct_coaching_on_time) return fmtPct(m.crm_pct_coaching_on_time);
                   return "—";
                 })()],
                 ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"],

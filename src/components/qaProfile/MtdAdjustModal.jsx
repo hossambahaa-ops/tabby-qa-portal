@@ -35,8 +35,7 @@ import { logActivity } from "../../lib/utils.js";
 const FIELDS = [
   { key: "occupancy_pct",              label: "Occupancy %",        suffix: "%" },
   { key: "avg_rtr_score",              label: "RTR Score %",        suffix: "%" },
-  { key: "crm_pct_coaching_on_time",   label: "Coaching on-time % (CRM)", suffix: "%" },
-  { key: "ontime_coaching_pct",        label: "Coaching on-time % (eval)", suffix: "%" },
+  { key: "ontime_coaching_pct",        label: "Coaching on-time %", suffix: "%" },
   { key: "avg_observation_score_pct",  label: "CO / Observation %", suffix: "%" },
   { key: "avg_calibration_match_rate", label: "Calibration %",      suffix: "%" },
   { key: "csat_pct",                   label: "CSAT %",             suffix: "%" },
