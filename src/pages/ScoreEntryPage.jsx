@@ -65,15 +65,15 @@ function ScoreEntryPage(){
   // pre-rollout value is ignored.
   const [groupsCollapsed, setGroupsCollapsed] = useState(() => {
     try {
-      const parsed = JSON.parse(localStorage.getItem("mtd_groups_v3"));
+      const parsed = JSON.parse(localStorage.getItem("mtd_groups_v4"));
       const obj = (parsed && typeof parsed === "object") ? parsed : {};
       return {
-        evals: typeof obj.evals === "boolean" ? obj.evals : true,
+        evals: typeof obj.evals === "boolean" ? obj.evals : false,
         coachings: typeof obj.coachings === "boolean" ? obj.coachings : true,
       };
-    } catch { return { evals: true, coachings: true }; }
+    } catch { return { evals: false, coachings: true }; }
   });
-  useEffect(() => { localStorage.setItem("mtd_groups_v3", JSON.stringify(groupsCollapsed)); }, [groupsCollapsed]);
+  useEffect(() => { localStorage.setItem("mtd_groups_v4", JSON.stringify(groupsCollapsed)); }, [groupsCollapsed]);
   // Density + column visibility — saved per-user in localStorage so the
   // table remembers their preferred layout across visits.
   const [tableDense, setTableDense] = useState(() => localStorage.getItem("mtd_table_dense") === "true");
@@ -463,7 +463,7 @@ function ScoreEntryPage(){
   // Keys here drive both the header and body, so adding/removing a
   // column is a one-line change.
   const MTD_COLUMNS = [
-    { k: "specialist", label: "Specialist", align: "left", style: { minWidth: 160 }, presets: ["all","perf","coach"], render: r => (
+    { k: "specialist", label: "QA", align: "left", style: { minWidth: 160 }, presets: ["all","perf","coach"], render: r => (
       <div style={{display:"flex",alignItems:"center",gap:8}}>
         <div style={{width:28,height:28,borderRadius:"50%",flexShrink:0,background:"var(--accent-light)",color:"var(--accent-text)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:600}}>
           {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
@@ -478,44 +478,24 @@ function ScoreEntryPage(){
     { k: "sbs",             label: "SBS",         presets: ["all","perf"],         render: r => r.sbs ?? "—" },
     { k: "non_sbs",         label: "Non-SBS",     presets: ["all","perf"],         render: r => r.non_sbs ?? "—" },
     { k: "dsat",            label: "DSAT",        presets: ["all","perf"],         render: r => r.dsat ?? "—" },
-    { k: "late",            label: "Late",        presets: ["all"],                render: r => r.late_count ?? "—" },
-    { k: "never",           label: "Never",       presets: ["all"],                render: r => r.never_count ?? "—" },
-    { k: "valid",           label: "Valid",       presets: ["all"],                render: r => r.valid_count ?? "—" },
-    { k: "invalid",         label: "Invalid",     presets: ["all"],                render: r => r.invalid_count ?? "—" },
-    { k: "sessions",        label: "Sessions",    presets: ["all","coach"],        render: r => r.coaching_sessions ?? "—" },
-    { k: "ontime_count",    label: "On-time",     presets: ["all","coach"],        render: r => r.total_ontime_coachings ?? "—" },
-    { k: "eligible",        label: "Eligible",    presets: ["all","coach"],        render: r => r.coaching_eligibility_count ?? "—" },
-    { k: "not_coached",     label: "Not coached", presets: ["all","coach"],        render: r => r.not_coached ?? "—" },
-    { k: "rtr",             label: "RTR",         presets: ["all"],                render: r => r.rtr_count ?? "—" },
-    { k: "rtr_score",       label: "RTR score",   presets: ["all"],                render: r => fmtPct(r.avg_rtr_score) },
-    { k: "obs",             label: "Obs.",        presets: ["all","coach"],        render: r => r.observed_coaching_count ?? "—" },
-    { k: "obs_pct",         label: "Obs. %",      presets: ["all","coach"],        render: r => fmtPct(r.avg_observation_score_pct) },
-    { k: "calib",           label: "Calib.",      presets: ["all","coach"],        render: r => r.calibration_count ?? "—" },
-    { k: "calib_pct",       label: "Calib. %",    presets: ["all","coach"],        render: r => fmtPct(r.avg_calibration_match_rate) },
-    // When no evals are eligible yet (early in the month / no eval-date coverage),
-    // the source SQL produces "0%" via COALESCE-around-divide-by-zero. Show "—"
-    // instead so it doesn't read like the QA scored zero.
-    { k: "completion",      label: "Completion",  presets: ["all","coach"],        render: r => (r.coaching_eligibility_count || 0) === 0 ? "—" : fmtPct(r.coaching_completion_pct) },
-    // On-time: prefer the CRM-anchored % (creation-date denominator) when the
-    // legacy eval-based value is 0% with no eligibility. Falls back to "—" if
-    // the new column isn't populated either.
-    { k: "ontime_pct",      label: "On-time %",   presets: ["all","coach"],        render: r => {
-      const elig = r.coaching_eligibility_count || 0;
-      if (elig > 0) return fmtPct(r.ontime_coaching_pct);
-      if (r.crm_pct_coaching_on_time) return fmtPct(r.crm_pct_coaching_on_time);
-      return "—";
-    } },
-    { k: "jkq",             label: "JKQ",         align: "center", presets: ["all","perf"], render: r =>
+    // Coachings = session count; Completion right after it per the layout.
+    { k: "sessions",        label: "Coachings",            presets: ["all","coach"], render: r => r.coaching_sessions ?? "—" },
+    // When no evals are eligible yet, the source produces "0%" via a
+    // divide-by-zero COALESCE — show "—" so it doesn't read as a real zero.
+    { k: "completion",      label: "Coachings Completion", presets: ["all","coach"], render: r => (r.coaching_eligibility_count || 0) === 0 ? "—" : fmtPct(r.coaching_completion_pct) },
+    { k: "rtr",             label: "RTR#",                 presets: ["all"],         render: r => r.rtr_count ?? "—" },
+    { k: "rtr_score",       label: "RTR Score",            presets: ["all"],         render: r => fmtPct(r.avg_rtr_score) },
+    { k: "obs",             label: "CO#",                  presets: ["all","coach"], render: r => r.observed_coaching_count ?? "—" },
+    { k: "obs_pct",         label: "CO Score",             presets: ["all","coach"], render: r => fmtPct(r.avg_observation_score_pct) },
+    { k: "calib_pct",       label: "Calibration %",        presets: ["all","coach"], render: r => fmtPct(r.avg_calibration_match_rate) },
+    { k: "jkq",             label: "JKQ",                  align: "center", presets: ["all","perf"], render: r =>
       r.jkq_result && r.jkq_result !== "N/A"
         ? <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}{r.jkq_score>0?` (${r.jkq_score})`:""}</span>
         : <span style={{color:"var(--tx3)"}}>—</span>
     },
-    { k: "tickets_per_day", label: "Tickets/d",   presets: ["all","perf"],         render: r => <span style={{color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</span> },
-    { k: "occupancy",       label: "Occupancy",   presets: ["all","perf"],         render: r => fmtPct(r.occupancy_pct) },
-    { k: "st_time",         label: "ST Time",     presets: ["all"],                render: r => <span style={{fontSize:12,color:"var(--tx2)"}}>{r.side_tasks_duration_mins ? `${Math.floor(r.side_tasks_duration_mins/60)}h ${r.side_tasks_duration_mins%60}m` : "—"}</span> },
-    { k: "performance",     label: "Performance", presets: ["all","perf","coach"], render: r =>
-      <span style={{display:"inline-block",padding:"2px 10px",borderRadius:12,fontSize:12,fontWeight:600,background:fpBg(r.final_performance),color:fpColor(r.final_performance)}}>{((r.final_performance||0)*100).toFixed(1)}%</span>
-    },
+    { k: "tickets_per_day", label: "Tickets/D",            presets: ["all","perf"],  render: r => <span style={{color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</span> },
+    { k: "occupancy",       label: "Occupancy",            presets: ["all","perf"],  render: r => fmtPct(r.occupancy_pct) },
+    { k: "st_time",         label: "ST Time",              presets: ["all"],         render: r => <span style={{fontSize:12,color:"var(--tx2)"}}>{r.side_tasks_duration_mins ? `${Math.floor(r.side_tasks_duration_mins/60)}h ${r.side_tasks_duration_mins%60}m` : "—"}</span> },
   ];
   // Two collapsible groups. EVAL_KEYS / COACH_KEYS list the underlying
   // MTD_COLUMNS that fold into each synthetic header column. The
@@ -523,7 +503,7 @@ function ScoreEntryPage(){
   // qaSortVal) and renders a chevron next to the label so the
   // affordance ("click to expand") is obvious.
   const EVAL_KEYS = new Set(["sbs", "non_sbs", "dsat"]);
-  const COACH_KEYS = new Set(["sessions", "ontime_count", "eligible", "not_coached", "late", "never", "valid", "invalid"]);
+  const COACH_KEYS = new Set();
   const toggleGroup = (g) => setGroupsCollapsed(prev => ({ ...prev, [g]: !prev[g] }));
   // Build the actual rendered column list by walking MTD_COLUMNS in
   // order. When a column belongs to a collapsed group, swap the FIRST
