@@ -475,8 +475,11 @@ function ScoreEntryPage(){
     { k: "sbs",             label: "SBS",         presets: ["all","perf"],         render: r => r.sbs ?? "—" },
     { k: "non_sbs",         label: "Non-SBS",     presets: ["all","perf"],         render: r => r.non_sbs ?? "—" },
     { k: "dsat",            label: "DSAT",        presets: ["all","perf"],         render: r => r.dsat ?? "—" },
-    // Coachings = session count; Completion right after it per the layout.
+    // Coachings = session count; Pending = required coachings not done; Completion last.
     { k: "sessions",        label: "Coachings",            presets: ["all","coach"], render: r => r.coaching_sessions ?? "—" },
+    // Pending = the source's not_coached (eligible − completed). "—" when nothing
+    // was due so a real 0 (all required coachings done) stays visually distinct.
+    { k: "not_coached",     label: "Pending Coachings",    presets: ["all","coach"], render: r => (r.coaching_eligibility_count || 0) === 0 ? <span style={{color:"var(--tx3)"}}>—</span> : <span style={{color:(r.not_coached||0)>0?"var(--amber)":"var(--tx2)",fontWeight:(r.not_coached||0)>0?600:400}}>{r.not_coached ?? 0}</span> },
     // When no evals are eligible yet, the source produces "0%" via a
     // divide-by-zero COALESCE — show "—" so it doesn't read as a real zero.
     { k: "completion",      label: "Coachings Completion", presets: ["all","coach"], render: r => (r.coaching_eligibility_count || 0) === 0 ? "—" : fmtPct(r.coaching_completion_pct) },
@@ -980,6 +983,7 @@ function ScoreEntryPage(){
             { k: "non_sbs",     label: "Non-SBS" },
             { k: "dsat",        label: "DSAT" },
             { k: "sessions",    label: "Coachings" },
+            { k: "not_coached", label: "Pending Coachings" },
             { k: "completion",  label: "Coachings Completion" },
             { k: "rtr",         label: "RTR#" },
             { k: "avg_rtr",     label: "RTR Score" },
@@ -1039,6 +1043,7 @@ function ScoreEntryPage(){
                   <td style={{textAlign:"right"}}>{l.non_sbs}</td>
                   <td style={{textAlign:"right",color:"var(--tx2)"}}>{l.dsat}</td>
                   <td style={{textAlign:"right"}}>{l.sessions}</td>
+                  <td style={{textAlign:"right",color:l.not_coached>0?"var(--amber)":"var(--tx3)",fontWeight:l.not_coached>0?600:400}}>{l.not_coached}</td>
                   <td style={{textAlign:"right"}}>{avg(l.completion).toFixed(1)}%</td>
                   <td style={{textAlign:"right"}}>{l.rtr}</td>
                   <td style={{textAlign:"right"}}>{avg(l.rtr_scores).toFixed(1)}</td>
