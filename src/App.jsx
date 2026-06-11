@@ -98,7 +98,7 @@ const safe = (v) => {
 
 const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
-  {key:"leaderboard",label:"Leaderboard",icon:icons.podium},
+  {key:"leaderboard",label:"Leaderboard",icon:icons.podium,minRole:"super_admin"},
   {key:"quality-dna",label:"Quality DNA",icon:icons.northstar},
   {key:"profile",label:"QA Profile",icon:icons.profile,section:"Performance"},
   {key:"scores",label:"MTD",icon:icons.scores},
@@ -759,7 +759,7 @@ function AppInner(){
         {/* Notifications */}
         <NotificationBell onNavigate={setPage}/>
         {/* Championship belts indicator — only renders if the user holds at least one */}
-        <MyBeltIndicator onClick={()=>setPage("leaderboard")}/>
+        {hasRole(userRole,"super_admin")&&<MyBeltIndicator onClick={()=>setPage("leaderboard")}/>}
         {/* Density toggle — cycles cozy → comfortable → compact → cozy */}
         <button className="notif-btn topbar-dm-toggle" onClick={()=>{const next={cozy:"comfortable",comfortable:"compact",compact:"cozy"}[density]||"comfortable";setDensity(next);}} title={`Density: ${density} (click to change)`} aria-label={`Toggle density (${density})`}>
           <Icon d={density==="compact"?"M3 6h18M3 10h18M3 14h18M3 18h18":density==="cozy"?"M3 6h18M3 18h18":"M3 6h18M3 12h18M3 18h18"} size={18}/>
@@ -952,7 +952,7 @@ function AppInner(){
       <Route path="/csat" element={<CSATPage/>}/>
       <Route path="/expertise" element={hasRole(userRole,"admin")?<ExpertisePage/>:<PlaceholderPage title="Expertise" icon={icons.expertise} minRole="admin" userRole={userRole}/>}/>
       <Route path="/targets" element={<TargetsPage/>}/>
-      <Route path="/leaderboard" element={<LeaderboardPage/>}/>
+      <Route path="/leaderboard" element={hasRole(userRole,"super_admin")?<LeaderboardPage/>:<PlaceholderPage title="Leaderboard" icon={icons.podium} minRole="super_admin" userRole={userRole}/>}/>
       <Route path="/profile" element={<QAProfilePage/>}/>
       <Route path="/schedule" element={<SchedulePage/>}/>
       <Route path="/escalations" element={<EscalationsPage/>}/>
@@ -1199,7 +1199,7 @@ function AppInner(){
         {key:"dashboard",label:"Home",icon:icons.dashboard},
         {key:"profile",label:"Profile",icon:icons.profile},
         {key:"schedule",label:"Attendance",icon:icons.attendance},
-        hasRole(userRole,"admin")?{key:"admin",label:"Admin",icon:icons.key}:hasRole(userRole,"qa_lead")?{key:"quality",label:"Quality",icon:icons.quality}:{key:"leaderboard",label:"Rank",icon:icons.podium},
+        hasRole(userRole,"admin")?{key:"admin",label:"Admin",icon:icons.key}:hasRole(userRole,"qa_lead")?{key:"quality",label:"Quality",icon:icons.quality}:{key:"profile",label:"Profile",icon:icons.profile},
       ].map(item=>(
         <button key={item.key} className={`mobile-bottom-nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} onTouchStart={()=>prefetchPage(item.key)}>
           <Icon d={item.icon} size={20}/>
