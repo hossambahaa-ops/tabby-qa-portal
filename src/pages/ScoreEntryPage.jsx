@@ -497,6 +497,10 @@ function ScoreEntryPage(){
     { k: "rtr_score",       label: "RTR Score",            presets: ["all"],         render: r => fmtPct(r.avg_rtr_score) },
     { k: "obs",             label: "CO#",                  presets: ["all","coach"], render: r => r.observed_coaching_count ?? "—" },
     { k: "obs_pct",         label: "CO Score",             presets: ["all","coach"], render: r => fmtPct(r.avg_observation_score_pct) },
+    // Calibration % resolves from the sheet's "New Calibration" column (AH)
+    // via mtd_scores_v (priority: manual override → calibration_responses →
+    // new_calibration → NULL). NULL renders as "—" (e.g. month not yet
+    // calibrated) rather than a misleading 0%.
     { k: "calib_pct",       label: "Calibration %",        presets: ["all","coach"], render: r => fmtPct(r.avg_calibration_match_rate) },
     { k: "jkq",             label: "JKQ",                  align: "center", presets: ["all","perf"], render: r =>
       r.jkq_result && r.jkq_result !== "N/A"
@@ -1059,7 +1063,7 @@ function ScoreEntryPage(){
                   <td style={{textAlign:"center"}}>{avg(l.rtr_scores).toFixed(1)}</td>
                   <td style={{textAlign:"center"}}>{l.obs}</td>
                   <td style={{textAlign:"center"}}>{avg(l.obs_scores).toFixed(1)}%</td>
-                  <td style={{textAlign:"center"}}>{avg(l.calib_scores).toFixed(1)}%</td>
+                  <td style={{textAlign:"center"}}>{l.calib_scores.length?avg(l.calib_scores).toFixed(1)+"%":"—"}</td>
                   <td style={{textAlign:"center"}}>{avg(l.tickets).toFixed(1)}</td>
                   <td style={{textAlign:"center"}}>{avg(l.occupancy).toFixed(1)}%</td>
                   <td style={{textAlign:"center",fontSize:12,color:"var(--tx2)"}}>{l.st_mins?`${Math.floor(l.st_mins/60)}h ${l.st_mins%60}m`:"—"}</td>
