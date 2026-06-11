@@ -527,7 +527,7 @@ function ScoreEntryPage(){
     const evalsCol = {
       k: "__evals__",
       label: groupsCollapsed.evals ? "Evaluations ▸" : "Evaluations ▾",
-      align: "right",
+      align: "center",
       // Collapsed: show combined count of SBS+Non-SBS+DSAT so the
       // column carries a meaningful number, not just a label. Header
       // click expands the group rather than sorting — sorting still
@@ -542,7 +542,7 @@ function ScoreEntryPage(){
     const coachCol = {
       k: "__coachings__",
       label: groupsCollapsed.coachings ? "Coachings ▸" : "Coachings ▾",
-      align: "right",
+      align: "center",
       render: r => r.coaching_sessions ?? "—",
       isGroupHeader: "coachings",
     };
