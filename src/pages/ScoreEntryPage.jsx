@@ -180,18 +180,29 @@ function ScoreEntryPage(){
   }, []);
 
   // Format percentage values — handles "94.46%", 0.9446, 1.345, "1", etc.
+  // Normalise any percentage the source throws at us to a single, clean
+  // format: always one decimal place. The MTD sheet is inconsistent —
+  // the same column arrives as "100%", "97.70%", "0.00%" or a bare 0–1
+  // fraction depending on the row. We strip "%", parse, and reformat so
+  // every percentage column reads the same down the table.
   const fmtPct = (val) => {
     if (val === null || val === undefined || val === "") return "—";
     const s = String(val).trim();
-    if (s.includes("%")) return s; // already formatted
-    const n = parseFloat(s.replace(",", "."));
-    if (isNaN(n)) return s;
-    // If it looks like a 0-1 decimal, multiply by 100
-    // If > 1 and < 2, it's likely a raw decimal like 1.345 meaning 134.5%
-    // If > 2, it's already a percentage value like 94.46
-    if (n >= 0 && n <= 2) return (n * 100).toFixed(1) + "%";
-    return n.toFixed(1) + "%";
+    if (s === "--" || s === "-") return "—";
+    const hasPct = s.includes("%");
+    const n = parseFloat(s.replace(/\s/g, "").replace(",", ".").replace("%", ""));
+    if (isNaN(n)) return "—";
+    // A bare 0–1 value is a fraction we scale up; anything carrying "%"
+    // or already > 1 is taken as a percentage as-is.
+    const pct = hasPct ? n : (n > 1 ? n : n * 100);
+    return pct.toFixed(1) + "%";
   };
+
+  // "Did this QA have any coaching activity this month?" — coachings
+  // delivered plus coachings still pending. Drives the "—" gate on the
+  // Pending / Completion columns so QAs with no coaching context don't
+  // show a misleading 0% or 0.
+  const coachCtx = (r) => (Number(r.coaching_sessions) || 0) + (Number(r.not_coached) || 0);
 
   // === UPLOAD DATA LOGIC ===
   // Column metadata lives in lib/mtdColumns.js. SYSTEM_COLS / COL_LABELS
@@ -475,14 +486,13 @@ function ScoreEntryPage(){
     { k: "sbs",             label: "SBS",         presets: ["all","perf"],         render: r => r.sbs ?? "—" },
     { k: "non_sbs",         label: "Non-SBS",     presets: ["all","perf"],         render: r => r.non_sbs ?? "—" },
     { k: "dsat",            label: "DSAT",        presets: ["all","perf"],         render: r => r.dsat ?? "—" },
-    // Coachings = session count; Pending = required coachings not done; Completion last.
+    // Coaching trio, all driven by the live sheet columns (coaching_sessions,
+    // not_coached, coaching_completion_pct). We gate Pending / Completion on
+    // whether the QA had any coaching activity at all — delivered or pending —
+    // so a QA with no coachings shows "—" rather than a misleading 0% / 0.
     { k: "sessions",        label: "Coachings",            presets: ["all","coach"], render: r => r.coaching_sessions ?? "—" },
-    // Pending = the source's not_coached (eligible − completed). "—" when nothing
-    // was due so a real 0 (all required coachings done) stays visually distinct.
-    { k: "not_coached",     label: "Pending Coachings",    presets: ["all","coach"], render: r => (r.coaching_eligibility_count || 0) === 0 ? <span style={{color:"var(--tx3)"}}>—</span> : <span style={{color:(r.not_coached||0)>0?"var(--amber)":"var(--tx2)",fontWeight:(r.not_coached||0)>0?600:400}}>{r.not_coached ?? 0}</span> },
-    // When no evals are eligible yet, the source produces "0%" via a
-    // divide-by-zero COALESCE — show "—" so it doesn't read as a real zero.
-    { k: "completion",      label: "Coachings Completion", presets: ["all","coach"], render: r => (r.coaching_eligibility_count || 0) === 0 ? "—" : fmtPct(r.coaching_completion_pct) },
+    { k: "not_coached",     label: "Pending Coachings",    presets: ["all","coach"], render: r => coachCtx(r) === 0 ? <span style={{color:"var(--tx3)"}}>—</span> : <span style={{color:(r.not_coached||0)>0?"var(--amber)":"var(--tx2)",fontWeight:(r.not_coached||0)>0?600:400}}>{r.not_coached ?? 0}</span> },
+    { k: "completion",      label: "Coachings Completion", presets: ["all","coach"], render: r => coachCtx(r) === 0 ? "—" : fmtPct(r.coaching_completion_pct) },
     { k: "rtr",             label: "RTR#",                 presets: ["all"],         render: r => r.rtr_count ?? "—" },
     { k: "rtr_score",       label: "RTR Score",            presets: ["all"],         render: r => fmtPct(r.avg_rtr_score) },
     { k: "obs",             label: "CO#",                  presets: ["all","coach"], render: r => r.observed_coaching_count ?? "—" },
@@ -870,7 +880,7 @@ function ScoreEntryPage(){
                       onClick={() => c.isGroupHeader ? toggleGroup(c.isGroupHeader) : toggleQaSort(c.k)}
                       title={c.isGroupHeader ? `Click to ${groupsCollapsed[c.isGroupHeader] ? "expand" : "collapse"}` : `Sort by ${c.label}`}
                       className={c.isGroupHeader ? "" : `sortable${qaSort.key === c.k ? " is-sorted" : ""}`}
-                      style={{ textAlign: c.align || "right", whiteSpace: "nowrap", cursor: "pointer", ...(c.style || {}), ...(c.isGroupHeader ? { background: "var(--bg2)", color: "var(--tabby-purple)", fontWeight: 700 } : {}) }}
+                      style={{ textAlign: c.align || "center", whiteSpace: "nowrap", cursor: "pointer", ...(c.style || {}), ...(c.isGroupHeader ? { background: "var(--bg2)", color: "var(--tabby-purple)", fontWeight: 700 } : {}) }}
                     >
                       {c.label}{c.isGroupHeader ? "" : qaSortArrow(c.k)}
                     </th>
@@ -890,7 +900,7 @@ function ScoreEntryPage(){
                       style={{background:selectedRows.has(r.qa_email)?"var(--primary-light)":undefined}}>
                     <td style={{textAlign:"center"}}><input type="checkbox" checked={selectedRows.has(r.qa_email)} onChange={e=>{const next=new Set(selectedRows);if(e.target.checked)next.add(r.qa_email);else next.delete(r.qa_email);setSelectedRows(next);}} style={{cursor:"pointer"}} onClick={e=>e.stopPropagation()}/></td>
                     {visibleColumns.map(c => (
-                      <td key={c.k} style={{textAlign: c.align || "right"}}>{c.render(r)}</td>
+                      <td key={c.k} style={{textAlign: c.align || "center"}}>{c.render(r)}</td>
                     ))}
                   </tr>
                 ))}
@@ -1020,7 +1030,7 @@ function ScoreEntryPage(){
                   onClick={() => toggleLeadSort(c.k)}
                   title={`Sort by ${c.label}`}
                   className={`sortable${leadSort.key === c.k ? " is-sorted" : ""}`}
-                  style={{ textAlign: c.align || "right", cursor: "pointer", whiteSpace: "nowrap", ...(c.style || {}) }}
+                  style={{ textAlign: c.align || "center", cursor: "pointer", whiteSpace: "nowrap", ...(c.style || {}) }}
                 >
                   {c.label}{leadSortArrow(c.k)}
                 </th>
@@ -1035,24 +1045,24 @@ function ScoreEntryPage(){
                     </div>
                     <div><div style={{fontWeight:600,fontSize:13}}>{nameFromEmail(l.tl)}</div><div style={{fontSize:10,color:"var(--tx3)"}}>{l.count} QA{l.count!==1?"s":""}</div></div>
                   </div></td>
-                  <td style={{textAlign:"right",fontWeight:600}}>{l.count}</td>
-                  <td style={{textAlign:"right"}}>{l.days}</td>
-                  {(()=>{const v=leadCsat(l);const s=Number(l.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"right",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
-                  <td style={{textAlign:"right"}}>{l.csat_total || "—"}</td>
-                  <td style={{textAlign:"right"}}>{l.sbs}</td>
-                  <td style={{textAlign:"right"}}>{l.non_sbs}</td>
-                  <td style={{textAlign:"right",color:"var(--tx2)"}}>{l.dsat}</td>
-                  <td style={{textAlign:"right"}}>{l.sessions}</td>
-                  <td style={{textAlign:"right",color:l.not_coached>0?"var(--amber)":"var(--tx3)",fontWeight:l.not_coached>0?600:400}}>{l.not_coached}</td>
-                  <td style={{textAlign:"right"}}>{avg(l.completion).toFixed(1)}%</td>
-                  <td style={{textAlign:"right"}}>{l.rtr}</td>
-                  <td style={{textAlign:"right"}}>{avg(l.rtr_scores).toFixed(1)}</td>
-                  <td style={{textAlign:"right"}}>{l.obs}</td>
-                  <td style={{textAlign:"right"}}>{avg(l.obs_scores).toFixed(1)}%</td>
-                  <td style={{textAlign:"right"}}>{avg(l.calib_scores).toFixed(1)}%</td>
-                  <td style={{textAlign:"right"}}>{avg(l.tickets).toFixed(1)}</td>
-                  <td style={{textAlign:"right"}}>{avg(l.occupancy).toFixed(1)}%</td>
-                  <td style={{textAlign:"right",fontSize:12,color:"var(--tx2)"}}>{l.st_mins?`${Math.floor(l.st_mins/60)}h ${l.st_mins%60}m`:"—"}</td>
+                  <td style={{textAlign:"center",fontWeight:600}}>{l.count}</td>
+                  <td style={{textAlign:"center"}}>{l.days}</td>
+                  {(()=>{const v=leadCsat(l);const s=Number(l.csat_total||0);const show=v!=null&&s>0;return <td style={{textAlign:"center",fontWeight:600,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</td>;})()}
+                  <td style={{textAlign:"center"}}>{l.csat_total || "—"}</td>
+                  <td style={{textAlign:"center"}}>{l.sbs}</td>
+                  <td style={{textAlign:"center"}}>{l.non_sbs}</td>
+                  <td style={{textAlign:"center",color:"var(--tx2)"}}>{l.dsat}</td>
+                  <td style={{textAlign:"center"}}>{l.sessions}</td>
+                  <td style={{textAlign:"center",color:l.not_coached>0?"var(--amber)":"var(--tx3)",fontWeight:l.not_coached>0?600:400}}>{l.not_coached}</td>
+                  <td style={{textAlign:"center"}}>{avg(l.completion).toFixed(1)}%</td>
+                  <td style={{textAlign:"center"}}>{l.rtr}</td>
+                  <td style={{textAlign:"center"}}>{avg(l.rtr_scores).toFixed(1)}</td>
+                  <td style={{textAlign:"center"}}>{l.obs}</td>
+                  <td style={{textAlign:"center"}}>{avg(l.obs_scores).toFixed(1)}%</td>
+                  <td style={{textAlign:"center"}}>{avg(l.calib_scores).toFixed(1)}%</td>
+                  <td style={{textAlign:"center"}}>{avg(l.tickets).toFixed(1)}</td>
+                  <td style={{textAlign:"center"}}>{avg(l.occupancy).toFixed(1)}%</td>
+                  <td style={{textAlign:"center",fontSize:12,color:"var(--tx2)"}}>{l.st_mins?`${Math.floor(l.st_mins/60)}h ${l.st_mins%60}m`:"—"}</td>
                 </tr>;
               })}
             </tbody>
