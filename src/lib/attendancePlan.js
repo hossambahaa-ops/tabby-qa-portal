@@ -52,7 +52,8 @@ export function isMismatch(row, now = new Date()) {
 export function isMissingCheckIn(row, now = new Date()) {
   if (!row || row.mismatch_approved) return false;
   const planned = row.planned_code;
-  if (planned !== "H" && planned !== "P") return false;
+  // H, P and LD (Login Day) all expect a check-in; OFF / leave never do.
+  if (planned !== "H" && planned !== "P" && planned !== "LD") return false;
   // status NULL is the new "not yet checked in" sentinel (NOT NULL was
   // dropped 2026-05-17). A row with status set to a real outcome (P/H
   // self-check-in, AL/SL/PH leave, NSNC) is already resolved.
@@ -150,7 +151,7 @@ export function computeAttendanceHealth(rows, monthYM, now = new Date()) {
   const monthStart = `${monthYM}-01`;
   const scheduled = (rows || []).filter(r =>
     r.date && r.date >= monthStart && r.date <= todayStr &&
-    (r.planned_code === "H" || r.planned_code === "P")
+    (r.planned_code === "H" || r.planned_code === "P" || r.planned_code === "LD")
   );
   // Today's planned-P rows are "pending" if the QA hasn't checked in
   // yet AND the cron hasn't auto-flipped them to NSNC. They shouldn't
@@ -164,7 +165,7 @@ export function computeAttendanceHealth(rows, monthYM, now = new Date()) {
   // before the cleanup ran.
   const isPendingToday = (r) =>
     r.date === todayStr &&
-    r.planned_code === "P" &&
+    (r.planned_code === "P" || r.planned_code === "LD") &&
     !r.checked_in_at &&
     r.status !== "NSNC" &&
     !LEAVE_CODES.has(r.status);

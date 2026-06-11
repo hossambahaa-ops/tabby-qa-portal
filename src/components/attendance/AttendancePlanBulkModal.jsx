@@ -339,6 +339,7 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
             {[
               { code: "H", label: "H — Work from Home", color: "#3B82F6", bg: "rgba(59,130,246,.15)" },
               { code: "P", label: "P — Office", color: "#16A34A", bg: "rgba(34,197,94,.15)" },
+              { code: "LD", label: "LD — Login Day", color: "#8B5CF6", bg: "rgba(139,92,246,.15)" },
               { code: "OFF", label: "OFF — Planned off-day", color: "var(--tx2)", bg: "rgba(156,163,175,.18)" },
               { code: "CLEAR", label: "Clear — No plan set", color: "var(--tx3)", bg: "transparent" },
               ...(canShift ? [{ code: "SKIP", label: "Skip — only set shift", color: "var(--tabby-purple)", bg: "rgba(106,44,121,.10)" }] : []),
@@ -652,8 +653,8 @@ export default function AttendancePlanBulkModal({ open, onClose, visibleQAs, isS
               {!valueIsSkip && (
                 <>
                   Plan:{" "}
-                  <strong style={{ color: value === "H" ? "var(--blue)" : value === "P" ? "var(--green)" : "var(--tx3)" }}>
-                    {value === "CLEAR" ? "Clear" : value}
+                  <strong style={{ color: value === "H" ? "var(--blue)" : value === "P" ? "var(--green)" : value === "LD" ? "#8B5CF6" : "var(--tx3)" }}>
+                    {value === "CLEAR" ? "Clear" : value === "LD" ? "Login Day" : value}
                   </strong>.{" "}
                 </>
               )}

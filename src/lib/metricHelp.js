@@ -36,7 +36,7 @@ export const metricHelp = {
   attendance_health: "% of scheduled working days where the QA showed up (not absent / NSNC). Counts H, P, OT, PH, CDO as healthy. AL / SL / Maternity etc. are excluded.",
   nsnc:         "No Show, No Call — the QA was planned to work but didn't check in by shift_end + 1h. Auto-marked by the cron when enforcement is on, manually settable by leads.",
   shift_end:    "Latest clock-out time for the QA's shift. shift_end + 1 hour grace is the cutoff for the auto-NSNC sweep.",
-  planned_code: "Lead-set expectation for the day: P (Office), H (Home), OFF (Day off). What the QA actually does goes in 'status'.",
+  planned_code: "Lead-set expectation for the day: P (Office), H (Home), LD (Login Day — the QA's designated come-online day), OFF (Day off). What the QA actually does goes in 'status'.",
   checked_in_at: "Timestamp of the QA's own H/P check-in (via the Dashboard tile or calendar cell). NULL means they haven't checked in.",
 };
 

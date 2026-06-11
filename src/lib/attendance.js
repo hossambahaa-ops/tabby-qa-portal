@@ -52,6 +52,11 @@ export function shiftBadge(shiftStart, shiftEnd) {
 export const ATTENDANCE_TYPES = [
   { code: "P",       label: "Present",            color: "#22C55E", bg: "#22C55E20" },
   { code: "H",       label: "Work from Home",     color: "#3B82F6", bg: "#3B82F620" },
+  // Login Day — the QA's designated come-online/office day. A planning
+  // layer code leads assign ahead in the plan grid; treated as a working
+  // day that expects a check-in (see attendancePlan.js). Kept out of the
+  // actual-status pickers (it's a plan designation, not a check-in code).
+  { code: "LD",      label: "Login Day",          color: "#8B5CF6", bg: "#8B5CF620" },
   { code: "OT",      label: "Overtime",           color: "#0D9488", bg: "#0D948820" },
   { code: "L",       label: "Late Arrival",       color: "#F97316", bg: "#F9731620" },
   { code: "PH",      label: "Public Holiday",     color: "#8B5CF6", bg: "#8B5CF620" },
@@ -86,7 +91,7 @@ export const APPROVAL_CODES = new Set(["OT", "PH", "CDO", "Tabby Day", "Leave"])
 // so historical/admin call sites keep working. The simplified picker
 // (used in the cell + bulk + check-in flows from 2026-06-01) goes
 // through `pickerCodesForDate()` instead.
-export const PICKER_TYPES = ATTENDANCE_TYPES.filter(t => t.code !== "OT");
+export const PICKER_TYPES = ATTENDANCE_TYPES.filter(t => t.code !== "OT" && t.code !== "LD");
 
 // Simplification rollout — agreed cutover date. Picker switches to the
 // 6-code set on this date (and forward). Editing a row whose date is

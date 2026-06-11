@@ -199,14 +199,15 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
     return null;
   };
 
-  // Click handler: empty → H → P → OFF → empty
+  // Click handler: empty → H → P → LD → OFF → empty
   const cycleCell = (email, date) => {
     if (!isPlanEditableDate(date, undefined, { allowPast: isSuperAdmin })) return;
     const current = cellPlan(email, date);
     let next;
     if (current === null || current === undefined) next = "H";
     else if (current === "H") next = "P";
-    else if (current === "P") next = "OFF";
+    else if (current === "P") next = "LD";
+    else if (current === "LD") next = "OFF";
     else next = null; // OFF → clear
     setPendingChanges((prev) => ({ ...prev, [`${email}__${date}`]: next }));
   };
@@ -564,7 +565,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
           {pendingCount > 0 ? `${pendingCount} unsaved change${pendingCount !== 1 ? "s" : ""}` : "All changes saved"}
         </span>
         <span style={{ fontSize: 11, color: "var(--tx3)", marginRight: "auto" }}>
-          Click cells to cycle: empty → 🏠 → 🏢 → empty. Past days are read-only.
+          Click cells to cycle: empty → 🏠 H → 🏢 P → 🔑 LD → OFF → empty. Each QA should have a Login Day. Past days are read-only.
         </span>
         {pendingCount > 0 && (
           <button className="btn btn-outline btn-sm" onClick={discard}>
@@ -610,6 +611,10 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
           <tbody>
             {visibleQAs.map((qa) => {
               const em = qa.email?.toLowerCase();
+              // Each QA should have a Login Day planned for the month —
+              // flag anyone who doesn't (counts pending edits too) so leads
+              // can spot the gaps at a glance.
+              const hasLoginDay = days.some((d) => cellPlan(em, d.date) === "LD");
               return (
                 <tr key={em}>
                   <td
@@ -624,11 +629,19 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                       borderLeft: qa.__isLead ? "3px solid var(--tabby-purple)" : "none",
                     }}
                   >
-                    <div style={{ fontWeight: qa.__isLead ? 800 : 600, display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ fontWeight: qa.__isLead ? 800 : 600, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                       {nameFromEmail(em)}
                       {qa.__isLead && (
                         <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(60,255,165,.18)", color: "#3CFFA5", letterSpacing: ".4px", textTransform: "uppercase" }}>
                           Lead
+                        </span>
+                      )}
+                      {!hasLoginDay && (
+                        <span
+                          title="No Login Day planned this month — cycle a cell to 🔑 LD to set one"
+                          style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(139,92,246,.16)", color: "#8B5CF6", letterSpacing: ".3px", textTransform: "uppercase", whiteSpace: "nowrap" }}
+                        >
+                          No login day
                         </span>
                       )}
                     </div>
@@ -665,6 +678,10 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                       bg = "rgba(34,197,94,.18)";
                       txt = "P";
                       txtColor = "#16A34A";
+                    } else if (planned === "LD") {
+                      bg = "rgba(139,92,246,.20)";
+                      txt = "LD";
+                      txtColor = "#8B5CF6";
                     } else if (planned === "OFF") {
                       bg = "rgba(156,163,175,.20)";
                       txt = "OFF";
@@ -680,10 +697,12 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                         : planned === "H"
                           ? `H — Work from Home${d.isWeekend ? " (weekend)" : ""}. Click for P (Office).`
                           : planned === "P"
-                            ? `P — Office${d.isWeekend ? " (weekend)" : ""}. Click for OFF (planned off-day).`
-                            : planned === "OFF"
-                              ? `OFF — Planned off-day${d.isWeekend ? " (weekend)" : ""}. Click to clear.`
-                              : `Click to set H (Home)${d.isWeekend ? " (weekend day)" : ""}`;
+                            ? `P — Office${d.isWeekend ? " (weekend)" : ""}. Click for LD (Login Day).`
+                            : planned === "LD"
+                              ? `LD — Login Day${d.isWeekend ? " (weekend)" : ""}. Click for OFF (planned off-day).`
+                              : planned === "OFF"
+                                ? `OFF — Planned off-day${d.isWeekend ? " (weekend)" : ""}. Click to clear.`
+                                : `Click to set H (Home)${d.isWeekend ? " (weekend day)" : ""}`;
                     const title = shift ? `${titleBase} · Shift ${shift.start}–${shift.end}` : titleBase;
                     return (
                       <td

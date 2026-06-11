@@ -167,8 +167,8 @@ export default function DailyCheckInWidget() {
               <>Planned by your lead: <strong style={{ color: "var(--tx2)" }}>OFF — Day off</strong></>
             ) : planned ? (
               <>
-                Planned by your lead: <strong style={{ color: planned === "H" ? "var(--blue)" : "var(--green)" }}>
-                  {planned} — {planned === "H" ? "Home" : "Office"}
+                Planned by your lead: <strong style={{ color: planned === "H" ? "var(--blue)" : planned === "LD" ? "#8B5CF6" : "var(--green)" }}>
+                  {planned} — {planned === "H" ? "Home" : planned === "LD" ? "Login Day" : "Office"}
                 </strong>
               </>
             ) : (
