@@ -61,9 +61,22 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
       // New source: productivity_history. Started May 2026; one row per
       // (date, qa_email). Has its own occupancy_pct so we don't have to
       // compute it from targets unless that column is null on a row.
+      // Scope to THIS QA (both @tabby.ai / @tabby.sa aliases). Without a
+      // qa_email filter we pulled the WHOLE team's feed for the range,
+      // tripped PostgREST's 1000-row cap, and — because of order=date.desc —
+      // silently dropped everyone's earliest dates. That made month totals
+      // read low (e.g. a QA's first days of May vanished → 81.7% not 98%).
+      // One QA is a few dozen rows, so the cap can never bite.
+      const lc = (qaEmail || "").toLowerCase();
+      const variants = [...new Set([
+        lc,
+        lc.endsWith("@tabby.ai") ? lc.replace("@tabby.ai", "@tabby.sa")
+          : lc.endsWith("@tabby.sa") ? lc.replace("@tabby.sa", "@tabby.ai") : lc,
+      ])].filter(Boolean);
+      const inList = variants.map(e => `"${e}"`).join(",");
       const rows = await sb.query("productivity_history", {
         select: "qa_email,date,sbs,non_sbs,coaching_sessions,side_task_minutes,pending_side_minutes,occupancy_pct",
-        filters: `date=gte.${f}&date=lte.${t}&order=date.desc`,
+        filters: `qa_email=in.(${inList})&date=gte.${f}&date=lte.${t}&order=date.desc`,
         token,
       });
       const filtered = (rows || []).filter(r => matchQA(r.qa_email));
