@@ -135,11 +135,23 @@ export default function TeamOccupancyCard() {
         // cross-domain rows. Post-fetch we collapse by local-part.
         const expanded = [...new Set(teamEmails.flatMap(e => emailVariants(e)))];
         const inList = expanded.map(e => `"${e}"`).join(",");
-        const phRows = await sb.query("productivity_history", {
-          token,
-          select: "qa_email,date,occupancy_pct,pending_side_minutes,side_task_minutes",
-          filters: `qa_email=in.(${inList})&date=gte.${isoFrom}&order=date.desc`,
-        }).catch(() => []);
+        // Paginate so a large team late in the month can't be silently
+        // truncated by PostgREST's 1000-row cap. With order=date.desc the
+        // cap would drop everyone's EARLIEST days and understate the
+        // month-to-date occupancy. One QA is a few dozen rows, but a
+        // supervisor/manager's whole tree × 30 days can exceed 1000.
+        const phRows = [];
+        const PH_PAGE = 1000;
+        for (let off = 0; off < 20000; off += PH_PAGE) {
+          const page = await sb.query("productivity_history", {
+            token,
+            select: "qa_email,date,occupancy_pct,pending_side_minutes,side_task_minutes",
+            filters: `qa_email=in.(${inList})&date=gte.${isoFrom}&order=date.desc,qa_email.asc&limit=${PH_PAGE}&offset=${off}`,
+          }).catch(() => []);
+          const arr = Array.isArray(page) ? page : [];
+          phRows.push(...arr);
+          if (arr.length < PH_PAGE) break;
+        }
         // Group rows by QA, excluding today's date. For each QA we
         // collect every prior-day row in window so we can compute the
         // 7-day average occupancy. pending is a snapshot column, so
