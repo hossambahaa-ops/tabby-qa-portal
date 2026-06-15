@@ -654,6 +654,13 @@ function AppInner(){
           <Icon d={sidebarCollapsed?"M9 5l7 7-7 7":"M15 19l-7-7 7-7"} size={16}/>
         </button>
       </div>
+      {/* Heartbeat — the app is named "Pulse", so give it one: a faint
+          trace with a pulse that travels across, under the wordmark. */}
+      <div className="sidebar-pulse" aria-hidden="true">
+        <svg viewBox="0 0 240 14" preserveAspectRatio="none">
+          <path className="pulse-trace" pathLength="100" d="M0 7 H66 l4 -5 3 10 4 -12 3 7 H156 l4 -5 3 10 4 -12 3 7 H240"/>
+        </svg>
+      </div>
       <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">{(()=>{
         // Group items by section so each section header can collapse/expand
         // its items as a unit (with smooth height + chevron animation).
@@ -694,6 +701,21 @@ function AppInner(){
           </div>);
         });
       })()}</nav>
+      {/* "You" card — a personal home base at the foot of the rail on
+          desktop. Mobile keeps the fuller footer (toggles + sign out)
+          below, so this is hidden there via CSS. */}
+      <div className="sidebar-user-card">
+        <div className="suc-avatar">
+          {effectiveProfile?.avatar_url
+            ? <img src={effectiveProfile.avatar_url} alt=""/>
+            : <span style={{...avatarStyle(effectiveProfile?.email),fontSize:13,fontWeight:700}}>{initialsForAvatar(effectiveProfile?.email)||"U"}</span>}
+          <span className="suc-live" title="Online"/>
+        </div>
+        <div className="suc-info">
+          {(()=>{const hr=new Date().getHours();const greet=hr<12?"Morning":hr<18?"Afternoon":"Evening";const fn=(nameFromEmail(effectiveProfile?.email)||"there").split(" ")[0];return <div className="suc-greet">{greet}, {fn} 👋</div>;})()}
+          <div className="suc-role"><span className={`role-badge role-${effectiveProfile?.role}`}>{safe(ROLE_LABELS[effectiveProfile?.role])||"QA"}</span></div>
+        </div>
+      </div>
       {/* Mobile-only footer: user info + dark mode + sign out
           (topbar versions are hidden on mobile to save space) */}
       <div className="sidebar-mobile-footer">
