@@ -654,13 +654,6 @@ function AppInner(){
           <Icon d={sidebarCollapsed?"M9 5l7 7-7 7":"M15 19l-7-7 7-7"} size={16}/>
         </button>
       </div>
-      {/* Heartbeat — the app is named "Pulse", so give it one: a faint
-          trace with a pulse that travels across, under the wordmark. */}
-      <div className="sidebar-pulse" aria-hidden="true">
-        <svg viewBox="0 0 240 14" preserveAspectRatio="none">
-          <path className="pulse-trace" pathLength="100" d="M0 7 H66 l4 -5 3 10 4 -12 3 7 H156 l4 -5 3 10 4 -12 3 7 H240"/>
-        </svg>
-      </div>
       <nav className="sidebar-nav" role="navigation" aria-label="Main navigation">{(()=>{
         // Group items by section so each section header can collapse/expand
         // its items as a unit (with smooth height + chevron animation).
