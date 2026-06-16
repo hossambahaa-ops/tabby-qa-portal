@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import ReactDOM from "react-dom";
 import { hasRole } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
-import { nameFromEmail, safeError } from "../lib/utils.js";
+import { nameFromEmail, safeError, emailsMatchLoose } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
@@ -317,10 +317,10 @@ function SchedulePage() {
       const mgr = r.manager_email?.toLowerCase();
       return mgr && (qaLeadSet.has(mgr) || qaLeadSet.has(mgr?.split("@")[0]));
     });
-    if (isQA) return allQAs.filter(r => r.email?.toLowerCase() === myEmail);
+    if (isQA) return allQAs.filter(r => emailsMatchLoose(r.email, myEmail));
     if (isLead && !hasRole(profile?.role, "qa_supervisor")) {
-      const team = allQAs.filter(r => r.manager_email?.toLowerCase() === myEmail);
-      const meRow = leadRosterRows.find(r => r.email?.toLowerCase() === myEmail);
+      const team = allQAs.filter(r => emailsMatchLoose(r.manager_email, myEmail));
+      const meRow = leadRosterRows.find(r => emailsMatchLoose(r.email, myEmail));
       return meRow ? [meRow, ...team] : team;
     }
     // For supervisors / admins viewing the calendar tab, allow narrowing
@@ -436,14 +436,14 @@ function SchedulePage() {
         globalToast("error", "Check-in is only allowed for today or earlier — not future dates.");
         setEditCell(null); setPendingReason(""); return;
       }
-      if (email?.toLowerCase() !== myEmail && !hasRole(profile?.role, "qa_supervisor")) {
+      if (!emailsMatchLoose(email, myEmail) && !hasRole(profile?.role, "qa_supervisor")) {
         globalToast("error", "Only the person — or a supervisor/admin — can mark attendance present (P/H).");
         setEditCell(null); setPendingReason(""); return;
       }
     }
     const existing = attRef.current.find(a => a.email?.toLowerCase() === email?.toLowerCase() && a.date === dateStr);
     const oldStatus = existing?.status || null;
-    const isSelfRequest = isQA && email?.toLowerCase() === myEmail && APPROVAL_CODES.has(status);
+    const isSelfRequest = isQA && emailsMatchLoose(email, myEmail) && APPROVAL_CODES.has(status);
     const approval_status = isSelfRequest ? "pending" : null;
     const requested_by = isSelfRequest ? myEmail : null;
     const approved_by = isSelfRequest ? null : myEmail;
@@ -457,7 +457,7 @@ function SchedulePage() {
     // — that would defeat the "the QA never checked in" signal.
     const todayIso = riyadhTodayStr();
     const isOwnTodayCheckIn =
-      email?.toLowerCase() === myEmail &&
+      emailsMatchLoose(email, myEmail) &&
       dateStr === todayIso &&
       (status === "P" || status === "H");
     const checkedInAt = isOwnTodayCheckIn ? new Date().toISOString() : undefined;
