@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ATT_MAP } from "../../lib/attendance.js";
 import { riyadhTodayStr } from "../../lib/attendancePlan.js";
+import { emailsMatchLoose } from "../../lib/utils.js";
 import CalendarDayCell from "./CalendarDayCell.jsx";
 
 // MyMonthCalendar — Google-Calendar-style 7-column month grid for the
@@ -39,7 +40,7 @@ export default function MyMonthCalendar({
     if (!dayNum) return null;
     const dateStr = `${selMonth}-${String(dayNum).padStart(2, "0")}`;
     return attendance.find(
-      (a) => a.email?.toLowerCase() === myEmail && a.date === dateStr,
+      (a) => emailsMatchLoose(a.email, myEmail) && a.date === dateStr,
     ) || null;
   };
 

@@ -878,7 +878,7 @@ function SchedulePage() {
 
   // ── My-month counts (for QA panel) ────────────────────────────────────────
   const myMonthCounts = (() => {
-    const myAtt = attendance.filter(a => a.email?.toLowerCase() === myEmail);
+    const myAtt = attendance.filter(a => emailsMatchLoose(a.email, myEmail));
     const approved = myAtt.filter(a => !a.approval_status || a.approval_status === "approved");
     const pending = myAtt.filter(a => a.approval_status === "pending");
     const count = (arr, ...codes) => arr.filter(a => codes.includes(a.status)).length;
@@ -900,13 +900,13 @@ function SchedulePage() {
   })();
 
   // Manager email for the QA's "Routes to" chip
-  const myManagerEmail = roster.find(r => r.email?.toLowerCase() === myEmail)?.manager_email || null;
+  const myManagerEmail = roster.find(r => emailsMatchLoose(r.email, myEmail))?.manager_email || null;
   const myManagerName = myManagerEmail ? _nameFromEmail(myManagerEmail) : null;
 
   // Pending count scoped to team (for the chip)
   const myTeamPendingCount = (() => {
     if (!isQA) return 0;
-    return allPending.filter(a => a.email?.toLowerCase() === myEmail && a.approval_status === "pending").length;
+    return allPending.filter(a => emailsMatchLoose(a.email, myEmail) && a.approval_status === "pending").length;
   })();
 
   if (loading) return <div className="page"><SkeletonPage/></div>;
