@@ -13,7 +13,7 @@ import CellPicker from "./CellPicker.jsx";
 // Extracted from SchedulePage 2026-05-08.
 export default function CalendarDayCell({
   day, dateStr, att, st, planned, attType, isPending, isDenied,
-  isWeekend, isToday, isEditing, canEdit, onOpen, onClose,
+  isOff, isToday, isEditing, canEdit, onOpen, onClose,
   em, dayNum, isQA, canApprove, pickerStage, pendingReason,
   onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
   enhanced = false,
@@ -39,7 +39,7 @@ export default function CalendarDayCell({
       style={{
         minHeight: 78,
         padding: 6,
-        background: isToday ? "rgba(106,44,121,.10)" : isWeekend ? "rgba(156,163,175,0.05)" : "var(--bg)",
+        background: isToday ? "rgba(106,44,121,.10)" : isOff ? "rgba(156,163,175,0.05)" : "var(--bg)",
         border: `1px solid ${isToday ? "var(--tabby-purple)" : "var(--bd2)"}`,
         borderRadius: 8,
         cursor: canEdit ? "pointer" : "default",
@@ -53,7 +53,7 @@ export default function CalendarDayCell({
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = isToday ? "var(--tabby-purple)" : "var(--bd2)"; }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: isToday ? "var(--tabby-purple)" : isWeekend ? "var(--tx3)" : "var(--tx)" }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: isToday ? "var(--tabby-purple)" : isOff ? "var(--tx3)" : "var(--tx)" }}>
           {day}
         </span>
         {planned && (

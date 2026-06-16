@@ -96,7 +96,6 @@ export default function MyMonthCalendar({
       }}
     >
       {week.map((day, di) => {
-        const isWeekend = di === 5 || di === 6;
         if (day === null) {
           return (
             <div
@@ -114,13 +113,10 @@ export default function MyMonthCalendar({
         const att = myAtt(day);
         const st = att?.status || null;
         const planned = att?.planned_code || null;
-        // Grey a weekend cell as "rest" only when the QA isn't actually
-        // scheduled to work it. QAs on rotating weekend coverage (a Fri/
-        // Sat shift) should see those days as normal working cells with
-        // their green P badge — not dimmed like an off day, which reads
-        // as "you're off" and caused confusion.
-        const worksThisDay = planned === "P" || planned === "H" || planned === "LD";
-        const dimAsWeekend = isWeekend && !worksThisDay;
+        // Grey is reserved for actual days off — a cell is de-emphasised
+        // only when its plan is OFF. Weekends aren't special: a QA on
+        // rotating weekend coverage sees Fri/Sat as normal working cells.
+        const isOff = planned === "OFF";
         const attType = st ? ATT_MAP[st] : null;
         const isPending = att?.approval_status === "pending";
         const isDenied = att?.approval_status === "denied";
@@ -139,7 +135,7 @@ export default function MyMonthCalendar({
             attType={attType}
             isPending={isPending}
             isDenied={isDenied}
-            isWeekend={dimAsWeekend}
+            isOff={isOff}
             isToday={isToday}
             isEditing={isEditing}
             canEdit={canEdit}
