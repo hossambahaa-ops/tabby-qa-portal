@@ -22,11 +22,24 @@ const goToProfile = (qaEmail) => {
   window.location.hash = `#/profile?qa=${encodeURIComponent(qaEmail)}`;
 };
 
+// Compact "x ago" for the quartile freshness indicator. Mirrors
+// FreshnessBadge.fmtAge, but kept local and neutral-toned — the quartile
+// population is a once-daily feed, so we don't want red "stale" colours.
+const fmtAgo = (ts) => {
+  if (!ts) return null;
+  const s = (Date.now() - new Date(ts).getTime()) / 1000;
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
+};
+
 export default function CSATPage() {
   const { token, profile, gf } = useApp();
   const [data, setData] = useState([]);
   const [roster, setRoster] = useState([]);
   const [cutoffs, setCutoffs] = useState([]); // CSAT quartile cutoffs for the selected month
+  const [quartilesUpdatedAt, setQuartilesUpdatedAt] = useState(null); // when csat_population was last loaded (daily 19:00 Riyadh sync)
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState([]);
   // Filter state — persistent ones go through useUrlState so refresh
@@ -74,6 +87,11 @@ export default function CSATPage() {
       filters: `month=eq.${encodeURIComponent(selMonth)}&order=lob.asc,domain.asc`,
     }).then(rows => { if (alive) setCutoffs(Array.isArray(rows) ? rows : []); })
       .catch(() => { if (alive) setCutoffs([]); });
+    // When the resolver population (the quartile basis) was last loaded.
+    // Surfaced as a small freshness note on the thresholds strip.
+    sb.rpc("csat_quartiles_last_updated", {}, token)
+      .then(ts => { if (alive) setQuartilesUpdatedAt(typeof ts === "string" ? ts : null); })
+      .catch(() => { if (alive) setQuartilesUpdatedAt(null); });
     return () => { alive = false; };
   }, [selMonth, token, reloadKey]);
 
@@ -552,6 +570,15 @@ export default function CSATPage() {
               <details open>
                 <summary style={{ cursor:"pointer", fontSize:11, color:"var(--tx3)", fontWeight:600, userSelect:"none", padding:"3px 0" }}>
                   Quartile thresholds · <strong style={{color:"var(--tx2)"}}>{selMonth}</strong> — a QA (≥5 surveys) is ranked vs the full population in their domain + LOB · <span style={{color:"#3CFFA5"}}>Q1 ≥ value</span>, below it → Q2 / Q3 / Q4
+                  {quartilesUpdatedAt && (
+                    <span
+                      title={`Quartile population last loaded ${new Date(quartilesUpdatedAt).toLocaleString("en-GB")} · refreshes daily at 19:00 Riyadh`}
+                      style={{ display:"inline-flex", alignItems:"center", gap:5, marginLeft:8, padding:"1px 8px", borderRadius:999, background:"var(--bg3)", border:"1px solid var(--bd)", color:"var(--tx2)", fontWeight:600, whiteSpace:"nowrap", verticalAlign:"middle" }}
+                    >
+                      <span style={{ width:6, height:6, borderRadius:999, background:"#3CFFA5", flex:"none" }} />
+                      Quartiles updated {fmtAgo(quartilesUpdatedAt)}
+                    </span>
+                  )}
                 </summary>
                 <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(212px, 1fr))", gap:10, marginTop:10 }}>
                   {shown.map(c => {
