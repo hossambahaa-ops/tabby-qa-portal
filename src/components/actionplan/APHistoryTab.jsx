@@ -27,8 +27,8 @@ function APHistoryTab({ historyPlans, expandedPlan, setExpandedPlan, getPlanProg
   return <div className="card">
     <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
       <span style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Metric</span>
-      <select value={metricFilter} onChange={e => setMetricFilter(e.target.value)}
-        style={{ padding: "6px 10px", borderRadius: 8, background: "var(--bg3)", border: "1px solid var(--bd)", color: "var(--tx)", fontSize: 12, fontFamily: "var(--font)", cursor: "pointer" }}>
+      <select className="select" value={metricFilter} onChange={e => setMetricFilter(e.target.value)}
+        style={{ fontSize: 12, padding: "6px 10px", minWidth: 170 }}>
         <option value="">All metrics</option>
         {allMetrics.map(m => <option key={m} value={m}>{m}</option>)}
       </select>
