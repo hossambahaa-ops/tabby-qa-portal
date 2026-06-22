@@ -5,6 +5,7 @@ import { safeError } from "../../lib/utils.js";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import { riyadhTodayStr } from "../../lib/attendancePlan.js";
+import { targetMet, fmtMetricVal } from "../../lib/actionPlan.js";
 
 export default function APActivePlanCard({
   plan,
@@ -112,11 +113,8 @@ export default function APActivePlanCard({
 
     // met_targets re-derives against the (possibly updated) target set.
     const metTargets = Object.keys(targetData).every(key => {
-      const actual = actualData[key];
-      const target = targetData[key];
-      if (actual === null || actual === undefined) return true;
-      if (target === null || target === undefined || target === "") return true;
-      return Number(actual) >= Number(target);
+      const metric = targets.find(t => (t.kpi_key || t.label) === key);
+      return targetMet(actualData[key], targetData[key], metric?.lower_better);
     });
     try {
       // Build patch body. target_data only sent when the lead changed
@@ -247,7 +245,7 @@ export default function APActivePlanCard({
                       const tKey = t.kpi_key || t.label;
                       const target = targetData[tKey];
                       const actual = actualData?.[tKey];
-                      const met = actual !== null && actual !== undefined && target !== undefined && Number(actual) >= Number(target);
+                      const met = (actual !== null && actual !== undefined && target !== undefined && target !== "") && targetMet(actual, target, t.lower_better);
                       const isEditing = editingWeek === week.id;
                       return (
                         <td key={tKey} style={{ textAlign: "center" }}>
@@ -278,9 +276,9 @@ export default function APActivePlanCard({
                             </>
                           ) : (
                             <>
-                              <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target !== undefined ? target + (t.is_custom ? "" : "%") : "—"}</div>
+                              <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target !== undefined && target !== "" ? fmtMetricVal(target, t.is_custom ? "" : (t.unit ?? "%")) : "—"}</div>
                               {hasActuals && <div style={{ fontSize: 12, fontWeight: 600, color: met ? "var(--green)" : "var(--red)" }}>
-                                A: {actual !== null && actual !== undefined ? (typeof actual === "number" ? actual.toFixed(1) + "%" : actual) : "—"}
+                                A: {actual !== null && actual !== undefined ? fmtMetricVal(actual, t.is_custom ? "" : (t.unit ?? "%")) : "—"}
                               </div>}
                             </>
                           )}

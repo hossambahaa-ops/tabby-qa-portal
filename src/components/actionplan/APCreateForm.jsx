@@ -2,6 +2,7 @@ import React from "react";
 import { sortMonthsDesc } from "../../lib/constants.js";
 import { Icon, icons } from "../Icons.jsx";
 import { riyadhTodayStr } from "../../lib/attendancePlan.js";
+import { fmtMetricVal } from "../../lib/actionPlan.js";
 
 export default function APCreateForm({
   // State
@@ -156,7 +157,7 @@ export default function APCreateForm({
                   </div>
                   <span style={{ fontWeight: 600, fontSize: 13 }}>{def.label}</span>
                 </div>
-                {curVal !== null && <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 4 }}>Current: {curVal.toFixed(1)}%</div>}
+                {curVal !== null && <div style={{ fontSize: 11, color: "var(--tx3)", marginTop: 4 }}>Current: {fmtMetricVal(curVal, def.unit ?? "%")}</div>}
               </div>
             );
           })}
@@ -205,8 +206,8 @@ export default function APCreateForm({
                     {t.label}
                     {t.current_slab && t.current_slab !== "—" && <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 400 }}>{t.current_slab}</div>}
                   </td>
-                  <td style={{ textAlign: "center", fontWeight: 500, color: t.current_value !== null ? (t.current_value >= t.thresholds?.[0] ? "var(--green)" : "var(--red)") : "var(--tx3)" }}>
-                    {t.current_value !== null ? t.current_value.toFixed(1) + "%" : "—"}
+                  <td style={{ textAlign: "center", fontWeight: 500, color: (t.current_value !== null && t.thresholds) ? ((t.lower_better ? t.current_value <= t.thresholds[0] : t.current_value >= t.thresholds[0]) ? "var(--green)" : "var(--red)") : "var(--tx3)" }}>
+                    {t.current_value !== null ? fmtMetricVal(t.current_value, t.unit ?? "%") : "—"}
                   </td>
                   {Array.from({ length: planDuration }, (_, wi) => (
                     <td key={wi} style={{ textAlign: "center" }}>
@@ -216,11 +217,11 @@ export default function APCreateForm({
                         newWeekly[wi] = e.target.value === "" ? "" : Number(e.target.value);
                         newTargets[ti] = { ...newTargets[ti], weekly_targets: newWeekly };
                         setPlanTargets(newTargets);
-                      }} placeholder="%" style={{ width: 60, textAlign: "center", padding: "4px 6px", fontSize: 12 }} />
+                      }} placeholder={t.unit || "target"} style={{ width: 60, textAlign: "center", padding: "4px 6px", fontSize: 12 }} />
                     </td>
                   ))}
                   <td style={{ textAlign: "center", fontWeight: 600, fontSize: 12, color: avg !== null ? "var(--accent-text)" : "var(--tx3)" }}>
-                    {avg !== null ? avg.toFixed(1) + "%" : "—"}
+                    {avg !== null ? fmtMetricVal(avg, t.unit ?? "%") : "—"}
                   </td>
                 </tr>);
               })}

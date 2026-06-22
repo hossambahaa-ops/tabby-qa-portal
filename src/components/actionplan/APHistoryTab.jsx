@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { hasRole } from "../../lib/constants.js";
 import { sb } from "../../lib/supabase.js";
 import { nameFromEmail, safeError } from "../../lib/utils.js";
+import { targetMet, fmtMetricVal } from "../../lib/actionPlan.js";
 import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import { useConfirm } from "../../lib/hooks.jsx";
@@ -135,10 +136,10 @@ function APHistoryTab({ historyPlans, expandedPlan, setExpandedPlan, getPlanProg
                         const tKey = t.kpi_key || t.label;
                         const target = td[tKey];
                         const actual = ad?.[tKey];
-                        const met = actual != null && target != null && Number(actual) >= Number(target);
+                        const met = targetMet(actual, target, t.lower_better);
                         return <td key={tKey} style={{ textAlign: "center" }}>
-                          <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target != null ? target + "%" : "—"}</div>
-                          {hasA && <div style={{ fontSize: 12, fontWeight: 600, color: met ? "var(--green)" : "var(--red)" }}>A: {actual != null ? (typeof actual === "number" ? actual.toFixed(1) + "%" : actual) : "—"}</div>}
+                          <div style={{ fontSize: 11, color: "var(--tx3)" }}>T: {target != null && target !== "" ? fmtMetricVal(target, t.unit ?? "%") : "—"}</div>
+                          {hasA && <div style={{ fontSize: 12, fontWeight: 600, color: met ? "var(--green)" : "var(--red)" }}>A: {actual != null ? fmtMetricVal(actual, t.unit ?? "%") : "—"}</div>}
                         </td>;
                       })}
                       <td style={{ textAlign: "center" }}>{hasA ? (week.met_targets ? <span style={{ color: "var(--green)", fontWeight: 700 }}>Yes</span> : <span style={{ color: "var(--red)", fontWeight: 700 }}>No</span>) : "—"}</td>

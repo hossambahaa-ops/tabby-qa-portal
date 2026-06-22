@@ -16,7 +16,7 @@ import APActivePlanCard from "../components/actionplan/APActivePlanCard.jsx";
 import APHistoryTab from "../components/actionplan/APHistoryTab.jsx";
 import useKeyboard from "../lib/useKeyboard.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-import { KPI_SLABS, parseRaw, calcSlab, scoreColor, scoreBg, safeJson, safeJsonArr, parseTargets, getKpiScores, getTotalScore, generateTargets as buildTargets, computeDetections, buildPlanCandidates } from "../lib/actionPlan.js";
+import { KPI_SLABS, parseRaw, parseRawMetric, targetMet, calcSlab, scoreColor, scoreBg, safeJson, safeJsonArr, parseTargets, getKpiScores, getTotalScore, generateTargets as buildTargets, computeDetections, buildPlanCandidates } from "../lib/actionPlan.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { listMtd } from "../api/mtd.js";
@@ -314,7 +314,7 @@ function ActionPlanPage() {
     } else {
       setPlanTargets(newSel.map(k => {
         const def = KPI_SLABS[k]; if (!def) return null;
-        return { kpi_key: k, label: def.label, raw_key: def.rawKey, current_value: null, current_slab: "—", target_value: "", weekly_targets: Array(planDuration).fill(""), weight: def.weight, thresholds: def.thresholds };
+        return { kpi_key: k, label: def.label, raw_key: def.rawKey, current_value: null, current_slab: "—", target_value: "", weekly_targets: Array(planDuration).fill(""), weight: def.weight, thresholds: def.thresholds, unit: def.unit ?? "%", lower_better: def.lowerBetter ?? false, is_raw: def.isRaw ?? false };
       }).filter(Boolean));
     }
   };
@@ -367,6 +367,7 @@ function ActionPlanPage() {
           kpi_key: t.kpi_key, label: t.label, raw_key: t.raw_key,
           current_value: t.current_value, target_value: t.target_value,
           weekly_targets: t.weekly_targets, weight: t.weight, thresholds: t.thresholds,
+          unit: t.unit, lower_better: t.lower_better, is_raw: t.is_raw,
         })),
         ...customMetrics.map((c, i) => ({
           kpi_key: "custom_" + i, label: c.name, raw_key: null,
@@ -459,20 +460,20 @@ function ActionPlanPage() {
     const actualData = {};
     targetKeys.forEach(key => {
       const metric = planMetrics.find(m => m.kpi_key === key);
-      if (metric?.raw_key && KPI_SLABS[key]) {
-        actualData[key] = parseRaw(row[KPI_SLABS[key].rawKey]);
-      } else if (metric?.raw_key) {
-        actualData[key] = parseRaw(row[metric.raw_key]);
-      }
+      const def = KPI_SLABS[key];
+      const rawKey = def?.rawKey || metric?.raw_key;
+      if (!rawKey) return;
+      const isRaw = metric?.is_raw ?? def?.isRaw ?? false;
+      actualData[key] = parseRawMetric(row[rawKey], isRaw);
     });
 
-    // Check if targets met
+    // Check if targets met (honours lower-is-better metrics like ABT,
+    // whose target is the maximum acceptable value).
     const metTargets = targetKeys.every(key => {
-      const actual = actualData[key];
-      const target = targetData[key];
-      if (actual === null || actual === undefined) return true;
-      if (target === null || target === undefined || target === "") return true;
-      return Number(actual) >= Number(target);
+      const metric = planMetrics.find(m => m.kpi_key === key);
+      const def = KPI_SLABS[key];
+      const lowerBetter = metric?.lower_better ?? def?.lowerBetter ?? false;
+      return targetMet(actualData[key], targetData[key], lowerBetter);
     });
 
     try {

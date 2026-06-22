@@ -10,7 +10,11 @@ export const KPI_SLABS = {
   // Selectable plan targets that don't feed the weighted detection score
   // (weight 0). CSAT is a percentage, higher-is-better, so it fits the
   // slab/target engine as-is.
-  csat:        { label: "CSAT",                 weight: 0,  thresholds: [70, 80, 90],  rawKey: "csat_pct" },
+  csat:             { label: "CSAT",             weight: 0, thresholds: [70, 80, 90], rawKey: "csat_pct",          unit: "%" },
+  abt:              { label: "ABT",              weight: 0, thresholds: null,         rawKey: "abt",               unit: "min", lowerBetter: true, isRaw: true },
+  survey_count:     { label: "Survey Count",     weight: 0, thresholds: null,         rawKey: "csat_total",        unit: "",    isRaw: true },
+  login_count:      { label: "Login count",      weight: 0, thresholds: null,         rawKey: "tickets_touched",   unit: "",    isRaw: true },
+  total_monitoring: { label: "Total Monitoring", weight: 0, thresholds: null,         rawKey: "total_monitoring",  unit: "",    isRaw: true },
 };
 
 export const parseRaw = (val) => {
@@ -21,6 +25,36 @@ export const parseRaw = (val) => {
   if (isNaN(n)) return null;
   if (n >= 0 && n <= 2) return n * 100;
   return n;
+};
+
+// Parse an MTD cell for a plan metric. Count/raw metrics (isRaw) are taken
+// at face value; percentage metrics keep parseRaw's %/fraction handling
+// (which would wrongly ×100 a small count — e.g. 2 surveys → 200).
+export const parseRawMetric = (val, isRaw) => {
+  if (!isRaw) return parseRaw(val);
+  if (val === null || val === undefined || val === "") return null;
+  const n = parseFloat(String(val).replace(",", ".").replace(/[%\s]/g, ""));
+  return isNaN(n) ? null : n;
+};
+
+// Whether an actual hits the target, honouring lower-is-better metrics
+// (e.g. ABT minutes — the target is the max acceptable value). Missing
+// actual/target counts as met, matching the original behaviour.
+export const targetMet = (actual, target, lowerBetter) => {
+  if (actual === null || actual === undefined) return true;
+  if (target === null || target === undefined || target === "") return true;
+  return lowerBetter ? Number(actual) <= Number(target) : Number(actual) >= Number(target);
+};
+
+// Display a metric value with its unit: "%" → "97.2%", "min" → "45.9 min",
+// "" (a count) → "204".
+export const fmtMetricVal = (v, unit) => {
+  if (v === null || v === undefined || v === "") return "—";
+  const n = Number(v);
+  if (isNaN(n)) return String(v);
+  if (unit === "%") return n.toFixed(1) + "%";
+  if (unit === "min") return n.toFixed(1) + " min";
+  return Math.round(n).toLocaleString();
 };
 
 export const calcSlab = (rawPct, th) => {
@@ -84,7 +118,10 @@ export const parseTargets = (str) => {
 
 // Per-row KPI scores using the slab engine.
 export const getKpiScores = (row) => {
-  return Object.entries(KPI_SLABS).map(([key, def]) => {
+  // Only the weighted KPIs feed the detection score/display. The extra
+  // selectable plan metrics (CSAT, ABT, counts…) are weight 0 — they're
+  // pickable as plan targets but must not pollute the DAM scoring.
+  return Object.entries(KPI_SLABS).filter(([, def]) => (def.weight ?? 0) > 0).map(([key, def]) => {
     const rawPct = parseRaw(row[def.rawKey]);
     const slab = calcSlab(rawPct, def.thresholds);
     const score = (def.weight * slab.pct) / 100;
@@ -103,18 +140,22 @@ export const generateTargets = ({ qaEmail, kpiKeys, mtd, duration, sortMonthsDes
   return (kpiKeys || []).map(key => {
     const def = KPI_SLABS[key];
     if (!def) return null;
-    const rawPct = row ? parseRaw(row[def.rawKey]) : null;
-    const slab = rawPct !== null ? calcSlab(rawPct, def.thresholds) : { slab: 0, label: "No data" };
+    const isRaw = def.isRaw ?? false;
+    const rawPct = row ? parseRawMetric(row[def.rawKey], isRaw) : null;
+    const slab = (def.thresholds && rawPct !== null) ? calcSlab(rawPct, def.thresholds) : { slab: 0, label: "—" };
     return {
       kpi_key: key,
       label: def.label,
       raw_key: def.rawKey,
       current_value: rawPct,
-      current_slab: slab.label,
+      current_slab: def.thresholds ? slab.label : "—",
       target_value: "",
       weekly_targets: Array(duration).fill(""),
       weight: def.weight,
       thresholds: def.thresholds,
+      unit: def.unit ?? "%",
+      lower_better: def.lowerBetter ?? false,
+      is_raw: isRaw,
     };
   }).filter(Boolean);
 };
