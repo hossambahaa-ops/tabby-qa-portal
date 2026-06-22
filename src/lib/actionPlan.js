@@ -13,7 +13,7 @@ export const KPI_SLABS = {
   csat:             { label: "CSAT",             weight: 0, thresholds: [70, 80, 90], rawKey: "csat_pct",          unit: "%" },
   abt:              { label: "ABT",              weight: 0, thresholds: null,         rawKey: "abt",               unit: "min", lowerBetter: true, isRaw: true },
   survey_count:     { label: "Survey Count",     weight: 0, thresholds: null,         rawKey: "csat_total",        unit: "",    isRaw: true },
-  login_count:      { label: "Login count",      weight: 0, thresholds: null,         rawKey: "tickets_touched",   unit: "",    isRaw: true },
+  login_count:      { label: "Handled Tickets",   weight: 0, thresholds: null,         rawKey: "tickets_touched",   unit: "",    isRaw: true },
   total_monitoring: { label: "Total Monitoring", weight: 0, thresholds: null,         rawKey: "total_monitoring",  unit: "",    isRaw: true },
 };
 
