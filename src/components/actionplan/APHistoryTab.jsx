@@ -10,16 +10,34 @@ import EmptyState from "../EmptyState.jsx";
 function APHistoryTab({ historyPlans, expandedPlan, setExpandedPlan, getPlanProgress, parseTargets, safeJson, setPlans, setWeeks }) {
   const { token, profile, globalToast } = useApp();
   const { ask: confirmAsk, el: confirmEl } = useConfirm();
+  const [metricFilter, setMetricFilter] = useState("");
 
   if (historyPlans.length === 0) {
     return <div className="card"><EmptyState illus="empty" title="No completed plans" description="Once an AP or PIP wraps, it'll move here for the record."/></div>;
   }
 
+  // Distinct target metrics across history (for the filter) + a per-plan
+  // helper. A plan can target several metrics, so the filter matches on
+  // inclusion (a plan shows if any of its metrics is the selected one).
+  const metricOf = (p) => ((parseTargets(p.targets)?.metrics) || []).map(m => m.label || m.name || m.kpi_key).filter(Boolean);
+  const allMetrics = [...new Set(historyPlans.flatMap(metricOf))].sort((a, b) => a.localeCompare(b));
+  const shownPlans = metricFilter ? historyPlans.filter(p => metricOf(p).includes(metricFilter)) : historyPlans;
+
   return <div className="card">
+    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px" }}>Metric</span>
+      <select value={metricFilter} onChange={e => setMetricFilter(e.target.value)}
+        style={{ padding: "6px 10px", borderRadius: 8, background: "var(--bg3)", border: "1px solid var(--bd)", color: "var(--tx)", fontSize: 12, fontFamily: "var(--font)", cursor: "pointer" }}>
+        <option value="">All metrics</option>
+        {allMetrics.map(m => <option key={m} value={m}>{m}</option>)}
+      </select>
+      {metricFilter && <span style={{ fontSize: 11, color: "var(--tx3)" }}>{shownPlans.length} of {historyPlans.length}</span>}
+    </div>
     <div className="table-wrap"><table>
       <thead><tr>
         <th>QA Specialist</th>
         <th>Type</th>
+        <th>Metric</th>
         <th>Duration</th>
         <th style={{ textAlign: "center" }}>Result</th>
         <th>Created by</th>
@@ -29,7 +47,7 @@ function APHistoryTab({ historyPlans, expandedPlan, setExpandedPlan, getPlanProg
         {hasRole(profile?.role, "super_admin") && <th></th>}
       </tr></thead>
       <tbody>
-        {historyPlans.map(p => {
+        {shownPlans.map(p => {
           const prog = getPlanProgress(p);
           const isHistExp = expandedPlan === "h-" + p.id;
           const hTargets = parseTargets(p.targets);
@@ -44,6 +62,15 @@ function APHistoryTab({ historyPlans, expandedPlan, setExpandedPlan, getPlanProg
                   background: p.type === "pip" ? "var(--red-bg)" : "var(--amber-bg)",
                   color: p.type === "pip" ? "var(--red)" : "var(--amber)",
                 }}>{p.type.toUpperCase()}</span>
+              </td>
+              <td>
+                {(() => {
+                  const labels = (hMetrics || []).map(m => m.label || m.name || m.kpi_key).filter(Boolean);
+                  if (labels.length === 0) return <span style={{ color: "var(--tx3)" }}>—</span>;
+                  return <div style={{ display: "flex", flexWrap: "wrap", gap: 4, maxWidth: 220 }}>
+                    {labels.map((mname, i) => <span key={i} style={{ padding: "2px 7px", borderRadius: 8, fontSize: 10, fontWeight: 600, background: "var(--bg3)", border: "1px solid var(--bd)", color: "var(--tx2)", whiteSpace: "nowrap" }}>{mname}</span>)}
+                  </div>;
+                })()}
               </td>
               <td style={{ fontSize: 12 }}>{p.duration_weeks}{isMonthlyH ? "m" : "w"}</td>
               <td style={{ textAlign: "center" }}>
@@ -78,7 +105,7 @@ function APHistoryTab({ historyPlans, expandedPlan, setExpandedPlan, getPlanProg
                 },"Delete","var(--red)");}}><Icon d={icons.trash} size={14} /></button>
               </td>}
             </tr>
-            {isHistExp && <tr><td colSpan={hasRole(profile?.role, "super_admin") ? 9 : 8} style={{ padding: "16px", background: "var(--bg)" }}>
+            {isHistExp && <tr><td colSpan={hasRole(profile?.role, "super_admin") ? 10 : 9} style={{ padding: "16px", background: "var(--bg)" }}>
               {p.reason && <div style={{ marginBottom: 12, fontSize: 13, color: "var(--tx2)" }}>
                 <span style={{ fontWeight: 600, color: "var(--tx)" }}>Reason: </span>{p.reason}
               </div>}
