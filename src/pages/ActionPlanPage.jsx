@@ -47,6 +47,8 @@ function ActionPlanPage() {
   const [planDuration, setPlanDuration] = useState(4);
   const [planStartDate, setPlanStartDate] = useState(() => riyadhTodayStr());
   const [planReason, setPlanReason] = useState("");
+  const [planRootCause, setPlanRootCause] = useState("");
+  const [planActions, setPlanActions] = useState("");
   const [planTargets, setPlanTargets] = useState([]);
   const [selectedKpis, setSelectedKpis] = useState([]);
   const [followUpMode, setFollowUpMode] = useState("weekly"); // weekly | monthly
@@ -285,6 +287,8 @@ function ActionPlanPage() {
     setPlanDuration(type === "pip" ? 8 : 4);
     setPlanStartDate(riyadhTodayStr());
     setPlanReason("");
+    setPlanRootCause("");
+    setPlanActions("");
     setSelectedKpis([]);
     setPlanTargets([]);
     setFollowUpMode("weekly");
@@ -380,6 +384,8 @@ function ActionPlanPage() {
           type: planType,
           status: "active",
           reason: planReason,
+          root_cause: planRootCause || null,
+          actions: planActions || null,
           targets: JSON.stringify({ follow_up_mode: followUpMode, metrics: targetsJson }),
           start_date: startDate,
           end_date: endDate,
@@ -782,6 +788,8 @@ function ActionPlanPage() {
         planDuration={planDuration}
         planStartDate={planStartDate}
         planReason={planReason}
+        planRootCause={planRootCause}
+        planActions={planActions}
         planTargets={planTargets}
         selectedKpis={selectedKpis}
         followUpMode={followUpMode}
@@ -795,6 +803,8 @@ function ActionPlanPage() {
         setPlanDuration={setPlanDuration}
         setPlanStartDate={setPlanStartDate}
         setPlanReason={setPlanReason}
+        setPlanRootCause={setPlanRootCause}
+        setPlanActions={setPlanActions}
         setPlanTargets={setPlanTargets}
         setFollowUpMode={setFollowUpMode}
         setCustomMetrics={setCustomMetrics}

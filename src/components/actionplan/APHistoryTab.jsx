@@ -109,6 +109,12 @@ function APHistoryTab({ historyPlans, expandedPlan, setExpandedPlan, getPlanProg
               {p.reason && <div style={{ marginBottom: 12, fontSize: 13, color: "var(--tx2)" }}>
                 <span style={{ fontWeight: 600, color: "var(--tx)" }}>Reason: </span>{p.reason}
               </div>}
+              {p.root_cause && <div style={{ marginBottom: 12, fontSize: 13, color: "var(--tx2)" }}>
+                <span style={{ fontWeight: 600, color: "var(--tx)" }}>Root cause: </span>{p.root_cause}
+              </div>}
+              {p.actions && <div style={{ marginBottom: 12, fontSize: 13, color: "var(--tx2)" }}>
+                <span style={{ fontWeight: 600, color: "var(--tx)" }}>Actions: </span>{p.actions}
+              </div>}
               <div style={{ fontSize: 12, fontWeight: 600, color: "var(--tx2)", marginBottom: 8, textTransform: "uppercase", letterSpacing: ".5px" }}>{isMonthlyH ? "Monthly" : "Weekly"} tracking</div>
               <table style={{ fontSize: 12, width: "100%" }}>
                 <thead><tr>

@@ -7,6 +7,10 @@ export const KPI_SLABS = {
   calibration: { label: "Calibration",          weight: 10, thresholds: [85, 90, 95],  rawKey: "avg_calibration_match_rate" },
   observation: { label: "Coaching Observation",  weight: 10, thresholds: [82, 85, 88],  rawKey: "avg_observation_score_pct" },
   rtr:         { label: "RTR Score",            weight: 10, thresholds: [80, 85, 90],  rawKey: "avg_rtr_score" },
+  // Selectable plan targets that don't feed the weighted detection score
+  // (weight 0). CSAT is a percentage, higher-is-better, so it fits the
+  // slab/target engine as-is.
+  csat:        { label: "CSAT",                 weight: 0,  thresholds: [70, 80, 90],  rawKey: "csat_pct" },
 };
 
 export const parseRaw = (val) => {

@@ -10,6 +10,8 @@ export default function APCreateForm({
   planDuration,
   planStartDate,
   planReason,
+  planRootCause,
+  planActions,
   planTargets,
   selectedKpis,
   followUpMode,
@@ -24,6 +26,8 @@ export default function APCreateForm({
   setPlanDuration,
   setPlanStartDate,
   setPlanReason,
+  setPlanRootCause,
+  setPlanActions,
   setPlanTargets,
   setFollowUpMode,
   setCustomMetrics,
@@ -115,6 +119,14 @@ export default function APCreateForm({
           <div className="form-group" style={{ gridColumn: "1/-1" }}>
             <label className="form-label">Reason / justification</label>
             <textarea className="form-input" rows={2} value={planReason} onChange={e => setPlanReason(e.target.value)} placeholder="Why is this plan being created? Reference specific KPIs, months, patterns..." style={{ resize: "vertical" }} />
+          </div>
+          <div className="form-group" style={{ gridColumn: "1/-1" }}>
+            <label className="form-label">Root cause</label>
+            <textarea className="form-input" rows={2} value={planRootCause || ""} onChange={e => setPlanRootCause(e.target.value)} placeholder="What's driving the gap? The underlying cause of the performance issue — not just the symptom." style={{ resize: "vertical" }} />
+          </div>
+          <div className="form-group" style={{ gridColumn: "1/-1" }}>
+            <label className="form-label">Actions</label>
+            <textarea className="form-input" rows={2} value={planActions || ""} onChange={e => setPlanActions(e.target.value)} placeholder="What actions will be taken to reach the target? Steps, coaching, support, checkpoints..." style={{ resize: "vertical" }} />
           </div>
         </div>
       </div>
