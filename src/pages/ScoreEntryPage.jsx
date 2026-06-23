@@ -779,6 +779,37 @@ function ScoreEntryPage(){
       );
     })() : (
       <div className="card">
+        {(() => {
+          // Team "this month vs last" strip. Averages across QAs from the
+          // already-loaded data; direction-aware (lower ABT = green).
+          const mIdx = months.indexOf(selMonth);
+          const prevMonth = mIdx >= 0 ? months[mIdx + 1] : null;
+          if (!prevMonth) return null;
+          const num = (v) => { if (v == null || v === "") return null; const n = parseFloat(String(v).replace("%", "").replace(",", ".")); return isNaN(n) ? null : n; };
+          const avg = (m, fn) => { const xs = data.filter(r => r.month === m).map(fn).filter(v => v != null); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
+          const tiles = [
+            { label: "Occupancy", cur: avg(selMonth, r => num(r.occupancy_pct)), prev: avg(prevMonth, r => num(r.occupancy_pct)), unit: "%", lower: false },
+            { label: "CSAT", cur: avg(selMonth, r => num(r.csat_pct)), prev: avg(prevMonth, r => num(r.csat_pct)), unit: "%", lower: false },
+            { label: "ABT", cur: avg(selMonth, r => num(r.abt)), prev: avg(prevMonth, r => num(r.abt)), unit: " min", lower: true },
+          ].filter(t => t.cur != null);
+          if (!tiles.length) return null;
+          return <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", padding: "12px 4px 14px", borderBottom: "1px solid var(--bd2)", marginBottom: 12 }}>
+            {tiles.map(t => {
+              const d = t.prev != null ? t.cur - t.prev : null;
+              const flat = d == null || Math.abs(d) < 0.05;
+              const good = flat ? null : (t.lower ? d < 0 : d > 0);
+              const col = flat ? "var(--tx3)" : good ? "var(--green)" : "var(--red)";
+              return <div key={t.label} style={{ background: "var(--bg3)", borderRadius: 10, padding: "8px 14px", minWidth: 118 }}>
+                <div style={{ fontSize: 10.5, color: "var(--tx3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{t.label}</div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 2 }}>
+                  <span style={{ fontSize: 19, fontWeight: 800, color: "var(--tx)", fontVariantNumeric: "tabular-nums" }}>{t.cur.toFixed(1)}{t.unit}</span>
+                  {d != null && <span style={{ fontSize: 11.5, fontWeight: 700, color: col }} title={`vs ${prevMonth}`}>{flat ? "—" : (d > 0 ? "▲" : "▼")}{flat ? "" : " " + Math.abs(d).toFixed(1) + t.unit}</span>}
+                </div>
+              </div>;
+            })}
+            <span style={{ fontSize: 11, color: "var(--tx3)" }}>vs {prevMonth} · lower ABT is better</span>
+          </div>;
+        })()}
         <div className="card-header">
           <span className="card-title">{selMonth} — {sorted.length} specialists</span>
           <div style={{display:"flex",alignItems:"center",gap:12}}>

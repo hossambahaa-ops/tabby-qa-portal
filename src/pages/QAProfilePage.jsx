@@ -897,7 +897,7 @@ function QAProfilePage() {
                       </div>
                     ))}
                   </div>}
-                  {weeks.length === 0 && <div style={{fontSize:11,color:"var(--tx3)"}}>No weekly data yet</div>}
+                  {weeks.length === 0 && <div style={{fontSize:11,color:"var(--tx3)"}}>No weekly check-ins yet — they'll appear here as the plan progresses.</div>}
                 </div>}
               </div>;
             })}
