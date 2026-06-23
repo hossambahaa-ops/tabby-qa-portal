@@ -176,7 +176,7 @@ function DashboardPage(){
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",flexWrap:"wrap",gap:16}}>
         <div style={{display:"flex",gap:14,alignItems:"center"}}>
           <div style={{width:48,height:48,borderRadius:"50%",overflow:"hidden",flexShrink:0,border:"2px solid rgba(255,255,255,.2)"}}>
-            {profile?.avatar_url ? <img src={profile.avatar_url} alt="" style={{width:48,height:48,objectFit:"cover"}}/> :
+            {profile?.avatar_url ? <img src={profile.avatar_url} alt="" referrerPolicy="no-referrer" style={{width:48,height:48,objectFit:"cover"}}/> :
             <div style={{width:48,height:48,background:"linear-gradient(135deg, var(--tabby-purple), var(--tabby-purple-light))",color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,fontWeight:700}}>{initialsFromEmail(profile?.email)||"U"}</div>}
           </div>
           <div>

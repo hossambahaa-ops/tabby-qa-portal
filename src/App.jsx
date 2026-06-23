@@ -700,7 +700,7 @@ function AppInner(){
       <div className="sidebar-user-card">
         <div className="suc-avatar">
           {effectiveProfile?.avatar_url
-            ? <img src={effectiveProfile.avatar_url} alt=""/>
+            ? <img src={effectiveProfile.avatar_url} alt="" referrerPolicy="no-referrer"/>
             : <span style={{...avatarStyle(effectiveProfile?.email),fontSize:13,fontWeight:700}}>{initialsForAvatar(effectiveProfile?.email)||"U"}</span>}
           <span className="suc-live" title="Online"/>
         </div>
@@ -715,7 +715,7 @@ function AppInner(){
         <div className="sidebar-mobile-user">
           <div className="sidebar-mobile-avatar">
             {effectiveProfile?.avatar_url
-              ? <img src={effectiveProfile.avatar_url} alt=""/>
+              ? <img src={effectiveProfile.avatar_url} alt="" referrerPolicy="no-referrer"/>
               : <span style={{...avatarStyle(effectiveProfile?.email),display:"inline-flex",alignItems:"center",justifyContent:"center",width:"100%",height:"100%",borderRadius:"50%",fontSize:13,fontWeight:700}}>{initialsForAvatar(effectiveProfile?.email)||"U"}</span>}
           </div>
           <div className="sidebar-mobile-user-info">
@@ -851,7 +851,7 @@ function AppInner(){
         </div>}
         <div className="topbar-user-section" style={{display:"flex",alignItems:"center",gap:10,marginLeft:8,paddingLeft:12,borderLeft:"1px solid var(--bd)"}}>
           <div style={{width:32,height:32,borderRadius:"50%",overflow:"hidden",flexShrink:0,cursor:impersonating?"default":"pointer",position:"relative"}} title={impersonating?"Avatar change disabled while impersonating":"Change profile picture"} onClick={()=>{ if(!impersonating) document.getElementById("avatar-upload")?.click(); }}>
-            {effectiveProfile?.avatar_url ? <img src={effectiveProfile.avatar_url} alt="" style={{width:32,height:32,objectFit:"cover",borderRadius:"50%"}}/> :
+            {effectiveProfile?.avatar_url ? <img src={effectiveProfile.avatar_url} alt="" referrerPolicy="no-referrer" style={{width:32,height:32,objectFit:"cover",borderRadius:"50%"}}/> :
             <div style={{width:32,height:32,borderRadius:"50%",...avatarStyle(effectiveProfile?.email),display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700}}>{initialsForAvatar(effectiveProfile?.email)||"U"}</div>}
           </div>
           <input id="avatar-upload" type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
