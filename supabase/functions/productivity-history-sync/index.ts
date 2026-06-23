@@ -162,6 +162,7 @@ async function runSync(supabase: any, triggeredBy: string): Promise<Record<strin
   const datesTouched = new Set<string>();
   let dropped = 0;
   let nonRoster = 0;
+  let rejected = 0;
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r];
     const date = toIsoDate(row[iDate]);
@@ -177,6 +178,13 @@ async function runSync(supabase: any, triggeredBy: string): Promise<Record<strin
     const st      = iSt      >= 0 ? toInt(row[iSt])      : 0;
     const pending = iPending >= 0 ? toInt(row[iPending]) : 0;
     const occ     = iOcc     >= 0 ? toPctNumeric(row[iOcc]) : null;
+    // Sanity guard: drop physically-impossible daily values so one bad
+    // source cell can't poison a QA's profile/occupancy (cf. the Jun-2026
+    // feed: 700+ non-SBS, 28h side-tasks, 1200% occupancy).
+    if (sbs > 100 || non > 100 || coach > 60 || st > 720 || (occ != null && occ > 250)) {
+      rejected++;
+      continue;
+    }
     const cur = acc.get(key);
     if (cur) {
       cur.sbs += sbs; cur.non_sbs += non; cur.coaching_sessions += coach;
@@ -238,6 +246,7 @@ async function runSync(supabase: any, triggeredBy: string): Promise<Record<strin
     csv_rows: rows.length - 1,
     rows_upserted: records.length,
     rows_dropped: dropped,
+    rows_rejected: rejected,
     rows_non_roster: nonRoster,
     fetch_attempts: fetchRes.attempts,
     dates_touched: [...datesTouched].sort(),
