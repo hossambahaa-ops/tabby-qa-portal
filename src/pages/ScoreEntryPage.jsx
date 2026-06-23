@@ -786,7 +786,7 @@ function ScoreEntryPage(){
               <button onClick={()=>setMtdView("qa")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:mtdView==="qa"?"var(--tabby-purple)":"transparent",color:mtdView==="qa"?"#fff":"var(--tx3)"}}>By QA</button>
               <button onClick={()=>setMtdView("lead")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:mtdView==="lead"?"var(--tabby-purple)":"transparent",color:mtdView==="lead"?"#fff":"var(--tx3)"}}>By Lead</button>
             </div>
-            <span style={{fontSize:12,color:"var(--tx3)"}}>Synced: {sorted[0]?.synced_at ? new Date(sorted[0].synced_at).toLocaleString() : "—"}</span>
+            <span style={{fontSize:12,color:"var(--tx3)"}} title={sorted[0]?.synced_at ? new Date(sorted[0].synced_at).toLocaleString() : ""}>{(()=>{const ts=sorted[0]?.synced_at;if(!ts)return "Synced: —";const s=(Date.now()-new Date(ts).getTime())/1000;const rel=s<60?"just now":s<3600?`${Math.floor(s/60)}m ago`:s<86400?`${Math.floor(s/3600)}h ago`:`${Math.floor(s/86400)}d ago`;return `Updated ${rel}`;})()}</span>
             <button className="btn btn-outline btn-sm" onClick={()=>{
               const csv=["QA,Email,TL,SBS,Non-SBS,DSAT,Late,Never,Valid,Invalid,Sessions,On-time Coaching,Eligible,Not Coached,RTR,RTR Score,Observations,Obs %,Calibrations,Calib %,Completion %,On-time %,JKQ,JKQ Result,Tickets/day,Occupancy %,Working Days,ST Time (mins),ST Time,CSAT %,Surveys"];
               sorted.forEach(r=>{

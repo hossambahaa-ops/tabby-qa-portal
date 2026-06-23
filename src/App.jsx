@@ -107,7 +107,7 @@ const NAV_ITEMS=[
   {key:"targets",label:"Targets",icon:icons.targets,minRole:"qa_lead"},
   {key:"schedule",label:"Attendance",icon:icons.attendance,section:"Management"},
   {key:"tracker",label:"Tracker",icon:icons.tracker,minRole:"senior_qa"},
-  {key:"quality",label:"Quality Control",icon:icons.quality,minRole:"qa_lead"},
+  {key:"quality",label:"Quality Control",icon:icons.quality,minRole:"qa_lead",isNew:"qc-ap-metrics-2026-06"},
   {key:"escalations",label:"Escalations",icon:icons.escalation},
   {key:"hr",label:"HR cases",icon:icons.folder,minRole:"qa_supervisor"},
   {key:"admin",label:"Admin panel",icon:icons.key,minRole:"admin",section:"System"},
@@ -139,6 +139,10 @@ function AppInner(){
   const[session,setSession]=useState(null);const[profile,setProfile]=useState(null);const[loading,setLoading]=useState(true);
   const[sidebarOpen,setSidebarOpen]=useState(false);
   const[sidebarCollapsed,setSidebarCollapsed]=useState(()=>localStorage.getItem("sb_collapsed")==="true");
+  // "New" badges on nav items — dismissed (per feature key) once the user
+  // visits that section. Persisted so it stays dismissed across sessions.
+  const[seenNew,setSeenNew]=useState(()=>{try{return new Set(JSON.parse(localStorage.getItem("seen_new")||"[]"));}catch{return new Set();}});
+  const markNewSeen=(k)=>setSeenNew(prev=>{if(prev.has(k))return prev;const next=new Set(prev);next.add(k);try{localStorage.setItem("seen_new",JSON.stringify([...next]));}catch{}return next;});
   // ── View as a specific user (super_admin only) ──
   // viewAsUser holds the FULL profile we're impersonating; null = off.
   // Persisted in sessionStorage so a page reload keeps the impersonation
@@ -682,9 +686,10 @@ function AppInner(){
                   const n=navCounts[item.key]||0;
                   const dotTone=item.key==="escalations"?"":" amber";
                   return(
-                  <button key={item.key} className={`nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);}} onMouseEnter={()=>prefetchPage(item.key)} onFocus={()=>prefetchPage(item.key)} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}>
+                  <button key={item.key} className={`nav-item${page===item.key?" active":""}`} onClick={()=>{setPage(item.key);setSidebarOpen(false);if(item.isNew)markNewSeen(item.isNew);}} onMouseEnter={()=>prefetchPage(item.key)} onFocus={()=>prefetchPage(item.key)} data-tooltip={item.label} aria-current={page===item.key?"page":undefined}>
                     <Icon d={item.icon} size={18}/>
                     <span className="nav-item-label">{item.label}</span>
+                    {item.isNew && !seenNew.has(item.isNew) && <span className="nav-new-pill">New</span>}
                     {n>0 && <span className={`nav-attn-dot${dotTone}`} title={`${n} pending`}/>}
                   </button>
                   );

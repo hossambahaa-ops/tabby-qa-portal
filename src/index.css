@@ -806,6 +806,13 @@ tbody tr:hover {
   0%, 100% { transform: scale(1);   opacity: 1; }
   50%      { transform: scale(1.35); opacity: .75; }
 }
+/* "New" badge on a nav item — disappears once the section is visited. */
+.nav-new-pill {
+  margin-left: auto; font-size: 9px; font-weight: 700; letter-spacing: .3px;
+  text-transform: uppercase; padding: 1px 6px; border-radius: 999px;
+  color: #04342C; background: #3CFFA5; flex: none;
+}
+.sidebar.collapsed .nav-new-pill { display: none; }
 /* When the sidebar is collapsed, the dot sits in the top-right
    corner of the 64px icon-rail (narrower offsets fit the smaller
    item). */
