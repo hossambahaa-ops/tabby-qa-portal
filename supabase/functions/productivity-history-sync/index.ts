@@ -51,7 +51,23 @@ function parseCSV(text: string): string[][] {
   return rows.filter(r => r.some(v => v && v.trim()));
 }
 
-function normEmail(e: string | null | undefined): string { return (e || "").trim().toLowerCase(); }
+function normEmail(e: string | null | undefined): string {
+  // Lowercase/trim, and repair common domain typos (a missing dot, e.g.
+  // "name@tabbyai" → "name@tabby.ai") so a mistyped source email can't fork a
+  // QA into a phantom duplicate row.
+  return (e || "").trim().toLowerCase().replace(/@tabbyai$/, "@tabby.ai").replace(/@tabbysa$/, "@tabby.sa");
+}
+
+// Daily occupancy is recomputed from the component counts rather than trusting
+// the source's Occupancy column — a split/typo row (an eval that landed on a
+// mistyped email) used to clobber the real value with a nonsense % (the Jun-2026
+// "4%" case). Mirrors the in-app monthly recompute (SBS/Non-SBS evals at 20/15
+// min, coaching 30 min, over a 480-min shift) so daily and monthly agree.
+const SBS_DUR = 20, NSBS_DUR = 15, COACH_DUR = 30, SHIFT_MIN = 480;
+function computeOccupancy(sbs: number, non: number, coach: number, side: number): number {
+  const productive = sbs * SBS_DUR + non * NSBS_DUR + coach * COACH_DUR + side;
+  return Math.round((productive / SHIFT_MIN) * 10000) / 100;
+}
 
 function toInt(v: string | undefined): number {
   if (v == null) return 0;
@@ -202,6 +218,12 @@ async function runSync(supabase: any, triggeredBy: string): Promise<Record<strin
   }
 
   const records = [...acc.values()];
+  // Authoritative occupancy: recompute from the merged components so a
+  // duplicate/typo split (or a bad source Occupancy cell) can't show a nonsense
+  // daily value. This replaces whatever the source column held.
+  for (const rec of records) {
+    rec.occupancy_pct = computeOccupancy(rec.sbs, rec.non_sbs, rec.coaching_sessions, rec.side_task_minutes);
+  }
   if (records.length === 0) return { error: "No valid rows to upsert" };
 
   const BATCH = 200;
