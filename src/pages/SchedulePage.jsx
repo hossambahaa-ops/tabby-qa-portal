@@ -1589,6 +1589,7 @@ function SchedulePage() {
             {SIMPLIFIED_TYPES.map(t => (
               <span key={t.code} style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:t.bg,color:t.color,fontWeight:700,border:`1px solid ${t.color}30`}}>{t.code}</span>
             ))}
+            <span title="Login Day — designated come-online day; expects a check-in" style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:"#8B5CF620",color:"#8B5CF6",fontWeight:700,border:"1px solid #8B5CF630"}}>LD</span>
           </div>
         </div>
 

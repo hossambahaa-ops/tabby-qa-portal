@@ -76,7 +76,7 @@ const DayCell = React.memo(function DayCell({
   //   1. What's the planned code (if any)
   //   2. What's the actual status (if any) and how it was set
   //   3. Approval state (pending / denied)
-  const planLabel = planned === "H" ? "Planned: H (Home)" : planned === "P" ? "Planned: P (Office)" : "";
+  const planLabel = planned === "H" ? "Planned: H (Home)" : planned === "P" ? "Planned: P (Office)" : planned === "LD" ? "Planned: Login Day (📞)" : "";
   const actualLabel = !st
     ? ""
     : isAttendedCode
@@ -93,6 +93,11 @@ const DayCell = React.memo(function DayCell({
   // Visual style for the letter span.
   const baseBg = attType?.bg || "var(--bg3)";
   const baseColor = attType?.color || "var(--tx3)";
+  // A planned Login Day with no actual status yet renders as a solid
+  // purple chip (not the dimmed "plan-only" style) so leads can spot the
+  // designated login days at a glance instead of mistaking them for WFH.
+  const isLoginPlan = planned === "LD" && !st;
+  const ld = ATT_MAP.LD;
   const letterStyle = {
     fontSize: 9,
     padding: "2px 3px",
@@ -100,10 +105,10 @@ const DayCell = React.memo(function DayCell({
     fontWeight: 700,
     display: "inline-block",
     minWidth: 20,
-    background: isDimmed ? "transparent" : baseBg,
-    color: baseColor,
-    opacity: isPending ? 0.55 : isDenied ? 0.4 : isDimmed ? 0.55 : 1,
-    border: isDimmed ? `1px dashed ${baseColor}` : "none",
+    background: isLoginPlan ? ld.bg : (isDimmed ? "transparent" : baseBg),
+    color: isLoginPlan ? ld.color : baseColor,
+    opacity: isLoginPlan ? 1 : (isPending ? 0.55 : isDenied ? 0.4 : isDimmed ? 0.55 : 1),
+    border: isLoginPlan ? `1px solid ${ld.color}` : (isDimmed ? `1px dashed ${baseColor}` : "none"),
     outline: isPending && !isDimmed ? `1px dashed ${baseColor}` : isDenied ? "1px dashed var(--red)" : "none",
     boxShadow: isMissed ? "0 0 0 1px var(--red)" : "none",
     textDecoration: isToday ? "underline" : "none",
