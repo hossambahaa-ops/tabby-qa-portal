@@ -111,6 +111,9 @@ export const sb = {
           } catch {}
         }
         localStorage.setItem("sb_session", JSON.stringify(s));
+        // A fresh sign-in counts as today's daily refresh, so the midnight
+        // daily-refresh modal never double-prompts someone who just logged in.
+        try{localStorage.setItem("pulse_daily_refresh_ack", new Date(Date.now()+108e5).toISOString().slice(0,10));}catch{}
         window.history.replaceState(null, "", window.location.pathname);
         return s;
       }
@@ -126,6 +129,8 @@ export const sb = {
             const d = await r.json();
             const s = { access_token: d.access_token, refresh_token: d.refresh_token, expires_at: d.expires_at, user: d.user };
             localStorage.setItem("sb_session", JSON.stringify(s));
+            // Fresh sign-in counts as today's daily refresh (see midnight gate in App.jsx).
+            try{localStorage.setItem("pulse_daily_refresh_ack", new Date(Date.now()+108e5).toISOString().slice(0,10));}catch{}
             window.history.replaceState(null, "", window.location.pathname);
             return s;
           }

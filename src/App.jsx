@@ -460,24 +460,24 @@ function AppInner(){
   };
 
   // ── Daily refresh enforcement ─────────────────────────────────────
-  // After 12:00 KSA each day, prompt the user to reload Pulse once.
-  // The reload picks up the latest deployed build + clears stale
-  // in-memory state from sessions that have been open since the morning.
-  // Tracked in localStorage so we don't nag the same user twice per day.
-  // Re-checks on a 1-minute tick + on tab focus so the modal appears
-  // at noon even for users who never interact with the page.
+  // Fires at the KSA day boundary (midnight), not mid-day. The modal
+  // shows once per KSA day for any session that has carried over into a
+  // new day (or a stale session restored from a previous day) — it picks
+  // up the latest deployed build + clears stale in-memory state. A FRESH
+  // sign-in stamps today's ack (see supabase.js auth handlers), so a
+  // same-day login is never double-prompted. Re-checks on a 1-minute tick
+  // + on tab focus so a session left open across midnight gets the modal
+  // right at 00:00 KSA.
   const [showDailyRefresh,setShowDailyRefresh]=useState(false);
   useEffect(()=>{
     if(!session)return;
     const check=()=>{
-      const now=new Date();
-      // Riyadh = UTC+3, no DST. Compute KSA hour directly so this
-      // works regardless of the user's device timezone.
-      const ksaHour=(now.getUTCHours()+3)%24;
-      const todayKsa=riyadhTodayStr(now);
+      // riyadhTodayStr() is the KSA (UTC+3) calendar day; it rolls over at
+      // KSA midnight regardless of the user's device timezone.
+      const todayKsa=riyadhTodayStr();
       let lastAck=null;
       try{lastAck=localStorage.getItem("pulse_daily_refresh_ack");}catch{}
-      setShowDailyRefresh(ksaHour>=12&&lastAck!==todayKsa);
+      setShowDailyRefresh(lastAck!==todayKsa);
     };
     check();
     const id=setInterval(check,60_000);
@@ -1058,7 +1058,7 @@ function AppInner(){
         outstanding. No-ops otherwise. */}
     <MandatorySurveyModal/>
 
-    {/* ═══ DAILY REFRESH GATE — after 12 KSA, blocks until user reloads ═══ */}
+    {/* ═══ DAILY REFRESH GATE — new KSA day, blocks until user reloads ═══ */}
     {showDailyRefresh&&<div role="dialog" aria-modal="true" aria-label="Daily refresh" style={{
       position:"fixed",inset:0,background:"rgba(0,0,0,.7)",backdropFilter:"blur(8px)",
       display:"flex",alignItems:"center",justifyContent:"center",zIndex:10001,
@@ -1078,7 +1078,7 @@ function AppInner(){
             <span style={{fontSize:22}}>🔐</span>
             <span style={{fontSize:16,fontWeight:700}}>Daily sign-in refresh</span>
           </div>
-          <div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>Triggered daily at 12:00 KSA</div>
+          <div style={{fontSize:12,color:"rgba(255,255,255,.65)"}}>Triggered daily at midnight KSA</div>
         </div>
         {/* Body */}
         <div style={{padding:"24px"}}>
