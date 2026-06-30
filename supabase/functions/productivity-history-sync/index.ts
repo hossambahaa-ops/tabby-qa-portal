@@ -194,10 +194,12 @@ async function runSync(supabase: any, triggeredBy: string): Promise<Record<strin
     const st      = iSt      >= 0 ? toInt(row[iSt])      : 0;
     const pending = iPending >= 0 ? toInt(row[iPending]) : 0;
     const occ     = iOcc     >= 0 ? toPctNumeric(row[iOcc]) : null;
-    // Sanity guard: drop physically-impossible daily values so one bad
-    // source cell can't poison a QA's profile/occupancy (cf. the Jun-2026
-    // feed: 700+ non-SBS, 28h side-tasks, 1200% occupancy).
-    if (sbs > 100 || non > 100 || coach > 60 || st > 720 || (occ != null && occ > 250)) {
+    // Sanity guard: reject ONLY physically-impossible eval COUNTS (you cannot
+    // run 100+ evaluations or 60+ coachings in a single day — that's a bad
+    // source cell). Side-task minutes and occupancy are deliberately NOT capped:
+    // QAs legitimately log multiple days' worth of side-tasks collectively on
+    // one date, so a day can exceed a single shift / 100% daily occupancy.
+    if (sbs > 100 || non > 100 || coach > 60) {
       rejected++;
       continue;
     }
@@ -246,6 +248,10 @@ async function runSync(supabase: any, triggeredBy: string): Promise<Record<strin
       if (!data || data.length === 0) break;
       // Only a NON-roster email is a true orphan. A roster QA missing from
       // this run's want-set (partial CSV / racing run) must be left alone.
+      // NOTE: roster rows are NEVER deleted here — a day can legitimately drop
+      // out of the feed (e.g. a pending side-task gets resolved) while still
+      // being real, approved working time. Deleting it would wipe that day's
+      // Working Day + actual occupancy. Reconcile such cases at the source.
       for (const row of data) if (!wantEmails.has(row.qa_email) && !rosterByLocal.has((row.qa_email || "").toLowerCase().split("@")[0])) orphanEmails.push(row.qa_email);
       if (data.length < PAGE) break;
       from += PAGE;
