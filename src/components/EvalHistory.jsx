@@ -46,10 +46,9 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
   const [view, setView] = useState("daily");
   const [refreshing, setRefreshing] = useState(false);
   const today = riyadhTodayStr();
-  // Default range: from May 1 (when productivity_history started) to
-  // today, so weekly + monthly views show something useful out of the
-  // box. The lead can still narrow it via the date picker.
-  const defaultFrom = "2026-05-01";
+  // Default range: the current month only (1st of this month → today).
+  // The lead can still widen/narrow it via the date picker.
+  const defaultFrom = today.slice(0, 8) + "01"; // e.g. "2026-06-30" → "2026-06-01"
   const [dateFrom, setDateFrom] = useState(defaultFrom);
   const [dateTo, setDateTo] = useState(today);
 
