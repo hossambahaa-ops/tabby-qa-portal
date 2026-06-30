@@ -997,7 +997,7 @@ function QAProfilePage() {
               const avgProd = totalLogin > 0 ? totalTickets / totalLogin : null;
               const rows = [
                 ["SBS", m.sbs],["Non-SBS", m.non_sbs],["DSAT", m.dsat],
-                ["RTR Score", fmtPct(m.avg_rtr_score)],["Calibration", fmtPct(m.avg_calibration_match_rate)],
+                ["RTR Score", fmtPct(m.avg_rtr_score)],["RTR #", m.rtr_count ?? "—"],["Calibration", fmtPct(m.avg_calibration_match_rate)],
                 ["CO Score", fmtPct(m.avg_observation_score_pct)],
                 // On-time falls back to CRM-anchored % when there's no eval-date
                 // eligibility yet (otherwise the source SQL hands us a misleading "0%").
@@ -1007,14 +1007,7 @@ function QAProfilePage() {
                   return "—";
                 })()],
                 ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"],
-                ["Occupancy", (() => {
-                  // Prefer the feed-computed value (matches EvalHistory's
-                  // monthly row). Falls back to MTD's stored value if the
-                  // feed is empty for this month.
-                  const computed = computedOccForMonth(m.month);
-                  if (computed != null) return computed.toFixed(1) + "%";
-                  return fmtPct(m.occupancy_pct);
-                })()],["JKQ", m.jkq_score || "—"],
+                ["JKQ", m.jkq_score || "—"],
                 ["CSAT %", (() => { const v = csatPctValue(m.csat_pct); const s = Number(m.csat_total || 0); return (v != null && s > 0) ? v.toFixed(1) + "%" : "—"; })()],
                 ["Surveys", m.csat_total ?? "—"],
               ];
