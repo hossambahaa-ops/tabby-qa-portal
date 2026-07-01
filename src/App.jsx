@@ -42,6 +42,7 @@ const TargetsPage = lazy(() => import("./pages/TargetsPage.jsx"));
 const AuditTrailPage = lazy(() => import("./pages/AuditTrailPage.jsx"));
 const AdminPage = lazy(() => import("./pages/AdminPage.jsx"));
 const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage.jsx"));
+const DsatReviewsPage = lazy(() => import("./pages/DsatReviewsPage.jsx"));
 const DAMPage = lazy(() => import("./pages/DAMPage.jsx"));
 const ActionPlanPage = lazy(() => import("./pages/ActionPlanPage.jsx"));
 const CoachingPage = lazy(() => import("./pages/CoachingPage.jsx"));
@@ -112,6 +113,7 @@ const NAV_ITEMS=[
   {key:"hr",label:"HR cases",icon:icons.folder,minRole:"qa_supervisor"},
   {key:"admin",label:"Admin panel",icon:icons.key,minRole:"admin",section:"System"},
   {key:"utilization",label:"App utilization",icon:icons.utilization,minRole:"qa_supervisor"},
+  {key:"dsat-reviews",label:"DSAT Reviews",icon:icons.csat,minRole:"super_admin"},
 ];
 
 /* ═══ APP ═══ */
@@ -133,6 +135,7 @@ function AppInner(){
     "hr",
     "utilization",
     "quality-dna",
+    "dsat-reviews",
   ]), []);
   const location=useLocation();
   const page=location.pathname.replace(/^\//,"") || "dashboard";
@@ -973,6 +976,7 @@ function AppInner(){
       <Route path="/expertise" element={hasRole(userRole,"admin")?<ExpertisePage/>:<PlaceholderPage title="Expertise" icon={icons.expertise} minRole="admin" userRole={userRole}/>}/>
       <Route path="/targets" element={<TargetsPage/>}/>
       <Route path="/leaderboard" element={hasRole(userRole,"super_admin")?<LeaderboardPage/>:<PlaceholderPage title="Leaderboard" icon={icons.podium} minRole="super_admin" userRole={userRole}/>}/>
+      <Route path="/dsat-reviews" element={hasRole(userRole,"super_admin")?<DsatReviewsPage/>:<PlaceholderPage title="DSAT Reviews" icon={icons.csat} minRole="super_admin" userRole={userRole}/>}/>
       <Route path="/profile" element={<QAProfilePage/>}/>
       <Route path="/schedule" element={<SchedulePage/>}/>
       <Route path="/escalations" element={<EscalationsPage/>}/>
