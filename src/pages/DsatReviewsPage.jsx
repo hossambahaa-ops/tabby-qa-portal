@@ -12,8 +12,8 @@ export default function DsatReviewsPage() {
     <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "20px 24px", height: "100%", minHeight: 0 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
         <div>
-          <h1 className="page-title">Quality Evaluations &amp; DSAT Reviews</h1>
-          <p className="page-subtitle">Embedded tool — visible to super admins only.</p>
+          <h1 className="page-title">Brixi Review</h1>
+          <p className="page-subtitle">Quality evaluations &amp; DSAT reviews — visible to super admins only.</p>
         </div>
         <a
           href={DSAT_URL}

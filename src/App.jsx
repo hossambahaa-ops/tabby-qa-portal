@@ -113,7 +113,7 @@ const NAV_ITEMS=[
   {key:"hr",label:"HR cases",icon:icons.folder,minRole:"qa_supervisor"},
   {key:"admin",label:"Admin panel",icon:icons.key,minRole:"admin",section:"System"},
   {key:"utilization",label:"App utilization",icon:icons.utilization,minRole:"qa_supervisor"},
-  {key:"dsat-reviews",label:"DSAT Reviews",icon:icons.csat,minRole:"super_admin"},
+  {key:"dsat-reviews",label:"Brixi Review",icon:icons.csat,minRole:"super_admin"},
 ];
 
 /* ═══ APP ═══ */
@@ -976,7 +976,7 @@ function AppInner(){
       <Route path="/expertise" element={hasRole(userRole,"admin")?<ExpertisePage/>:<PlaceholderPage title="Expertise" icon={icons.expertise} minRole="admin" userRole={userRole}/>}/>
       <Route path="/targets" element={<TargetsPage/>}/>
       <Route path="/leaderboard" element={hasRole(userRole,"super_admin")?<LeaderboardPage/>:<PlaceholderPage title="Leaderboard" icon={icons.podium} minRole="super_admin" userRole={userRole}/>}/>
-      <Route path="/dsat-reviews" element={hasRole(userRole,"super_admin")?<DsatReviewsPage/>:<PlaceholderPage title="DSAT Reviews" icon={icons.csat} minRole="super_admin" userRole={userRole}/>}/>
+      <Route path="/dsat-reviews" element={hasRole(userRole,"super_admin")?<DsatReviewsPage/>:<PlaceholderPage title="Brixi Review" icon={icons.csat} minRole="super_admin" userRole={userRole}/>}/>
       <Route path="/profile" element={<QAProfilePage/>}/>
       <Route path="/schedule" element={<SchedulePage/>}/>
       <Route path="/escalations" element={<EscalationsPage/>}/>
