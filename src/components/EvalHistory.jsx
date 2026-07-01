@@ -56,6 +56,7 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
     setLoading(true);
     const f = from || dateFrom;
     const t = to || dateTo;
+    let count = 0;
     try {
       // New source: productivity_history. Started May 2026; one row per
       // (date, qa_email). Has its own occupancy_pct so we don't have to
@@ -79,13 +80,16 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
         token,
       });
       const filtered = (rows || []).filter(r => matchQA(r.qa_email));
-      setData(filtered.sort((a, b) => a.date.localeCompare(b.date)));
+      const sorted = filtered.sort((a, b) => a.date.localeCompare(b.date));
+      setData(sorted);
+      count = sorted.length;
     } catch (e) {
       console.error("EvalHistory:", e);
       globalToast("error", "Failed to load evaluation history");
       setData([]);
     }
     setLoading(false);
+    return count;
   };
 
   // Auto-load on mount / QA change. Showing the archive immediately
@@ -94,7 +98,22 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
     if (!qaEmail) { setLoading(false); return; }
     setData(null);
     setLoading(true);
-    load(defaultFrom, today);
+    (async () => {
+      const n = await load(defaultFrom, today);
+      if (!n) {
+        // Current month has no rows yet (e.g. the 1st of a new month) — fall
+        // back to the previous month so the default view is never blank.
+        const [y, mo] = today.split("-").map(Number);
+        const py = mo === 1 ? y - 1 : y;
+        const pm = mo === 1 ? 12 : mo - 1;
+        const pmStr = String(pm).padStart(2, "0");
+        const prevFrom = `${py}-${pmStr}-01`;
+        const prevTo = `${py}-${pmStr}-${String(new Date(py, pm, 0).getDate()).padStart(2, "0")}`;
+        setDateFrom(prevFrom);
+        setDateTo(prevTo);
+        await load(prevFrom, prevTo);
+      }
+    })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qaEmail]);
 
