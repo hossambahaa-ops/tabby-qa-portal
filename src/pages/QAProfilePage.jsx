@@ -62,6 +62,7 @@ function QAProfilePage() {
   const [expandedPlan, setExpandedPlan] = useState(null);
   const [expandedTask, setExpandedTask] = useState(null);
   const [selMonth, setSelMonth] = useState(null);
+  const [csatByMonth, setCsatByMonth] = useState({}); // month -> {good,bad} from csat_by_topic (Q_Support_Performance)
   const [refreshing, setRefreshing] = useState(false);
   // Tab state — "overview" (today + activity) vs "monthly" (perf + trend + expertise)
   const [activeTab, setActiveTab] = useUrlState("ptab", "overview");
@@ -175,6 +176,20 @@ function QAProfilePage() {
   // Use the latest month that has data (first in chronologically sorted array)
   const latestMtd = qaMtd.length > 0 ? qaMtd[0] : null;
 
+  // CSAT overlay from csat_by_topic (Q_Support_Performance) — the fresh CSAT
+  // source; mtd_scores (the MTD sheet) can lag or miss a month mid-cycle.
+  const csatForMonth = (mo) => {
+    const a = mo ? csatByMonth[mo] : null;
+    if (!a) return null;
+    const total = (a.good || 0) + (a.bad || 0);
+    return total > 0 ? { good: a.good, bad: a.bad, total, pct: a.good / total * 100 } : null;
+  };
+  const csatMonths = sortMonthsDesc(Object.keys(csatByMonth).filter(mo => csatForMonth(mo)));
+  // Month-picker options: MTD months plus any CSAT-only months.
+  const pickerMonths = sortMonthsDesc([...new Set([...qaMtd.map(m => m.month), ...csatMonths])]);
+  // Freshest CSAT month for the summary header (may have no MTD row yet).
+  const headlineCsatMonth = csatMonths[0] || latestMtd?.month || null;
+
   // Per-month occupancy computed in-app from productivity_history rows
   // (the daily feed) using MTD's working_days as the denominator.
   // Bypasses MTD's stored occupancy_pct which can lag behind the feed
@@ -211,6 +226,38 @@ function QAProfilePage() {
         }).catch(() => []);
         if (!cancelled) setProdHistRows(Array.isArray(rows) ? rows : []);
       } catch { if (!cancelled) setProdHistRows([]); }
+    })();
+    return () => { cancelled = true; };
+  }, [token, selectedQA, prodHistKey]);
+
+  // CSAT surveys per month from csat_by_topic (Q_Support_Performance) — the
+  // fresh CSAT source. Used to overlay CSAT % / Surveys and to surface
+  // CSAT-only months (e.g. this month before the MTD sheet has the QA yet).
+  useEffect(() => {
+    if (!token || !selectedQA) { setCsatByMonth({}); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const lc = selectedQA.toLowerCase();
+        const variants = [...new Set([
+          lc,
+          lc.endsWith("@tabby.ai") ? lc.replace("@tabby.ai", "@tabby.sa")
+            : lc.endsWith("@tabby.sa") ? lc.replace("@tabby.sa", "@tabby.ai") : lc,
+        ])];
+        const inList = variants.map(e => `"${e}"`).join(",");
+        const rows = await sb.query("csat_by_topic", {
+          token,
+          select: "qa_email,month,good,bad",
+          filters: `qa_email=in.(${inList})`,
+        }).catch(() => []);
+        const agg = {};
+        for (const r of (rows || [])) {
+          if (!r.month) continue;
+          const a = agg[r.month] || (agg[r.month] = { good: 0, bad: 0 });
+          a.good += Number(r.good || 0); a.bad += Number(r.bad || 0);
+        }
+        if (!cancelled) setCsatByMonth(agg);
+      } catch { if (!cancelled) setCsatByMonth({}); }
     })();
     return () => { cancelled = true; };
   }, [token, selectedQA, prodHistKey]);
@@ -596,16 +643,16 @@ function QAProfilePage() {
               </div>
               <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
                 <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                  <span>CSAT ({latestMtd?.month || "—"})</span>
+                  <span>CSAT ({headlineCsatMonth || "—"})</span>
                   <QuartilePill quartile={latestMtd?.csat_quartile} lob={latestMtd?.lob} size="sm" />
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>CSAT %</span>
-                  {(()=>{const v=csatPctValue(latestMtd?.csat_pct);const s=Number(latestMtd?.csat_total||0);const show=v!=null&&s>0;return <span style={{fontSize:13,fontWeight:700,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</span>;})()}
+                  {(()=>{const c=csatForMonth(headlineCsatMonth);const v=c?c.pct:csatPctValue(latestMtd?.csat_pct);const s=c?c.total:Number(latestMtd?.csat_total||0);const show=v!=null&&s>0;return <span style={{fontSize:13,fontWeight:700,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</span>;})()}
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>Surveys</span>
-                  <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{latestMtd?.csat_total ?? "—"}</span>
+                  <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{csatForMonth(headlineCsatMonth)?.total ?? latestMtd?.csat_total ?? "—"}</span>
                 </div>
               </div>
               {isTicketDay && <>
@@ -964,8 +1011,8 @@ function QAProfilePage() {
             <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
               <span className="card-title">Performance</span>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                {qaMtd.length > 0 && <select className="select form-input" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={selMonth||latestMtd?.month||""} onChange={e=>setSelMonth(e.target.value)}>
-                  {qaMtd.map(m=><option key={m.month} value={m.month}>{m.month}</option>)}
+                {pickerMonths.length > 0 && <select className="select form-input" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={selMonth||latestMtd?.month||pickerMonths[0]||""} onChange={e=>setSelMonth(e.target.value)}>
+                  {pickerMonths.map(mo=><option key={mo} value={mo}>{mo}</option>)}
                 </select>}
                 {/* Super-admin: adjust the displayed month's MTD KPIs.
                     The save overwrites the synced columns directly so the
@@ -990,7 +1037,10 @@ function QAProfilePage() {
               </div>
             </div>
             {(()=>{
-              const m = selMonth ? qaMtd.find(x=>x.month===selMonth) : latestMtd;
+              const realM = selMonth ? qaMtd.find(x=>x.month===selMonth) : latestMtd;
+              // CSAT-only month (in csat_by_topic but no MTD row yet): render a
+              // stub so CSAT shows and every other KPI falls back to "—".
+              const m = realM || (selMonth ? { month: selMonth } : null);
               if(!m) return <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No MTD data available</div>;
               const totalLogin = parseFloat(m.total_login_hours || 0);
               const totalTickets = parseFloat(m.total_tickets_handled || 0);
@@ -1008,8 +1058,8 @@ function QAProfilePage() {
                 })()],
                 ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"],
                 ["JKQ", m.jkq_score || "—"],
-                ["CSAT %", (() => { const v = csatPctValue(m.csat_pct); const s = Number(m.csat_total || 0); return (v != null && s > 0) ? v.toFixed(1) + "%" : "—"; })()],
-                ["Surveys", m.csat_total ?? "—"],
+                ["CSAT %", (() => { const c = csatForMonth(m.month); const v = c ? c.pct : csatPctValue(m.csat_pct); const s = c ? c.total : Number(m.csat_total || 0); return (v != null && s > 0) ? v.toFixed(1) + "%" : "—"; })()],
+                ["Surveys", csatForMonth(m.month)?.total ?? m.csat_total ?? "—"],
               ];
               if (totalLogin > 0 || totalTickets > 0 || m.avg_apt != null || m.avg_agpt != null) {
                 rows.push(
