@@ -100,10 +100,11 @@ export default function CSATPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [rows, rosterRows, profRows] = await Promise.all([
+        const [rows, rosterRows, profRows, csatTopicRows] = await Promise.all([
           listMtd({ token, filters: "order=month.desc,qa_email.asc" }),
           listRoster({ token, select: "email,queue,manager_email" }),
           listProfiles({ token, select: "id,email,role", cacheKey: "profiles_slim" }),
+          sb.query("csat_by_topic", { token, select: "qa_email,month,good,bad" }).catch(() => []),
         ]);
         setRoster(rosterRows);
         // Mirror ScoreEntryPage filtering: exclude non-QA profiles and entries
@@ -140,7 +141,40 @@ export default function CSATPage() {
           if (!mgr) return false;
           return qaLeadSet.has(mgr) || qaLeadSet.has(mgr.split("@")[0]);
         }).map(r => r.email?.toLowerCase()));
-        const filtered = rows.filter(r => {
+        // Bring in QAs who have CSAT surveys in csat_by_topic
+        // (Q_Support_Performance) but no mtd_scores row for that month yet
+        // (e.g. not in the MTD sheet so far, mid-month). Their CSAT good/bad/
+        // surveys come from csat_by_topic; TL/LOB from the roster; ticket-level
+        // columns stay blank. This makes the CSAT tab reflect the fresh CSAT
+        // source rather than only the (lagging) MTD sheet.
+        const csatAgg = new Map();
+        for (const t of (csatTopicRows || [])) {
+          const em = (t.qa_email || "").toLowerCase();
+          if (!em || !t.month) continue;
+          const k = `${em} ${t.month}`;
+          const a = csatAgg.get(k) || { good: 0, bad: 0, email: t.qa_email, month: t.month };
+          a.good += Number(t.good || 0); a.bad += Number(t.bad || 0);
+          csatAgg.set(k, a);
+        }
+        const mtdKeys = new Set(rows.map(r => `${(r.qa_email || "").toLowerCase()} ${r.month}`));
+        const rosterByEmail = new Map(rosterRows.map(r => [(r.email || "").toLowerCase(), r]));
+        const csatOnlyRows = [];
+        for (const a of csatAgg.values()) {
+          if (mtdKeys.has(`${a.email.toLowerCase()} ${a.month}`)) continue;
+          const total = a.good + a.bad;
+          if (total <= 0) continue;
+          const ros = rosterByEmail.get(a.email.toLowerCase());
+          csatOnlyRows.push({
+            qa_email: a.email, month: a.month,
+            qa_tl: ros?.manager_email || null,
+            lob: ros?.queue || null,
+            csat_good: a.good, csat_bad: a.bad, csat_total: total,
+            csat_pct: (a.good / total * 100).toFixed(2) + "%",
+            tickets_touched: null, abt: null, csat_quartile: null,
+          });
+        }
+        const allRows = csatOnlyRows.length ? rows.concat(csatOnlyRows) : rows;
+        const filtered = allRows.filter(r => {
           const em = r.qa_email?.toLowerCase();
           if (blacklist.has(em)) return false;
           const tl = r.qa_tl?.toLowerCase();
