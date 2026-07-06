@@ -335,22 +335,18 @@ function ActionPlanPage() {
     const invalidCustom = customMetrics.some(c => !c.name.trim() || c.targets.some(t => t === "" || t === null || t === undefined));
     if (invalidCustom) { globalToast("error", "Fill in name and all targets for each custom metric"); return; }
 
-    // Reject when ANY active plan exists for this QA, not just the
-    // same type. Allowing simultaneous AP + PIP meant both tracked,
-    // both concluded, and both auto-issued DAM flags on failure —
-    // double-counting an offense that's really one offense.
+    // A QA can have multiple INDEPENDENT plans at once (e.g. a CSAT PIP and a
+    // separate Calibration PIP) — each is its own record, not linked to the
+    // others. We no longer hard-block a second active plan; we just confirm so
+    // a lead doesn't open an accidental duplicate. Note: each plan still issues
+    // its own DAM flag on failure, so avoid two plans for the *same* KPI.
     const existing = plans.find(p =>
       p.qa_email?.toLowerCase() === selQaEmail.toLowerCase() &&
       (p.status === "active" || p.status === "pending_review")
     );
-    if (existing) {
-      const sameType = existing.type === planType;
-      globalToast(
-        "error",
-        sameType
-          ? `${nameFromEmail(selQaEmail)} already has an active ${existing.type.toUpperCase()} plan`
-          : `${nameFromEmail(selQaEmail)} already has an active ${existing.type.toUpperCase()}. Conclude it before starting a ${planType.toUpperCase()}.`
-      );
+    if (existing && typeof window !== "undefined" && !window.confirm(
+      `${nameFromEmail(selQaEmail)} already has an active ${existing.type.toUpperCase()}.\n\nThis creates a separate, independent ${planType.toUpperCase()} — not linked to the existing one. Continue?`
+    )) {
       return;
     }
 
