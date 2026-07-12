@@ -62,9 +62,6 @@ function SchedulePage() {
   const [selectedQAs, setSelectedQAs] = useState(new Set());
   // Calendar-tab-only: filter by QA Lead. Empty = show all.
   const [selectedLeadFilter, setSelectedLeadFilter] = useUrlState("lead", "");
-  // Office/domain filter (super-admins / managers who see both offices).
-  // Lets them isolate one domain — e.g. all of KSA/tabby.sa — for payroll.
-  const [selAttDomain, setSelAttDomain] = useUrlState("adom", "");
   const [editCell, setEditCell] = useState(null);
   const [pendingReason, setPendingReason] = useState(""); // reason input in cell picker
   const [pickerStage, setPickerStage] = useState(null); // null | { code } — sub-stage inside open cell picker
@@ -73,6 +70,12 @@ function SchedulePage() {
   const [monthLock, setMonthLock] = useState(null);
   const {ask: confirmAsk, el: confirmEl} = useConfirm();
 
+  // QA Leads granted a full-office attendance view — all QAs in their own
+  // operational_domain (e.g. for payroll) — WITHOUT a supervisor promotion,
+  // which would move them into the supervisor grouping and un-anchor their own
+  // team on the calendar. Scoped to their domain, so they see all of (e.g.)
+  // KSA and nothing else. Add an email here to grant; nobody else is affected.
+  const FULL_DOMAIN_ATTENDANCE_LEADS = new Set(["abdelrahman.shahat@tabby.sa"]);
   const myEmail = profile?.email?.toLowerCase() || "";
   const isQA = profile?.role === "qa" || profile?.role === "senior_qa";
   const isLead = hasRole(profile?.role, "qa_lead");
@@ -315,21 +318,59 @@ function SchedulePage() {
   // their team. Sr.QAs are already in qa_roster as QAs of a lead so
   // they fall in via the existing allQAs filter; only QA Leads need
   // to be lifted in from profiles.
-  const visibleQAsBase = (() => {
+  const visibleQAs = (() => {
     const allQAs = roster.filter(r => {
       const mgr = r.manager_email?.toLowerCase();
       return mgr && (qaLeadSet.has(mgr) || qaLeadSet.has(mgr?.split("@")[0]));
     });
+
+    // "Everyone grouped by lead" — each lead row emitted before their direct
+    // reports; orphan QAs (manager not a known lead) fall to the bottom.
+    // Shared by the supervisor/admin path and by full-domain-granted leads.
+    const groupByLead = () => {
+      const grouped = [];
+      const used = new Set();
+      const sortedLeads = [...leadRosterRows].sort((a, b) => (a.email || "").localeCompare(b.email || ""));
+      for (const lead of sortedLeads) {
+        const le = lead.email?.toLowerCase();
+        grouped.push(lead);
+        used.add(le);
+        const team = allQAs
+          .filter(r => {
+            const mgr = (r.manager_email || "").toLowerCase();
+            return mgr === le || (mgr && le && mgr.split("@")[0] === le.split("@")[0]);
+          })
+          .sort((a, b) => (a.display_name || a.email || "").localeCompare(b.display_name || b.email || ""));
+        for (const t of team) {
+          grouped.push(t);
+          used.add(t.email?.toLowerCase());
+        }
+      }
+      for (const q of allQAs) {
+        if (!used.has(q.email?.toLowerCase())) grouped.push(q);
+      }
+      return grouped;
+    };
+
     if (isQA) return allQAs.filter(r => emailsMatchLoose(r.email, myEmail));
+
+    // Granted leads (e.g. Shahat, for payroll): full view of their own office,
+    // grouped by lead. They stay qa_lead, so their own team still anchors under
+    // them — the exact thing that broke when the role was bumped to supervisor.
+    if (isLead && !hasRole(profile?.role, "qa_supervisor") && FULL_DOMAIN_ATTENDANCE_LEADS.has(myEmail)) {
+      const myDom = (profile?.operational_domain || (myEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai")).toLowerCase();
+      return groupByLead().filter(r => (r.email || "").toLowerCase().endsWith("@" + myDom));
+    }
+
+    // Normal qa_lead: their own team only.
     if (isLead && !hasRole(profile?.role, "qa_supervisor")) {
       const team = allQAs.filter(r => emailsMatchLoose(r.manager_email, myEmail));
       const meRow = leadRosterRows.find(r => emailsMatchLoose(r.email, myEmail));
       return meRow ? [meRow, ...team] : team;
     }
-    // For supervisors / admins viewing the calendar tab, allow narrowing
-    // by a specific QA Lead (selectedLeadFilter, set via the dropdown
-    // added on the page header). Empty string = show everyone, grouped
-    // by lead.
+
+    // Supervisors / admins viewing the calendar tab can narrow by a specific
+    // QA Lead (selectedLeadFilter). Empty string = everyone, grouped by lead.
     if (selectedLeadFilter) {
       const sel = selectedLeadFilter.toLowerCase();
       const selLocal = sel.split("@")[0];
@@ -343,44 +384,8 @@ function SchedulePage() {
       });
       return leadRow ? [leadRow, ...team] : team;
     }
-    // No filter: group every lead with their team. Each lead row is
-    // emitted before their direct reports so leads appear at the top
-    // of each cluster. Any orphan QAs (manager not in qaLeadSet) fall
-    // through to the bottom as a "no lead" group.
-    const grouped = [];
-    const used = new Set();
-    const sortedLeads = [...leadRosterRows].sort((a, b) =>
-      (a.email || "").localeCompare(b.email || "")
-    );
-    for (const lead of sortedLeads) {
-      const le = lead.email?.toLowerCase();
-      grouped.push(lead);
-      used.add(le);
-      const team = allQAs
-        .filter(r => {
-          const mgr = (r.manager_email || "").toLowerCase();
-          return mgr === le || (mgr && le && mgr.split("@")[0] === le.split("@")[0]);
-        })
-        // Sort QAs alphabetically within their team so the grid is
-        // predictable across renders (was previously roster-insertion order).
-        .sort((a, b) => (a.display_name || a.email || "").localeCompare(b.display_name || b.email || ""));
-      for (const t of team) {
-        grouped.push(t);
-        used.add(t.email?.toLowerCase());
-      }
-    }
-    for (const q of allQAs) {
-      if (!used.has(q.email?.toLowerCase())) grouped.push(q);
-    }
-    return grouped;
+    return groupByLead();
   })();
-  // Apply the office/domain filter last so it scopes every path (QA, lead,
-  // supervisor, admin) uniformly. Both the calendar grid AND the monthly /
-  // payroll summary derive from visibleQAs, so selecting e.g. tabby.sa gives
-  // a KSA-only view and a KSA-only payroll export in one click.
-  const visibleQAs = selAttDomain
-    ? visibleQAsBase.filter(r => (r.email || "").toLowerCase().endsWith("@" + selAttDomain))
-    : visibleQAsBase;
 
   const [year, month] = selMonth.split("-").map(Number);
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -970,25 +975,6 @@ function SchedulePage() {
             >
               📊 Send attendance digest
             </button>
-          )}
-
-          {/* Office / domain filter — admins & managers only (they're the
-              ones who see both offices). NOT tab-gated: it scopes the calendar
-              grid AND the monthly / payroll summary, so it works for payroll
-              on either tab. Supervisors are already domain-locked, so this is
-              redundant for them and hidden. */}
-          {hasRole(profile?.role, "admin") && (
-            <select
-              value={selAttDomain}
-              onChange={(e) => setSelAttDomain(e.target.value)}
-              className="form-input"
-              style={{ width: 160, fontSize: 12 }}
-              title="Filter attendance by office / domain"
-            >
-              <option value="">All offices</option>
-              <option value="tabby.sa">KSA (tabby.sa)</option>
-              <option value="tabby.ai">Egypt (tabby.ai)</option>
-            </select>
           )}
 
           {/* QA Lead filter — calendar tab, supervisors / admins only.
