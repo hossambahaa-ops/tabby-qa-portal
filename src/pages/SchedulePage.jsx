@@ -62,6 +62,9 @@ function SchedulePage() {
   const [selectedQAs, setSelectedQAs] = useState(new Set());
   // Calendar-tab-only: filter by QA Lead. Empty = show all.
   const [selectedLeadFilter, setSelectedLeadFilter] = useUrlState("lead", "");
+  // Office/domain filter (super-admins / managers who see both offices).
+  // Lets them isolate one domain — e.g. all of KSA/tabby.sa — for payroll.
+  const [selAttDomain, setSelAttDomain] = useUrlState("adom", "");
   const [editCell, setEditCell] = useState(null);
   const [pendingReason, setPendingReason] = useState(""); // reason input in cell picker
   const [pickerStage, setPickerStage] = useState(null); // null | { code } — sub-stage inside open cell picker
@@ -312,7 +315,7 @@ function SchedulePage() {
   // their team. Sr.QAs are already in qa_roster as QAs of a lead so
   // they fall in via the existing allQAs filter; only QA Leads need
   // to be lifted in from profiles.
-  const visibleQAs = (() => {
+  const visibleQAsBase = (() => {
     const allQAs = roster.filter(r => {
       const mgr = r.manager_email?.toLowerCase();
       return mgr && (qaLeadSet.has(mgr) || qaLeadSet.has(mgr?.split("@")[0]));
@@ -371,6 +374,13 @@ function SchedulePage() {
     }
     return grouped;
   })();
+  // Apply the office/domain filter last so it scopes every path (QA, lead,
+  // supervisor, admin) uniformly. Both the calendar grid AND the monthly /
+  // payroll summary derive from visibleQAs, so selecting e.g. tabby.sa gives
+  // a KSA-only view and a KSA-only payroll export in one click.
+  const visibleQAs = selAttDomain
+    ? visibleQAsBase.filter(r => (r.email || "").toLowerCase().endsWith("@" + selAttDomain))
+    : visibleQAsBase;
 
   const [year, month] = selMonth.split("-").map(Number);
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -960,6 +970,25 @@ function SchedulePage() {
             >
               📊 Send attendance digest
             </button>
+          )}
+
+          {/* Office / domain filter — admins & managers only (they're the
+              ones who see both offices). NOT tab-gated: it scopes the calendar
+              grid AND the monthly / payroll summary, so it works for payroll
+              on either tab. Supervisors are already domain-locked, so this is
+              redundant for them and hidden. */}
+          {hasRole(profile?.role, "admin") && (
+            <select
+              value={selAttDomain}
+              onChange={(e) => setSelAttDomain(e.target.value)}
+              className="form-input"
+              style={{ width: 160, fontSize: 12 }}
+              title="Filter attendance by office / domain"
+            >
+              <option value="">All offices</option>
+              <option value="tabby.sa">KSA (tabby.sa)</option>
+              <option value="tabby.ai">Egypt (tabby.ai)</option>
+            </select>
           )}
 
           {/* QA Lead filter — calendar tab, supervisors / admins only.
