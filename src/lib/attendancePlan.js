@@ -124,7 +124,10 @@ export function isWorkdayDate(dateStr) {
 // Returns true if the date is editable in the plan grid.
 // Default rules (leads + below):
 //   - date must be ≥ PLAN_FEATURE_START
-//   - date must be today (Riyadh) or later
+//   - date must be STRICTLY AFTER today (Riyadh) — leads plan the "next
+//     days" only. Today and past are read-only on the plan; once a day
+//     has arrived, its outcome (incl. leaves) is recorded on the actual
+//     attendance, not re-planned. (Changed 2026-07-13 per Ops.)
 // Super-admin override (opts.allowPast = true):
 //   - the "no past dates" rule is lifted so super-admin can backfill
 //     past months (e.g. correct a PH or CDO day that slipped through
@@ -132,7 +135,7 @@ export function isWorkdayDate(dateStr) {
 //     applies — there's no plan schema before May-2026.
 export function isPlanEditableDate(dateStr, now = new Date(), opts = {}) {
   if (!dateStr || dateStr < PLAN_FEATURE_START) return false;
-  if (!opts.allowPast && dateStr < riyadhTodayStr(now)) return false;
+  if (!opts.allowPast && dateStr <= riyadhTodayStr(now)) return false;
   return true;
 }
 

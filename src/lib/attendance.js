@@ -70,10 +70,14 @@ export const ATTENDANCE_TYPES = [
   { code: "X",         label: "Not Employed",             color: "#6B7280", bg: "#6B728010" },
   { code: "CDO",       label: "Cancel Day Off (worked)",  color: "#14B8A6", bg: "#14B8A620" },
   { code: "Tabby Day", label: "Tabby Day (annual perk)",  color: "#A855F7", bg: "#A855F720" },
-  // Umbrella "Leave" code introduced for the simplified picker from
-  // 2026-06-01. Replaces AL / Paid SL / ML / UL / EL in the QA-facing
-  // dropdown. Legacy granular codes stay valid for historical rows
-  // and admin-only flows (CSV upload, MtdAdjust, etc.).
+  // Granular leave set (re-expanded 2026-07-13 per Ops — replaced the
+  // umbrella "Leave" in the picker). Casual / PH-Off / Lieu are new;
+  // AL / Paid SL / ML already existed above and are reused.
+  { code: "Casual",  label: "Casual Leave",             color: "#F59E0B", bg: "#F59E0B20" },
+  { code: "PH-Off",  label: "Public Holiday (day off)", color: "#7C3AED", bg: "#7C3AED20" },
+  { code: "Lieu",    label: "Lieu Day",                 color: "#0EA5E9", bg: "#0EA5E920" },
+  // Umbrella "Leave" code (2026-06-01 → 2026-07-13). Kept for historical
+  // rows and admin flows, but no longer offered in the picker.
   { code: "Leave",   label: "Leave",                color: "#EF4444", bg: "#EF444420" },
 ];
 
@@ -81,7 +85,7 @@ export const ATT_MAP = ATTENDANCE_TYPES.reduce((acc, t) => { acc[t.code] = t; re
 
 // Codes that need lead approval when set by a QA themselves. Leads
 // setting these for their team approve them implicitly.
-export const APPROVAL_CODES = new Set(["OT", "PH", "CDO", "Tabby Day", "Leave"]);
+export const APPROVAL_CODES = new Set(["OT", "PH", "CDO", "Tabby Day", "Leave", "AL", "Paid SL", "ML", "UL", "Casual", "PH-Off", "Lieu"]);
 
 // Codes shown in the cell picker. OT is intentionally excluded — it's a
 // separate request flow behind the "Request OT" header button so it
@@ -98,8 +102,18 @@ export const PICKER_TYPES = ATTENDANCE_TYPES.filter(t => t.code !== "OT" && t.co
 // before this still shows the legacy full list so leads can clean up
 // May with full granularity.
 export const ATT_SIMPLIFIED_START = "2026-06-01";
-export const SIMPLIFIED_CODES = new Set(["P", "H", "PH", "OFF", "CDO", "Leave"]);
+// Actual-attendance picker (calendar cell / bulk / check-in). 2026-07-13:
+// the umbrella "Leave" was replaced by the granular leave set Ops asked for
+// (AL, SL, Casual, PH-Off, Tabby Day, Lieu, Maternity Leave), alongside the
+// work/holiday codes. These are OUTCOMES — the plan grid uses PLAN_TYPES
+// (work codes only) so leads can't "plan" a leave.
+export const SIMPLIFIED_CODES = new Set(["P", "H", "PH", "OFF", "CDO", "AL", "Paid SL", "Casual", "PH-Off", "Tabby Day", "Lieu", "ML"]);
 export const SIMPLIFIED_TYPES = ATTENDANCE_TYPES.filter(t => SIMPLIFIED_CODES.has(t.code));
+
+// Plan grid picker — schedule/work codes only. Leaves are actual outcomes,
+// not something a lead schedules ahead, so they're intentionally excluded.
+export const PLAN_CODES = new Set(["P", "H", "OFF", "LD"]);
+export const PLAN_TYPES = ATTENDANCE_TYPES.filter(t => PLAN_CODES.has(t.code));
 
 // Pick which dropdown list to use given the target date. Accepts:
 //   - "YYYY-MM-DD" string  (preferred — what every cell + bulk modal has)
@@ -125,7 +139,7 @@ export function pickerCodesForDate(date) {
 // The new umbrella "Leave" code is included so it gets the same
 // "approved, no check-in needed" treatment as the legacy granular
 // codes it replaces.
-export const LEAVE_CODES = new Set(["AL", "Paid SL", "PH", "ML", "UL", "Leave"]);
+export const LEAVE_CODES = new Set(["AL", "Paid SL", "PH", "ML", "UL", "Leave", "Casual", "PH-Off", "Lieu", "Tabby Day"]);
 
 // Convenience helper — leave + NSNC together cover every "resolved
 // without a check-in" state. Useful for callers that want one set

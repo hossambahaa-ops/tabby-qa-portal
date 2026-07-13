@@ -565,7 +565,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
           {pendingCount > 0 ? `${pendingCount} unsaved change${pendingCount !== 1 ? "s" : ""}` : "All changes saved"}
         </span>
         <span style={{ fontSize: 11, color: "var(--tx3)", marginRight: "auto" }}>
-          Click cells to cycle: empty → 🏠 H → 🏢 P → 🔑 LD → OFF → empty. Each QA should have a Login Day. Past days are read-only.
+          Click cells to cycle: empty → 🏠 H → 🏢 P → 🔑 LD → OFF → empty. Each QA should have a Login Day. Past days and today are read-only — plan the next days only.
         </span>
         {pendingCount > 0 && (
           <button className="btn btn-outline btn-sm" onClick={discard}>
