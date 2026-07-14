@@ -496,6 +496,56 @@ function NotificationBell({ onNavigate }) {
           }
         } catch (e) { console.error("Attendance plan notifications:", e); }
 
+        // ── Calibration: verbal warnings + missed-calibration reviews ──
+        // Self-contained block (own awaits) so it never touches the
+        // fixed-index results[5/6/7] contract above. RLS on both tables
+        // scopes rows to the QA (own) / lead (team) / supervisor+, so we
+        // fetch broadly and split by role client-side with emailsMatchLoose
+        // (tolerant of the @tabby.ai / @tabby.sa cross-domain split).
+        try {
+          const warns = await sb.query("verbal_warnings", {
+            token,
+            select: "id,qa_email,lead_email,action_plan_id,reason,status,created_at,issued_at,acked_at",
+            filters: "status=in.(pending_lead,issued)&order=created_at.desc&limit=60",
+          }).catch(() => []);
+          (warns || []).forEach(w => {
+            const mineAsQa = emailsMatchLoose(w.qa_email, profile?.email);
+            const mineAsLead = emailsMatchLoose(w.lead_email, profile?.email);
+            if (w.status === "issued" && !w.acked_at && mineAsQa) {
+              all.push({
+                id: "vw-" + w.id, type: "verbal_warning",
+                title: "⚠ Verbal warning — please acknowledge",
+                sub: (w.reason || "Phase 1 calibration").slice(0, 80),
+                time: w.issued_at || w.created_at, route: "/verbal-warning/" + w.id, page: "profile",
+              });
+            } else if (w.status === "pending_lead" && mineAsLead) {
+              all.push({
+                id: "vwlead-" + w.id, type: "calibration_ap",
+                title: `⚠ ${nameFromEmail(w.qa_email)} failed Phase 1 — AP created`,
+                sub: "Confirm & send the verbal warning",
+                time: w.created_at, route: "/verbal-warning/" + w.id, page: "quality",
+              });
+            }
+          });
+          if (isLead || isSv) {
+            const miss = await sb.query("calibration_miss_reviews", {
+              token,
+              select: "id,qa_email,lead_email,month,status,created_at",
+              filters: "status=eq.pending&order=created_at.desc&limit=60",
+            }).catch(() => []);
+            (miss || []).forEach(r => {
+              if (emailsMatchLoose(r.lead_email, profile?.email)) {
+                all.push({
+                  id: "cmiss-" + r.id, type: "calibration_missed",
+                  title: `❓ ${nameFromEmail(r.qa_email)} missed calibration`,
+                  sub: `Validate the reason · ${r.month}`,
+                  time: r.created_at, route: "/calibration-miss/" + r.id, page: "quality",
+                });
+              }
+            });
+          }
+        } catch (e) { console.error("Calibration notifications:", e); }
+
         all.sort((a, b) => new Date(b.time) - new Date(a.time));
         setItems(all);
       } catch {}
@@ -577,7 +627,11 @@ function NotificationBell({ onNavigate }) {
       dismiss(item.id);
     }
   };
-  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" }, coaching: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, error: { bg: "var(--red-bg)", color: "var(--red)" }, attendance: { bg: "rgba(13,148,136,0.12)", color: "#0D9488" }, feature_release: { bg: "var(--green-bg)", color: "var(--green)" } };
+  const typeColor = { violation: { bg: "var(--red-bg)", color: "var(--red)" }, dam: { bg: "var(--amber-bg)", color: "var(--amber)" }, escalation: { bg: "#EDE9FE", color: "#7C3AED" }, task: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, plan: { bg: "var(--amber-bg)", color: "var(--amber)" }, feedback: { bg: "var(--green-bg)", color: "var(--green)" }, reminder: { bg: "var(--amber-bg)", color: "var(--amber)" }, coaching: { bg: "var(--primary-light)", color: "var(--tabby-purple,#6A2C79)" }, error: { bg: "var(--red-bg)", color: "var(--red)" }, attendance: { bg: "rgba(13,148,136,0.12)", color: "#0D9488" }, feature_release: { bg: "var(--green-bg)", color: "var(--green)" }, verbal_warning: { bg: "var(--red-bg)", color: "var(--red)" }, calibration_ap: { bg: "var(--red-bg)", color: "var(--red)" }, calibration_missed: { bg: "var(--amber-bg)", color: "var(--amber)" } };
+
+  // Items carrying a `route` (calibration verbal-warning / missed-review
+  // pages) navigate straight to a hash route instead of a named page/tab.
+  const goRoute = (item) => { window.location.hash = "#" + item.route; setOpen(false); };
 
   return (
     <div ref={ref} style={{ position: "relative" }}>
@@ -601,7 +655,7 @@ function NotificationBell({ onNavigate }) {
               const tc = typeColor[item.type] || {};
               const isDigest = !!item.__digestIds;
               return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8,background: isDigest ? "var(--bg)" : undefined}}>
-                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); if(item.qcTab) setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:item.qcTab})),100); if(item.adminTab) setTimeout(()=>{const h=window.location.hash||"#/";const [b,q=""]=h.split("?");const p=new URLSearchParams(q);p.set("tab",item.adminTab);window.location.hash=`${b}?${p.toString()}`;},150); if(item.type === "attendance" && isDigest) setTimeout(()=>{const h=window.location.hash||"#/";const [b,q=""]=h.split("?");const p=new URLSearchParams(q);p.set("tab","pending");window.location.hash=`${b}?${p.toString()}`;},150); setOpen(false); if(isDigest) dismissDigest(item); else dismiss(item.id); if(item.releaseKey) ackRelease({ token, userEmail: profile?.email, featureKey: item.releaseKey, via: "click" }); }}>
+                <div style={{flex:1,cursor:"pointer"}} onClick={() => { if(item.route){ goRoute(item); if(isDigest) dismissDigest(item); else dismiss(item.id); return; } onNavigate(item.page); if(item.qcTab) setTimeout(()=>window.dispatchEvent(new CustomEvent("qc-tab",{detail:item.qcTab})),100); if(item.adminTab) setTimeout(()=>{const h=window.location.hash||"#/";const [b,q=""]=h.split("?");const p=new URLSearchParams(q);p.set("tab",item.adminTab);window.location.hash=`${b}?${p.toString()}`;},150); if(item.type === "attendance" && isDigest) setTimeout(()=>{const h=window.location.hash||"#/";const [b,q=""]=h.split("?");const p=new URLSearchParams(q);p.set("tab","pending");window.location.hash=`${b}?${p.toString()}`;},150); setOpen(false); if(isDigest) dismissDigest(item); else dismiss(item.id); if(item.releaseKey) ackRelease({ token, userEmail: profile?.email, featureKey: item.releaseKey, via: "click" }); }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}{isDigest ? " ·"+item.__digestIds.length : ""}</span>
                     <span style={{ fontWeight: isDigest ? 700 : 500, fontSize: 12 }}>{safe(item.title)}</span>
@@ -627,7 +681,7 @@ function NotificationBell({ onNavigate }) {
             {!showAllHistory && recentHistory.map(item => {
               const tc = typeColor[item.type] || {};
               return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8,opacity:0.5}}>
-                <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); }}>
+                <div style={{flex:1,cursor:"pointer"}} onClick={() => { if(item.route){ goRoute(item); return; } onNavigate(item.page); setOpen(false); }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
                     <span style={{ fontWeight: 500, fontSize: 12 }}>{safe(item.title)}</span>
@@ -647,7 +701,7 @@ function NotificationBell({ onNavigate }) {
                 {allHistory.filter(i=>{if(!historyMonth)return true;const d=new Date(i.time);return d.toLocaleDateString("en-GB",{month:"short",year:"numeric"})===historyMonth;}).map(item => {
                   const tc = typeColor[item.type] || {};
                   return <div key={item.id} className="notif-item" style={{display:"flex",alignItems:"flex-start",gap:8,opacity:0.6}}>
-                    <div style={{flex:1,cursor:"pointer"}} onClick={() => { onNavigate(item.page); setOpen(false); }}>
+                    <div style={{flex:1,cursor:"pointer"}} onClick={() => { if(item.route){ goRoute(item); return; } onNavigate(item.page); setOpen(false); }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <span className="search-result-type" style={{ background: tc.bg, color: tc.color }}>{item.type}</span>
                         <span style={{ fontWeight: 500, fontSize: 12 }}>{safe(item.title)}</span>

@@ -63,11 +63,14 @@ export default function CoachingAckPage() {
         //    a uniqueness constraint on (session_id, member_email).
         //    Prefer: resolution=ignore-duplicates makes PostgREST
         //    no-op the second insert; RLS still enforces ownership.
+        //    NOTE: the column is qa_email (renamed from member_email in
+        //    commit 156d966); posting member_email 400s (PGRST204) and
+        //    silently broke every coaching ack after the rename.
         const { error } = await sb.query("coaching_session_acks", {
           token,
           method: "POST",
           headers: { Prefer: "resolution=ignore-duplicates,return=minimal" },
-          body: { session_id: id, member_email: profile.email },
+          body: { session_id: id, qa_email: profile.email },
         }).then(d => ({ error: null, data: d })).catch(e => ({ error: e?.message || String(e), data: null }));
 
         if (error) {
