@@ -14,6 +14,7 @@ import APCreateForm from "../components/actionplan/APCreateForm.jsx";
 import APConcludeModal from "../components/actionplan/APConcludeModal.jsx";
 import APActivePlanCard from "../components/actionplan/APActivePlanCard.jsx";
 import APHistoryTab from "../components/actionplan/APHistoryTab.jsx";
+import CalibrationFollowupsPanel from "../components/actionplan/CalibrationFollowupsPanel.jsx";
 import useKeyboard from "../lib/useKeyboard.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import { KPI_SLABS, parseRaw, parseRawMetric, targetMet, calcSlab, scoreColor, scoreBg, safeJson, safeJsonArr, parseTargets, getKpiScores, getTotalScore, generateTargets as buildTargets, computeDetections, buildPlanCandidates } from "../lib/actionPlan.js";
@@ -767,6 +768,9 @@ function ActionPlanPage() {
           History ({historyPlans.length})
         </button>
       </div>
+
+      {/* Outstanding calibration verbal-warnings / missed-reviews for this lead */}
+      <CalibrationFollowupsPanel />
 
       {/* ═══ DETECTION TAB ═══ */}
       {tab === "detection" && <APDetectionTab
