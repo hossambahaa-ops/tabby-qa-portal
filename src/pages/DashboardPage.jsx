@@ -491,7 +491,7 @@ function DashboardPage(){
           const KPI_SLABS_DASH = {
             occupancy:{label:"Occupancy",weight:15,thresholds:[95,98,100],rawKey:"occupancy_pct"},
             coaching:{label:"Coaching on-time",weight:10,thresholds:[90,93,95],rawKey:"ontime_coaching_pct"},
-            calibration:{label:"Calibration",weight:10,thresholds:[85,90,95],rawKey:"avg_calibration_match_rate"},
+            calibration:{label:"Phase Score",weight:10,thresholds:[85,90,95],rawKey:"avg_calibration_match_rate"},
             observation:{label:"Coaching observation",weight:10,thresholds:[82,85,88],rawKey:"avg_observation_score_pct"},
             rtr:{label:"RTR score",weight:10,thresholds:[80,85,90],rawKey:"avg_rtr_score"},
           };
@@ -563,7 +563,7 @@ function DashboardPage(){
             {key:"score",label:"Overall score",getValue:r=>getScore(r)},
             {key:"occupancy",label:"Occupancy",getValue:r=>pctNum(r.occupancy_pct)},
             {key:"coaching",label:"Coaching on-time",getValue:r=>pctNum(r.ontime_coaching_pct)},
-            {key:"calibration",label:"Calibration",getValue:r=>pctNum(r.avg_calibration_match_rate)},
+            {key:"calibration",label:"Phase Score",getValue:r=>pctNum(r.avg_calibration_match_rate)},
             {key:"observation",label:"Coaching observation",getValue:r=>pctNum(r.avg_observation_score_pct)},
             {key:"rtr",label:"RTR score",getValue:r=>pctNum(r.avg_rtr_score)},
             {key:"tpd",label:"Tickets/day",getValue:r=>parseFloat(r.ticket_per_day||0)||0},

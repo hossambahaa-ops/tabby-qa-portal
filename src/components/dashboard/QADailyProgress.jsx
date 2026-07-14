@@ -6,7 +6,7 @@ import { listTeamTargets } from "../../api/teamTargets.js";
 const KPI_CONFIG = [
   { key: "occupancy_pct", label: "Occupancy", thresholds: [95, 98, 100], tip: "Focus on reducing idle time between evaluations" },
   { key: "ontime_coaching_pct", label: "Coaching on-time", thresholds: [90, 93, 95], tip: "Complete coaching sessions within the scheduled window" },
-  { key: "avg_calibration_match_rate", label: "Calibration", thresholds: [85, 90, 95], tip: "Review calibration guidelines before sessions" },
+  { key: "avg_calibration_match_rate", label: "Phase Score", thresholds: [85, 90, 95], tip: "Review calibration guidelines before sessions" },
   { key: "avg_observation_score_pct", label: "Observation", thresholds: [82, 85, 88], tip: "Focus on structured feedback delivery" },
   { key: "avg_rtr_score", label: "RTR Score", thresholds: [80, 85, 90], tip: "Double-check evaluation accuracy before submission" },
 ];

@@ -432,7 +432,10 @@ function ScoreEntryPage(){
       case "obs":             return r.observed_coaching_count ?? null;
       case "obs_pct":         return numFromText(r.avg_observation_score_pct);
       case "calib":           return r.calibration_count ?? null;
-      case "calib_pct":       return numFromText(r.avg_calibration_match_rate);
+      case "phase1_score":    return numFromText(r.phase_1_score);
+      case "phase1_status":   return r.phase_1_status ? (/pass/i.test(r.phase_1_status)?2:/fail/i.test(r.phase_1_status)?1:0) : null;
+      case "phase2_score":    return numFromText(r.phase_2_score);
+      case "phase2_status":   return r.phase_2_status ? (/pass/i.test(r.phase_2_status)?2:/fail/i.test(r.phase_2_status)?1:0) : null;
       case "completion":      return numFromText(r.coaching_completion_pct);
       case "ontime_pct":      return numFromText(r.ontime_coaching_pct);
       case "jkq":             return r.jkq_result === "Pass" ? 2 : r.jkq_result === "Missed" ? 0 : 1;
@@ -470,6 +473,11 @@ function ScoreEntryPage(){
   // cell renderer, and whether it belongs to a quick-preset bundle.
   // Keys here drive both the header and body, so adding/removing a
   // column is a one-line change.
+  const phaseStatusBadge = (s) => {
+    if (!s || s === "-") return <span style={{color:"var(--tx3)"}}>—</span>;
+    const pass = /pass/i.test(s), fail = /fail/i.test(s);
+    return <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,textTransform:"capitalize",background:pass?"var(--green-bg)":fail?"var(--red-bg)":"var(--bg3)",color:pass?"var(--green)":fail?"var(--red)":"var(--tx2)"}}>{s}</span>;
+  };
   const MTD_COLUMNS = [
     { k: "specialist", label: "QA", align: "left", style: { minWidth: 160 }, presets: ["all","perf","coach"], render: r => (
       <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -497,11 +505,14 @@ function ScoreEntryPage(){
     { k: "rtr_score",       label: "RTR Score",            presets: ["all"],         render: r => fmtPct(r.avg_rtr_score) },
     { k: "obs",             label: "CO#",                  presets: ["all","coach"], render: r => r.observed_coaching_count ?? "—" },
     { k: "obs_pct",         label: "CO Score",             presets: ["all","coach"], render: r => fmtPct(r.avg_observation_score_pct) },
-    // Calibration % resolves from the sheet's "New Calibration" column (AH)
-    // via mtd_scores_v (priority: manual override → calibration_responses →
-    // new_calibration → NULL). NULL renders as "—" (e.g. month not yet
-    // calibrated) rather than a misleading 0%.
-    { k: "calib_pct",       label: "Calibration %",        presets: ["all","coach"], render: r => fmtPct(r.avg_calibration_match_rate) },
+    // Phase scoring (replaced Calibration % on 2026-07-13). Phase 1/2 Score +
+    // Status come from mtd_scores_v (the sheet's Final Phase columns). KSA rows
+    // with no phase yet fall back to the MAX calibration in Phase 1 Score. The
+    // composite score uses the natural-sequence effective score.
+    { k: "phase1_score",  label: "Phase 1 Score",  presets: ["all","coach"], render: r => fmtPct(r.phase_1_score) },
+    { k: "phase1_status", label: "Phase 1 Status", align: "center", presets: ["all","coach"], render: r => phaseStatusBadge(r.phase_1_status) },
+    { k: "phase2_score",  label: "Phase 2 Score",  presets: ["all","coach"], render: r => fmtPct(r.phase_2_score) },
+    { k: "phase2_status", label: "Phase 2 Status", align: "center", presets: ["all","coach"], render: r => phaseStatusBadge(r.phase_2_status) },
     { k: "jkq",             label: "JKQ",                  align: "center", presets: ["all","perf"], render: r =>
       r.jkq_result && r.jkq_result !== "N/A"
         ? <span style={{fontSize:11,padding:"2px 8px",borderRadius:12,fontWeight:500,background:r.jkq_result==="Pass"?"var(--green-bg)":"var(--red-bg)",color:r.jkq_result==="Pass"?"var(--green)":"var(--red)"}}>{r.jkq_result}{r.jkq_score>0?` (${r.jkq_score})`:""}</span>

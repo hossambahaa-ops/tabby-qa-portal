@@ -18,7 +18,7 @@ export default function LeaderboardCompareTable({ selectedEmails, ranked, maxSco
     { label: "Total Score",      getValue: r => getTotalScore(r).toFixed(1) + " / " + maxScore },
     { label: "Occupancy",        getValue: r => fmtPctRow(r.occupancy_pct) },
     { label: "Coaching on-time", getValue: r => fmtPctRow(r.ontime_coaching_pct) },
-    { label: "Calibration",      getValue: r => fmtPctRow(r.avg_calibration_match_rate) },
+    { label: "Phase Score",      getValue: r => fmtPctRow(r.avg_calibration_match_rate) },
     { label: "Observation",      getValue: r => fmtPctRow(r.avg_observation_score_pct) },
     { label: "RTR Score",        getValue: r => fmtPctRow(r.avg_rtr_score) },
     { label: "Tickets/day",      getValue: r => (parseFloat(r.ticket_per_day || 0) || 0).toFixed(1) },
