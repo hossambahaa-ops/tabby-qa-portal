@@ -12,13 +12,14 @@ import { Icon, icons } from "../components/Icons.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import CoachingCompose from "../components/coaching/CoachingCompose.jsx";
 import CoachingHistory from "../components/coaching/CoachingHistory.jsx";
+import VmvNominationsReview from "../components/coaching/VmvNominationsReview.jsx";
 import useKeyboard from "../lib/useKeyboard.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 
 function CoachingPage() {
   const{token,profile,gf,rosterMap,globalToast}=useApp();
   const [tab, setTab] = useUrlState("coach_tab", "compose"); // compose | history
-  useKeyboard({"1":()=>setTab("compose"),"2":()=>setTab("history")});
+  useKeyboard({"1":()=>setTab("compose"),"2":()=>setTab("history"),"3":()=>{ if(hasRole(profile?.role,"qa_supervisor")) setTab("vmv"); }});
   const [sessions, setSessions] = useState([]);
   const [roster, setRoster] = useState([]);
   const [activePlans, setActivePlans] = useState([]);
@@ -241,6 +242,7 @@ function CoachingPage() {
       <div className="tab-bar" style={{marginBottom:16}}>
         <button className={`tab-btn ${tab==="compose"?"active":""}`} onClick={()=>setTab("compose")}><Icon d={icons.coaching} size={16}/>Compose</button>
         <button className={`tab-btn ${tab==="history"?"active":""}`} onClick={()=>setTab("history")}><Icon d={icons.scores} size={16}/>History ({sessions.length})</button>
+        {hasRole(profile?.role,"qa_supervisor") && <button className={`tab-btn ${tab==="vmv"?"active":""}`} onClick={()=>setTab("vmv")}>🌟 VMV Nominations</button>}
       </div>
 
       {tab==="compose" && <CoachingCompose
@@ -263,6 +265,8 @@ function CoachingPage() {
         sessions={sessions}
         onDelete={handleDeleteSession}
       />}
+
+      {tab==="vmv" && hasRole(profile?.role,"qa_supervisor") && <VmvNominationsReview />}
 
       {confirmEl}
     </div>

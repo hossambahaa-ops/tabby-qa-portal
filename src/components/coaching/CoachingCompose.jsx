@@ -7,6 +7,7 @@ import { useConfirm } from "../../lib/hooks.jsx";
 import { Icon, icons } from "../Icons.jsx";
 import EmptyState from "../EmptyState.jsx";
 import RichTextField from "./RichTextField.jsx";
+import VmvNominationSection from "./VmvNominationSection.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 import {
@@ -646,6 +647,9 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
               </select>
             </div>
           </div>
+
+          {/* VMV nomination — only during a Monthly Performance Review */}
+          {meetingType === "MPR" && <VmvNominationSection roster={roster} />}
 
           {/* Member context strip — minimal: latest MTD month + CSAT, plus
               an Active AP/PIP badge when relevant. RTR, Coaching%, and
