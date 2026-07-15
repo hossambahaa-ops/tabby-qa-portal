@@ -4,13 +4,22 @@ import { useApp } from "../../lib/AppContext.jsx";
 import { hasRole } from "../../lib/constants.js";
 import { nameFromEmail, emailsMatchLoose } from "../../lib/utils.js";
 
-// Current calibration/calendar month as 'Mon-YYYY' in Riyadh time (matches
-// the mtd_scores.month convention used across Pulse).
+// 'Mon-YYYY' labels in Riyadh time (matches the mtd_scores.month convention).
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function riyadhYM() {
+  const p = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Riyadh", month: "numeric", year: "numeric" }).formatToParts(new Date());
+  return { y: +p.find(x => x.type === "year").value, m: +p.find(x => x.type === "month").value };
+}
 export function currentMonthLabel() {
-  const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Riyadh", month: "short", year: "numeric" }).formatToParts(new Date());
-  const mon = parts.find(p => p.type === "month")?.value || "";
-  const yr = parts.find(p => p.type === "year")?.value || "";
-  return `${mon}-${yr}`;
+  const { y, m } = riyadhYM();
+  return `${MONTH_ABBR[m - 1]}-${y}`;
+}
+// Current + prior month labels — the nomination month toggle. Early-month
+// MPRs sometimes cover the prior month, so a lead can file against either.
+export function monthChoices() {
+  const { y, m } = riyadhYM();
+  const pm = m === 1 ? 12 : m - 1, py = m === 1 ? y - 1 : y;
+  return [`${MONTH_ABBR[m - 1]}-${y}`, `${MONTH_ABBR[pm - 1]}-${py}`];
 }
 
 // "Nomination for VMV" (Vision, Mission & Values) — surfaced inside the MPR
@@ -22,7 +31,8 @@ export default function VmvNominationSection({ roster = [] }) {
   const { token, profile, realProfile, impersonating, globalToast } = useApp();
   const myEmail = (impersonating ? realProfile?.email : profile?.email) || "";
   const isLead = hasRole(profile?.role, "qa_lead");
-  const month = currentMonthLabel();
+  const choices = monthChoices();
+  const [month, setMonth] = useState(choices[0]);
 
   const [noms, setNoms] = useState([]);
   const [nominee, setNominee] = useState("");
@@ -79,10 +89,13 @@ export default function VmvNominationSection({ roster = [] }) {
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
         <span style={{ fontSize: 16 }}>🌟</span>
         <span style={{ fontSize: 13, fontWeight: 700 }}>Nomination for VMV</span>
-        <span style={{ fontSize: 11, color: "var(--tx3)" }}>· {month}</span>
+        <span style={{ fontSize: 11, color: "var(--tx3)" }}>· for</span>
+        <select className="select form-input" value={month} onChange={e => setMonth(e.target.value)} style={{ width: "auto", fontSize: 11, padding: "2px 6px" }} title="Month this nomination is filed under">
+          {choices.map(mo => <option key={mo} value={mo}>{mo}</option>)}
+        </select>
       </div>
       <div style={{ fontSize: 11, color: "var(--tx3)", marginBottom: 12 }}>
-        Nominate a team member who lived Tabby's <strong>Vision, Mission &amp; Values</strong> this month. You can nominate more than one.
+        Nominate a team member who lived Tabby's <strong>Vision, Mission &amp; Values</strong> for the selected month. You can nominate more than one.
       </div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-start" }}>
