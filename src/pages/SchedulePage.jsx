@@ -272,10 +272,26 @@ function SchedulePage() {
     return () => document.removeEventListener("keydown", handler);
   }, []);
 
-  // Profiles for lead set
+  // Profiles for lead set. The entire lead/QA grouping (and thus the whole
+  // grid) collapses to "0 team members" if this comes back empty — which a
+  // single cold-connection blip on page load can cause (the fetch is
+  // cache:false, so there's no warm cache to fall back on, and it resolves to
+  // []). Guard on token, only commit a NON-empty result, and retry a few
+  // times with backoff so one blip doesn't blank the whole view.
   const [profiles, setProfiles] = useState([]);
   useEffect(() => {
-    listProfiles({ token, select: "email,role", filters: "", cache: false }).then(p => setProfiles(Array.isArray(p)?p:[]));
+    if (!token) return;
+    let cancelled = false;
+    const load = (tries = 0) => {
+      listProfiles({ token, select: "email,role", filters: "", cache: false }).then(p => {
+        if (cancelled) return;
+        const arr = Array.isArray(p) ? p : [];
+        if (arr.length) { setProfiles(arr); return; }
+        if (tries < 4) setTimeout(() => load(tries + 1), 500 * (tries + 1));
+      });
+    };
+    load();
+    return () => { cancelled = true; };
   }, [token]);
   // Calendar group-heads = QA Leads AND supervisors who DIRECTLY manage QAs.
   // Some Sr.QAs report straight to a supervisor with no lead in between
