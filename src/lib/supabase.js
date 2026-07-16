@@ -28,7 +28,22 @@ export const sb = {
     const url = `${SUPABASE_URL}/rest/v1/${table}?select=${encodeURIComponent(select)}${filters ? "&" + filters : ""}`;
     const opts = { method, headers: { ...this.headers(token), ...extra } };
     if (body) opts.body = JSON.stringify(body);
-    const r = await fetch(url, opts);
+    // Network-level retry: the first request after a keep-alive socket idles
+    // out can fail with a "Failed to fetch" TypeError (a cold-connection blip,
+    // common on flaky / proxied networks). Retry idempotent reads once on a
+    // freshly opened connection before surfacing the error — otherwise a
+    // single blip during a page's initial fetch burst silently blanks a whole
+    // view (e.g. attendance showing "0 team members" when the roster fetch
+    // caught the blip and returned []). Non-GET is not retried (avoid any
+    // chance of a double write).
+    let r;
+    try {
+      r = await fetch(url, opts);
+    } catch (netErr) {
+      if (method !== "GET") throw netErr;
+      await new Promise(res => setTimeout(res, 300));
+      r = await fetch(url, opts);
+    }
     // Auto-refresh on 401 (JWT expired) and retry once
     if (r.status === 401) {
       const session = await sb.auth.getSession();
