@@ -3,6 +3,7 @@ import { useApp } from "../lib/AppContext.jsx";
 import { hasRole } from "../lib/constants.js";
 import { listInitiatives, createInitiative, updateInitiative, deleteInitiative } from "../api/initiatives.js";
 import { listProfiles } from "../api/profiles.js";
+import { listRoster } from "../api/roster.js";
 import {
   STATUSES, PRIORITIES, TEAMS, TASK_TYPES,
   canEdit, canDelete,
@@ -76,12 +77,30 @@ export default function TrackerPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [initiatives, profs] = await Promise.all([
+      const [initiatives, profs, roster] = await Promise.all([
         listInitiatives({ token }),
         listProfiles({ token, select: "email,display_name,role,status" }),
+        listRoster({ token, select: "email,display_name" }).catch(() => []),
       ]);
       setRows(initiatives);
-      setProfiles(profs.filter(p => p.email && p.status !== "deactivated"));
+      // Assignee pool = active profiles ∪ everyone on the roster. Merging the
+      // roster (a small, reliably-readable table) means the picker is never
+      // blank on a transient/empty profiles fetch, and ANY roster member is
+      // assignable — even a QA without a profile row. Dedupe by email, profile
+      // wins (it carries role/status/display_name). Don't overwrite a good
+      // pool with an empty result (a blip) — leave it for the next refresh.
+      const byEmail = new Map();
+      for (const r of (Array.isArray(roster) ? roster : [])) {
+        const e = (r.email || "").toLowerCase();
+        if (e) byEmail.set(e, { email: r.email, display_name: r.display_name, role: "qa", status: "active" });
+      }
+      for (const p of (Array.isArray(profs) ? profs : [])) {
+        const e = (p.email || "").toLowerCase();
+        if (!e || p.status === "deactivated") continue;
+        byEmail.set(e, p);
+      }
+      const merged = [...byEmail.values()];
+      if (merged.length) setProfiles(merged);
     } catch (e) {
       globalToast?.("error", e.message || "Failed to load tracker.");
     }
