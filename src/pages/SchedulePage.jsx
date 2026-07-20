@@ -98,10 +98,28 @@ function SchedulePage() {
       const fmtD = (d) => `${selMonth}-${String(d).padStart(2,"0")}`;
       const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
       const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at,ot_hours,request_note,denial_reason,denied_by,denied_at,planned_code,justification,mismatch_approved,plan_updated_at,shift_start,shift_end,checked_in_at`;
+      // These are RAW fetches (not sb.query), so they never got its network-level
+      // retry — and they swallowed every failure into [], which blanked the whole
+      // grid ("no P/H days yet" for everyone) while the roster still loaded, so it
+      // looked like a permissions bug. Retry on a blip, and let a real failure
+      // surface as an error toast instead of silently showing an empty month.
+      const fetchAtt = async (from, to, tries = 0) => {
+        try {
+          const res = await fetch(`${base}&date=gte.${from}&date=lte.${to}&order=date.asc&limit=1000`, { headers: hdrs });
+          if (!res.ok) throw new Error(`attendance fetch failed (${res.status})`);
+          return await res.json();
+        } catch (e) {
+          if (tries < 2) {
+            await new Promise(res2 => setTimeout(res2, 300 * (tries + 1)));
+            return fetchAtt(from, to, tries + 1);
+          }
+          throw e;
+        }
+      };
       const [r, a1, a2] = await Promise.all([
         listRoster({ token, select: "email,display_name,manager_email,queue,country" }),
-        fetch(`${base}&date=gte.${fmtD(1)}&date=lte.${fmtD(mid)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
-        fetch(`${base}&date=gte.${fmtD(mid+1)}&date=lte.${fmtD(dim)}&order=date.asc&limit=1000`, {headers:hdrs}).then(r=>r.json()).catch(()=>[]),
+        fetchAtt(fmtD(1), fmtD(mid)),
+        fetchAtt(fmtD(mid + 1), fmtD(dim)),
       ]);
       const rosterList = Array.isArray(r) ? r : [];
       setRoster(rosterList);
