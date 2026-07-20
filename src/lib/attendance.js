@@ -60,11 +60,13 @@ export function shiftBadge(shiftStart, shiftEnd) {
 // literally the same purple; Casual (amber) sat next to AL (red) despite
 // both being ordinary approved leave.
 //
-//   work      green   — on the job, on site
-//   remote    blue    — on the job, off site (also Lieu: earned, scheduled)
+//   work      green   — on the job, on site. Includes PH: a "PH" row means
+//                       the QA WORKED the public holiday (it's approved and
+//                       tracked next to OT). The day-off case is PH-Off.
+//   remote    blue    — on the job, off site
 //   partial   amber   — worked, but the day was short (late / early leave)
 //   leave     rose    — approved absence, all flavours
-//   holiday   violet  — company/public non-working day, nobody is expected
+//   holiday   violet  — entitled day off, nobody is expected in
 //   off       grey    — not a working day, no expectation either way
 //   incident  red     — the ONLY red. Something went wrong.
 //
@@ -85,7 +87,13 @@ export const ATT_GROUP_ORDER = ["work", "remote", "partial", "leave", "holiday",
 
 export const ATTENDANCE_TYPES = [
   // ── work: green family ──
+  // PH, CDO and OT are the "worked when you didn't have to" codes — all
+  // three need lead approval and all three feed the monthly OT/PH tracker.
+  // PH specifically means the QA WORKED the public holiday; the day-off
+  // counterpart is the separate PH-Off code, which is why they sit in
+  // different groups despite the near-identical names.
   { code: "P",       label: "Present",            group: "work",     color: "#16A34A", bg: "#16A34A20" },
+  { code: "PH",      label: "Public Holiday (worked)", group: "work", color: "#4D7C0F", bg: "#4D7C0F20" },
   { code: "CDO",     label: "Cancel Day Off (worked)", group: "work", color: "#15803D", bg: "#15803D20" },
   { code: "OT",      label: "Overtime",           group: "work",     color: "#059669", bg: "#05966920" },
   // ── remote: blue family. Working, just not from the office. ──
@@ -113,9 +121,8 @@ export const ATTENDANCE_TYPES = [
   // leave (it's an absence the lead approves), pushed to the fuchsia end
   // so it doesn't collide with the four rose codes next to it.
   { code: "Lieu",    label: "Lieu Day",           group: "leave",    color: "#A21CAF", bg: "#A21CAF20" },
-  // ── holiday: violet family. Company-wide, nobody is expected in. ──
-  { code: "PH",      label: "Public Holiday",     group: "holiday",  color: "#7C3AED", bg: "#7C3AED20" },
-  { code: "PH-Off",  label: "Public Holiday (day off)", group: "holiday", color: "#8B5CF6", bg: "#8B5CF620" },
+  // ── holiday: violet family. Entitled day off, nobody is expected in. ──
+  { code: "PH-Off",  label: "Public Holiday (day off)", group: "holiday", color: "#7C3AED", bg: "#7C3AED20" },
   { code: "Tabby Day", label: "Tabby Day (annual perk)", group: "holiday", color: "#A855F7", bg: "#A855F720" },
   // ── off: grey. Not a working day; no expectation either way. ──
   { code: "OFF",     label: "Weekend / Holiday",  group: "off",      color: "#9CA3AF", bg: "#9CA3AF15" },

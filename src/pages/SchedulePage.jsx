@@ -1707,12 +1707,19 @@ function SchedulePage() {
         {isQA && <div className="card" style={{marginBottom:12,padding:"12px 16px"}}>
           <div style={{fontSize:12,fontWeight:700,color:"var(--tx)",marginBottom:10}}>My month — {new Date(year,month-1).toLocaleDateString("en-US",{month:"long",year:"numeric"})}</div>
           <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center",marginBottom:10}}>
-            {[["P","Present","var(--green)"],["H","WFH","#3B82F6"],["PH","Pub.Holiday","#8B5CF6"],["CDO","CDO","#14B8A6"],["AL","Annual Leave","var(--red)"],["Tabby Day","Tabby Day","#A855F7"]].map(([key,label,color])=>(
+            {/* Colours come from ATT_MAP, not literals. These were hardcoded
+                and had already drifted from the palette — PH rendered purple
+                here (implying a day off) while it means the QA WORKED the
+                public holiday. Deriving them keeps the tiles honest. */}
+            {[["P","Present"],["H","WFH"],["PH","PH worked"],["CDO","CDO"],["AL","Annual Leave"],["Tabby Day","Tabby Day"]].map(([key,label])=>{
+              const color = ATT_MAP[key]?.color || "var(--tx)";
+              return (
               <div key={key} style={{textAlign:"center",minWidth:54,background:"var(--bg3)",borderRadius:6,padding:"6px 8px"}}>
                 <div style={{fontSize:18,fontWeight:800,color}}>{key==="AL"?myMonthCounts.al:key==="P"?myMonthCounts.p:key==="H"?myMonthCounts.h:key==="PH"?myMonthCounts.ph:key==="CDO"?myMonthCounts.cdo:myMonthCounts.tabbyDay}</div>
                 <div style={{fontSize:9,color:"var(--tx3)",marginTop:1}}>{label}</div>
               </div>
-            ))}
+              );
+            })}
             {(myMonthCounts.otApproved > 0 || myMonthCounts.otPending > 0) && <div style={{textAlign:"center",minWidth:54,background:"var(--bg3)",borderRadius:6,padding:"6px 8px"}}>
               <div style={{fontSize:18,fontWeight:800,color:"#0D9488"}}>{myMonthCounts.otApproved.toFixed(1)}h</div>
               <div style={{fontSize:9,color:"var(--tx3)",marginTop:1}}>OT approved</div>
@@ -1762,7 +1769,7 @@ function SchedulePage() {
               <div style={{display:"flex",gap:14,alignItems:"center",fontSize:11}}>
                 <span style={{color:"var(--tx3)"}}>Team total:</span>
                 <span style={{color:"#0D9488",fontWeight:700}}>⏱ {teamOt.toFixed(2)}h OT</span>
-                <span style={{color:"#8B5CF6",fontWeight:700}}>📅 {teamPh} PH day{teamPh===1?"":"s"}</span>
+                <span style={{color:ATT_MAP.PH.color,fontWeight:700}}>📅 {teamPh} PH day{teamPh===1?"":"s"}</span>
               </div>
             </div>
             {anyData && <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill, minmax(220px, 1fr))",gap:6}}>
@@ -1771,7 +1778,7 @@ function SchedulePage() {
                   <span style={{fontWeight:500,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",marginRight:6}}>{r.name}</span>
                   <span style={{display:"flex",gap:8,fontSize:11}}>
                     {r.otHours > 0 && <span style={{color:"#0D9488",fontWeight:700}}>{r.otHours.toFixed(2)}h</span>}
-                    {r.phDays > 0 && <span style={{color:"#8B5CF6",fontWeight:700}}>{r.phDays} PH</span>}
+                    {r.phDays > 0 && <span style={{color:ATT_MAP.PH.color,fontWeight:700}}>{r.phDays} PH</span>}
                   </span>
                 </div>
               ))}
