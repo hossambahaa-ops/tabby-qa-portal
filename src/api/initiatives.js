@@ -17,8 +17,7 @@ export const listInitiatives = async ({ token } = {}) => {
       select: SELECT_FULL,
       filters: "order=updated_at.desc",
       token,
-    })
-    .catch(() => []);
+    });
 };
 
 // Insert. Server fills id, timestamps, completed_at via trigger.

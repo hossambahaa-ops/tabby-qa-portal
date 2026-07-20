@@ -16,6 +16,7 @@ import { Icon, icons } from "../components/Icons.jsx";
 import QualityPrinciple from "../components/QualityPrinciple.jsx";
 import { ProgressRing, MiniBarChart, SparkLine } from "../components/Charts.jsx";
 import SkeletonPage from "../components/Skeleton.jsx";
+import { LoadErrorBanner } from "../components/AsyncSection.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import DashboardTasks from "../components/dashboard/DashboardTasks.jsx";
@@ -48,7 +49,7 @@ function DashboardPage(){
   const {
     mtd, roster, appProfiles, damCount, profileCount,
     todayAttendance, monthAttendance, apPlans, apWeeks, apDetections, apDismissals,
-    dailyScores, loading, refresh: loadDashboard,
+    dailyScores, loading, loadError, refresh: loadDashboard,
     setApDetections, setApDismissals,
   } = useDashboardData(token, profile);
   const isLead=hasRole(profile?.role,"qa_lead");
@@ -286,6 +287,11 @@ function DashboardPage(){
         see anything. Rendered outside the loading gate so it appears
         immediately, independent of team-data fetches. */}
     <DailyCheckInWidget/>
+
+    {/* If the bulk load failed, say so once at the top rather than letting
+        a dozen widgets each render "nothing to show". The widgets below
+        keep whatever they last had — a failed refresh is not new data. */}
+    {!loading && loadError && <LoadErrorBanner error={loadError} onRetry={loadDashboard}/>}
 
     {loading?<SkeletonPage/>:<>
 

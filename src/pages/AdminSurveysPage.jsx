@@ -3,6 +3,7 @@ import { useApp } from "../lib/AppContext.jsx";
 import { nameFromEmail, safeError } from "../lib/utils.js";
 import { SkeletonTable } from "../components/Skeleton.jsx";
 import EmptyState from "../components/EmptyState.jsx";
+import AsyncSection from "../components/AsyncSection.jsx";
 import {
   listAllSurveys, listResponsesForSurvey,
   createSurvey, closeSurvey, softDeleteSurvey,
@@ -68,6 +69,7 @@ export default function AdminSurveysPage() {
   const { token, profile, globalToast } = useApp();
   const [surveys, setSurveys] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [selectedId, setSelectedId] = useState(null);
   const [responses, setResponses] = useState([]);
   const [respLoading, setRespLoading] = useState(false);
@@ -80,10 +82,18 @@ export default function AdminSurveysPage() {
 
   const reload = useCallback(async () => {
     setLoading(true);
-    const list = await listAllSurveys({ token });
-    setSurveys(list || []);
+    try {
+      const list = await listAllSurveys({ token });
+      setSurveys(list || []);
+      if (!selectedId && list?.length) setSelectedId(list[0].id);
+      setLoadError(null);
+    } catch (e) {
+      // Without this the mount path left `loading` stuck true forever on a
+      // failed fetch — a permanent spinner with no explanation.
+      console.error("AdminSurveys:", e);
+      setLoadError(e?.message || String(e));
+    }
     setLoading(false);
-    if (!selectedId && list?.length) setSelectedId(list[0].id);
   }, [token, selectedId]);
 
   useEffect(() => { reload(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -91,8 +101,12 @@ export default function AdminSurveysPage() {
   useEffect(() => {
     if (!selectedId) { setResponses([]); return; }
     setRespLoading(true);
+    // .finally alone doesn't handle rejection — the chain still rejected
+    // unhandled and left the responses list showing the previous survey's
+    // rows as if they belonged to this one.
     listResponsesForSurvey({ token, surveyId: selectedId })
       .then(r => setResponses(r || []))
+      .catch(e => { console.error("AdminSurveys responses:", e); setResponses([]); })
       .finally(() => setRespLoading(false));
   }, [token, selectedId]);
 
@@ -210,9 +224,15 @@ export default function AdminSurveysPage() {
             <span className="card-title">Surveys</span>
             <span style={{ fontSize: 12, color: "var(--tx3)" }}>{surveys.length} total</span>
           </div>
-          {loading ? <SkeletonTable/> : surveys.length === 0 ? (
-            <EmptyState illus="empty" title="No surveys yet" description="Create the first one on the left — it'll appear here with response stats once people start answering."/>
-          ) : (
+          <AsyncSection
+            loading={loading}
+            error={loadError}
+            isEmpty={surveys.length === 0}
+            onRetry={reload}
+            errorTitle="Couldn't load surveys"
+            skeleton={<SkeletonTable/>}
+            empty={{ illus: "empty", title: "No surveys yet", description: "Create the first one on the left — it'll appear here with response stats once people start answering." }}
+          >
             <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 320, overflowY: "auto" }}>
               {surveys.map(s => (
                 <button
@@ -243,7 +263,7 @@ export default function AdminSurveysPage() {
                 </button>
               ))}
             </div>
-          )}
+          </AsyncSection>
         </div>
       </div>
 

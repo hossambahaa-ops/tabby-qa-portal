@@ -34,6 +34,11 @@ export function useDashboardData(token, profile) {
   const [apDismissals, setApDismissals] = useState([]);
   const [dailyScores, setDailyScores] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Surfaced to the page instead of being swallowed. This loader used to
+  // end in a bare `console.error`, so a failed round left every widget
+  // rendering its own "no data yet" empty state — indistinguishable from
+  // a genuinely quiet day. See the 2026-07-20 attendance outage.
+  const [loadError, setLoadError] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -201,8 +206,13 @@ export function useDashboardData(token, profile) {
         flagged.sort((a, b) => a.score - b.score);
         setApDetections(flagged);
       }
+      setLoadError(null);
     } catch (e) {
       console.error("Dashboard:", e);
+      // Note what failed but keep whatever is already on screen — a
+      // background refresh that blips shouldn't blank a working dashboard.
+      // The page renders this as a banner above the widgets.
+      setLoadError(e?.message || String(e));
     }
     setLoading(false);
   }, [token, profile?.role, profile?.email]);
@@ -213,7 +223,7 @@ export function useDashboardData(token, profile) {
   return {
     mtd, roster, appProfiles, damCount, profileCount,
     todayAttendance, monthAttendance, apPlans, apWeeks, apDetections, apDismissals,
-    dailyScores, loading, refresh,
+    dailyScores, loading, loadError, refresh,
     // setters that the AP-detection dismiss flow on the page needs
     setApDetections, setApDismissals,
   };

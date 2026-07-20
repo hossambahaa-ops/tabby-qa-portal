@@ -10,7 +10,7 @@ export const fetchActivity = ({ token, userEmail }) =>
     select: "*",
     filters: `user_email=eq.${userEmail}`,
     token,
-  }).catch(() => []);
+  });
 
 export const upsertActivity = ({ token, body }) =>
   sb.query("user_activity", {

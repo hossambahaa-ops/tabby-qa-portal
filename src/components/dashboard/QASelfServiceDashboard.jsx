@@ -26,7 +26,8 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
 
   useEffect(() => {
     listTeamTargets({ token, select: "team_name,domain,metric,target_value,qa_email" })
-      .then(t => setTeamTargets(Array.isArray(t) ? t : []));
+      .then(t => setTeamTargets(Array.isArray(t) ? t : []))
+      .catch(e => { console.error("QASelfService targets:", e); setTeamTargets([]); });
   }, [token]);
 
   // Daily score for today. daily_scores rows may carry the email under

@@ -7,7 +7,7 @@ export const listAnnouncements = ({
   cacheKey = null,
   cache = false,
 }) => {
-  const run = () => sb.query("announcements", { select, filters, token }).catch(() => []);
+  const run = () => sb.query("announcements", { select, filters, token });
   return cache && cacheKey ? dataCache.fetch(cacheKey, run) : run();
 };
 

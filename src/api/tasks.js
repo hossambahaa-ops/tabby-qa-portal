@@ -7,6 +7,6 @@ export const listTasks = ({
   cacheKey = null,
   cache = false,
 }) => {
-  const run = () => sb.query("tasks", { select, filters, token }).catch(() => []);
+  const run = () => sb.query("tasks", { select, filters, token });
   return cache && cacheKey ? dataCache.fetch(cacheKey, run) : run();
 };

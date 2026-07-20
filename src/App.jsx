@@ -121,23 +121,29 @@ const NAV_ITEMS=[
 /* ═══ APP ═══ */
 function AppInner(){
   const navigate=useNavigate();
-  // Routes where the slim Month + Domain global bar is suppressed.
-  // These pages either have no notion of monthly/domain scoping
-  // (Tracker, Admin, Audit Trail) or they handle their own scope
-  // entirely (Dashboard's role-based view, QA Profile's per-QA view,
-  // Escalations). Suppressing the bar on these routes prevents the
-  // "I changed it but nothing happened" confusion.
-  const HIDE_GLOBAL_FILTER_PAGES = React.useMemo(() => new Set([
-    "dashboard",
-    "tracker",
-    "profile",
-    "admin",
-    "audit",
-    "escalations",
-    "hr",
-    "utilization",
-    "quality-dna",
-    "dsat-reviews",
+  // Routes where the slim Month + Domain global bar IS shown — an
+  // allow-list, deliberately, because the deny-list it replaced kept
+  // drifting: every new page defaulted to showing the bar whether or
+  // not it read `gf`, so the bar accumulated dead controls.
+  //
+  // Two failure modes it caused:
+  //   * dead control — the bar rendered on pages that never read gf, so
+  //     changing Month or Domain did nothing at all.
+  //   * competing control — worse. Schedule has its own month picker, so
+  //     the header showed a global "Latest month" right beside the page's
+  //     "July 2026" with no indication which one won (neither: only the
+  //     page's mattered). Same story for "All domains".
+  //
+  // The only members are pages that actually consume gf.month / gf.domain:
+  // Quality Control (its Violations / Coaching / DAM tabs), Expertise,
+  // Leaderboard, and Score Entry. If you add a gf consumer, add it here —
+  // and if a page grows its own month/domain picker, take it OUT rather
+  // than leaving two controls for one concept.
+  const SHOW_GLOBAL_FILTER_PAGES = React.useMemo(() => new Set([
+    "quality",
+    "expertise",
+    "leaderboard",
+    "scores",
   ]), []);
   const location=useLocation();
   const page=location.pathname.replace(/^\//,"") || "dashboard";
@@ -927,7 +933,7 @@ function AppInner(){
         Hidden on routes that don't actually consume gf, so users
         don't see "dead controls" that change nothing. Page-level
         filters live under <PageFilters> on each page. */}
-    {!HIDE_GLOBAL_FILTER_PAGES.has(page) && <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} role={userRole}/>}
+    {SHOW_GLOBAL_FILTER_PAGES.has(page) && <GlobalFilterBar filters={globalFilters} setFilters={setGlobalFilters} months={globalMonths} role={userRole}/>}
     {/* Banner-mode announcements — non-blocking, dismissible card row
         rendered just under the global filter bar so it's prominent
         but doesn't interrupt navigation. requires_ack=true ones

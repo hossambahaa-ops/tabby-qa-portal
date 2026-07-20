@@ -60,8 +60,12 @@ function QADailyProgress({ dailyScores, myData, myEmail, teamTargets, roster, mo
   // Fetch team_targets
   useEffect(() => {
     if (teamTargets) { setTargets(teamTargets); return; }
+    // Targets drive this widget's denominators. If the fetch fails, fall
+    // back to an empty set (the widget degrades to "no target set" rather
+    // than vanishing) but don't let the rejection go unhandled.
     listTeamTargets({ token, cache: false })
-      .then(t => setTargets(t || []));
+      .then(t => setTargets(t || []))
+      .catch(e => { console.error("QADailyProgress targets:", e); setTargets([]); });
   }, [token, teamTargets]);
 
   // Fetch historical daily_scores for streak

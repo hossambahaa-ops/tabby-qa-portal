@@ -49,39 +49,101 @@ export function shiftBadge(shiftStart, shiftEnd) {
   return { label: `${hhmm(shiftStart)}–${hhmm(shiftEnd)}`, color: `hsl(${hue} 70% 60%)`, key };
 }
 
+// ── Colour semantics ────────────────────────────────────────────────
+// Every code carries a `group`, and each group owns ONE hue family. A
+// month should be scannable at a glance — "mostly green with a purple
+// block and one red cell" — instead of read cell by cell.
+//
+// Before this, hue carried no meaning: 21 codes were spread across the
+// wheel individually, so AL (#EF4444) and NSNC (#E11D48) were the same
+// red and an annual leave looked exactly like a no-show; LD and PH were
+// literally the same purple; Casual (amber) sat next to AL (red) despite
+// both being ordinary approved leave.
+//
+//   work      green   — on the job, on site
+//   remote    blue    — on the job, off site (also Lieu: earned, scheduled)
+//   partial   amber   — worked, but the day was short (late / early leave)
+//   leave     rose    — approved absence, all flavours
+//   holiday   violet  — company/public non-working day, nobody is expected
+//   off       grey    — not a working day, no expectation either way
+//   incident  red     — the ONLY red. Something went wrong.
+//
+// Keeping red exclusive to `incident` is the point of the whole exercise:
+// a lead scanning the grid should be able to trust that red means "act on
+// this", and nothing else should compete for that signal.
+export const ATT_GROUPS = {
+  work:     { label: "Working",        color: "#16A34A" },
+  remote:   { label: "Working (remote)", color: "#2563EB" },
+  partial:  { label: "Short day",      color: "#D97706" },
+  leave:    { label: "Approved leave", color: "#DB2777" },
+  holiday:  { label: "Holiday",        color: "#7C3AED" },
+  off:      { label: "Non-working",    color: "#9CA3AF" },
+  incident: { label: "Needs action",   color: "#DC2626" },
+};
+
+export const ATT_GROUP_ORDER = ["work", "remote", "partial", "leave", "holiday", "off", "incident"];
+
 export const ATTENDANCE_TYPES = [
-  { code: "P",       label: "Present",            color: "#22C55E", bg: "#22C55E20" },
-  { code: "H",       label: "Work from Home",     color: "#3B82F6", bg: "#3B82F620" },
+  // ── work: green family ──
+  { code: "P",       label: "Present",            group: "work",     color: "#16A34A", bg: "#16A34A20" },
+  { code: "CDO",     label: "Cancel Day Off (worked)", group: "work", color: "#15803D", bg: "#15803D20" },
+  { code: "OT",      label: "Overtime",           group: "work",     color: "#059669", bg: "#05966920" },
+  // ── remote: blue family. Working, just not from the office. ──
+  { code: "H",       label: "Work from Home",     group: "remote",   color: "#2563EB", bg: "#2563EB20" },
   // Login Day — the QA's designated come-online/office day. A planning
   // layer code leads assign ahead in the plan grid; treated as a working
   // day that expects a check-in (see attendancePlan.js). Kept out of the
   // actual-status pickers (it's a plan designation, not a check-in code).
-  { code: "LD",      label: "Login Day",          color: "#8B5CF6", bg: "#8B5CF620" },
-  { code: "OT",      label: "Overtime",           color: "#0D9488", bg: "#0D948820" },
-  { code: "L",       label: "Late Arrival",       color: "#F97316", bg: "#F9731620" },
-  { code: "PH",      label: "Public Holiday",     color: "#8B5CF6", bg: "#8B5CF620" },
-  { code: "EL",      label: "Early Leave",        color: "#EAB308", bg: "#EAB30820" },
-  { code: "AL",      label: "Annual Leave",       color: "#EF4444", bg: "#EF444420" },
-  { code: "Paid SL", label: "Sick Leave",         color: "#B91C1C", bg: "#B91C1C20" },
-  { code: "ML",      label: "Maternity Leave",    color: "#EC4899", bg: "#EC489920" },
-  { code: "UL",      label: "Unpaid Leave",       color: "#6B7280", bg: "#6B728020" },
-  { code: "NSNC",      label: "No Show No Call",          color: "#E11D48", bg: "#E11D4825" },
-  { code: "OFF",       label: "Weekend / Holiday",        color: "#9CA3AF", bg: "#9CA3AF15" },
-  { code: "X",         label: "Not Employed",             color: "#6B7280", bg: "#6B728010" },
-  { code: "CDO",       label: "Cancel Day Off (worked)",  color: "#14B8A6", bg: "#14B8A620" },
-  { code: "Tabby Day", label: "Tabby Day (annual perk)",  color: "#A855F7", bg: "#A855F720" },
-  // Granular leave set (re-expanded 2026-07-13 per Ops — replaced the
-  // umbrella "Leave" in the picker). Casual / PH-Off / Lieu are new;
-  // AL / Paid SL / ML already existed above and are reused.
-  { code: "Casual",  label: "Casual Leave",             color: "#F59E0B", bg: "#F59E0B20" },
-  { code: "PH-Off",  label: "Public Holiday (day off)", color: "#7C3AED", bg: "#7C3AED20" },
-  { code: "Lieu",    label: "Lieu Day",                 color: "#0EA5E9", bg: "#0EA5E920" },
+  { code: "LD",      label: "Login Day",          group: "remote",   color: "#0EA5E9", bg: "#0EA5E920" },
+  // ── partial: amber family. Worked, but short. ──
+  { code: "L",       label: "Late Arrival",       group: "partial",  color: "#D97706", bg: "#D9770620" },
+  { code: "EL",      label: "Early Leave",        group: "partial",  color: "#B45309", bg: "#B4530920" },
+  // ── leave: rose/pink family. Approved absence — NOT red. ──
+  // Every colour here has to stay legible as 10px bold text on its own
+  // 12%-alpha tint. The first pass used pink-400/#F472B6 and a custom
+  // #E879A9 for Casual/Lieu and both washed out against the card — they
+  // read as disabled rather than distinct. Keep the family in the
+  // rose→fuchsia band but stay in the 600–900 weight range.
+  { code: "AL",      label: "Annual Leave",       group: "leave",    color: "#DB2777", bg: "#DB277720" },
+  { code: "Paid SL", label: "Sick Leave",         group: "leave",    color: "#9F1239", bg: "#9F123920" },
+  { code: "ML",      label: "Maternity Leave",    group: "leave",    color: "#EC4899", bg: "#EC489920" },
+  { code: "UL",      label: "Unpaid Leave",       group: "leave",    color: "#831843", bg: "#83184320" },
+  { code: "Casual",  label: "Casual Leave",       group: "leave",    color: "#BE185D", bg: "#BE185D20" },
+  // Lieu is earned time off in exchange for a worked day — grouped with
+  // leave (it's an absence the lead approves), pushed to the fuchsia end
+  // so it doesn't collide with the four rose codes next to it.
+  { code: "Lieu",    label: "Lieu Day",           group: "leave",    color: "#A21CAF", bg: "#A21CAF20" },
+  // ── holiday: violet family. Company-wide, nobody is expected in. ──
+  { code: "PH",      label: "Public Holiday",     group: "holiday",  color: "#7C3AED", bg: "#7C3AED20" },
+  { code: "PH-Off",  label: "Public Holiday (day off)", group: "holiday", color: "#8B5CF6", bg: "#8B5CF620" },
+  { code: "Tabby Day", label: "Tabby Day (annual perk)", group: "holiday", color: "#A855F7", bg: "#A855F720" },
+  // ── off: grey. Not a working day; no expectation either way. ──
+  { code: "OFF",     label: "Weekend / Holiday",  group: "off",      color: "#9CA3AF", bg: "#9CA3AF15" },
+  { code: "X",       label: "Not Employed",       group: "off",      color: "#6B7280", bg: "#6B728010" },
+  // ── incident: red. Reserved. Nothing else in the grid is red. ──
+  // Carries a heavier tint than every other code as well as the exclusive
+  // hue: leave sits in the neighbouring rose band, and severity should
+  // survive being glanced at, so it differs in weight and not only in hue.
+  { code: "NSNC",    label: "No Show No Call",    group: "incident", color: "#DC2626", bg: "#DC26263D" },
   // Umbrella "Leave" code (2026-06-01 → 2026-07-13). Kept for historical
   // rows and admin flows, but no longer offered in the picker.
-  { code: "Leave",   label: "Leave",                color: "#EF4444", bg: "#EF444420" },
+  { code: "Leave",   label: "Leave",              group: "leave",    color: "#DB2777", bg: "#DB277720" },
 ];
 
 export const ATT_MAP = ATTENDANCE_TYPES.reduce((acc, t) => { acc[t.code] = t; return acc; }, {});
+
+// Codes grouped for the legend, in ATT_GROUP_ORDER. Callers pass the
+// subset of types they actually render (e.g. SIMPLIFIED_TYPES) so the
+// legend never advertises a code the picker won't offer.
+export function groupTypes(types = ATTENDANCE_TYPES) {
+  return ATT_GROUP_ORDER
+    .map(key => ({
+      key,
+      ...ATT_GROUPS[key],
+      types: types.filter(t => (t.group || "off") === key),
+    }))
+    .filter(g => g.types.length > 0);
+}
 
 // Codes that need lead approval when set by a QA themselves. Leads
 // setting these for their team approve them implicitly.

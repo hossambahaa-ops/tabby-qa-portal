@@ -15,6 +15,6 @@ export const listMtd = ({
   cacheKey = "mtd_scores",
   cache = true,
 }) => {
-  const run = () => sb.query("mtd_scores_v", { select, filters, token }).catch(() => []);
+  const run = () => sb.query("mtd_scores_v", { select, filters, token });
   return cache ? dataCache.fetch(cacheKey, run) : run();
 };

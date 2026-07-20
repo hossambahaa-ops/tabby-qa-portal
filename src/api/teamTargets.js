@@ -7,6 +7,6 @@ export const listTeamTargets = ({
   cacheKey = "team_targets",
   cache = true,
 }) => {
-  const run = () => sb.query("team_targets", { select, filters, token }).catch(() => []);
+  const run = () => sb.query("team_targets", { select, filters, token });
   return cache ? dataCache.fetch(cacheKey, run) : run();
 };

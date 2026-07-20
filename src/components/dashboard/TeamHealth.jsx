@@ -48,8 +48,13 @@ function TeamHealth({ teamData, allTeamEmails, qaQueue, qaDomain }) {
   const [ops, setOps] = useState(null);
 
   useEffect(() => {
+    // `targets === null` is this card's "still loading" sentinel and makes
+    // it render nothing at all. On failure settle to [] so the card still
+    // appears (with its own no-targets state) instead of disappearing
+    // silently — a card that isn't there reads as "nothing to report".
     listTeamTargets({ token })
-      .then(t => setTargets(t || []));
+      .then(t => setTargets(t || []))
+      .catch(e => { console.error("TeamHealth targets:", e); setTargets([]); });
   }, [token]);
 
   // Operational counts for the team — open tasks, pending violations, active APs/PIPs

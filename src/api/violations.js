@@ -7,6 +7,6 @@ export const listViolations = ({
   cacheKey = null,
   cache = false,
 }) => {
-  const run = () => sb.query("coaching_violations", { select, filters, token }).catch(() => []);
+  const run = () => sb.query("coaching_violations", { select, filters, token });
   return cache && cacheKey ? dataCache.fetch(cacheKey, run) : run();
 };

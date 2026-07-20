@@ -7,11 +7,12 @@ import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
-import SkeletonPage from "../components/Skeleton.jsx";
+import { SkeletonGrid } from "../components/Skeleton.jsx";
+import { LoadErrorBanner } from "../components/AsyncSection.jsx";
 import { callEdgeFunction } from "../lib/edgeSync.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES, SIMPLIFIED_TYPES, LEAVE_CODES, RESOLVED_NO_CHECKIN, reconcileAttendanceEmails, shiftBadge } from "../lib/attendance.js";
+import { ATTENDANCE_TYPES, ATT_MAP, APPROVAL_CODES, PICKER_TYPES, SIMPLIFIED_TYPES, LEAVE_CODES, RESOLVED_NO_CHECKIN, reconcileAttendanceEmails, shiftBadge, groupTypes } from "../lib/attendance.js";
 import AttendanceBulkModal from "../components/attendance/AttendanceBulkModal.jsx";
 import AttendanceCsvUpload from "../components/attendance/AttendanceCsvUpload.jsx";
 import AttendanceOtModal from "../components/attendance/AttendanceOtModal.jsx";
@@ -27,6 +28,9 @@ import CalendarDayCell from "../components/schedule/CalendarDayCell.jsx";
 import MyMonthCalendar from "../components/schedule/MyMonthCalendar.jsx";
 import DayCell from "../components/schedule/DayCell.jsx";
 import { riyadhTodayStr } from "../lib/attendancePlan.js";
+
+// Persisted grid height hint for the loading skeleton — see lastTeamSize.
+const TEAM_SIZE_KEY = "schedule_team_size";
 
 function SchedulePage() {
   const{token,profile,gf,globalToast,realProfile}=useApp();
@@ -322,20 +326,50 @@ function SchedulePage() {
   // Profiles for lead set. The entire lead/QA grouping (and thus the whole
   // grid) collapses to "0 team members" if this comes back empty — which a
   // single cold-connection blip on page load can cause (the fetch is
-  // cache:false, so there's no warm cache to fall back on, and it resolves to
-  // []). Guard on token, only commit a NON-empty result, and retry a few
-  // times with backoff so one blip doesn't blank the whole view.
+  // cache:false, so there's no warm cache to fall back on). Guard on token,
+  // only commit a NON-empty result, and retry a few times with backoff so
+  // one blip doesn't blank the whole view.
+  //
+  // The retry has to cover BOTH failure shapes. It originally only handled
+  // "resolved with []", which worked while listProfiles swallowed its own
+  // errors; now that it rejects, an unhandled rejection here would skip the
+  // retry entirely and leave qaLeadSet permanently empty — reintroducing
+  // the exact "0 team members" bug this block exists to prevent. Treat a
+  // rejection as just another empty attempt, and if every attempt fails,
+  // surface it rather than rendering a confident empty grid.
   const [profiles, setProfiles] = useState([]);
+  const [profilesError, setProfilesError] = useState(null);
+  const gotProfilesRef = useRef(false);
+  // Last known team size, used only to size the loading skeleton (see the
+  // loading branch below). 8 is a middling team — a first-ever visit gets a
+  // sensible guess rather than a collapsed page.
+  const [lastTeamSize, setLastTeamSize] = useState(() => {
+    const n = Number(localStorage.getItem(TEAM_SIZE_KEY));
+    return Number.isFinite(n) && n > 0 && n < 200 ? n : 8;
+  });
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
     const load = (tries = 0) => {
-      listProfiles({ token, select: "email,role", filters: "", cache: false }).then(p => {
+      const again = (err) => {
         if (cancelled) return;
-        const arr = Array.isArray(p) ? p : [];
-        if (arr.length) { setProfiles(arr); return; }
-        if (tries < 4) setTimeout(() => load(tries + 1), 500 * (tries + 1));
-      });
+        if (tries < 4) { setTimeout(() => load(tries + 1), 500 * (tries + 1)); return; }
+        // Out of retries. Only complain if we never got a usable set — a
+        // stale-but-populated list beats an error banner. `gotProfiles` is
+        // a ref rather than a read of `profiles`: this closure captures the
+        // state from the render that started the retry chain, so by attempt
+        // five it would be looking at a stale value.
+        if (gotProfilesRef.current) return;
+        setProfilesError(err ? (err.message || String(err)) : "couldn't load the lead list");
+      };
+      listProfiles({ token, select: "email,role", filters: "", cache: false })
+        .then(p => {
+          if (cancelled) return;
+          const arr = Array.isArray(p) ? p : [];
+          if (arr.length) { gotProfilesRef.current = true; setProfiles(arr); setProfilesError(null); return; }
+          again(null);
+        })
+        .catch(again);
     };
     load();
     return () => { cancelled = true; };
@@ -457,6 +491,14 @@ function SchedulePage() {
     daysInMonthRef.current = daysInMonth;
     setAttRef.current = setAtt;
   });
+  // Remember how tall this user's grid actually is so the loading skeleton
+  // can reserve the same height on the next visit. Without it the first
+  // paint guesses, and the page jumps when the real rows arrive.
+  useEffect(() => {
+    if (!visibleQAs.length) return;
+    setLastTeamSize(visibleQAs.length);
+    try { localStorage.setItem(TEAM_SIZE_KEY, String(visibleQAs.length)); } catch {}
+  }, [visibleQAs.length]);
   const days = Array.from({length: daysInMonth}, (_, i) => {
     const d = new Date(year, month - 1, i + 1);
     const dateIso = `${year}-${String(month).padStart(2,"0")}-${String(i + 1).padStart(2,"0")}`;
@@ -987,7 +1029,23 @@ function SchedulePage() {
     return allPending.filter(a => emailsMatchLoose(a.email, myEmail) && a.approval_status === "pending").length;
   })();
 
-  if (loading) return <div className="page"><SkeletonPage/></div>;
+  // Loading used to render a generic SkeletonPage — stats cards + a 5-row
+  // table — which looks nothing like a month grid, so the page visibly
+  // rebuilt itself the moment data landed. Render the real shape instead:
+  // the header, then a grid skeleton as wide as this month and as deep as
+  // the team was last time. `lastTeamSize` is remembered across reloads so
+  // the very first paint is already the right height and nothing jumps.
+  if (loading) return (
+    <div className="page">
+      <div className="page-header">
+        <div className="page-title">Schedule & Attendance</div>
+        <div className="page-subtitle" style={{opacity:.55}}>
+          Loading {new Date(year, month-1).toLocaleDateString("en-US",{month:"long",year:"numeric"})}…
+        </div>
+      </div>
+      <SkeletonGrid rows={lastTeamSize} days={daysInMonth}/>
+    </div>
+  );
 
   const TABS = [
     { key: "calendar", label: "Calendar", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" },
@@ -1012,15 +1070,6 @@ function SchedulePage() {
         <div>
           <div className="page-title">Schedule & Attendance</div>
           <div className="page-subtitle">{visibleQAs.length} team members — {new Date(year, month-1).toLocaleDateString("en-US",{month:"long",year:"numeric"})}</div>
-          {/* An empty month must never be mistaken for a healthy one. If part of
-              the load failed, say so here instead of letting the grid imply the
-              team simply has nothing scheduled. */}
-          {loadError && (
-            <div style={{marginTop:6,fontSize:12,color:"var(--red)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
-              <span>⚠ Couldn't load this month ({loadError}). Showing what loaded — this is a loading problem, not missing data.</span>
-              <button className="btn btn-sm" onClick={()=>loadData()} style={{fontSize:11}}>Retry</button>
-            </div>
-          )}
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
           {/* Month picker — always visible */}
@@ -1115,6 +1164,17 @@ function SchedulePage() {
           </>}
         </div>
       </div>
+
+      {/* An empty month must never be mistaken for a healthy one. If any part
+          of the load failed — the month's attendance chunks, or the profiles
+          fetch that the whole lead/QA grouping depends on — say so here
+          instead of letting the grid imply the team has nothing scheduled.
+          This banner is what surfaced the 57014 statement timeout on
+          2026-07-20; before it existed the failure was console-only. */}
+      <LoadErrorBanner
+        error={[loadError, profilesError].filter(Boolean)}
+        onRetry={() => loadData()}
+      />
 
       {/* ── Tabs ── */}
       <div style={{display:"flex",gap:0,borderBottom:"1px solid var(--bd)",marginBottom:16,overflowX:"auto"}}>
@@ -1669,14 +1729,20 @@ function SchedulePage() {
           })()}
         </div>}
 
-        {/* Legend */}
+        {/* Legend — grouped by semantic family (working / remote / leave /
+            holiday / non-working / needs-action) so a month reads as a few
+            colour blocks instead of 13 equally-weighted chips. Codes inside
+            a group share a hue, and red belongs to NSNC alone. */}
         <div className="card" style={{padding:"10px 16px",marginBottom:16}}>
-          <div style={{display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-            <span style={{fontSize:11,color:"var(--tx3)",fontWeight:600}}>Legend:</span>
-            {SIMPLIFIED_TYPES.map(t => (
-              <span key={t.code} style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:t.bg,color:t.color,fontWeight:700,border:`1px solid ${t.color}30`}}>{t.code}</span>
+          <div style={{display:"flex",gap:16,flexWrap:"wrap",alignItems:"center"}}>
+            {groupTypes([...SIMPLIFIED_TYPES, ATT_MAP.LD, ATT_MAP.NSNC].filter(Boolean)).map(g => (
+              <div key={g.key} style={{display:"flex",gap:5,alignItems:"center"}}>
+                <span style={{fontSize:9.5,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".4px"}}>{g.label}</span>
+                {g.types.map(t => (
+                  <span key={t.code} title={t.label} style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:t.bg,color:t.color,fontWeight:700,border:`1px solid ${t.color}30`}}>{t.code}</span>
+                ))}
+              </div>
             ))}
-            <span title="Login Day — designated come-online day; expects a check-in" style={{fontSize:10,padding:"2px 6px",borderRadius:4,background:"#8B5CF620",color:"#8B5CF6",fontWeight:700,border:"1px solid #8B5CF630"}}>LD</span>
           </div>
         </div>
 

@@ -7,6 +7,6 @@ export const listCoachingSessions = ({
   cacheKey = null,
   cache = false,
 }) => {
-  const run = () => sb.query("coaching_sessions", { select, filters, token }).catch(() => []);
+  const run = () => sb.query("coaching_sessions", { select, filters, token });
   return cache && cacheKey ? dataCache.fetch(cacheKey, run) : run();
 };

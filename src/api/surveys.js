@@ -14,28 +14,28 @@ export const listActiveSurvey = ({ token }) =>
     token,
     select: "id,title,intro_message,created_by,created_at,expires_at",
     filters: "is_active=eq.true&deleted_at=is.null&order=created_at.desc&limit=1",
-  }).catch(() => []);
+  });
 
 export const listAllSurveys = ({ token }) =>
   sb.query("surveys", {
     token,
     select: "*",
     filters: "deleted_at=is.null&order=created_at.desc",
-  }).catch(() => []);
+  });
 
 export const listMyResponse = ({ token, surveyId, userEmail }) =>
   sb.query("survey_responses", {
     token,
     select: "id,rating,submitted_at",
     filters: `survey_id=eq.${surveyId}&user_email=eq.${encodeURIComponent(userEmail)}&limit=1`,
-  }).catch(() => []);
+  });
 
 export const listResponsesForSurvey = ({ token, surveyId }) =>
   sb.query("survey_responses", {
     token,
     select: "id,user_email,rating,feedback,submitted_at",
     filters: `survey_id=eq.${surveyId}&order=submitted_at.desc`,
-  }).catch(() => []);
+  });
 
 export const submitSurveyResponse = ({ token, body }) =>
   sb.query("survey_responses", { token, method: "POST", body });

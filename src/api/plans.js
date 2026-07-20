@@ -7,7 +7,7 @@ export const listPlans = ({
   cacheKey = null,
   cache = false,
 }) => {
-  const run = () => sb.query("action_plans", { select, filters, token }).catch(() => []);
+  const run = () => sb.query("action_plans", { select, filters, token });
   return cache && cacheKey ? dataCache.fetch(cacheKey, run) : run();
 };
 
@@ -18,6 +18,6 @@ export const listPlanWeeks = ({
   cacheKey = null,
   cache = false,
 }) => {
-  const run = () => sb.query("action_plan_weeks", { select, filters, token }).catch(() => []);
+  const run = () => sb.query("action_plan_weeks", { select, filters, token });
   return cache && cacheKey ? dataCache.fetch(cacheKey, run) : run();
 };

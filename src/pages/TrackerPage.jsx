@@ -14,7 +14,7 @@ import TrackerTimeline from "../components/tracker/TrackerTimeline.jsx";
 import TrackerDetailPanel from "../components/tracker/TrackerDetailPanel.jsx";
 import { downloadCsv } from "../lib/csvExport.js";
 import SearchableSelect from "../components/SearchableSelect.jsx";
-import EmptyState from "../components/EmptyState.jsx";
+import AsyncSection from "../components/AsyncSection.jsx";
 import { SkeletonTable } from "../components/Skeleton.jsx";
 import { nameFromEmail } from "../lib/utils.js";
 import PlaceholderPage from "./PlaceholderPage.jsx";
@@ -50,6 +50,7 @@ export default function TrackerPage() {
   const [rows, setRows] = useState([]);
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [view, setView] = useState(() => localStorage.getItem(VIEW_KEY) || "board");
   const [boardSort,  setBoardSort]  = useState(() => localStorage.getItem(SORT_KEY)  || "eta");
   const [boardGroup, setBoardGroup] = useState(() => localStorage.getItem(GROUP_KEY) || "none");
@@ -101,8 +102,14 @@ export default function TrackerPage() {
       }
       const merged = [...byEmail.values()];
       if (merged.length) setProfiles(merged);
+      setLoadError(null);
     } catch (e) {
       globalToast?.("error", e.message || "Failed to load tracker.");
+      // A toast alone wasn't enough: it disappears after a few seconds and
+      // leaves an empty board reading "No tasks yet" — which is a claim we
+      // have no basis for when the fetch never returned. Persist the error
+      // so the body can render it instead of a fake empty state.
+      setLoadError(e?.message || String(e));
     }
     setLoading(false);
   }, [token, globalToast]);
@@ -334,31 +341,39 @@ export default function TrackerPage() {
         <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--tx3)" }}>{filtered.length} of {rows.length}</span>
       </div>
 
-      {/* Body */}
-      {loading ? (
-        <SkeletonTable/>
-      ) : rows.length === 0 ? (
-        <EmptyState
-          illus="empty"
-          title="No tasks yet"
-          description="Create the first one — it'll show up on the board for everyone in the unit."
-          cta={{ label: "+ New task", onClick: openCreate }}
-        />
-      ) : view === "board" ? (
-        <TrackerBoard
-          rows={filtered}
-          onOpen={openRow}
-          onStatusChange={onStatusChange}
-          onReorder={onReorder}
-          onLaneReassign={onLaneReassign}
-          sortMode={boardSort}
-          groupBy={boardGroup}
-        />
-      ) : view === "timeline" ? (
-        <TrackerTimeline rows={filtered} onOpen={openRow} />
-      ) : (
-        <TrackerTable rows={filtered} onOpen={openRow} />
-      )}
+      {/* Body — loading, failed, and genuinely-empty are three different
+          things here. "No tasks yet" is only true when the fetch came back
+          successfully with nothing in it. */}
+      <AsyncSection
+        loading={loading}
+        error={loadError}
+        isEmpty={rows.length === 0}
+        onRetry={load}
+        errorTitle="Couldn't load the tracker"
+        skeleton={<SkeletonTable/>}
+        empty={{
+          illus: "empty",
+          title: "No tasks yet",
+          description: "Create the first one — it'll show up on the board for everyone in the unit.",
+          cta: { label: "+ New task", onClick: openCreate },
+        }}
+      >
+        {view === "board" ? (
+          <TrackerBoard
+            rows={filtered}
+            onOpen={openRow}
+            onStatusChange={onStatusChange}
+            onReorder={onReorder}
+            onLaneReassign={onLaneReassign}
+            sortMode={boardSort}
+            groupBy={boardGroup}
+          />
+        ) : view === "timeline" ? (
+          <TrackerTimeline rows={filtered} onOpen={openRow} />
+        ) : (
+          <TrackerTable rows={filtered} onOpen={openRow} />
+        )}
+      </AsyncSection>
 
       <TrackerDetailPanel
         stack={panelStack}

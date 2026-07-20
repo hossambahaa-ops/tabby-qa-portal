@@ -7,6 +7,6 @@ export const listDailyScores = ({
   cacheKey = null,
   cache = false,
 }) => {
-  const run = () => sb.query("daily_scores", { select, filters, token }).catch(() => []);
+  const run = () => sb.query("daily_scores", { select, filters, token });
   return cache && cacheKey ? dataCache.fetch(cacheKey, run) : run();
 };

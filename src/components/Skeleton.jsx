@@ -73,4 +73,64 @@ export const SkeletonPage = () => (
   </div>
 );
 
+/* ── Card list skeleton — n stacked cards at a fixed height.
+      Use where the real content is a column of cards (dashboard
+      widgets, tracker lanes) so the page doesn't grow by 600px the
+      moment data lands. ── */
+export const SkeletonCards = ({ count = 3, height = 120 }) => (
+  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+    {Array.from({ length: count }).map((_, i) => (
+      <div key={i} className="card" style={{ padding: 18, minHeight: height }}>
+        <Bone w="35%" h={13} r={6} mb={14} style={{ animationDelay: `${i * 0.1}s` }} />
+        <Bone w="80%" h={11} mb={9} style={{ animationDelay: `${i * 0.1 + 0.04}s` }} />
+        <Bone w="55%" h={11} style={{ animationDelay: `${i * 0.1 + 0.08}s` }} />
+      </div>
+    ))}
+  </div>
+);
+
+/* ── Attendance-grid skeleton.
+      The schedule grid used to collapse to zero height while loading, so
+      the page jumped by the full height of the month once rows arrived —
+      and an empty grid was visually identical to a failed one. This keeps
+      the exact footprint: a sticky-looking name column plus `days` cells
+      per row, `rows` rows deep.
+
+      Callers should pass the row count they EXPECT (e.g. the previously
+      rendered team size) so the reflow on load is zero. Defaults are a
+      reasonable team-sized guess for a first-ever load. ── */
+export const SkeletonGrid = ({ rows = 8, days = 31, cell = 30, nameWidth = 180 }) => (
+  <div className="card" style={{ padding: 0, overflow: "hidden" }}>
+    {/* header strip — day numbers */}
+    <div style={{ display: "flex", gap: 3, padding: "10px 12px", borderBottom: "2px solid var(--bd)" }}>
+      <Bone w={`${nameWidth}px`} h={12} r={4} style={{ flexShrink: 0 }} />
+      {Array.from({ length: days }).map((_, d) => (
+        <Bone key={d} w={`${cell}px`} h={12} r={3} style={{ flexShrink: 0 }} />
+      ))}
+    </div>
+    {Array.from({ length: rows }).map((_, r) => (
+      <div
+        key={r}
+        style={{
+          display: "flex",
+          gap: 3,
+          padding: "7px 12px",
+          borderBottom: r < rows - 1 ? "1px solid var(--bd2)" : "none",
+        }}
+      >
+        <Bone w={`${nameWidth}px`} h={cell - 8} r={5} style={{ flexShrink: 0, animationDelay: `${r * 0.05}s` }} />
+        {Array.from({ length: days }).map((_, d) => (
+          <Bone
+            key={d}
+            w={`${cell}px`}
+            h={cell - 8}
+            r={4}
+            style={{ flexShrink: 0, animationDelay: `${(r * 0.05) + (d * 0.006)}s` }}
+          />
+        ))}
+      </div>
+    ))}
+  </div>
+);
+
 export default SkeletonPage;

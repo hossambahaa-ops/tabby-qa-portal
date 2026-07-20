@@ -7,6 +7,6 @@ export const listEscalations = ({
   cacheKey = null,
   cache = false,
 }) => {
-  const run = () => sb.query("escalations", { select, filters, token }).catch(() => []);
+  const run = () => sb.query("escalations", { select, filters, token });
   return cache && cacheKey ? dataCache.fetch(cacheKey, run) : run();
 };

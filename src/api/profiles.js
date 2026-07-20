@@ -7,6 +7,6 @@ export const listProfiles = ({
   cacheKey = "profiles",
   cache = true,
 }) => {
-  const run = () => sb.query("profiles", { select, filters, token }).catch(() => []);
+  const run = () => sb.query("profiles", { select, filters, token });
   return cache ? dataCache.fetch(cacheKey, run) : run();
 };

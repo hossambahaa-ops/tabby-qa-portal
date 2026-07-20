@@ -5,7 +5,7 @@ export const listFeedback = ({
   select = "*",
   filters = "order=created_at.desc",
 }) =>
-  sb.query("feedback", { select, filters, token }).catch(() => []);
+  sb.query("feedback", { select, filters, token });
 
 export const submitFeedback = ({ token, body }) =>
   sb.query("feedback", { token, method: "POST", body });

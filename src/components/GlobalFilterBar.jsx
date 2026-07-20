@@ -8,9 +8,10 @@ import SearchableSelect from "./SearchableSelect.jsx";
 // <PageFilters> strip directly under this bar so the location is
 // always the same and there are no dead controls.
 //
-// Hidden entirely on routes that don't consume gf at all (Dashboard,
-// Tracker, Admin pages, Audit Trail, Escalations, QA Profile) — see
-// HIDE_GLOBAL_FILTER_PATHS in App.jsx.
+// Rendered ONLY on routes that actually consume gf — see the
+// SHOW_GLOBAL_FILTER_PAGES allow-list in App.jsx. Everywhere else the
+// bar is absent rather than inert, so there is never a global Month
+// sitting next to a page's own month picker.
 
 function GlobalFilterBar({ filters, setFilters, months, role }) {
   if (role === "qa") return null; // QAs don't see global filters

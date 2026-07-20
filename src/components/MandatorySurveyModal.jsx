@@ -76,16 +76,28 @@ export default function MandatorySurveyModal() {
     // they're operating as themselves.
     if (impersonating) { setSurvey(null); setHasResponded(null); return; }
     if (!token || !profile?.email) return;
-    const surveys = await listActiveSurvey({ token });
-    const s = surveys?.[0];
-    if (!s) { setSurvey(null); setHasResponded(null); return; }
-    // Check expiry client-side too — RLS doesn't filter by expires_at.
-    if (s.expires_at && new Date(s.expires_at) < new Date()) {
-      setSurvey(null); setHasResponded(null); return;
+    // Failing closed is the right call for a BLOCKING modal: if we can't
+    // read the survey or the user's existing response, we must not guess.
+    // Guessing "no response yet" would re-prompt someone who already
+    // answered and hold the whole app hostage behind a modal they can't
+    // dismiss. Staying quiet costs one skipped prompt; the next load
+    // catches it.
+    try {
+      const surveys = await listActiveSurvey({ token });
+      const s = surveys?.[0];
+      if (!s) { setSurvey(null); setHasResponded(null); return; }
+      // Check expiry client-side too — RLS doesn't filter by expires_at.
+      if (s.expires_at && new Date(s.expires_at) < new Date()) {
+        setSurvey(null); setHasResponded(null); return;
+      }
+      const mine = await listMyResponse({ token, surveyId: s.id, userEmail: profile.email });
+      setSurvey(s);
+      setHasResponded((mine?.length || 0) > 0);
+    } catch (e) {
+      console.error("MandatorySurvey:", e);
+      setSurvey(null);
+      setHasResponded(null);
     }
-    const mine = await listMyResponse({ token, surveyId: s.id, userEmail: profile.email });
-    setSurvey(s);
-    setHasResponded((mine?.length || 0) > 0);
   }, [token, profile?.email, impersonating]);
 
   useEffect(() => { load(); }, [load]);
