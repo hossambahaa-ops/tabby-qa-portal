@@ -37,6 +37,10 @@ function SchedulePage() {
   const [allPending, setAllPending] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
+  // Set when any part of the month load fails. Rendered as a persistent banner
+  // rather than a toast: these failures used to be console-only, so a lead just
+  // saw an empty month and reasonably concluded their data was gone.
+  const [loadError, setLoadError] = useState(null);
   // Namespaced (was "tab") so cross-nav from /admin or /quality
   // doesn't carry a stranger tab value over and leave the Schedule
   // landing on its default fallback.
@@ -99,14 +103,16 @@ function SchedulePage() {
       const hdrs = {"apikey":SUPABASE_ANON,"Authorization":`Bearer ${token}`};
       const base = `${SUPABASE_URL}/rest/v1/qa_attendance?select=id,email,date,status,approval_status,requested_by,approved_by,approved_at,ot_hours,request_note,denial_reason,denied_by,denied_at,planned_code,justification,mismatch_approved,plan_updated_at,shift_start,shift_end,checked_in_at`;
       // These are RAW fetches (not sb.query), so they never got its network-level
-      // retry — and they swallowed every failure into [], which blanked the whole
-      // grid ("no P/H days yet" for everyone) while the roster still loaded, so it
-      // looked like a permissions bug. Retry on a blip, and let a real failure
-      // surface as an error toast instead of silently showing an empty month.
+      // retry, and they used to swallow every failure into []. Retry on a blip,
+      // and report the HTTP status so a real failure can be diagnosed instead of
+      // silently rendering an empty month.
       const fetchAtt = async (from, to, tries = 0) => {
         try {
           const res = await fetch(`${base}&date=gte.${from}&date=lte.${to}&order=date.asc&limit=1000`, { headers: hdrs });
-          if (!res.ok) throw new Error(`attendance fetch failed (${res.status})`);
+          if (!res.ok) {
+            const body = await res.text().catch(() => "");
+            throw new Error(`attendance ${res.status}${body ? `: ${body.slice(0, 180)}` : ""}`);
+          }
           return await res.json();
         } catch (e) {
           if (tries < 2) {
@@ -116,13 +122,26 @@ function SchedulePage() {
           throw e;
         }
       };
-      const [r, a1, a2] = await Promise.all([
+      // allSettled, NOT all: the roster and the attendance rows are independent,
+      // and a rejected attendance chunk used to discard the already-fetched
+      // roster along with it — which is what turned a blank grid into "0 team
+      // members". Each result now stands or falls on its own.
+      const [rRes, a1Res, a2Res] = await Promise.allSettled([
         listRoster({ token, select: "email,display_name,manager_email,queue,country" }),
         fetchAtt(fmtD(1), fmtD(mid)),
         fetchAtt(fmtD(mid + 1), fmtD(dim)),
       ]);
+      const r = rRes.status === "fulfilled" ? rRes.value : [];
+      const a1 = a1Res.status === "fulfilled" ? a1Res.value : [];
+      const a2 = a2Res.status === "fulfilled" ? a2Res.value : [];
+      const failures = [rRes, a1Res, a2Res]
+        .filter(x => x.status === "rejected")
+        .map(x => x.reason?.message || String(x.reason));
       const rosterList = Array.isArray(r) ? r : [];
-      setRoster(rosterList);
+      // Never overwrite a populated roster with an empty one — an empty result
+      // here is far more often a failed request than a genuinely empty team.
+      if (rosterList.length > 0) setRoster(rosterList);
+      else if (rRes.status === "rejected") failures.push("roster fetch failed");
       // Bridge @tabby.ai / @tabby.sa alias splits so attendance logged
       // under one alias still lands on a roster row that uses the other
       // (e.g. roster from the Distro sheet uses @tabby.ai but the rows are
@@ -131,12 +150,22 @@ function SchedulePage() {
         [...(Array.isArray(a1)?a1:[]), ...(Array.isArray(a2)?a2:[])],
         rosterList,
       );
-      setAttendance(allAtt);
+      // Both halves of the month failed -> we know nothing about attendance, so
+      // keep whatever is already on screen rather than repainting the month as
+      // empty. An empty grid is indistinguishable from "nobody is scheduled",
+      // which is how this failure kept getting misread as a data problem.
+      const attendanceLost = a1Res.status === "rejected" && a2Res.status === "rejected";
+      if (!attendanceLost) setAttendance(allAtt);
+      setLoadError(failures.length ? failures.join(" · ") : null);
+      if (failures.length) console.error("Schedule load (partial):", failures);
       try {
         const lock = await sb.query("attendance_month_locks", { token, select: "year_month,locked_by,locked_at", filters: `year_month=eq.${selMonth}&limit=1` }).catch(() => []);
         setMonthLock(Array.isArray(lock) && lock.length > 0 ? lock[0] : null);
       } catch { setMonthLock(null); }
-    } catch(e) { console.error("Schedule load:", e); }
+    } catch(e) {
+      console.error("Schedule load:", e);
+      setLoadError(safeError(e));
+    }
     setLoading(false);
   }, [token, selMonth]);
 
@@ -983,6 +1012,15 @@ function SchedulePage() {
         <div>
           <div className="page-title">Schedule & Attendance</div>
           <div className="page-subtitle">{visibleQAs.length} team members — {new Date(year, month-1).toLocaleDateString("en-US",{month:"long",year:"numeric"})}</div>
+          {/* An empty month must never be mistaken for a healthy one. If part of
+              the load failed, say so here instead of letting the grid imply the
+              team simply has nothing scheduled. */}
+          {loadError && (
+            <div style={{marginTop:6,fontSize:12,color:"var(--red)",display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+              <span>⚠ Couldn't load this month ({loadError}). Showing what loaded — this is a loading problem, not missing data.</span>
+              <button className="btn btn-sm" onClick={()=>loadData()} style={{fontSize:11}}>Retry</button>
+            </div>
+          )}
         </div>
         <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
           {/* Month picker — always visible */}
