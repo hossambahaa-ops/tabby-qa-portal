@@ -63,6 +63,7 @@ function QAProfilePage() {
   const [expandedTask, setExpandedTask] = useState(null);
   const [selMonth, setSelMonth] = useState(null);
   const [csatByMonth, setCsatByMonth] = useState({}); // month -> {good,bad} from csat_by_topic (Q_Support_Performance)
+  const [qualityByMonth, setQualityByMonth] = useState({}); // month -> {sbsCount,sbsMin,valCount,valMin} from qa_quality_tasks (ABT SBS + ABT Validation)
   const [refreshing, setRefreshing] = useState(false);
   // Tab state — "overview" (today + activity) vs "monthly" (perf + trend + expertise)
   const [activeTab, setActiveTab] = useUrlState("ptab", "overview");
@@ -262,6 +263,57 @@ function QAProfilePage() {
     return () => { cancelled = true; };
   }, [token, selectedQA, prodHistKey]);
 
+  // ABT SBS + ABT Validation minutes per month from qa_quality_tasks (the
+  // quality-tasks-sync feed). Shown as KPI rows and folded into the
+  // occupancy numerator below. Only populated for activity on/after the
+  // sync cutoff (2026-07-22) — earlier months were already counted through
+  // side_tasks_duration_mins, so counting them here would double-count.
+  useEffect(() => {
+    if (!token || !selectedQA) { setQualityByMonth({}); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const lc = selectedQA.toLowerCase();
+        const variants = [...new Set([
+          lc,
+          lc.endsWith("@tabby.ai") ? lc.replace("@tabby.ai", "@tabby.sa")
+            : lc.endsWith("@tabby.sa") ? lc.replace("@tabby.sa", "@tabby.ai") : lc,
+        ])];
+        const inList = variants.map(e => `"${e}"`).join(",");
+        const rows = await sb.query("qa_quality_tasks", {
+          token,
+          select: "month,abt_sbs_count,abt_sbs_minutes,abt_validation_count,abt_validation_minutes",
+          filters: `qa_email=in.(${inList})`,
+        }).catch(() => []);
+        const agg = {};
+        for (const r of (rows || [])) {
+          if (!r.month) continue;
+          const a = agg[r.month] || (agg[r.month] = { sbsCount: 0, sbsMin: 0, valCount: 0, valMin: 0 });
+          a.sbsCount += Number(r.abt_sbs_count || 0);
+          a.sbsMin   += Number(r.abt_sbs_minutes || 0);
+          a.valCount += Number(r.abt_validation_count || 0);
+          a.valMin   += Number(r.abt_validation_minutes || 0);
+        }
+        if (!cancelled) setQualityByMonth(agg);
+      } catch { if (!cancelled) setQualityByMonth({}); }
+    })();
+    return () => { cancelled = true; };
+  }, [token, selectedQA, prodHistKey]);
+
+  // ABT SBS + ABT Validation minutes keyed by "YYYY-MM", for the occupancy
+  // numerator here and (passed as a prop) in EvalHistory's monthly view.
+  const qualMinByYM = (() => {
+    const M = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const out = {};
+    for (const [label, q] of Object.entries(qualityByMonth)) {
+      const [mon, yr] = label.split("-");
+      const idx = M.indexOf(mon);
+      if (idx < 0 || !yr) continue;
+      out[`${yr}-${String(idx + 1).padStart(2, "0")}`] = (q.sbsMin || 0) + (q.valMin || 0);
+    }
+    return out;
+  })();
+
   // Build a per-(YYYY-MM) → computed occupancy% map. Recomputes when
   // either the feed rows or MTD list changes. Used by both the
   // Performance card row and the trend chart so they agree.
@@ -315,7 +367,11 @@ function QAProfilePage() {
       const attWd = attWdByYM.get(ym);
       const wds = (attWd && attWd > 0) ? attWd : mtdByYM.get(ym);
       if (!wds) continue;
-      const prod = (s.sbs * SBS_DUR) + (s.non_sbs * NSBS_DUR) + (s.coach * COACH_DUR) + s.side;
+      // ABT SBS + ABT Validation minutes (post-cutoff only) add to the
+      // productive numerator. Monthly aggregate — not daily — so it can't be
+      // excluded-for-today like the feed rows; harmless since it only ever
+      // holds post-2026-07-22 activity.
+      const prod = (s.sbs * SBS_DUR) + (s.non_sbs * NSBS_DUR) + (s.coach * COACH_DUR) + s.side + (qualMinByYM[ym] || 0);
       out.set(ym, (prod / (wds * SHIFT_MIN)) * 100);
     }
     return out;
@@ -1003,7 +1059,7 @@ function QAProfilePage() {
         {/* Evaluation History first — leads asked for the daily / weekly /
             monthly productivity feed at the top of this tab so they see
             the freshest data without scrolling past the MTD card. */}
-        {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} qaMtd={qaMtd} />}
+        {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} qaMtd={qaMtd} qualMinByYM={qualMinByYM} />}
         {/* Performance + Trend in 2-col */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16,marginTop:16}}>
           {/* Performance metrics with month selector */}
@@ -1047,6 +1103,13 @@ function QAProfilePage() {
               const avgProd = totalLogin > 0 ? totalTickets / totalLogin : null;
               const rows = [
                 ["SBS", m.sbs],["Non-SBS", m.non_sbs],["DSAT", m.dsat],
+                // ABT SBS + ABT Validation (from qa_quality_tasks) — only
+                // rendered for months that have data (post-2026-07-22), so
+                // historical months stay uncluttered.
+                ...(qualityByMonth[m.month] ? [
+                  ["ABT SBS", qualityByMonth[m.month].sbsCount ? `${qualityByMonth[m.month].sbsCount} · ${qualityByMonth[m.month].sbsMin}m` : "—"],
+                  ["ABT Validation", qualityByMonth[m.month].valCount ? `${qualityByMonth[m.month].valCount} · ${qualityByMonth[m.month].valMin}m` : "—"],
+                ] : []),
                 ["RTR Score", fmtPct(m.avg_rtr_score)],["RTR #", m.rtr_count ?? "—"],["Calibration", fmtPct(m.avg_calibration_match_rate)],
                 ["CO Score", fmtPct(m.avg_observation_score_pct)],
                 // On-time falls back to CRM-anchored % when there's no eval-date

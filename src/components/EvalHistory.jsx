@@ -38,7 +38,7 @@ function fmtMonth(yyyymm) {
   return dt.toLocaleDateString("en-GB", { month: "short", year: "numeric" });
 }
 
-function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
+function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [], qualMinByYM = {} }) {
   const { token, globalToast } = useApp();
   const [data, setData] = useState(null);
   // Start in the loading state — the auto-load effect kicks in on mount.
@@ -444,7 +444,9 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [] }) {
                 const mtdWds = view === "monthly" ? mtdWdsForKey(r.monthStart) : null;
                 const monthlyOccFromFeed = (mtdWds && shiftMins > 0)
                   ? (() => {
-                      const prod = (r.sbs * sbsDur) + (r.non_sbs * nonSbsDur) + (r.coaching * coachingDur) + r.side;
+                      // + ABT SBS / ABT Validation minutes (post-cutoff),
+                      // matching the QA Profile trend's numerator.
+                      const prod = (r.sbs * sbsDur) + (r.non_sbs * nonSbsDur) + (r.coaching * coachingDur) + r.side + (qualMinByYM[r.monthStart] || 0);
                       return (prod / (mtdWds * shiftMins)) * 100;
                     })()
                   : null;
