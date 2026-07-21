@@ -1113,8 +1113,8 @@ function QAProfilePage() {
                 // rendered for months that have data (post-2026-07-22), so
                 // historical months stay uncluttered.
                 ...(qualityByMonth[m.month] ? [
-                  ["ABT SBS", qualityByMonth[m.month].sbsCount ? `${qualityByMonth[m.month].sbsCount} · ${qualityByMonth[m.month].sbsMin}m` : "—"],
-                  ["ABT Validation", qualityByMonth[m.month].valCount ? `${qualityByMonth[m.month].valCount} · ${qualityByMonth[m.month].valMin}m` : "—"],
+                  ["ABT SBS", qualityByMonth[m.month].sbsCount || "—"],
+                  ["ABT Validation", qualityByMonth[m.month].valCount || "—"],
                 ] : []),
                 ["RTR Score", fmtPct(m.avg_rtr_score)],["RTR #", m.rtr_count ?? "—"],["Calibration", fmtPct(m.avg_calibration_match_rate)],
                 ["CO Score", fmtPct(m.avg_observation_score_pct)],

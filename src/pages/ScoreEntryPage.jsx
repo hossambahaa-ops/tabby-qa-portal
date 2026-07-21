@@ -96,14 +96,31 @@ function ScoreEntryPage(){
   useEffect(() => {
     (async () => {
       try {
-        const [rows, rosterRows, profRows, qualRows] = await Promise.all([
+        const wdRangeStart = new Date(Date.now() - 62 * 864e5).toISOString().slice(0, 10);
+        const [rows, rosterRows, profRows, qualRows, attRows] = await Promise.all([
           listMtd({ token, filters: "order=month.desc,qa_email.asc" }),
           listRoster({ token, select: "email,queue,manager_email" }),
           listProfiles({ token, select: "id,email,role", cacheKey: "profiles_slim" }),
           // ABT SBS + ABT Validation figures (display-only on this table).
           sb.query("qa_quality_tasks", { token, select: "qa_email,month,abt_sbs_count,abt_sbs_minutes,abt_validation_count,abt_validation_minutes" }).catch(() => []),
+          // Recent attendance — to synthesize QAs who WORKED (have working days)
+          // but are missing from the sheet, even at 0 productivity.
+          sb.query("qa_attendance", { token, select: "email,date,status", filters: `date=gte.${wdRangeStart}` }).catch(() => []),
         ]);
         setRoster(rosterRows);
+        // Working-days per (local-part | "Mon-YYYY") from attendance (worked-day
+        // statuses only). Local-part keying is cross-domain safe.
+        const WD_MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+        const WD_STATUSES = new Set(["P","H","CDO","PH"]);
+        const wdMap = new Map();
+        for (const a of (attRows || [])) {
+          if (!a.date || !WD_STATUSES.has(a.status)) continue;
+          const lp = (a.email || "").toLowerCase().split("@")[0];
+          const [yy, mm] = a.date.split("-");
+          if (!lp || !mm) continue;
+          const key = `${lp}|${WD_MON[Number(mm) - 1]}-${yy}`;
+          wdMap.set(key, (wdMap.get(key) || 0) + 1);
+        }
         // Merge quality-task figures onto each MTD row by (qa_email, month).
         const qualByKey = new Map((qualRows || []).map(q => [`${(q.qa_email || "").toLowerCase()}|${q.month}`, q]));
         // Build blacklist: exclude both domain variants of non-QA users
@@ -184,12 +201,20 @@ function ScoreEntryPage(){
         );
         const syntheticRows = !latestMonth ? [] : rosterRows.filter(r => {
           const em = r.email?.toLowerCase();
-          return em && rosterMgrValid.has(em) && !presentLocals.has(em.split("@")[0]);
+          if (!em || !rosterMgrValid.has(em)) return false;
+          const lp = em.split("@")[0];
+          if (presentLocals.has(lp)) return false;
+          // Rule: add anyone who WORKED that month (has working days), even if
+          // their productivity is 0. QAs with no WDs (fully off / left) are not
+          // added.
+          return (wdMap.get(`${lp}|${latestMonth}`) || 0) > 0;
         }).map(r => {
           const em = r.email.toLowerCase();
+          const lp = em.split("@")[0];
           const q = qualByKey.get(`${em}|${latestMonth}`);
           return {
             qa_email: r.email, month: latestMonth, qa_tl: r.manager_email || null, _synthetic: true,
+            working_days: wdMap.get(`${lp}|${latestMonth}`) || 0,
             ...(q ? { abt_sbs_count: q.abt_sbs_count, abt_sbs_minutes: q.abt_sbs_minutes, abt_validation_count: q.abt_validation_count, abt_validation_minutes: q.abt_validation_minutes } : {}),
           };
         });
@@ -549,8 +574,8 @@ function ScoreEntryPage(){
     // coaching group. Display-only here; these feed the QA Profile occupancy,
     // not this table's Occupancy column. "count · minutes"; "—" until the sync
     // starts populating (2026-07-22).
-    { k: "abt_sbs",         label: "ABT SBS",              presets: ["all","perf"],  render: r => r.abt_sbs_count ? <span style={{fontSize:12}}>{r.abt_sbs_count} <span style={{color:"var(--tx3)"}}>· {r.abt_sbs_minutes}m</span></span> : <span style={{color:"var(--tx3)"}}>—</span> },
-    { k: "abt_validation",  label: "ABT Validation",       presets: ["all","perf"],  render: r => r.abt_validation_count ? <span style={{fontSize:12}}>{r.abt_validation_count} <span style={{color:"var(--tx3)"}}>· {r.abt_validation_minutes}m</span></span> : <span style={{color:"var(--tx3)"}}>—</span> },
+    { k: "abt_sbs",         label: "ABT SBS",              presets: ["all","perf"],  render: r => r.abt_sbs_count ? <span style={{fontSize:12,fontWeight:500}}>{r.abt_sbs_count}</span> : <span style={{color:"var(--tx3)"}}>—</span> },
+    { k: "abt_validation",  label: "ABT Validation",       presets: ["all","perf"],  render: r => r.abt_validation_count ? <span style={{fontSize:12,fontWeight:500}}>{r.abt_validation_count}</span> : <span style={{color:"var(--tx3)"}}>—</span> },
     // Coaching trio, all driven by the live sheet columns (coaching_sessions,
     // not_coached, coaching_completion_pct). We gate Pending / Completion on
     // whether the QA had any coaching activity at all — delivered or pending —
