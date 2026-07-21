@@ -164,11 +164,36 @@ function ScoreEntryPage(){
           if (tl && !qaLeadSet.has(tl) && !qaLeadSet.has(tl.split("@")[0])) return false;
           return true;
         });
-        setData(filtered.map(r => {
+        const uniqueMonths = sortMonthsDesc([...new Set(filtered.map(r => r.month))]);
+        const latestMonth = uniqueMonths[0];
+        // Real MTD rows, with ABT figures merged on.
+        const mtdRows = filtered.map(r => {
           const q = qualByKey.get(`${(r.qa_email || "").toLowerCase()}|${r.month}`);
           return q ? { ...r, abt_sbs_count: q.abt_sbs_count, abt_sbs_minutes: q.abt_sbs_minutes, abt_validation_count: q.abt_validation_count, abt_validation_minutes: q.abt_validation_minutes } : r;
-        }));
-        const uniqueMonths = sortMonthsDesc([...new Set(filtered.map(r => r.month))]);
+        });
+        // Synthesize placeholder rows for active roster QAs who are MISSING
+        // from the latest month's MTD sheet (a mid-month sync gap — e.g. Sameh
+        // wasn't in July's sheet yet). They render with "—" for the sheet
+        // metrics but still surface the QA, their TL, and their ABT figures.
+        // NOT written to mtd_scores — mtd-sync's orphan cleanup deletes any row
+        // not in the sheet — so they're synthesized client-side each load.
+        // Matched by local-part so a cross-domain QA isn't double-listed.
+        const presentLocals = new Set(
+          mtdRows.filter(r => r.month === latestMonth)
+            .map(r => (r.qa_email || "").toLowerCase().split("@")[0])
+        );
+        const syntheticRows = !latestMonth ? [] : rosterRows.filter(r => {
+          const em = r.email?.toLowerCase();
+          return em && rosterMgrValid.has(em) && !presentLocals.has(em.split("@")[0]);
+        }).map(r => {
+          const em = r.email.toLowerCase();
+          const q = qualByKey.get(`${em}|${latestMonth}`);
+          return {
+            qa_email: r.email, month: latestMonth, qa_tl: r.manager_email || null, _synthetic: true,
+            ...(q ? { abt_sbs_count: q.abt_sbs_count, abt_sbs_minutes: q.abt_sbs_minutes, abt_validation_count: q.abt_validation_count, abt_validation_minutes: q.abt_validation_minutes } : {}),
+          };
+        });
+        setData([...mtdRows, ...syntheticRows]);
         setMonths(uniqueMonths);
         // Seed-from-defaults block — ONLY runs on first load.
         // Re-runs (auto-refresh every 60s, manual ↻ Refresh button)
@@ -510,6 +535,7 @@ function ScoreEntryPage(){
           {nameFromEmail(r.qa_email).split(" ").map(p=>p[0]).join("").toUpperCase().slice(0,2)}
         </div>
         <div style={{fontWeight:500,fontSize:13,whiteSpace:"nowrap"}}>{nameFromEmail(r.qa_email)}</div>
+        {r._synthetic && <span title="Not in this month's MTD sheet yet — shown from the roster" style={{fontSize:9,fontWeight:600,color:"var(--tx3)",border:"1px solid var(--bd)",borderRadius:4,padding:"1px 4px",whiteSpace:"nowrap"}}>no MTD</span>}
       </div>
     )},
     { k: "tl",              label: "TL",          align: "left", presets: ["all","perf","coach"], render: r => <span style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</span> },
@@ -1005,6 +1031,7 @@ function ScoreEntryPage(){
           const pushPctPos=(arr,raw)=>{let v=parseFloat(raw);if(isNaN(v)||v<=0)return;if(v<=1)v*=100;arr.push(v);};
           const leadMap={};
           sorted.forEach(r=>{
+            if(r._synthetic) return; // placeholder rows (no sheet data) don't count in the lead rollup
             const tl=(r.qa_tl||"unknown").toLowerCase();
             if(!leadMap[tl])leadMap[tl]={tl:r.qa_tl||"Unknown",count:0,sbs:0,non_sbs:0,dsat:0,late:0,never:0,valid:0,invalid:0,sessions:0,ontime:0,eligible:0,not_coached:0,rtr:0,rtr_scores:[],obs:0,obs_scores:[],calib:0,calib_scores:[],completion:[],ontime_pct:[],tickets:[],occupancy:[],days:0,st_mins:0,performance:[],csat_weighted_sum:0,csat_weight:0,csat_simple_sum:0,csat_simple_count:0,csat_total:0};
             const l=leadMap[tl];
