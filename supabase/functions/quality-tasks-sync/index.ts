@@ -1,42 +1,42 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// ── quality-tasks-sync ───────────────────────────────────────────────
+// quality-tasks-sync
 // Mirrors two published Google sheets into public.qa_quality_tasks, one
 // row per (canonical qa_email, month):
 //
-//   ABT SBS        — the "SBS AGBT/ABT" form. One row per side-by-side
+//   ABT SBS        - the "SBS AGBT/ABT" form. One row per side-by-side
 //                    session. QA = "Email Address", date = "Timestamp".
 //                    Minutes = sessions x 20 (Front Line) / 25 (non-FL).
-//                    DISTINCT from the existing productivity_history.sbs /
-//                    mtd_scores.sbs — those numbers don't match this form
-//                    (verified 2026-07-21), so this is its own stream.
+//                    DISTINCT from productivity_history.sbs / mtd_scores.sbs.
 //
-//   ABT Validation — the "ABT Weekly Validation Checklist". One row per
-//                    validated ticket. The QA is the "QA Specialist"
-//                    column (NOT "Agent Email" — that's the person being
-//                    reviewed). Counts 15 min ONLY when "Root Cause" is
-//                    non-blank; blank Root Cause is skipped. Date =
+//   ABT Validation - the "ABT Weekly Validation Checklist". One row per
+//                    validated ticket. The QA is the "QA Specialist" column
+//                    (NOT "Agent Email"). Counts 15 min ONLY when "Root Cause"
+//                    is non-blank; blank Root Cause is skipped. Date =
 //                    "Validation Date".
 //
-// Only activity dated on/after QUALITY_TASKS_START_DATE (default
-// 2026-07-22, "tomorrow") is counted. Earlier activity was already folded
-// into side_tasks_duration_mins, so counting it here would double-count
-// occupancy. The window means the table stays empty until the cutoff and
-// fills forward from there.
+// ALL activity is ingested as a display FIGURE (abt_*_count / abt_*_minutes),
+// regardless of date. But only activity dated on/after QUALITY_TASKS_START_DATE
+// (default 2026-07-22, "tomorrow") is COUNTABLE (countable_count /
+// countable_minutes) toward occupancy + ticket/day. Earlier activity was
+// already folded into side_tasks_duration_mins, so counting it again would
+// double-count - hence the split: the past shows as a figure but contributes
+// 0 to the calculations.
 //
 // FL vs non-FL comes from qa_roster.queue = 'Front Line'. QAs not on the
 // roster are skipped and reported in `unmatched`.
 //
-// Cron: hourly. Idempotent — each run fully re-derives every (qa, month)
-// present in the sheets past the cutoff and upserts, overwriting counts.
+// Cron: hourly. Idempotent - each run fully re-derives every (qa, month) and
+// upserts, overwriting.
 
 const SBS_CSV_URL = Deno.env.get("ABT_SBS_CSV_URL") ||
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSuxBVULxfBaQ0Z4u0se88_YYRAHflObrW4fUHpheILZU-s84ZjuW9CCxy10qJkurpzdPqHc5xB-O-h/pub?output=csv";
 const ABT_VAL_CSV_URL = Deno.env.get("ABT_VALIDATION_CSV_URL") ||
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vTpJ_gJ3g2ySkgqh2IR1lQdqzkZYt0OOceAMM11OsE2mVT_OR1DESDhvZeo2iPp-tGFmlwJ24zJOoBT/pub?gid=656272246&single=true&output=csv";
 
-// Activity strictly before this date is ignored (already in Side Tasks).
+// Activity strictly before this date is a display-only figure (already in
+// Side Tasks); on/after it is countable toward occupancy + ticket/day.
 const START_DATE = Deno.env.get("QUALITY_TASKS_START_DATE") || "2026-07-22";
 
 // Per-session / per-validation minute rates.
@@ -76,7 +76,6 @@ async function authorize(req: Request, supabase: any) {
   return { ok: true, userEmail: profile.email };
 }
 
-// Standard quoted-CSV parser (same as the other sync fns).
 function parseCSV(text: string): string[][] {
   const rows: string[][] = []; let row: string[] = []; let f = ""; let q = false;
   for (let i = 0; i < text.length; i++) {
@@ -108,13 +107,11 @@ const norm = (s: string) => (s || "").replace(/\s+/g, " ").trim().toLowerCase();
 const findCol = (header: string[], name: string) => header.findIndex(h => norm(h) === norm(name));
 const monthLabel = (d: Date) => `${MONTHS3[d.getUTCMonth()]}-${d.getUTCFullYear()}`;
 
-// "6/10/2026 14:05:30" (M/D/YYYY) -> Date (UTC midnight of that day).
 function parseSlashDate(v: string): Date | null {
   const m = String(v || "").trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
   if (!m) return null;
   return new Date(Date.UTC(+m[3], +m[1] - 1, +m[2]));
 }
-// "20-May -2026" / "20-May-2026" -> Date.
 function parseDashDate(v: string): Date | null {
   const s = String(v || "").replace(/\s+/g, " ").trim();
   const m = s.match(/(\d{1,2})\s*-\s*([A-Za-z]{3,})\s*-\s*(\d{4})/);
@@ -127,7 +124,6 @@ function parseDashDate(v: string): Date | null {
 async function runSync(supabase: any, triggeredBy: string) {
   const cutoff = new Date(`${START_DATE}T00:00:00Z`);
 
-  // ── roster: canonical-email map + Front-Line set ──
   const { data: idRows } = await supabase.from("profiles").select("email");
   const { data: rosterRows } = await supabase.from("qa_roster").select("email, queue");
   const saIdentities = new Set<string>(); const byLocal = new Map<string, string>();
@@ -143,7 +139,7 @@ async function runSync(supabase: any, triggeredBy: string) {
     return lc;
   };
   const rosterEmails = new Set<string>();
-  const isFL = new Set<string>(); // canonical emails whose queue is Front Line
+  const isFL = new Set<string>();
   for (const rr of (rosterRows || [])) {
     const ce = canon(rr.email || "");
     if (!ce.includes("@")) continue;
@@ -151,16 +147,19 @@ async function runSync(supabase: any, triggeredBy: string) {
     if (norm(rr.queue || "") === "front line") isFL.add(ce);
   }
 
-  // (qa, month) -> counts
-  const agg = new Map<string, { qa: string; month: string; sbs: number; val: number }>();
-  const bump = (qa: string, month: string, field: "sbs" | "val") => {
-    const key = `${qa} ${month}`;
-    const e = agg.get(key) || { qa, month, sbs: 0, val: 0 };
-    e[field]++; agg.set(key, e);
+  // (qa, month) -> counts. sbs/val = FULL (all dates); sbs_c/val_c = COUNTABLE
+  // subset (on/after cutoff).
+  const agg = new Map<string, { qa: string; month: string; sbs: number; val: number; sbs_c: number; val_c: number }>();
+  const bump = (qa: string, month: string, field: "sbs" | "val", countable: boolean) => {
+    const key = `${qa} ${month}`;
+    const e = agg.get(key) || { qa, month, sbs: 0, val: 0, sbs_c: 0, val_c: 0 };
+    e[field]++;
+    if (countable) e[(field + "_c") as "sbs_c" | "val_c"]++;
+    agg.set(key, e);
   };
   const unmatched = new Set<string>();
 
-  // ── ABT SBS sheet ──
+  // ABT SBS sheet
   const sbsRes = await fetchCsv(SBS_CSV_URL);
   if (!sbsRes.ok) return { error: `ABT SBS: ${sbsRes.error}` };
   const sbsRows = parseCSV(sbsRes.text);
@@ -168,7 +167,7 @@ async function runSync(supabase: any, triggeredBy: string) {
   const sQa = findCol(sbsHdr, "email address");
   const sDate = findCol(sbsHdr, "timestamp");
   if (sQa < 0 || sDate < 0) return { error: "ABT SBS: missing 'Email Address' / 'Timestamp' columns" };
-  let sbsSeen = 0, sbsPreCutoff = 0;
+  let sbsSeen = 0, sbsCountable = 0;
   for (let i = 1; i < sbsRows.length; i++) {
     const row = sbsRows[i];
     const raw = (row[sQa] || "").trim().toLowerCase();
@@ -176,13 +175,14 @@ async function runSync(supabase: any, triggeredBy: string) {
     const d = parseSlashDate(row[sDate] || "");
     if (!d) continue;
     sbsSeen++;
-    if (d < cutoff) { sbsPreCutoff++; continue; }
     const qa = canon(raw);
     if (!rosterEmails.has(qa)) { unmatched.add(raw); continue; }
-    bump(qa, monthLabel(d), "sbs");
+    const countable = d >= cutoff;
+    if (countable) sbsCountable++;
+    bump(qa, monthLabel(d), "sbs", countable);
   }
 
-  // ── ABT Validation sheet (row 0 = title banner, row 1 = real header) ──
+  // ABT Validation sheet (row 0 = title banner, row 1 = real header)
   const valRes = await fetchCsv(ABT_VAL_CSV_URL);
   if (!valRes.ok) return { error: `ABT Validation: ${valRes.error}` };
   const valRows = parseCSV(valRes.text);
@@ -191,7 +191,7 @@ async function runSync(supabase: any, triggeredBy: string) {
   const vDate = findCol(vHdr, "validation date");
   const vRoot = findCol(vHdr, "root cause");
   if (vQa < 0 || vDate < 0 || vRoot < 0) return { error: "ABT Validation: missing 'QA Specialist' / 'Validation Date' / 'Root Cause' columns" };
-  let valSeen = 0, valBlankRoot = 0, valPreCutoff = 0;
+  let valSeen = 0, valBlankRoot = 0, valCountable = 0;
   for (let i = 2; i < valRows.length; i++) {
     const row = valRows[i];
     const raw = (row[vQa] || "").trim().toLowerCase();
@@ -200,21 +200,23 @@ async function runSync(supabase: any, triggeredBy: string) {
     const d = parseDashDate(row[vDate] || "");
     if (!d) continue;
     valSeen++;
-    if (d < cutoff) { valPreCutoff++; continue; }
     const qa = canon(raw);
     if (!rosterEmails.has(qa)) { unmatched.add(raw); continue; }
-    bump(qa, monthLabel(d), "val");
+    const countable = d >= cutoff;
+    if (countable) valCountable++;
+    bump(qa, monthLabel(d), "val", countable);
   }
 
-  // ── build records with FL-aware minutes ──
+  // build records: FULL figures + COUNTABLE subset, FL-aware minutes
   const now = new Date().toISOString();
   const records = [...agg.values()].map(e => {
-    const sbsMin = e.sbs * (isFL.has(e.qa) ? SBS_MIN_FL : SBS_MIN_NONFL);
-    const valMin = e.val * VAL_MIN;
+    const rate = isFL.has(e.qa) ? SBS_MIN_FL : SBS_MIN_NONFL;
     return {
       qa_email: e.qa, month: e.month,
-      abt_sbs_count: e.sbs, abt_sbs_minutes: sbsMin,
-      abt_validation_count: e.val, abt_validation_minutes: valMin,
+      abt_sbs_count: e.sbs, abt_sbs_minutes: e.sbs * rate,
+      abt_validation_count: e.val, abt_validation_minutes: e.val * VAL_MIN,
+      countable_count: e.sbs_c + e.val_c,
+      countable_minutes: e.sbs_c * rate + e.val_c * VAL_MIN,
       synced_at: now,
     };
   });
@@ -229,10 +231,10 @@ async function runSync(supabase: any, triggeredBy: string) {
   }
 
   return {
-    success: true, triggered_by: triggeredBy, cutoff: START_DATE,
+    success: true, triggered_by: triggeredBy, countable_from: START_DATE,
     rows_upserted: upserted,
-    abt_sbs: { rows_seen: sbsSeen, pre_cutoff_skipped: sbsPreCutoff },
-    abt_validation: { rows_seen: valSeen, blank_root_cause_skipped: valBlankRoot, pre_cutoff_skipped: valPreCutoff },
+    abt_sbs: { rows_seen: sbsSeen, countable: sbsCountable },
+    abt_validation: { rows_seen: valSeen, blank_root_cause_skipped: valBlankRoot, countable: valCountable },
     unmatched_qas: [...unmatched],
   };
 }

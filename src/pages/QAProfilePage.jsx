@@ -282,17 +282,21 @@ function QAProfilePage() {
         const inList = variants.map(e => `"${e}"`).join(",");
         const rows = await sb.query("qa_quality_tasks", {
           token,
-          select: "month,abt_sbs_count,abt_sbs_minutes,abt_validation_count,abt_validation_minutes",
+          // abt_*_count/minutes are the FULL figures (all dates) for the KPI
+          // rows; countable_minutes is only the on/after-cutoff subset that
+          // occupancy is allowed to count.
+          select: "month,abt_sbs_count,abt_sbs_minutes,abt_validation_count,abt_validation_minutes,countable_minutes",
           filters: `qa_email=in.(${inList})`,
         }).catch(() => []);
         const agg = {};
         for (const r of (rows || [])) {
           if (!r.month) continue;
-          const a = agg[r.month] || (agg[r.month] = { sbsCount: 0, sbsMin: 0, valCount: 0, valMin: 0 });
+          const a = agg[r.month] || (agg[r.month] = { sbsCount: 0, sbsMin: 0, valCount: 0, valMin: 0, countableMin: 0 });
           a.sbsCount += Number(r.abt_sbs_count || 0);
           a.sbsMin   += Number(r.abt_sbs_minutes || 0);
           a.valCount += Number(r.abt_validation_count || 0);
           a.valMin   += Number(r.abt_validation_minutes || 0);
+          a.countableMin += Number(r.countable_minutes || 0);
         }
         if (!cancelled) setQualityByMonth(agg);
       } catch { if (!cancelled) setQualityByMonth({}); }
@@ -300,8 +304,10 @@ function QAProfilePage() {
     return () => { cancelled = true; };
   }, [token, selectedQA, prodHistKey]);
 
-  // ABT SBS + ABT Validation minutes keyed by "YYYY-MM", for the occupancy
-  // numerator here and (passed as a prop) in EvalHistory's monthly view.
+  // COUNTABLE ABT minutes keyed by "YYYY-MM", for the occupancy numerator here
+  // and (passed as a prop) in EvalHistory's monthly view. Uses countableMin
+  // (on/after the cutoff) — NOT the full sbsMin+valMin — so past months show
+  // their figures in the KPI rows but don't retroactively lift occupancy.
   const qualMinByYM = (() => {
     const M = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     const out = {};
@@ -309,7 +315,7 @@ function QAProfilePage() {
       const [mon, yr] = label.split("-");
       const idx = M.indexOf(mon);
       if (idx < 0 || !yr) continue;
-      out[`${yr}-${String(idx + 1).padStart(2, "0")}`] = (q.sbsMin || 0) + (q.valMin || 0);
+      out[`${yr}-${String(idx + 1).padStart(2, "0")}`] = q.countableMin || 0;
     }
     return out;
   })();
