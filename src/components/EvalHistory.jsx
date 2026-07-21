@@ -43,7 +43,7 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [], qualM
   const [data, setData] = useState(null);
   // Start in the loading state — the auto-load effect kicks in on mount.
   const [loading, setLoading] = useState(true);
-  const [view, setView] = useState("daily");
+  const [view, setView] = useState("monthly");
   const [refreshing, setRefreshing] = useState(false);
   const today = riyadhTodayStr();
   // Default range: the current month only (1st of this month → today).
