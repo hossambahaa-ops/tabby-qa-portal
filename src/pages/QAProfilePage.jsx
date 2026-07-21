@@ -607,14 +607,9 @@ function QAProfilePage() {
         const totalEvals = sbs + nonSbs;
         const coaching = parseFloat(d?.coaching_count || d?.coaching_sessions || 0);
         const stMins = parseFloat(d?.side_task_minutes || 0);
-        const loginHrs = parseFloat(d?.login_hours || 0);
-        const loginMins = loginHrs * 60;
-        const csatScore = d?.csat_score !== null && d?.csat_score !== undefined ? parseFloat(d.csat_score) : null;
-        const ticketsHandled = parseFloat(d?.tickets_handled || 0);
-        const apt = d?.apt !== null && d?.apt !== undefined ? parseFloat(d.apt) : null;
-        const agpt = d?.agpt !== null && d?.agpt !== undefined ? parseFloat(d.agpt) : null;
-        const productivity = loginHrs > 0 ? ticketsHandled / loginHrs : 0;
-        const isTicketDay = loginHrs > 0;
+        // Login-hours / tickets-handled / APT / AGPT were sourced from
+        // daily_scores columns that don't exist — always null. The "Ticket
+        // Handling" card they fed never rendered; removed 2026-07-21.
         const qaQueue = qa?.queue || "";
         const qaEmail = selectedQA?.toLowerCase() || "";
         const qaDomain = qaEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai";
@@ -717,31 +712,6 @@ function QAProfilePage() {
                   <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{csatForMonth(headlineCsatMonth)?.total ?? latestMtd?.csat_total ?? "—"}</span>
                 </div>
               </div>
-              {isTicketDay && <>
-                <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
-                  <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>Ticket Handling</div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                    <span style={{fontSize:12,color:"var(--tx2)"}}>Login Hours</span>
-                    <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{loginHrs.toFixed(1)}h</span>
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                    <span style={{fontSize:12,color:"var(--tx2)"}}>Tickets Handled</span>
-                    <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{Math.round(ticketsHandled)}</span>
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                    <span style={{fontSize:12,color:"var(--tx2)"}}>Productivity</span>
-                    <span style={{fontSize:13,fontWeight:700,color:"var(--accent-text)"}}>{productivity.toFixed(1)}/h</span>
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
-                    <span style={{fontSize:12,color:"var(--tx2)"}}>APT</span>
-                    <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{apt!==null?apt.toFixed(1)+"m":"—"}</span>
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <span style={{fontSize:12,color:"var(--tx2)"}}>AGPT</span>
-                    <span style={{fontSize:13,fontWeight:700,color:"var(--tx)"}}>{agpt!==null?agpt.toFixed(1)+"m":"—"}</span>
-                  </div>
-                </div>
-              </>}
               <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>Final Score</span>
@@ -1104,46 +1074,37 @@ function QAProfilePage() {
               // stub so CSAT shows and every other KPI falls back to "—".
               const m = realM || (selMonth ? { month: selMonth } : null);
               if(!m) return <div style={{padding:24,textAlign:"center",color:"var(--tx3)",fontSize:13}}>No MTD data available</div>;
-              const totalLogin = parseFloat(m.total_login_hours || 0);
-              const totalTickets = parseFloat(m.total_tickets_handled || 0);
-              const avgProd = totalLogin > 0 ? totalTickets / totalLogin : null;
-              const rows = [
-                ["SBS", m.sbs],["Non-SBS", m.non_sbs],["DSAT", m.dsat],
-                // ABT SBS + ABT Validation (from qa_quality_tasks) — only
-                // rendered for months that have data (post-2026-07-22), so
-                // historical months stay uncluttered.
-                ...(qualityByMonth[m.month] ? [
-                  ["ABT SBS", qualityByMonth[m.month].sbsCount || "—"],
-                  ["ABT Validation", qualityByMonth[m.month].valCount || "—"],
-                ] : []),
-                ["RTR Score", fmtPct(m.avg_rtr_score)],["RTR #", m.rtr_count ?? "—"],["Calibration", fmtPct(m.avg_calibration_match_rate)],
-                ["CO Score", fmtPct(m.avg_observation_score_pct)],
-                // On-time falls back to CRM-anchored % when there's no eval-date
-                // eligibility yet (otherwise the source SQL hands us a misleading "0%").
-                ["Coaching on-time", (() => {
-                  const elig = Number(m.coaching_eligibility_count || 0);
-                  if (elig > 0) return fmtPct(m.ontime_coaching_pct);
-                  return "—";
-                })()],
-                ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"],
-                ["JKQ", m.jkq_score || "—"],
-                ["CSAT %", (() => { const c = csatForMonth(m.month); const v = c ? c.pct : csatPctValue(m.csat_pct); const s = c ? c.total : Number(m.csat_total || 0); return (v != null && s > 0) ? v.toFixed(1) + "%" : "—"; })()],
-                ["Surveys", csatForMonth(m.month)?.total ?? m.csat_total ?? "—"],
+              const jkqVal = m.jkq_result && m.jkq_result !== "N/A" ? `${m.jkq_result}${m.jkq_score > 0 ? ` (${m.jkq_score})` : ""}` : "—";
+              // On-time falls back to "—" when there's no eval-date eligibility
+              // yet (the source SQL otherwise hands us a misleading "0%").
+              const onTime = Number(m.coaching_eligibility_count || 0) > 0 ? fmtPct(m.ontime_coaching_pct) : "—";
+              const csatVal = (() => { const c = csatForMonth(m.month); const v = c ? c.pct : csatPctValue(m.csat_pct); const s = c ? c.total : Number(m.csat_total || 0); return (v != null && s > 0) ? v.toFixed(1) + "%" : "—"; })();
+              const surveysVal = csatForMonth(m.month)?.total ?? m.csat_total ?? "—";
+              const occM = computedOccForMonth(m.month);
+              const occVal = occM != null ? occM.toFixed(1) + "%" : fmtPct(m.occupancy_pct);
+              const q = qualityByMonth[m.month];
+              // Grouped, validated metrics only. Login Hours / Tickets Handled /
+              // Productivity / APT / AGPT were phantom — their mtd_scores_v columns
+              // don't exist, so those rows never rendered. Removed.
+              const groups = [
+                ["Evaluations", [["SBS", safe(m.sbs)], ["Non-SBS", safe(m.non_sbs)], ["DSAT", safe(m.dsat)]]],
+                ["Quality", [["Calibration", fmtPct(m.avg_calibration_match_rate)], ["CO score", fmtPct(m.avg_observation_score_pct)], ["RTR", fmtPct(m.avg_rtr_score)], ["RTR #", m.rtr_count ?? "—"], ["JKQ", jkqVal]]],
+                ["Coaching", [["On-time", onTime], ["Coachings", m.coaching_sessions ?? "—"]]],
+                ["CSAT", [["CSAT %", csatVal], ["Surveys", surveysVal]]],
+                ["Productivity", [["Occupancy", occVal], ["Tickets/day", m.ticket_per_day ? Number(m.ticket_per_day).toFixed(1) : "—"], ...(q ? [["ABT SBS", q.sbsCount || "—"], ["ABT Validation", q.valCount || "—"]] : [])]],
               ];
-              if (totalLogin > 0 || totalTickets > 0 || m.avg_apt != null || m.avg_agpt != null) {
-                rows.push(
-                  ["Login Hours (total)", totalLogin > 0 ? totalLogin.toFixed(1) + "h" : "—"],
-                  ["Tickets Handled (total)", totalTickets > 0 ? Math.round(totalTickets) : "—"],
-                  ["Productivity (avg)", avgProd !== null ? avgProd.toFixed(1) + "/h" : "—"],
-                  ["APT (avg)", m.avg_apt != null ? Number(m.avg_apt).toFixed(1) + "m" : "—"],
-                  ["AGPT (avg)", m.avg_agpt != null ? Number(m.avg_agpt).toFixed(1) + "m" : "—"],
-                );
-              }
               return <div style={{padding:"0 16px 16px"}}>
-                {rows.map(([label, val], i) => (
-                  <div key={label} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:i<rows.length-1?"1px solid var(--bd)":"none"}}>
-                    <span style={{fontSize:13,color:"var(--tx2)"}}>{label}</span>
-                    <span style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{safe(val)}</span>
+                {groups.map(([title, items], gi) => (
+                  <div key={title} style={{marginTop: gi === 0 ? 4 : 14}}>
+                    <div style={{fontSize:10,fontWeight:700,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:8}}>{title}</div>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:"6px 16px"}}>
+                      {items.map(([label, val]) => (
+                        <div key={label} style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",gap:8,paddingBottom:6,borderBottom:"1px solid var(--bd)"}}>
+                          <span style={{fontSize:12.5,color:"var(--tx2)"}}>{label}</span>
+                          <span style={{fontSize:13,fontWeight:600,color:"var(--tx)"}}>{safe(val)}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 ))}
               </div>;
