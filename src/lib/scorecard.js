@@ -27,9 +27,11 @@ export const pct = (v) => {
 
 const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 
-// Each KPI: key, label, weight (%), target label, and a scorer that returns
-// { score:0-100, value, valueLabel, sub? } or { na:true } when the QA has no
-// data for it (na KPIs drop out of the weighted average, weight redistributed).
+// BINARY (pass/fail) scoring: each KPI is worth its full weight (score 100) only
+// if it MEETS its target, else 0. Below-target AND missing both = 0. Each scorer
+// returns { score:0|100, value, valueLabel, sub? } or { na:true } (no value).
+// `noTarget:true` KPIs have no target defined → excluded from the composite until
+// one is set (still displayed). `awaiting:true` → no data source yet (excluded).
 export const SCORECARD_KPIS = [
   {
     key: "sample_size", label: "Sample Size Completion", weight: 15, target: "95%", targetScore: 95,
@@ -37,21 +39,20 @@ export const SCORECARD_KPIS = [
       const tpd = row?.ticket_per_day == null ? null : Number(row.ticket_per_day);
       if (tpd == null || !isFinite(tpd)) return { na: true };
       const completion = clamp((tpd / 12) * 100, 0, 100);
-      return { score: completion, value: completion, valueLabel: completion.toFixed(0) + "%", sub: `${tpd.toFixed(1)} of 12 evals/day` };
+      return { score: completion >= 95 ? 100 : 0, value: completion, valueLabel: completion.toFixed(0) + "%", sub: `${tpd.toFixed(1)} of 12 evals/day` };
     },
   },
   {
     key: "coaching_completion", label: "Coaching Completion", weight: 15, target: "90%", targetScore: 90,
-    scorer: ({ row }) => { const p = pct(row?.coaching_completion_pct); if (p == null) return { na: true }; return { score: clamp(p, 0, 100), value: p, valueLabel: p.toFixed(0) + "%" }; },
+    scorer: ({ row }) => { const p = pct(row?.coaching_completion_pct); if (p == null) return { na: true }; return { score: p >= 90 ? 100 : 0, value: p, valueLabel: p.toFixed(0) + "%" }; },
   },
   {
     key: "own_csat", label: "Own CSAT", weight: 15, target: "Top quartile",
     scorer: ({ row }) => {
       const q = row?.csat_quartile;
       if (q == null) return { na: true };
-      const map = { 1: 100, 2: 75, 3: 50, 4: 25 };
       const c = pct(row?.csat_pct);
-      return { score: map[q] ?? null, value: q, valueLabel: `Q${q}`, sub: c != null ? c.toFixed(1) + "% CSAT" : null };
+      return { score: q === 1 ? 100 : 0, value: q, valueLabel: `Q${q}`, sub: c != null ? c.toFixed(1) + "% CSAT" : null };
     },
   },
   {
@@ -59,11 +60,7 @@ export const SCORECARD_KPIS = [
     scorer: ({ row }) => {
       const a = row?.abt == null ? null : Number(row.abt);
       if (a == null || !isFinite(a) || a <= 0) return { na: true };
-      let score;
-      if (a >= 5 && a <= 15) score = 100;
-      else if (a < 5) score = clamp(100 - (5 - a) * 10, 0, 100);
-      else score = clamp(100 - (a - 15) * 8, 0, 100);
-      return { score, value: a, valueLabel: a.toFixed(2) + " min" };
+      return { score: a >= 5 && a <= 15 ? 100 : 0, value: a, valueLabel: a.toFixed(2) + " min" };
     },
   },
   {
@@ -72,11 +69,11 @@ export const SCORECARD_KPIS = [
   },
   {
     key: "rtr", label: "RTR Score", weight: 10, target: "85%", targetScore: 85,
-    scorer: ({ row }) => { const p = pct(row?.avg_rtr_score); if (p == null) return { na: true }; return { score: clamp(p, 0, 100), value: p, valueLabel: p.toFixed(0) + "%" }; },
+    scorer: ({ row }) => { const p = pct(row?.avg_rtr_score); if (p == null) return { na: true }; return { score: p >= 85 ? 100 : 0, value: p, valueLabel: p.toFixed(0) + "%" }; },
   },
   {
     key: "calibration", label: "Calibration Score", weight: 10, target: "85%", targetScore: 85,
-    scorer: ({ row }) => { const p = pct(row?.phase_1_score); if (p == null) return { na: true }; return { score: clamp(p, 0, 100), value: p, valueLabel: p.toFixed(1) + "%" }; },
+    scorer: ({ row }) => { const p = pct(row?.phase_1_score); if (p == null) return { na: true }; return { score: p >= 85 ? 100 : 0, value: p, valueLabel: p.toFixed(1) + "%" }; },
   },
   {
     key: "coaching_observation", label: "Coaching Observation", weight: 5, target: "85%", targetScore: 85,
@@ -84,22 +81,22 @@ export const SCORECARD_KPIS = [
       if (!(Number(row?.observed_coaching_count || 0) > 0)) return { na: true };
       const p = pct(row?.avg_observation_score_pct);
       if (p == null) return { na: true };
-      return { score: clamp(p, 0, 100), value: p, valueLabel: p.toFixed(0) + "%" };
+      return { score: p >= 85 ? 100 : 0, value: p, valueLabel: p.toFixed(0) + "%" };
     },
   },
   {
     // LOB = the QA's line of business (Front Line, Partners, Disputes…), the
     // only CSAT breakdown Pulse has. NOT the contact "channel" (Chat/Email/Phone).
-    key: "lob_csat", label: "CSAT of LOB", weight: 5, target: "—",
-    scorer: ({ lobCsat }) => { if (lobCsat?.pct == null) return { na: true }; return { score: clamp(lobCsat.pct, 0, 100), value: lobCsat.pct, valueLabel: lobCsat.pct.toFixed(1) + "%", sub: lobCsat.lob }; },
+    // No target defined yet → excluded from the composite (displayed for info).
+    key: "lob_csat", label: "CSAT of LOB", weight: 5, target: "— (no target)", noTarget: true,
+    scorer: ({ lobCsat }) => { if (lobCsat?.pct == null) return { na: true, noTarget: true }; return { na: true, noTarget: true, value: lobCsat.pct, valueLabel: lobCsat.pct.toFixed(1) + "%", sub: lobCsat.lob }; },
   },
   {
-    key: "lob_csat_mom", label: "CSAT of LOB (MoM)", weight: 5, target: "↑ vs last month",
+    key: "lob_csat_mom", label: "CSAT of LOB (MoM)", weight: 5, target: "— (no target)", noTarget: true,
     scorer: ({ lobCsat, lobCsatPrev }) => {
-      if (lobCsat?.pct == null || lobCsatPrev?.pct == null) return { na: true };
+      if (lobCsat?.pct == null || lobCsatPrev?.pct == null) return { na: true, noTarget: true };
       const delta = lobCsat.pct - lobCsatPrev.pct;
-      // Neutral at 0 (50), +10pp → 100, −10pp → 0. Tunable.
-      return { score: clamp(50 + delta * 5, 0, 100), value: delta, valueLabel: (delta >= 0 ? "+" : "") + delta.toFixed(1) + "pp" };
+      return { na: true, noTarget: true, value: delta, valueLabel: (delta >= 0 ? "+" : "") + delta.toFixed(1) + "pp" };
     },
   },
 ];
@@ -108,19 +105,22 @@ export const SCORECARD_KPIS = [
 export function computeScorecard(ctx) {
   const kpis = SCORECARD_KPIS.map((def) => {
     const r = def.scorer(ctx) || {};
-    return { key: def.key, label: def.label, weight: def.weight, target: def.target, targetScore: def.targetScore, awaiting: !!def.awaiting, ...r };
+    return { key: def.key, label: def.label, weight: def.weight, target: def.target, targetScore: def.targetScore, awaiting: !!def.awaiting, noTarget: !!def.noTarget, ...r };
   });
-  // Denominator = the scored model: every KPI EXCEPT ones with no data source
-  // yet (awaiting, e.g. Productivity login hours) — those are left out entirely
-  // until sourced, so they don't cap everyone's score. KPIs that HAVE a source
-  // but no value for this QA/month (na) COUNT AS 0 (missing data costs the score).
-  const inModel = kpis.filter((k) => !k.awaiting);
+  // Binary composite: each in-model KPI contributes its full weight if it met
+  // its target (score 100), else 0. Denominator (modelWeight) = every KPI EXCEPT
+  // ones with no data SOURCE yet (awaiting — Productivity) and ones with no
+  // TARGET defined (noTarget — LOB CSAT / MoM); those are left out until
+  // sourced/targeted so they don't drag everyone. Below-target or missing (na)
+  // count as 0 within the denominator (missing data costs the score).
+  const inModel = kpis.filter((k) => !k.awaiting && !k.noTarget);
   const modelWeight = inModel.reduce((s, k) => s + k.weight, 0);
   const scored = inModel.filter((k) => !k.na && typeof k.score === "number");
   const scoredWeight = scored.reduce((s, k) => s + k.weight, 0);
   const composite = modelWeight > 0 ? scored.reduce((s, k) => s + k.score * k.weight, 0) / modelWeight : null;
   const awaitingWeight = kpis.filter((k) => k.awaiting).reduce((s, k) => s + k.weight, 0);
-  return { kpis, composite, modelWeight, scoredWeight, zeroWeight: modelWeight - scoredWeight, awaitingWeight };
+  const noTargetWeight = kpis.filter((k) => k.noTarget).reduce((s, k) => s + k.weight, 0);
+  return { kpis, composite, modelWeight, scoredWeight, zeroWeight: modelWeight - scoredWeight, awaitingWeight, noTargetWeight };
 }
 
 // Normalize a LOB/channel label so the QA's queue can match a csat_population.lob.

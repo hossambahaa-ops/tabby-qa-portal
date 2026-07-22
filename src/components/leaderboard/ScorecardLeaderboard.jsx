@@ -73,7 +73,7 @@ export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, 
               {isExp && (
                 <div style={{ padding: "6px 16px 16px 60px", background: "var(--bg)" }}>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px", margin: "6px 0 10px" }}>
-                    KPI breakdown · composite {comp != null ? comp.toFixed(1) + "%" : "—"}{row.sc.zeroWeight > 0 ? ` · ${row.sc.zeroWeight}% counts as 0 (no data)` : ""}{row.sc.awaitingWeight > 0 ? ` · Productivity excluded (${row.sc.awaitingWeight}%)` : ""}
+                    KPI breakdown · pass/fail vs target · composite {comp != null ? comp.toFixed(1) + "%" : "—"}{row.sc.zeroWeight > 0 ? ` · ${row.sc.zeroWeight}% below target / no data → 0` : ""}
                   </div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "8px 16px" }}>
                     {row.sc.kpis.map((k) => {
@@ -84,8 +84,8 @@ export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, 
                             <span style={{ fontSize: 12.5, fontWeight: 600 }}>
                               {k.label} <span style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600 }}>{k.weight}%</span>
                             </span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: na ? "var(--tx3)" : scoreColor(k.score) }}>
-                              {k.awaiting ? "awaiting" : na ? "N/A" : k.valueLabel}
+                            <span style={{ fontSize: 13, fontWeight: 700, color: k.noTarget ? "var(--tx2)" : na ? "var(--tx3)" : scoreColor(k.score) }}>
+                              {k.awaiting ? "awaiting" : k.noTarget ? (k.valueLabel || "—") : na ? "N/A" : k.valueLabel}
                             </span>
                           </div>
                           <div style={{ height: 5, background: "var(--bd)", borderRadius: 3, overflow: "hidden" }}>
@@ -93,7 +93,7 @@ export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, 
                           </div>
                           <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10.5, color: "var(--tx3)", marginTop: 4 }}>
                             <span>target {k.target}</span>
-                            <span>{k.awaiting ? "login-hours feed" : na ? "0/100 · no data" : `${Math.round(k.score)}/100${k.sub ? " · " + k.sub : ""}`}</span>
+                            <span>{k.awaiting ? "login-hours feed" : k.noTarget ? `no target${k.sub ? " · " + k.sub : ""}` : na ? "0/100 · no data" : `${Math.round(k.score)}/100${k.sub ? " · " + k.sub : ""}`}</span>
                           </div>
                         </div>
                       );

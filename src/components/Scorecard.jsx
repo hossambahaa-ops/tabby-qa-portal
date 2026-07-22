@@ -10,7 +10,7 @@ const scoreColor = (s) => (s == null ? "var(--tx3)" : s >= 85 ? "var(--green)" :
 const scoreBg = (s) => (s == null ? "var(--bd)" : s >= 85 ? "var(--green-bg)" : s >= 70 ? "var(--amber-bg)" : "var(--red-bg)");
 
 export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
-  const { kpis, composite, zeroWeight, awaitingWeight } = useMemo(
+  const { kpis, composite, zeroWeight, awaitingWeight, noTargetWeight } = useMemo(
     () => computeScorecard({ row, lobCsat, lobCsatPrev }),
     [row, lobCsat, lobCsatPrev]
   );
@@ -27,12 +27,11 @@ export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
         </div>
       </div>
 
-      {(zeroWeight > 0 || awaitingWeight > 0) && (
-        <div style={{ margin: "0 16px 12px", fontSize: 11.5, background: "var(--amber-bg)", color: "var(--amber)", padding: "6px 10px", borderRadius: 8 }}>
-          {zeroWeight > 0 && <>Missing‑data KPIs count as 0 — {zeroWeight}% of the model has no data this month. </>}
-          {awaitingWeight > 0 && <>Productivity ({awaitingWeight}%) is excluded until its login‑hours feed lands.</>}
-        </div>
-      )}
+      <div style={{ margin: "0 16px 12px", fontSize: 11.5, background: "var(--amber-bg)", color: "var(--amber)", padding: "6px 10px", borderRadius: 8 }}>
+        Pass/fail vs target: each KPI is its full weight or 0. {zeroWeight > 0 && <>{zeroWeight}% below‑target or no data this month → 0. </>}
+        {awaitingWeight > 0 && <>Productivity ({awaitingWeight}%) excluded — no feed. </>}
+        {noTargetWeight > 0 && <>LOB CSAT + MoM ({noTargetWeight}%) excluded — no target set.</>}
+      </div>
 
       <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
         {kpis.map((k) => {
@@ -47,6 +46,8 @@ export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
               <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 {k.awaiting ? (
                   <span style={{ fontSize: 12, color: "var(--amber)", fontWeight: 600 }}>awaiting data</span>
+                ) : k.noTarget ? (
+                  <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tx2)" }}>{k.valueLabel || "—"}</span>
                 ) : na ? (
                   <span style={{ fontSize: 12.5, color: "var(--tx3)" }}>N/A</span>
                 ) : (
@@ -62,7 +63,7 @@ export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
                   )}
                 </div>
                 <span style={{ fontSize: 10.5, color: "var(--tx3)", minWidth: 96, textAlign: "right" }}>
-                  {k.awaiting ? "login-hours feed" : na ? "0/100 · no data" : `${Math.round(k.score)}/100${k.sub ? " · " + k.sub : ""}`}
+                  {k.awaiting ? "login-hours feed" : k.noTarget ? `no target set${k.sub ? " · " + k.sub : ""}` : na ? "0/100 · no data" : `${Math.round(k.score)}/100${k.sub ? " · " + k.sub : ""}`}
                 </span>
               </div>
             </div>
