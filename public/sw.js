@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tabby-pulse-v4';
+const CACHE_NAME = 'tabby-pulse-v5';
 
 self.addEventListener('install', (e) => {
   self.skipWaiting();
