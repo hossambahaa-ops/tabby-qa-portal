@@ -118,8 +118,14 @@ export function computeScorecard(ctx) {
 export const normLob = (s) => String(s || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
 
 // Some QA team LOBs don't share a name with the customer CSAT channel in
-// csat_population. Map them here. (Front Line QAs cover the "general" channel.)
-const LOB_CHANNEL_ALIAS = { front_line: "general" };
+// csat_population. Map them here. (Front Line QAs cover the "general" channel;
+// the rest are naming/plural differences to the same channel.)
+const LOB_CHANNEL_ALIAS = {
+  front_line: "general",
+  ccu: "customer_care_unit",
+  dispute: "disputes",
+  escalation: "escalations",
+};
 export const lobChannelKey = (lob) => { const k = normLob(lob); return LOB_CHANNEL_ALIAS[k] || k; };
 
 // Shared score→colour used by the Scorecard card and the leaderboard view.
