@@ -116,3 +116,18 @@ export function computeScorecard(ctx) {
 
 // Normalize a LOB/channel label so the QA's queue can match a csat_population.lob.
 export const normLob = (s) => String(s || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+// Some QA team LOBs don't share a name with the customer CSAT channel in
+// csat_population. Map them here. (Front Line QAs cover the "general" channel.)
+const LOB_CHANNEL_ALIAS = { front_line: "general" };
+export const lobChannelKey = (lob) => { const k = normLob(lob); return LOB_CHANNEL_ALIAS[k] || k; };
+
+// Shared score→colour used by the Scorecard card and the leaderboard view.
+export const scoreColor = (s) => (s == null ? "var(--tx3)" : s >= 85 ? "var(--green)" : s >= 70 ? "var(--amber)" : "var(--red)");
+
+// Compact per-KPI column labels for the leaderboard table (keyed by KPI key).
+export const KPI_SHORT = {
+  sample_size: "Sample", coaching_completion: "Coaching", own_csat: "CSAT", own_abt: "ABT",
+  productivity: "Prod", rtr: "RTR", calibration: "Calib", coaching_observation: "Obs",
+  lob_csat: "LOB", lob_csat_mom: "MoM",
+};

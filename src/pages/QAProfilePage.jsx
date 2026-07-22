@@ -6,7 +6,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
 import Scorecard from "../components/Scorecard.jsx";
-import { normLob } from "../lib/scorecard.js";
+import { lobChannelKey } from "../lib/scorecard.js";
 import QuartilePill from "../components/QuartilePill.jsx";
 import CoachingTimeline from "../components/coaching/CoachingTimeline.jsx";
 import RichText from "../components/RichText.jsx";
@@ -1074,7 +1074,7 @@ function QAProfilePage() {
           if (!scRow) return null;
           const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
           const prior = (mm) => { const [m0, y0] = String(mm || "").split("-"); let i = MO.indexOf(m0), y = +y0; i--; if (i < 0) { i = 11; y--; } return (i >= 0 && isFinite(y)) ? `${MO[i]}-${y}` : null; };
-          const lobKey = normLob(scRow.lob || qa?.queue);
+          const lobKey = lobChannelKey(scRow.lob || qa?.queue);
           const lobCsat = lobKey ? lobCsatByMonth[scRow.month]?.[lobKey] : null;
           const lobCsatPrev = lobKey ? lobCsatByMonth[prior(scRow.month)]?.[lobKey] : null;
           return <Scorecard row={scRow} lobCsat={lobCsat} lobCsatPrev={lobCsatPrev} month={scRow.month} />;

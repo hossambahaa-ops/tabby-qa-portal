@@ -14,6 +14,7 @@ import PageFilters from "../components/PageFilters.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import LeaderboardCompareTable from "../components/leaderboard/LeaderboardCompareTable.jsx";
+import ScorecardLeaderboard from "../components/leaderboard/ScorecardLeaderboard.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import Badges from "../components/Badges.jsx";
 import TitleBelt, { BeltHoverCard } from "../components/TitleBelt.jsx";
@@ -63,6 +64,30 @@ function LeaderboardPage() {
     try { localStorage.setItem("lb_pinned_qas", JSON.stringify([...next])); } catch {}
     return next;
   });
+  // LOB/channel CSAT (from csat_population) for the Scorecard view — keyed
+  // month -> { normalized lob -> {good,bad,pct} }. QA-independent; loaded once.
+  const [lobCsatByMonth, setLobCsatByMonth] = useState({});
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await sb.query("csat_population", { token, select: "month,lob,good_count,bad_count" }).catch(() => []);
+        const byMonth = {};
+        for (const r of (rows || [])) {
+          if (!r.month || !r.lob) continue;
+          const k = String(r.lob).trim().toLowerCase().replace(/[\s-]+/g, "_");
+          const mo = (byMonth[r.month] || (byMonth[r.month] = {}));
+          const a = mo[k] || (mo[k] = { good: 0, bad: 0, lob: r.lob });
+          a.good += Number(r.good_count || 0); a.bad += Number(r.bad_count || 0);
+        }
+        for (const mo of Object.values(byMonth)) for (const a of Object.values(mo)) a.pct = a.good + a.bad > 0 ? (a.good / (a.good + a.bad)) * 100 : null;
+        if (!cancelled) setLobCsatByMonth(byMonth);
+      } catch { if (!cancelled) setLobCsatByMonth({}); }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
+
   // "Refreshed Xm ago" — set whenever data finishes loading
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
   // Tick every minute so the relative timestamp advances live
@@ -256,6 +281,7 @@ function LeaderboardPage() {
             <button className={`tab ${view==="individual"?"active":""}`} onClick={()=>setView("individual")}>Individual</button>
             {hasRole(profile?.role,"qa_supervisor")&&<button className={`tab ${view==="team"?"active":""}`} onClick={()=>setView("team")}>By team lead</button>}
             <button className={`tab ${view==="quarterly"?"active":""}`} onClick={()=>setView("quarterly")}>Quarterly</button>
+            {hasRole(profile?.role,"super_admin")&&<button className={`tab ${view==="scorecard"?"active":""}`} onClick={()=>setView("scorecard")}>Scorecard</button>}
           </div>
         </PageFilters>
       )}
@@ -267,7 +293,7 @@ function LeaderboardPage() {
           control number that belongs on the QA Profile / DAM page, not
           a leaderboard. Kept the two that actually summarize the
           ranking: how many people are ranked + the average score. */}
-      {hasRole(profile?.role,"qa_lead")&&<div className="stats-grid">
+      {hasRole(profile?.role,"qa_lead")&&view!=="scorecard"&&<div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">{view==="individual"?"Ranked":"Teams"}</div>
           <div className="stat-value">{view==="individual"?ranked.length:teamData.length}</div>
@@ -757,6 +783,17 @@ function LeaderboardPage() {
           </div>);
         })}
       </div>}
+
+      {/* ═══ SCORECARD VIEW (new KPI model — super_admin only) ═══ */}
+      {view==="scorecard" && hasRole(profile?.role,"super_admin") && (
+        <ScorecardLeaderboard
+          rows={filtered}
+          rosterMap={rosterMap}
+          lobCsatByMonth={lobCsatByMonth}
+          month={selMonth}
+          onSelectQa={(email)=>{ window.location.hash = "#/profile?qa=" + encodeURIComponent(email); }}
+        />
+      )}
 
       {/* ═══ QUARTERLY VIEW ═══ */}
       {view==="quarterly" && (()=>{
