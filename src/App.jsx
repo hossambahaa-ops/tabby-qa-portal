@@ -109,7 +109,7 @@ const NAV_ITEMS=[
   {key:"scores",label:"MTD",icon:icons.scores},
   {key:"csat",label:"CSAT",icon:icons.csat},
   {key:"expertise",label:"Expertise",icon:icons.expertise,minRole:"admin"},
-  {key:"npa-winners",label:"NPA Winners",icon:icons.award,minRole:"admin"},
+  {key:"npa-winners",label:"NPA Winners",icon:icons.award,minRole:"qa_supervisor"},
   {key:"targets",label:"Targets",icon:icons.targets,minRole:"qa_lead"},
   {key:"schedule",label:"Attendance",icon:icons.attendance,section:"Management"},
   {key:"tracker",label:"Tracker",icon:icons.tracker,minRole:"senior_qa"},
@@ -985,7 +985,7 @@ function AppInner(){
       <Route path="/scores" element={<ScoreEntryPage/>}/>
       <Route path="/csat" element={<CSATPage/>}/>
       <Route path="/expertise" element={hasRole(userRole,"admin")?<ExpertisePage/>:<PlaceholderPage title="Expertise" icon={icons.expertise} minRole="admin" userRole={userRole}/>}/>
-      <Route path="/npa-winners" element={hasRole(userRole,"admin")?<NpaWinnersPage/>:<PlaceholderPage title="NPA Winners" icon={icons.award} minRole="admin" userRole={userRole}/>}/>
+      <Route path="/npa-winners" element={hasRole(userRole,"qa_supervisor")?<NpaWinnersPage/>:<PlaceholderPage title="NPA Winners" icon={icons.award} minRole="qa_supervisor" userRole={userRole}/>}/>
       <Route path="/targets" element={<TargetsPage/>}/>
       <Route path="/leaderboard" element={hasRole(userRole,"super_admin")?<LeaderboardPage/>:<PlaceholderPage title="Leaderboard" icon={icons.podium} minRole="super_admin" userRole={userRole}/>}/>
       <Route path="/dsat-reviews" element={hasRole(userRole,"super_admin")?<DsatReviewsPage/>:<PlaceholderPage title="Brixi Review" icon={icons.csat} minRole="super_admin" userRole={userRole}/>}/>
