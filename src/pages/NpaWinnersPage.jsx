@@ -74,6 +74,8 @@ export default function NpaWinnersPage() {
 
   // Per metric+country winner selections. Keyed `${metric}|${country}` → Set of localparts.
   const [selected, setSelected] = useState({});
+  // QAs manually excluded from every metric's ranking (localparts).
+  const [excluded, setExcluded] = useState(() => new Set());
   // Manual VMV rows, per country.
   const [vmv, setVmv] = useState({ Egy: { name: "", reason: "" }, KSA: { name: "", reason: "" } });
 
@@ -132,10 +134,11 @@ export default function NpaWinnersPage() {
     for (const r of roster) {
       const k = lp(r.email);
       if (!k) continue;
-      map[k] = {
-        name: r.display_name && r.display_name.trim() ? r.display_name.trim() : nameFromEmail(r.email),
-        country: r.country, title: r.title, queue: r.queue,
-      };
+      // Name is derived from the email (nameFromEmail) to match how every
+      // other view in the app renders QA names (MTD table, filters, exports).
+      // The roster's display_name (the person's real full name) is deliberately
+      // NOT used here — it diverges from the app-wide convention.
+      map[k] = { name: nameFromEmail(r.email), country: r.country, title: r.title, queue: r.queue };
     }
     return map;
   }, [roster]);
@@ -160,7 +163,8 @@ export default function NpaWinnersPage() {
     const monthRows = mtd.filter((r) => r.month === month);
 
     for (const country of COUNTRIES) {
-      const inCountry = (k) => rosterMap[k] && rosterMap[k].country === country;
+      // Eligible = a roster QA in this country who hasn't been manually excluded.
+      const inCountry = (k) => rosterMap[k] && rosterMap[k].country === country && !excluded.has(k);
 
       // CSAT — aggregate this month's csat_by_topic per QA.
       const agg = {};
@@ -209,7 +213,7 @@ export default function NpaWinnersPage() {
         .map((x) => ({ ...x, perf: `${Math.round(x.pct)}%`, sample: `${x.sessions} coachings` }));
     }
     return out;
-  }, [month, mtd, csat, rosterMap, mtdIndex, minSurveys, minCoachings, minTickets, minCals]);
+  }, [month, mtd, csat, rosterMap, mtdIndex, minSurveys, minCoachings, minTickets, minCals, excluded]);
 
   // Default winner (top of each ranked list; ABT uses the busiest-of-5 flag).
   const defaultWinnerKey = (metric, country) => {
@@ -238,6 +242,8 @@ export default function NpaWinnersPage() {
       return { ...prev, [key]: set };
     });
   };
+  const excludeQA = (k) => setExcluded((prev) => new Set(prev).add(k));
+  const restoreQA = (k) => setExcluded((prev) => { const n = new Set(prev); n.delete(k); return n; });
 
   // ── Build the export rows (sheet column order) ──
   const exportRows = useMemo(() => {
@@ -300,7 +306,7 @@ export default function NpaWinnersPage() {
       <div className="card" style={{ padding: "14px 16px", marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 18, alignItems: "flex-end" }}>
         <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <span style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".6px" }}>Period</span>
-          <select value={month} onChange={(e) => setMonth(e.target.value)} style={selStyle}>
+          <select value={month} onChange={(e) => setMonth(e.target.value)} style={monthSelStyle}>
             {monthOptions.map((m) => <option key={m} value={m}>{m}</option>)}
           </select>
         </label>
@@ -315,6 +321,17 @@ export default function NpaWinnersPage() {
           <button onClick={downloadCsv} className="btn" style={{ ...btnStyle, background: "var(--tabby-purple)", color: "#fff", borderColor: "var(--tabby-purple)" }}>Download CSV</button>
         </div>
       </div>
+
+      {excluded.size > 0 && (
+        <div className="card" style={{ padding: "10px 14px", marginBottom: 16, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".6px" }}>Excluded ({excluded.size})</span>
+          {[...excluded].map((k) => (
+            <button key={k} onClick={() => restoreQA(k)} title="Click to restore" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 16, border: "1px solid var(--bd2)", background: "var(--bg3)", color: "var(--tx2)", fontSize: 12, cursor: "pointer" }}>
+              {rosterMap[k]?.name || k} <span style={{ color: "var(--tx3)" }}>↩</span>
+            </button>
+          ))}
+        </div>
+      )}
 
       {csatLoading && <div style={{ fontSize: 12, color: "var(--tx3)", margin: "0 0 8px 2px" }}>Refreshing CSAT for {month}…</div>}
 
@@ -341,23 +358,31 @@ export default function NpaWinnersPage() {
                       {list.map((row, i) => {
                         const on = set.has(row.k);
                         return (
-                          <button
-                            key={row.k}
-                            onClick={() => toggle(m.key, c, row.k)}
-                            style={{
-                              display: "grid", gridTemplateColumns: "20px 1fr auto", alignItems: "center", gap: 8,
-                              textAlign: "left", cursor: "pointer", padding: "7px 10px", borderRadius: 8,
-                              border: on ? "1px solid var(--tabby-purple)" : "1px solid var(--bd2)",
-                              background: on ? "var(--primary-light)" : "var(--bg3)",
-                            }}
-                          >
-                            <span style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 700 }}>{on ? "★" : i + 1}</span>
-                            <span style={{ minWidth: 0 }}>
-                              <span style={{ display: "block", fontSize: 13, fontWeight: on ? 700 : 500, color: "var(--tx)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.name}</span>
-                              <span style={{ fontSize: 11, color: "var(--tx3)" }}>{row.sample}</span>
-                            </span>
-                            <span style={{ fontSize: 13, fontWeight: 700, color: on ? "var(--tabby-purple)" : "var(--tx2)" }}>{row.perf}</span>
-                          </button>
+                          <div key={row.k} style={{ display: "flex", gap: 6, alignItems: "stretch" }}>
+                            <button
+                              onClick={() => toggle(m.key, c, row.k)}
+                              style={{
+                                flex: 1, minWidth: 0,
+                                display: "grid", gridTemplateColumns: "20px 1fr auto", alignItems: "center", gap: 8,
+                                textAlign: "left", cursor: "pointer", padding: "7px 10px", borderRadius: 8,
+                                border: on ? "1px solid var(--tabby-purple)" : "1px solid var(--bd2)",
+                                background: on ? "var(--primary-light)" : "var(--bg3)",
+                              }}
+                            >
+                              <span style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 700 }}>{on ? "★" : i + 1}</span>
+                              <span style={{ minWidth: 0 }}>
+                                <span style={{ display: "block", fontSize: 13, fontWeight: on ? 700 : 500, color: "var(--tx)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{row.name}</span>
+                                <span style={{ fontSize: 11, color: "var(--tx3)" }}>{row.sample}</span>
+                              </span>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: on ? "var(--tabby-purple)" : "var(--tx2)" }}>{row.perf}</span>
+                            </button>
+                            <button
+                              onClick={() => excludeQA(row.k)}
+                              title={`Exclude ${row.name} from all winners`}
+                              aria-label={`Exclude ${row.name}`}
+                              style={{ width: 30, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", borderRadius: 8, border: "1px solid var(--bd2)", background: "var(--bg3)", color: "var(--tx3)", fontSize: 16, lineHeight: 1 }}
+                            >×</button>
+                          </div>
                         );
                       })}
                     </div>
@@ -415,6 +440,14 @@ export default function NpaWinnersPage() {
 }
 
 const selStyle = { padding: "8px 12px", borderRadius: 8, border: "1px solid var(--bd2)", background: "var(--bg3)", color: "var(--tx)", fontSize: 13, fontWeight: 600 };
+// Month <select>: kill the native OS arrow(s) and draw a single clean chevron.
+const monthSelStyle = {
+  padding: "8px 34px 8px 12px", borderRadius: 8, border: "1px solid var(--bd2)",
+  backgroundColor: "var(--bg3)", color: "var(--tx)", fontSize: 13, fontWeight: 600, cursor: "pointer",
+  appearance: "none", WebkitAppearance: "none", MozAppearance: "none",
+  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235E5A65' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
+  backgroundRepeat: "no-repeat", backgroundPosition: "right 12px center",
+};
 const inputStyle = { width: "100%", padding: "8px 12px", borderRadius: 8, border: "1px solid var(--bd2)", background: "var(--bg3)", color: "var(--tx)", fontSize: 13 };
 const btnStyle = { padding: "8px 14px", borderRadius: 8, border: "1px solid var(--bd2)", background: "var(--bg3)", color: "var(--tx)", fontSize: 13, fontWeight: 600, cursor: "pointer" };
 const thStyle = { textAlign: "left", padding: "8px 10px", fontSize: 11, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px", borderBottom: "1px solid var(--bd2)" };
@@ -424,7 +457,7 @@ function NumField({ label, value, onChange }) {
   return (
     <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       <span style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".6px" }}>{label}</span>
-      <input type="number" min={0} value={value} onChange={(e) => onChange(Math.max(0, +e.target.value || 0))} style={{ ...selStyle, width: 92 }} />
+      <input type="number" min={0} value={value} onChange={(e) => onChange(Math.max(0, +e.target.value || 0))} style={{ ...selStyle, width: 92, WebkitAppearance: "textfield", MozAppearance: "textfield" }} />
     </label>
   );
 }
