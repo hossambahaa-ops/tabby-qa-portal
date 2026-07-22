@@ -110,10 +110,17 @@ export function computeScorecard(ctx) {
     const r = def.scorer(ctx) || {};
     return { key: def.key, label: def.label, weight: def.weight, target: def.target, targetScore: def.targetScore, awaiting: !!def.awaiting, ...r };
   });
-  const live = kpis.filter((k) => !k.na && typeof k.score === "number");
-  const liveWeight = live.reduce((s, k) => s + k.weight, 0);
-  const composite = liveWeight > 0 ? live.reduce((s, k) => s + k.score * k.weight, 0) / liveWeight : null;
-  return { kpis, composite, liveWeight, totalWeight: SCORECARD_KPIS.reduce((s, k) => s + k.weight, 0) };
+  // Denominator = the scored model: every KPI EXCEPT ones with no data source
+  // yet (awaiting, e.g. Productivity login hours) — those are left out entirely
+  // until sourced, so they don't cap everyone's score. KPIs that HAVE a source
+  // but no value for this QA/month (na) COUNT AS 0 (missing data costs the score).
+  const inModel = kpis.filter((k) => !k.awaiting);
+  const modelWeight = inModel.reduce((s, k) => s + k.weight, 0);
+  const scored = inModel.filter((k) => !k.na && typeof k.score === "number");
+  const scoredWeight = scored.reduce((s, k) => s + k.weight, 0);
+  const composite = modelWeight > 0 ? scored.reduce((s, k) => s + k.score * k.weight, 0) / modelWeight : null;
+  const awaitingWeight = kpis.filter((k) => k.awaiting).reduce((s, k) => s + k.weight, 0);
+  return { kpis, composite, modelWeight, scoredWeight, zeroWeight: modelWeight - scoredWeight, awaitingWeight };
 }
 
 // Normalize a LOB/channel label so the QA's queue can match a csat_population.lob.

@@ -10,7 +10,7 @@ const scoreColor = (s) => (s == null ? "var(--tx3)" : s >= 85 ? "var(--green)" :
 const scoreBg = (s) => (s == null ? "var(--bd)" : s >= 85 ? "var(--green-bg)" : s >= 70 ? "var(--amber-bg)" : "var(--red-bg)");
 
 export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
-  const { kpis, composite, liveWeight, totalWeight } = useMemo(
+  const { kpis, composite, zeroWeight, awaitingWeight } = useMemo(
     () => computeScorecard({ row, lobCsat, lobCsatPrev }),
     [row, lobCsat, lobCsatPrev]
   );
@@ -27,9 +27,10 @@ export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
         </div>
       </div>
 
-      {liveWeight < totalWeight && (
+      {(zeroWeight > 0 || awaitingWeight > 0) && (
         <div style={{ margin: "0 16px 12px", fontSize: 11.5, background: "var(--amber-bg)", color: "var(--amber)", padding: "6px 10px", borderRadius: 8 }}>
-          Composite is over the {liveWeight}% of the model with data this month ({totalWeight - liveWeight}% not yet measurable — e.g. Productivity login hours).
+          {zeroWeight > 0 && <>Missing‑data KPIs count as 0 — {zeroWeight}% of the model has no data this month. </>}
+          {awaitingWeight > 0 && <>Productivity ({awaitingWeight}%) is excluded until its login‑hours feed lands.</>}
         </div>
       )}
 
@@ -61,7 +62,7 @@ export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
                   )}
                 </div>
                 <span style={{ fontSize: 10.5, color: "var(--tx3)", minWidth: 96, textAlign: "right" }}>
-                  {k.awaiting ? "login-hours feed" : na ? "no data" : `${Math.round(k.score)}/100${k.sub ? " · " + k.sub : ""}`}
+                  {k.awaiting ? "login-hours feed" : na ? "0/100 · no data" : `${Math.round(k.score)}/100${k.sub ? " · " + k.sub : ""}`}
                 </span>
               </div>
             </div>
