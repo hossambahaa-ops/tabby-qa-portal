@@ -46,6 +46,8 @@ export const icons={
   key:"M11 12a4 4 0 11-8 0 4 4 0 018 0M11 12h10M18 12v3M21 12v2",
   // ECG / heartbeat line (App utilization — wink at the "Pulse" name).
   utilization:"M3 12h5l2-4 3 8 3-8 2 4h4",
+  // Trophy cup with handles + base (NPA Winners — recognition).
+  award:"M7 4h10v4a5 5 0 01-10 0zM7 6H4v1a3 3 0 003 3M17 6h3v1a3 3 0 01-3 3M12 13v4M9 21h6M10 17h4v4h-4z",
 };
 export const TabbyLogo = ({size=24, color="#3BFF9D"}) => (
   <svg width={size * 5} height={size} viewBox="0 0 500 100" fill="none">

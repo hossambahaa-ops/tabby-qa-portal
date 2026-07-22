@@ -57,6 +57,7 @@ const SchedulePage = lazy(() => import("./pages/SchedulePage.jsx"));
 const UtilizationPage = lazy(() => import("./pages/UtilizationPage.jsx"));
 const ExpertisePage = lazy(() => import("./pages/ExpertisePage.jsx"));
 const TrackerPage = lazy(() => import("./pages/TrackerPage.jsx"));
+const NpaWinnersPage = lazy(() => import("./pages/NpaWinnersPage.jsx"));
 
 // Hover-prefetch map. Calling import() warms the chunk cache; the
 // subsequent React.lazy() resolution on click is instant. Keys must
@@ -85,6 +86,7 @@ const PAGE_PREFETCH = {
   utilization: safePrefetch(() => import("./pages/UtilizationPage.jsx")),
   expertise:   safePrefetch(() => import("./pages/ExpertisePage.jsx")),
   tracker:     safePrefetch(() => import("./pages/TrackerPage.jsx")),
+  "npa-winners": safePrefetch(() => import("./pages/NpaWinnersPage.jsx")),
 };
 function prefetchPage(key) { try { PAGE_PREFETCH[key]?.(); } catch {} }
 const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
@@ -107,6 +109,7 @@ const NAV_ITEMS=[
   {key:"scores",label:"MTD",icon:icons.scores},
   {key:"csat",label:"CSAT",icon:icons.csat},
   {key:"expertise",label:"Expertise",icon:icons.expertise,minRole:"admin"},
+  {key:"npa-winners",label:"NPA Winners",icon:icons.award,minRole:"admin"},
   {key:"targets",label:"Targets",icon:icons.targets,minRole:"qa_lead"},
   {key:"schedule",label:"Attendance",icon:icons.attendance,section:"Management"},
   {key:"tracker",label:"Tracker",icon:icons.tracker,minRole:"senior_qa"},
@@ -982,6 +985,7 @@ function AppInner(){
       <Route path="/scores" element={<ScoreEntryPage/>}/>
       <Route path="/csat" element={<CSATPage/>}/>
       <Route path="/expertise" element={hasRole(userRole,"admin")?<ExpertisePage/>:<PlaceholderPage title="Expertise" icon={icons.expertise} minRole="admin" userRole={userRole}/>}/>
+      <Route path="/npa-winners" element={hasRole(userRole,"admin")?<NpaWinnersPage/>:<PlaceholderPage title="NPA Winners" icon={icons.award} minRole="admin" userRole={userRole}/>}/>
       <Route path="/targets" element={<TargetsPage/>}/>
       <Route path="/leaderboard" element={hasRole(userRole,"super_admin")?<LeaderboardPage/>:<PlaceholderPage title="Leaderboard" icon={icons.podium} minRole="super_admin" userRole={userRole}/>}/>
       <Route path="/dsat-reviews" element={hasRole(userRole,"super_admin")?<DsatReviewsPage/>:<PlaceholderPage title="Brixi Review" icon={icons.csat} minRole="super_admin" userRole={userRole}/>}/>
