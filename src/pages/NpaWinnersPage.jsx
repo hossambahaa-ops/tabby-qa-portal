@@ -197,14 +197,25 @@ export default function NpaWinnersPage() {
       }
       out.calibration[country] = cal.sort((a, b) => b.avg - a.avg || b.n - a.n);
 
-      // Own ABT — gate on tickets, 5 lowest ABT, then busiest of the 5.
-      const pool = monthRows
+      // Own ABT — qualify (≥ min tickets AND ABT < cap), then rank by a weighted
+      // score: 70% ABT + 30% volume. ABT is scored vs the 5→cap target band
+      // (faster = higher), volume vs the busiest qualifier. Winner = top score,
+      // so a much faster ABT beats a small ticket edge (Hossam's 70/30 call,
+      // replacing the old "busiest of the 5 fastest" which crowned near-cap ABTs).
+      const ABT_FLOOR = 5;
+      const cand = monthRows
         .filter((r) => inCountry(lp(r.qa_email)) && r.abt != null && +r.abt > 0 && +r.abt < maxAbt && (r.tickets_touched || 0) >= minTickets)
-        .map((r) => ({ k: lp(r.qa_email), name: rosterMap[lp(r.qa_email)].name, abt: +r.abt, tickets: r.tickets_touched || 0 }))
-        .sort((a, b) => a.abt - b.abt)
-        .slice(0, 5);
-      const abtWinner = pool.reduce((best, x) => (!best || x.tickets > best.tickets ? x : best), null);
-      out.abt[country] = pool.map((x) => ({ ...x, perf: `${x.abt.toFixed(2)} min`, sample: `${x.tickets} tickets handled`, _win: abtWinner && x.k === abtWinner.k }));
+        .map((r) => ({ k: lp(r.qa_email), name: rosterMap[lp(r.qa_email)].name, abt: +r.abt, tickets: r.tickets_touched || 0 }));
+      const maxTix = Math.max(1, ...cand.map((x) => x.tickets));
+      const scored = cand
+        .map((x) => {
+          const abtScore = Math.max(0, Math.min(100, ((maxAbt - x.abt) / (maxAbt - ABT_FLOOR)) * 100));
+          const volScore = (x.tickets / maxTix) * 100;
+          return { ...x, composite: 0.7 * abtScore + 0.3 * volScore };
+        })
+        .sort((a, b) => b.composite - a.composite);
+      const abtWinner = scored[0];
+      out.abt[country] = scored.slice(0, 6).map((x) => ({ ...x, perf: `${x.abt.toFixed(2)} min`, sample: `${x.tickets} tickets · ${Math.round(x.composite)} pts`, _win: abtWinner && x.k === abtWinner.k }));
 
       // Coaching — highest completion %, sized by coaching_sessions.
       out.coaching[country] = monthRows
