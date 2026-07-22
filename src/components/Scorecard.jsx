@@ -40,7 +40,7 @@ export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
             <div key={k.key} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "2px 12px", alignItems: "center", opacity: na ? 0.6 : 1 }}>
               <div style={{ minWidth: 0, display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tx)" }}>{k.label}</span>
-                <span style={{ fontSize: 10.5, color: "var(--tx3)", fontWeight: 600, background: "var(--bg2, rgba(0,0,0,.04))", border: "1px solid var(--bd2)", borderRadius: 10, padding: "0 6px" }}>{k.weight ? k.weight + "%" : "soon"}</span>
+                <span style={{ fontSize: 10.5, color: "var(--tx3)", fontWeight: 600, background: "var(--bg2, rgba(0,0,0,.04))", border: "1px solid var(--bd2)", borderRadius: 10, padding: "0 6px" }}>{k.weight}%</span>
                 <span style={{ fontSize: 11, color: "var(--tx3)" }}>target {k.target}</span>
               </div>
               <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>

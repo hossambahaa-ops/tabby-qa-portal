@@ -102,17 +102,6 @@ export const SCORECARD_KPIS = [
       return { score: clamp(50 + delta * 5, 0, 100), value: delta, valueLabel: (delta >= 0 ? "+" : "") + delta.toFixed(1) + "pp" };
     },
   },
-  {
-    // CSAT by contact CHANNEL (Chat/Email/Phone). No source in Pulse yet —
-    // needs a CSAT-by-channel feed, same pattern as Productivity login hours.
-    // Weight 0 (unweighted placeholder) until sourced + weights are decided.
-    key: "channel_csat", label: "CSAT of Channel", weight: 0, target: "Chat/Email/Phone", awaiting: true,
-    scorer: () => ({ na: true, awaiting: true }),
-  },
-  {
-    key: "channel_csat_mom", label: "CSAT of Channel (MoM)", weight: 0, target: "↑ vs last month", awaiting: true,
-    scorer: () => ({ na: true, awaiting: true }),
-  },
 ];
 
 // ctx = { row, lobCsat, lobCsatPrev }
@@ -148,5 +137,5 @@ export const scoreColor = (s) => (s == null ? "var(--tx3)" : s >= 85 ? "var(--gr
 export const KPI_SHORT = {
   sample_size: "Sample", coaching_completion: "Coaching", own_csat: "CSAT", own_abt: "ABT",
   productivity: "Prod", rtr: "RTR", calibration: "Calib", coaching_observation: "Obs",
-  lob_csat: "LOB", lob_csat_mom: "LOB MoM", channel_csat: "Channel", channel_csat_mom: "Channel MoM",
+  lob_csat: "LOB", lob_csat_mom: "LOB MoM",
 };
