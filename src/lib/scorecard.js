@@ -148,5 +148,5 @@ export const scoreColor = (s) => (s == null ? "var(--tx3)" : s >= 85 ? "var(--gr
 export const KPI_SHORT = {
   sample_size: "Sample", coaching_completion: "Coaching", own_csat: "CSAT", own_abt: "ABT",
   productivity: "Prod", rtr: "RTR", calibration: "Calib", coaching_observation: "Obs",
-  lob_csat: "LOB", lob_csat_mom: "LOB MoM", channel_csat: "Chan", channel_csat_mom: "Chan MoM",
+  lob_csat: "LOB", lob_csat_mom: "LOB MoM", channel_csat: "Channel", channel_csat_mom: "Channel MoM",
 };
