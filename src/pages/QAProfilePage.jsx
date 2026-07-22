@@ -5,6 +5,8 @@ import { nameFromEmail, csatPctValue, csatColor, safeError, logActivity, emailsM
 import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
+import Scorecard from "../components/Scorecard.jsx";
+import { normLob } from "../lib/scorecard.js";
 import QuartilePill from "../components/QuartilePill.jsx";
 import CoachingTimeline from "../components/coaching/CoachingTimeline.jsx";
 import RichText from "../components/RichText.jsx";
@@ -64,6 +66,7 @@ function QAProfilePage() {
   const [selMonth, setSelMonth] = useState(null);
   const [csatByMonth, setCsatByMonth] = useState({}); // month -> {good,bad} from csat_by_topic (Q_Support_Performance)
   const [qualityByMonth, setQualityByMonth] = useState({}); // month -> {sbsCount,sbsMin,valCount,valMin} from qa_quality_tasks (ABT SBS + ABT Validation)
+  const [lobCsatByMonth, setLobCsatByMonth] = useState({}); // month -> { normLob -> {good,bad,pct,lob} } from csat_population — LOB/channel-level CSAT for the Scorecard
   const [refreshing, setRefreshing] = useState(false);
   // Tab state — "overview" (today + activity) vs "monthly" (perf + trend + expertise)
   const [activeTab, setActiveTab] = useUrlState("ptab", "overview");
@@ -230,6 +233,35 @@ function QAProfilePage() {
     })();
     return () => { cancelled = true; };
   }, [token, selectedQA, prodHistKey]);
+
+  // LOB/channel-level CSAT from csat_population (QA-independent — same for
+  // everyone), aggregated by (month, normalized lob). Feeds the Scorecard's
+  // "CSAT of LOB/Channel" and its month-over-month improvement KPIs.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await sb.query("csat_population", {
+          token, select: "month,lob,good_count,bad_count",
+        }).catch(() => []);
+        const byMonth = {};
+        for (const r of (rows || [])) {
+          if (!r.month || !r.lob) continue;
+          const k = normLob(r.lob);
+          const mo = (byMonth[r.month] || (byMonth[r.month] = {}));
+          const a = mo[k] || (mo[k] = { good: 0, bad: 0, lob: r.lob });
+          a.good += Number(r.good_count || 0);
+          a.bad += Number(r.bad_count || 0);
+        }
+        for (const mo of Object.values(byMonth))
+          for (const a of Object.values(mo))
+            a.pct = a.good + a.bad > 0 ? (a.good / (a.good + a.bad)) * 100 : null;
+        if (!cancelled) setLobCsatByMonth(byMonth);
+      } catch { if (!cancelled) setLobCsatByMonth({}); }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   // CSAT surveys per month from csat_by_topic (Q_Support_Performance) — the
   // fresh CSAT source. Used to overlay CSAT % / Surveys and to surface
@@ -1036,6 +1068,18 @@ function QAProfilePage() {
             monthly productivity feed at the top of this tab so they see
             the freshest data without scrolling past the MTD card. */}
         {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} qaMtd={qaMtd} qualMinByYM={qualMinByYM} />}
+        {/* New 10-KPI Scorecard — parallel to final_performance, same month selector */}
+        {(() => {
+          const scRow = selMonth ? qaMtd.find(x => x.month === selMonth) : latestMtd;
+          if (!scRow) return null;
+          const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+          const prior = (mm) => { const [m0, y0] = String(mm || "").split("-"); let i = MO.indexOf(m0), y = +y0; i--; if (i < 0) { i = 11; y--; } return (i >= 0 && isFinite(y)) ? `${MO[i]}-${y}` : null; };
+          const lobKey = normLob(scRow.lob || qa?.queue);
+          const lobCsat = lobKey ? lobCsatByMonth[scRow.month]?.[lobKey] : null;
+          const lobCsatPrev = lobKey ? lobCsatByMonth[prior(scRow.month)]?.[lobKey] : null;
+          return <Scorecard row={scRow} lobCsat={lobCsat} lobCsatPrev={lobCsatPrev} month={scRow.month} />;
+        })()}
+
         {/* Performance + Trend in 2-col */}
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16,marginTop:16}}>
           {/* Performance metrics with month selector */}
