@@ -2637,7 +2637,11 @@ html.dark .input,
 html.dark .select,
 html.dark textarea,
 html.dark select {
-  background: rgba(255,255,255,.04) !important;
+  /* background-color, NOT the `background` shorthand: the shorthand resets
+     background-repeat/position/size to their initial values, which (at this
+     rule's higher specificity) clobbered the native-<select> chevron below
+     and made it tile across the field. */
+  background-color: rgba(255,255,255,.04) !important;
   border: 1px solid rgba(255,255,255,.08) !important;
   color: #ECEFF6 !important;
 }
