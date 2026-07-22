@@ -88,17 +88,30 @@ export const SCORECARD_KPIS = [
     },
   },
   {
-    key: "lob_csat", label: "CSAT of LOB/Channel", weight: 5, target: "—",
+    // LOB = the QA's line of business (Front Line, Partners, Disputes…), the
+    // only CSAT breakdown Pulse has. NOT the contact "channel" (Chat/Email/Phone).
+    key: "lob_csat", label: "CSAT of LOB", weight: 5, target: "—",
     scorer: ({ lobCsat }) => { if (lobCsat?.pct == null) return { na: true }; return { score: clamp(lobCsat.pct, 0, 100), value: lobCsat.pct, valueLabel: lobCsat.pct.toFixed(1) + "%", sub: lobCsat.lob }; },
   },
   {
-    key: "lob_csat_mom", label: "CSAT Improvement (MoM)", weight: 5, target: "↑ vs last month",
+    key: "lob_csat_mom", label: "CSAT of LOB (MoM)", weight: 5, target: "↑ vs last month",
     scorer: ({ lobCsat, lobCsatPrev }) => {
       if (lobCsat?.pct == null || lobCsatPrev?.pct == null) return { na: true };
       const delta = lobCsat.pct - lobCsatPrev.pct;
       // Neutral at 0 (50), +10pp → 100, −10pp → 0. Tunable.
       return { score: clamp(50 + delta * 5, 0, 100), value: delta, valueLabel: (delta >= 0 ? "+" : "") + delta.toFixed(1) + "pp" };
     },
+  },
+  {
+    // CSAT by contact CHANNEL (Chat/Email/Phone). No source in Pulse yet —
+    // needs a CSAT-by-channel feed, same pattern as Productivity login hours.
+    // Weight 0 (unweighted placeholder) until sourced + weights are decided.
+    key: "channel_csat", label: "CSAT of Channel", weight: 0, target: "Chat/Email/Phone", awaiting: true,
+    scorer: () => ({ na: true, awaiting: true }),
+  },
+  {
+    key: "channel_csat_mom", label: "CSAT of Channel (MoM)", weight: 0, target: "↑ vs last month", awaiting: true,
+    scorer: () => ({ na: true, awaiting: true }),
   },
 ];
 
@@ -135,5 +148,5 @@ export const scoreColor = (s) => (s == null ? "var(--tx3)" : s >= 85 ? "var(--gr
 export const KPI_SHORT = {
   sample_size: "Sample", coaching_completion: "Coaching", own_csat: "CSAT", own_abt: "ABT",
   productivity: "Prod", rtr: "RTR", calibration: "Calib", coaching_observation: "Obs",
-  lob_csat: "LOB", lob_csat_mom: "MoM",
+  lob_csat: "LOB", lob_csat_mom: "LOB MoM", channel_csat: "Chan", channel_csat_mom: "Chan MoM",
 };

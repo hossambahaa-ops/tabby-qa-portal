@@ -47,7 +47,7 @@ export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, 
               <th style={{ ...th }}>Composite</th>
               {SCORECARD_KPIS.map((k) => (
                 <th key={k.key} style={th} title={`${k.label} · weight ${k.weight}% · target ${k.target}`}>
-                  {KPI_SHORT[k.key] || k.label}<br /><span style={{ fontWeight: 500, color: "var(--tx3)" }}>{k.weight}%</span>
+                  {KPI_SHORT[k.key] || k.label}<br /><span style={{ fontWeight: 500, color: "var(--tx3)" }}>{k.weight ? k.weight + "%" : "soon"}</span>
                 </th>
               ))}
             </tr>
