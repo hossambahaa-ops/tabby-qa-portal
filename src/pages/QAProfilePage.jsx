@@ -6,7 +6,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
 import Scorecard from "../components/Scorecard.jsx";
-import { lobChannelKey } from "../lib/scorecard.js";
+import { lobChannelKey, normLob } from "../lib/scorecard.js";
 import QuartilePill from "../components/QuartilePill.jsx";
 import CoachingTimeline from "../components/coaching/CoachingTimeline.jsx";
 import RichText from "../components/RichText.jsx";
@@ -242,21 +242,17 @@ function QAProfilePage() {
     let cancelled = false;
     (async () => {
       try {
-        const rows = await sb.query("csat_population", {
-          token, select: "month,lob,good_count,bad_count",
+        // Pre-aggregated view (~60 rows). Raw csat_population is 4k+ rows and
+        // gets truncated at PostgREST's 1000-row cap, dropping recent months.
+        const rows = await sb.query("csat_lob_month_v", {
+          token, select: "month,lob,good,bad,pct",
         }).catch(() => []);
         const byMonth = {};
         for (const r of (rows || [])) {
           if (!r.month || !r.lob) continue;
           const k = normLob(r.lob);
-          const mo = (byMonth[r.month] || (byMonth[r.month] = {}));
-          const a = mo[k] || (mo[k] = { good: 0, bad: 0, lob: r.lob });
-          a.good += Number(r.good_count || 0);
-          a.bad += Number(r.bad_count || 0);
+          (byMonth[r.month] || (byMonth[r.month] = {}))[k] = { good: Number(r.good || 0), bad: Number(r.bad || 0), pct: r.pct != null ? Number(r.pct) : null, lob: r.lob };
         }
-        for (const mo of Object.values(byMonth))
-          for (const a of Object.values(mo))
-            a.pct = a.good + a.bad > 0 ? (a.good / (a.good + a.bad)) * 100 : null;
         if (!cancelled) setLobCsatByMonth(byMonth);
       } catch { if (!cancelled) setLobCsatByMonth({}); }
     })();
