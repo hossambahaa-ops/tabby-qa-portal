@@ -72,6 +72,7 @@ export default function NpaWinnersPage() {
   const [minTickets, setMinTickets] = useState(100);
   const [minCals, setMinCals] = useState(3);
   const [maxAbt, setMaxAbt] = useState(15); // ABT cap (min) — target 15, so <15 (≤14.99) qualifies
+  const [abtBand, setAbtBand] = useState(3); // ABT winner must be within this many min of the fastest
 
   // Per metric+country winner selections. Keyed `${metric}|${country}` → Set of localparts.
   const [selected, setSelected] = useState({});
@@ -197,25 +198,21 @@ export default function NpaWinnersPage() {
       }
       out.calibration[country] = cal.sort((a, b) => b.avg - a.avg || b.n - a.n);
 
-      // Own ABT — qualify (≥ min tickets AND ABT < cap), then rank by a weighted
-      // score: 70% ABT + 30% volume. ABT is scored vs the 5→cap target band
-      // (faster = higher), volume vs the busiest qualifier. Winner = top score,
-      // so a much faster ABT beats a small ticket edge (Hossam's 70/30 call,
-      // replacing the old "busiest of the 5 fastest" which crowned near-cap ABTs).
-      const ABT_FLOOR = 5;
-      const cand = monthRows
+      // Own ABT — qualify (≥ min tickets AND ABT < cap), take the 5 lowest ABT,
+      // then the BUSIEST among those within `abtBand` min of the fastest wins.
+      // The band keeps the volume reward when ABTs are bunched (Jun: Mariam Gad
+      // 12.73/253 stays winner) but stops a near-cap ABT from winning on volume
+      // when it's far slower than the fastest (Jul: Hussam 14.76 excluded, so
+      // Abdallah 8.04 wins).
+      const pool = monthRows
         .filter((r) => inCountry(lp(r.qa_email)) && r.abt != null && +r.abt > 0 && +r.abt < maxAbt && (r.tickets_touched || 0) >= minTickets)
-        .map((r) => ({ k: lp(r.qa_email), name: rosterMap[lp(r.qa_email)].name, abt: +r.abt, tickets: r.tickets_touched || 0 }));
-      const maxTix = Math.max(1, ...cand.map((x) => x.tickets));
-      const scored = cand
-        .map((x) => {
-          const abtScore = Math.max(0, Math.min(100, ((maxAbt - x.abt) / (maxAbt - ABT_FLOOR)) * 100));
-          const volScore = (x.tickets / maxTix) * 100;
-          return { ...x, composite: 0.7 * abtScore + 0.3 * volScore };
-        })
-        .sort((a, b) => b.composite - a.composite);
-      const abtWinner = scored[0];
-      out.abt[country] = scored.slice(0, 6).map((x) => ({ ...x, perf: `${x.abt.toFixed(2)} min`, sample: `${x.tickets} tickets · ${Math.round(x.composite)} pts`, _win: abtWinner && x.k === abtWinner.k }));
+        .map((r) => ({ k: lp(r.qa_email), name: rosterMap[lp(r.qa_email)].name, abt: +r.abt, tickets: r.tickets_touched || 0 }))
+        .sort((a, b) => a.abt - b.abt)
+        .slice(0, 5);
+      const fastest = pool.length ? pool[0].abt : 0;
+      const inBand = pool.filter((x) => x.abt <= fastest + abtBand);
+      const abtWinner = inBand.reduce((best, x) => (!best || x.tickets > best.tickets ? x : best), null);
+      out.abt[country] = pool.map((x) => ({ ...x, perf: `${x.abt.toFixed(2)} min`, sample: `${x.tickets} tickets handled`, _win: abtWinner && x.k === abtWinner.k }));
 
       // Coaching — highest completion %, sized by coaching_sessions.
       out.coaching[country] = monthRows
@@ -225,7 +222,7 @@ export default function NpaWinnersPage() {
         .map((x) => ({ ...x, perf: `${Math.round(x.pct)}%`, sample: `${x.sessions} coachings` }));
     }
     return out;
-  }, [month, mtd, csat, rosterMap, mtdIndex, minSurveys, minCoachings, minTickets, minCals, maxAbt, excluded]);
+  }, [month, mtd, csat, rosterMap, mtdIndex, minSurveys, minCoachings, minTickets, minCals, maxAbt, abtBand, excluded]);
 
   // Default winner (top of each ranked list; ABT uses the busiest-of-5 flag).
   const defaultWinnerKey = (metric, country) => {
@@ -327,6 +324,7 @@ export default function NpaWinnersPage() {
         <NumField label="Min tickets (ABT)" value={minTickets} onChange={setMinTickets} />
         <NumField label="Min calibrations" value={minCals} onChange={setMinCals} />
         <NumField label="Max ABT (min)" value={maxAbt} onChange={setMaxAbt} />
+        <NumField label="ABT band (min)" value={abtBand} onChange={setAbtBand} />
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span style={{ fontSize: 12, color: "var(--tx2)" }}>{selectedCount} winner{selectedCount === 1 ? "" : "s"} selected</span>
