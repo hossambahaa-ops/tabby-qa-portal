@@ -71,6 +71,7 @@ export default function NpaWinnersPage() {
   const [minCoachings, setMinCoachings] = useState(10);
   const [minTickets, setMinTickets] = useState(100);
   const [minCals, setMinCals] = useState(3);
+  const [maxAbt, setMaxAbt] = useState(15); // ABT cap (min) — target 15, so <15 (≤14.99) qualifies
 
   // Per metric+country winner selections. Keyed `${metric}|${country}` → Set of localparts.
   const [selected, setSelected] = useState({});
@@ -198,7 +199,7 @@ export default function NpaWinnersPage() {
 
       // Own ABT — gate on tickets, 5 lowest ABT, then busiest of the 5.
       const pool = monthRows
-        .filter((r) => inCountry(lp(r.qa_email)) && r.abt != null && +r.abt > 0 && (r.tickets_touched || 0) >= minTickets)
+        .filter((r) => inCountry(lp(r.qa_email)) && r.abt != null && +r.abt > 0 && +r.abt < maxAbt && (r.tickets_touched || 0) >= minTickets)
         .map((r) => ({ k: lp(r.qa_email), name: rosterMap[lp(r.qa_email)].name, abt: +r.abt, tickets: r.tickets_touched || 0 }))
         .sort((a, b) => a.abt - b.abt)
         .slice(0, 5);
@@ -213,7 +214,7 @@ export default function NpaWinnersPage() {
         .map((x) => ({ ...x, perf: `${Math.round(x.pct)}%`, sample: `${x.sessions} coachings` }));
     }
     return out;
-  }, [month, mtd, csat, rosterMap, mtdIndex, minSurveys, minCoachings, minTickets, minCals, excluded]);
+  }, [month, mtd, csat, rosterMap, mtdIndex, minSurveys, minCoachings, minTickets, minCals, maxAbt, excluded]);
 
   // Default winner (top of each ranked list; ABT uses the busiest-of-5 flag).
   const defaultWinnerKey = (metric, country) => {
@@ -314,6 +315,7 @@ export default function NpaWinnersPage() {
         <NumField label="Min coachings" value={minCoachings} onChange={setMinCoachings} />
         <NumField label="Min tickets (ABT)" value={minTickets} onChange={setMinTickets} />
         <NumField label="Min calibrations" value={minCals} onChange={setMinCals} />
+        <NumField label="Max ABT (min)" value={maxAbt} onChange={setMaxAbt} />
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span style={{ fontSize: 12, color: "var(--tx2)" }}>{selectedCount} winner{selectedCount === 1 ? "" : "s"} selected</span>
