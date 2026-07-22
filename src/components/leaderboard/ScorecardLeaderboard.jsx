@@ -65,8 +65,8 @@ export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, 
                   const na = !cell || cell.na || typeof cell.score !== "number";
                   return (
                     <td key={k.key} style={{ ...td, color: na ? "var(--tx3)" : scoreColor(cell.score), fontWeight: na ? 400 : 700 }}
-                        title={cell ? `${k.label}: ${cell.awaiting ? "awaiting data" : na ? "N/A" : cell.valueLabel + " → " + Math.round(cell.score) + "/100"}` : ""}>
-                      {cell?.awaiting ? "⏳" : na ? "—" : Math.round(cell.score)}
+                        title={cell ? `${k.label}: ${cell.awaiting ? "awaiting data" : na ? "N/A" : cell.valueLabel + " (score " + Math.round(cell.score) + "/100)"}` : ""}>
+                      {cell?.awaiting ? "⏳" : na ? "—" : cell.valueLabel}
                     </td>
                   );
                 })}
