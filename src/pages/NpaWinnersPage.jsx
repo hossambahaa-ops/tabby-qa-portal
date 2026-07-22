@@ -69,6 +69,7 @@ export default function NpaWinnersPage() {
   const [month, setMonth] = useUrlState("mo", "");
   const [minSurveys, setMinSurveys] = useState(10);
   const [minCoachings, setMinCoachings] = useState(10);
+  const [minCoachingPct, setMinCoachingPct] = useState(95); // coaching winner needs completion >= this, then most coachings
   const [minTickets, setMinTickets] = useState(100);
   const [minCals, setMinCals] = useState(3);
   const [maxAbt, setMaxAbt] = useState(15); // ABT cap (min) — target 15, so <15 (≤14.99) qualifies
@@ -214,15 +215,19 @@ export default function NpaWinnersPage() {
       const abtWinner = inBand.reduce((best, x) => (!best || x.tickets > best.tickets ? x : best), null);
       out.abt[country] = pool.map((x) => ({ ...x, perf: `${x.abt.toFixed(2)} min`, sample: `${x.tickets} tickets handled`, _win: abtWinner && x.k === abtWinner.k }));
 
-      // Coaching — highest completion %, sized by coaching_sessions.
+      // Coaching — among QAs with completion >= minCoachingPct (default 95%),
+      // the BUSIEST (most coachings) wins. Eligible (>=95%) rank first by count;
+      // sub-95% fall below (ranked by %), so a perfect % on a tiny number can't
+      // beat a strong % on real volume (Hossam). Winner = top of the list.
       out.coaching[country] = monthRows
         .filter((r) => inCountry(lp(r.qa_email)) && parsePct(r.coaching_completion_pct) != null && (r.coaching_sessions || 0) >= minCoachings)
         .map((r) => ({ k: lp(r.qa_email), name: rosterMap[lp(r.qa_email)].name, pct: parsePct(r.coaching_completion_pct), sessions: r.coaching_sessions || 0 }))
-        .sort((a, b) => b.pct - a.pct || b.sessions - a.sessions)
+        .map((x) => ({ ...x, eligible: x.pct >= minCoachingPct }))
+        .sort((a, b) => (b.eligible - a.eligible) || (a.eligible ? b.sessions - a.sessions : b.pct - a.pct))
         .map((x) => ({ ...x, perf: `${Math.round(x.pct)}%`, sample: `${x.sessions} coachings` }));
     }
     return out;
-  }, [month, mtd, csat, rosterMap, mtdIndex, minSurveys, minCoachings, minTickets, minCals, maxAbt, abtBand, excluded]);
+  }, [month, mtd, csat, rosterMap, mtdIndex, minSurveys, minCoachings, minCoachingPct, minTickets, minCals, maxAbt, abtBand, excluded]);
 
   // Default winner (top of each ranked list; ABT uses the busiest-of-5 flag).
   const defaultWinnerKey = (metric, country) => {
@@ -321,6 +326,7 @@ export default function NpaWinnersPage() {
         </label>
         <NumField label="Min surveys (CSAT)" value={minSurveys} onChange={setMinSurveys} />
         <NumField label="Min coachings" value={minCoachings} onChange={setMinCoachings} />
+        <NumField label="Min coaching %" value={minCoachingPct} onChange={setMinCoachingPct} />
         <NumField label="Min tickets (ABT)" value={minTickets} onChange={setMinTickets} />
         <NumField label="Min calibrations" value={minCals} onChange={setMinCals} />
         <NumField label="Max ABT (min)" value={maxAbt} onChange={setMaxAbt} />
