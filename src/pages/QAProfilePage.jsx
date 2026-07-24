@@ -358,13 +358,9 @@ function QAProfilePage() {
     // the math always runs.
     const SBS_DUR = 20, NSBS_DUR = 15, COACH_DUR = 30, SHIFT_MIN = 480;
     const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-    // Today (Riyadh) is excluded from both the productive numerator and the
-    // working-days denominator below, so the in-progress day never drags the
-    // month-to-date occupancy. Working days are derived LIVE from actual
-    // attendance (statuses P/H/CDO/PH — the same set the server WD recompute
-    // uses) rather than the stored MTD working_days.
-    const todayStr = riyadhTodayStr();
-    const WD_STATUSES = new Set(["P", "H", "CDO", "PH"]);
+    // Working days come from MTD (m.working_days + ramadan_wds) — the same
+    // denominator the Eval-History table uses (see below), so all three views
+    // agree. Numerator sums every productivity_history row for the month.
     const mtdByYM = new Map((qaMtd || []).map(m => {
       const [mon, yr] = (m?.month || "").split("-");
       const idx = MONTHS.indexOf(mon);
@@ -372,19 +368,9 @@ function QAProfilePage() {
       const wds = Number(m.working_days || 0) + Number(m.ramadan_wds || 0);
       return [`${yr}-${String(idx + 1).padStart(2, "0")}`, wds > 0 ? wds : null];
     }).filter(Boolean));
-    // Attendance-derived working days per month for this QA, today excluded.
-    // Bulk qaAttendance covers the current month (where live ≠ stored
-    // matters most); older months have no rows here and fall back to MTD.
-    const attWdByYM = new Map();
-    for (const a of (qaAttendance || [])) {
-      if (!matchQA(a.email) || !a.date || a.date >= todayStr) continue;
-      if (!WD_STATUSES.has(a.status)) continue;
-      const ym = a.date.slice(0, 7);
-      attWdByYM.set(ym, (attWdByYM.get(ym) || 0) + 1);
-    }
     const sumsByYM = new Map();
     for (const d of (prodHistRows || [])) {
-      if (!d.date || d.date >= todayStr) continue; // exclude today + future
+      if (!d.date) continue; // match Eval-History: sum every feed row for the month
       const ym = d.date.slice(0, 7);
       if (!ym) continue;
       const s = sumsByYM.get(ym) || { sbs: 0, non_sbs: 0, coach: 0, side: 0 };
@@ -396,10 +382,13 @@ function QAProfilePage() {
     }
     const out = new Map();
     for (const [ym, s] of sumsByYM) {
-      // Live attendance WD wins; fall back to MTD working_days for months
-      // with no attendance recorded yet (e.g. pre-attendance-tracking).
-      const attWd = attWdByYM.get(ym);
-      const wds = (attWd && attWd > 0) ? attWd : mtdByYM.get(ym);
+      // Use MTD official working_days as the denominator — the SAME source the
+      // Eval-History table uses — so the Performance card, trend chart, and
+      // Eval-History all show the identical occupancy (per Hossam: take the
+      // occupancy from the Eval-History table). Previously this divided by live
+      // attendance-derived working days, which shrank the denominator and
+      // inflated occupancy (e.g. Reem 103% vs Eval-History's 73%).
+      const wds = mtdByYM.get(ym);
       if (!wds) continue;
       // ABT SBS + ABT Validation minutes (post-cutoff only) add to the
       // productive numerator. Monthly aggregate — not daily — so it can't be
