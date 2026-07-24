@@ -73,7 +73,15 @@ export const SCORECARD_KPIS = [
   },
   {
     key: "calibration", label: "Calibration Score", weight: 10, target: "85%", targetScore: 85,
-    scorer: ({ row }) => { const p = pct(row?.phase_1_score); if (p == null) return { na: true }; return { score: p >= 85 ? 100 : 0, value: p, valueLabel: p.toFixed(1) + "%" }; },
+    scorer: ({ row }) => {
+      // Use Phase 2 (the recovery/retake) when it exists, else Phase 1 — the
+      // effective calibration outcome, matching the Performance card.
+      const p2 = pct(row?.phase_2_score);
+      const p1 = pct(row?.phase_1_score);
+      const p = p2 != null ? p2 : p1;
+      if (p == null) return { na: true };
+      return { score: p >= 85 ? 100 : 0, value: p, valueLabel: p.toFixed(1) + "%", sub: p2 != null ? "Phase 2" : "Phase 1" };
+    },
   },
   {
     key: "coaching_observation", label: "Coaching Observation", weight: 5, target: "85%", targetScore: 85,
