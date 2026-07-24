@@ -409,6 +409,30 @@ function QAProfilePage() {
     return computedOccByYM.get(`${yr}-${String(idx + 1).padStart(2, "0")}`) ?? null;
   };
 
+  // Feed-based monthly evaluation counts (SBS + Non-SBS from productivity_history),
+  // matching the Eval-History table. The feed's non_sbs already folds in DSATs, so
+  // there's no separate DSAT (per Hossam: match the Eval-History, not the MTD sheet).
+  const feedEvalsByYM = (() => {
+    const out = new Map();
+    for (const d of (prodHistRows || [])) {
+      if (!d.date) continue;
+      const ym = d.date.slice(0, 7);
+      const s = out.get(ym) || { sbs: 0, non_sbs: 0 };
+      s.sbs += Number(d.sbs || 0);
+      s.non_sbs += Number(d.non_sbs || 0);
+      out.set(ym, s);
+    }
+    return out;
+  })();
+  const feedEvalsForMonth = (mtdMonth) => {
+    if (!mtdMonth) return null;
+    const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const [mon, yr] = mtdMonth.split("-");
+    const idx = MONTHS.indexOf(mon);
+    if (idx < 0 || !yr) return null;
+    return feedEvalsByYM.get(`${yr}-${String(idx + 1).padStart(2, "0")}`) || null;
+  };
+
   const qaSessions = sessions.filter(s => matchQA(s.qa_email)).slice(0, 10);
   const qaPlans = plans.filter(p => matchQA(p.qa_email));
   const qaTasks = tasks.filter(t => matchQA(t.assigned_to) || (matchQA(t.created_by) && !t.assigned_to));
@@ -1115,8 +1139,14 @@ function QAProfilePage() {
               // Grouped, validated metrics only. Login Hours / Tickets Handled /
               // Productivity / APT / AGPT were phantom — their mtd_scores_v columns
               // don't exist, so those rows never rendered. Removed.
+              // Evaluations from the live feed (match the Eval-History table);
+              // the feed's non_sbs folds in DSATs, so no separate DSAT tile. Fall
+              // back to the MTD sheet (non_sbs + dsat) when the feed has no rows.
+              const fe = feedEvalsForMonth(m.month);
+              const evSbs = fe ? fe.sbs : Number(m.sbs || 0);
+              const evNonSbs = fe ? fe.non_sbs : (Number(m.non_sbs || 0) + Number(m.dsat || 0));
               const groups = [
-                ["Evaluations", [["SBS", safe(m.sbs)], ["Non-SBS", safe(m.non_sbs)], ["DSAT", safe(m.dsat)]]],
+                ["Evaluations", [["SBS", safe(evSbs)], ["Non-SBS", safe(evNonSbs)]]],
                 ["Quality", [["Calibration", fmtPct(m.avg_calibration_match_rate)], ["CO score", fmtPct(m.avg_observation_score_pct)], ["RTR", fmtPct(m.avg_rtr_score)], ["RTR #", m.rtr_count ?? "—"], ["JKQ", jkqVal]]],
                 ["Coaching", [["On-time", onTime], ["Coachings", m.coaching_sessions ?? "—"]]],
                 ["CSAT", [["CSAT %", csatVal], ["Surveys", surveysVal]]],
