@@ -1,5 +1,6 @@
 import React from "react";
 import { logClientError } from "../lib/errorLog.js";
+import { hardRecoverReload } from "../lib/hardReload.js";
 
 // Detects the "stale chunk after deploy" failure mode: the open tab is
 // holding an old index.html that points at a hashed JS chunk that no
@@ -42,7 +43,7 @@ class ErrorBoundary extends React.Component {
           stack: error?.stack,
           context: { componentStack: (info?.componentStack || "").slice(0, 1500) },
         });
-        window.location.reload();
+        hardRecoverReload(); // escape a wedged SW instead of looping on reload
         return;
       }
     }
@@ -82,7 +83,7 @@ class ErrorBoundary extends React.Component {
           this.state.stack.slice(0, 500)
         ),
         React.createElement("button", {
-          onClick: () => window.location.reload(),
+          onClick: () => hardRecoverReload(),
           style: { marginTop: 24, padding: "10px 28px", borderRadius: 10, border: "none", background: "linear-gradient(135deg, #6A2C79, #8B5CF6)", color: "#fff", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "'Inter', system-ui, sans-serif" }
         }, "Reload app")
       );

@@ -1,4 +1,5 @@
 import { lazy } from "react";
+import { hardRecoverReload } from "./hardReload.js";
 
 // Wraps React.lazy with stale-chunk recovery. After a Cloudflare Pages
 // deploy, the open tab is holding an old index.html that references
@@ -45,7 +46,7 @@ export const lazyWithRetry = (importer) =>
           const last = parseInt(sessionStorage.getItem("__chunk_reload_at") || "0", 10);
           if (Date.now() - last > 30_000) {
             sessionStorage.setItem("__chunk_reload_at", String(Date.now()));
-            window.location.reload();
+            hardRecoverReload(); // escape a wedged SW, not just reload
             // Pending forever — Suspense keeps showing the spinner
             // until the browser tears down this document.
             return new Promise(() => {});

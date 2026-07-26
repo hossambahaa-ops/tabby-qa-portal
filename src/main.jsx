@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
+import { hardRecoverReload } from './lib/hardReload.js';
 
 // Supabase OAuth implicit flow returns tokens in the URL hash:
 //   /#access_token=…&refresh_token=…&expires_at=…
@@ -38,7 +39,7 @@ const tryReloadForStaleChunk = () => {
     const last = parseInt(sessionStorage.getItem("__chunk_reload_at") || "0", 10);
     if (Date.now() - last > 30_000) {
       sessionStorage.setItem("__chunk_reload_at", String(Date.now()));
-      window.location.reload();
+      hardRecoverReload(); // unregister wedged SW + clear caches, then reload
       return true;
     }
   } catch {}
