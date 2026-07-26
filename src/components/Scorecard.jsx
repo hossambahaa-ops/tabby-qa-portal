@@ -38,12 +38,22 @@ export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
       <div style={{ padding: "0 16px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
         {kpis.map((k) => {
           const na = k.na || typeof k.score !== "number";
+          // Productivity is gamified: a login-hours "achievement" you unlock at
+          // 32h. Its bar shows PROGRESS toward 32h (not the binary 0/100), and
+          // when locked we surface exactly how many more hours are needed.
+          const isProd = k.key === "productivity";
+          const prodUnlocked = isProd && !na && k.unlocked;
+          const prodLocked = isProd && !na && !k.unlocked;
+          const barWidth = na ? 0 : (isProd ? (k.progress ?? 0) : k.score);
+          const barColor = isProd && !na ? (k.unlocked ? "var(--green)" : "var(--amber)") : scoreColor(k.score);
           return (
             <div key={k.key} style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: "2px 12px", alignItems: "center", opacity: na ? 0.6 : 1 }}>
               <div style={{ minWidth: 0, display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tx)" }}>{k.label}</span>
                 <span style={{ fontSize: 10.5, color: "var(--tx3)", fontWeight: 600, background: "var(--bg2, rgba(0,0,0,.04))", border: "1px solid var(--bd2)", borderRadius: 10, padding: "0 6px" }}>{k.weight}%</span>
                 <span style={{ fontSize: 11, color: "var(--tx3)" }}>target {k.target}</span>
+                {prodUnlocked && <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--green)", background: "var(--green-bg)", borderRadius: 10, padding: "1px 8px" }}>🏆 Unlocked</span>}
+                {prodLocked && <span style={{ fontSize: 10.5, fontWeight: 700, color: "var(--amber)", background: "var(--amber-bg)", borderRadius: 10, padding: "1px 8px" }}>🔒 +{k.gap.toFixed(1)}h to unlock</span>}
               </div>
               <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 {k.awaiting ? (
@@ -52,6 +62,8 @@ export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
                   <span style={{ fontSize: 13, fontWeight: 600, color: "var(--tx2)" }}>{k.valueLabel || "—"}</span>
                 ) : na ? (
                   <span style={{ fontSize: 12.5, color: "var(--tx3)" }}>N/A</span>
+                ) : isProd ? (
+                  <span style={{ fontSize: 13.5, fontWeight: 700, color: k.unlocked ? "var(--green)" : "var(--amber)" }}>{k.value.toFixed(1)}<span style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 500 }}> / {k.targetHours}h</span></span>
                 ) : (
                   <span style={{ fontSize: 13.5, fontWeight: 700, color: scoreColor(k.score) }}>{k.valueLabel}</span>
                 )}
@@ -61,11 +73,15 @@ export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
               <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 8, marginTop: 1 }}>
                 <div style={{ flex: 1, height: 5, borderRadius: 3, background: "var(--bd)", overflow: "hidden" }}>
                   {!na && (
-                    <div style={{ width: `${Math.max(0, Math.min(100, k.score))}%`, height: "100%", background: scoreColor(k.score), borderRadius: 3 }} />
+                    <div style={{ width: `${Math.max(0, Math.min(100, barWidth))}%`, height: "100%", background: barColor, borderRadius: 3 }} />
                   )}
                 </div>
                 <span style={{ fontSize: 10.5, color: "var(--tx3)", minWidth: 96, textAlign: "right" }}>
-                  {k.awaiting ? "login-hours feed" : k.noTarget ? `no target set${k.sub ? " · " + k.sub : ""}` : na ? "0/100 · no data" : `${Math.round(k.score)}/100${k.sub ? " · " + k.sub : ""}`}
+                  {k.awaiting ? "login-hours feed"
+                    : k.noTarget ? `no target set${k.sub ? " · " + k.sub : ""}`
+                    : na ? "0/100 · no data"
+                    : isProd ? (k.unlocked ? `${k.value.toFixed(1)}h · unlocked 🏆` : `${k.value.toFixed(1)}/${k.targetHours}h · +${k.gap.toFixed(1)}h`)
+                    : `${Math.round(k.score)}/100${k.sub ? " · " + k.sub : ""}`}
                 </span>
               </div>
             </div>

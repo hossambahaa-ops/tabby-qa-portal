@@ -68,7 +68,19 @@ export const SCORECARD_KPIS = [
     scorer: ({ row }) => {
       const h = row?.login_hours == null ? null : Number(row.login_hours);
       if (h == null || !isFinite(h)) return { na: true };
-      return { score: h >= 32 ? 100 : 0, value: h, valueLabel: h.toFixed(1) + "h", sub: "of 32h/mo" };
+      const TARGET = 32;
+      const unlocked = h >= TARGET;
+      const gap = Math.max(0, TARGET - h);        // hours still needed to complete the KPI
+      return {
+        score: unlocked ? 100 : 0,
+        value: h,
+        valueLabel: h.toFixed(1) + "h",
+        unlocked,
+        gap,
+        targetHours: TARGET,
+        progress: Math.max(0, Math.min(100, (h / TARGET) * 100)), // % toward unlock
+        sub: unlocked ? "unlocked 🏆" : `login ${gap.toFixed(1)}h more to unlock`,
+      };
     },
   },
   {

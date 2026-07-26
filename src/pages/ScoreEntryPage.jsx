@@ -568,6 +568,9 @@ function ScoreEntryPage(){
     { k: "wds",             label: "WDs",         presets: ["all","perf"],         render: r => r.working_days ?? "—" },
     { k: "csat_pct",        label: "CSAT %",      presets: ["all","perf"],         render: r => { const v=csatPctValue(r.csat_pct); const s=Number(r.csat_total||0); const show=v!=null&&s>0; return <span style={{fontWeight:show?600:400,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</span>; } },
     { k: "surveys",         label: "Surveys",     presets: ["all","perf"],         render: r => r.csat_total ?? "—" },
+    // Queue login hours this month (Scorecard Productivity KPI target 32h/mo).
+    // Green ≥32; below target shows how many hours are still needed to unlock it.
+    { k: "login_hours",     label: "Login hrs",   presets: ["all","perf"],         render: r => { const h = r.login_hours==null ? null : Number(r.login_hours); if (h==null || !isFinite(h)) return <span style={{color:"var(--tx3)"}}>—</span>; const done = h>=32; const gap = Math.max(0, 32-h); return <span title={done ? "Productivity KPI unlocked (≥32h)" : `Needs ${gap.toFixed(1)}h more to unlock the Productivity KPI`} style={{color:done?"var(--green)":"var(--tx2)",fontWeight:done?600:400}}>{h.toFixed(1)}h{done ? " 🏆" : <span style={{color:"var(--amber)",fontWeight:500}}> (+{gap.toFixed(1)})</span>}</span>; } },
     { k: "sbs",             label: "SBS",         presets: ["all","perf"],         render: r => r.sbs ?? "—" },
     { k: "non_sbs",         label: "Non-SBS",     presets: ["all","perf"],         render: r => r.non_sbs ?? "—" },
     { k: "dsat",            label: "DSAT",        presets: ["all","perf"],         render: r => r.dsat ?? "—" },
@@ -603,9 +606,6 @@ function ScoreEntryPage(){
     },
     { k: "tickets_per_day", label: "Tickets/D",            presets: ["all","perf"],  render: r => <span style={{color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</span> },
     { k: "occupancy",       label: "Occupancy",            presets: ["all","perf"],  render: r => fmtPct(r.occupancy_pct) },
-    // Queue login hours this month (Scorecard Productivity KPI target 32h/mo).
-    // Green ≥32. From mtd_scores.login_hours (MTD sheet), surfaced via mtd_scores_v.
-    { k: "login_hours",     label: "Login hrs",            presets: ["all","perf"],  render: r => { const h = r.login_hours==null ? null : Number(r.login_hours); return h!=null && isFinite(h) ? <span style={{color:h>=32?"var(--green)":"var(--tx2)",fontWeight:h>=32?600:400}}>{h.toFixed(1)}h</span> : <span style={{color:"var(--tx3)"}}>—</span>; } },
     { k: "st_time",         label: "ST Time",              presets: ["all"],         render: r => <span style={{fontSize:12,color:"var(--tx2)"}}>{r.side_tasks_duration_mins ? `${Math.floor(r.side_tasks_duration_mins/60)}h ${r.side_tasks_duration_mins%60}m` : "—"}</span> },
   ];
   // Two collapsible groups. EVAL_KEYS / COACH_KEYS list the underlying
