@@ -57,19 +57,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// Clear old caches on startup, then register updated SW. When a new
-// SW takes control after an update, soft-reload once so the page picks
-// up the freshly-deployed bundle without requiring a hard refresh.
+// Register the SW. When a new SW takes control after an update, soft-reload
+// once so the page picks up the freshly-deployed bundle without a hard refresh.
+// Cache cleanup is owned by the SW's own `activate` handler (deletes every
+// cache except the current CACHE_NAME) — we no longer prune caches here, since
+// the previous startup pruner was pinned to a stale name ('tabby-pulse-v4') and
+// fought the active SW.
 if ('serviceWorker' in navigator) {
-  // Aggressively clear ALL old caches — v3 cached authenticated
-  // Supabase responses which can hang the boot. The new SW (v4) skips
-  // Supabase entirely; nuking every legacy cache here too belt-and-
-  // braces protects users still holding a stale v3 cache from a
-  // previous deploy before the new SW finishes activating.
-  caches.keys().then(keys =>
-    keys.forEach(k => { if (k !== 'tabby-pulse-v4') caches.delete(k); })
-  );
-
   let reloading = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (reloading) return;
@@ -77,7 +71,12 @@ if ('serviceWorker' in navigator) {
     window.location.reload();
   });
 
-  navigator.serviceWorker.register('/sw.js').then((reg) => {
+  // updateViaCache:'none' forces the browser to fetch /sw.js from the network
+  // (never the HTTP cache) on every register/update check. Without it, a sw.js
+  // that was once cached with a long TTL can pin users to an old worker for up
+  // to 24h — which stalls EVERY subsequent deploy, not just this one.
+  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((reg) => {
+    reg.update().catch(() => {});
     // Long-lived tabs poll for SW updates every minute
     setInterval(() => { reg.update().catch(() => {}); }, 60_000);
     // Also check on tab focus
