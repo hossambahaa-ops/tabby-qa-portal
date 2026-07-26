@@ -8,7 +8,7 @@
 //   Coaching Completion    — coaching_completion_pct
 //   Own CSAT               — csat_quartile (1 = top quartile of the month)
 //   Own ABT                — abt, target band 5–15 min
-//   Productivity on Queue  — queue LOGIN HOURS — NOT in Pulse yet (awaiting)
+//   Productivity on Queue  — login_hours (monthly queue login hours; 32h/mo target)
 //   RTR Score              — avg_rtr_score
 //   Calibration Score      — phase_1_score (raw rate; calibration_score is points)
 //   Coaching Observation   — avg_observation_score_pct (needs observed_coaching_count>0)
@@ -64,8 +64,12 @@ export const SCORECARD_KPIS = [
     },
   },
   {
-    key: "productivity", label: "Productivity on Queue", weight: 10, target: "8h/week", awaiting: true,
-    scorer: () => ({ na: true, awaiting: true }),
+    key: "productivity", label: "Productivity on Queue", weight: 10, target: "32h/month", targetScore: 32,
+    scorer: ({ row }) => {
+      const h = row?.login_hours == null ? null : Number(row.login_hours);
+      if (h == null || !isFinite(h)) return { na: true };
+      return { score: h >= 32 ? 100 : 0, value: h, valueLabel: h.toFixed(1) + "h", sub: "of 32h/mo" };
+    },
   },
   {
     key: "rtr", label: "RTR Score", weight: 10, target: "85%", targetScore: 85,
@@ -117,10 +121,11 @@ export function computeScorecard(ctx) {
   });
   // Binary composite: each in-model KPI contributes its full weight if it met
   // its target (score 100), else 0. Denominator (modelWeight) = every KPI EXCEPT
-  // ones with no data SOURCE yet (awaiting — Productivity) and ones with no
-  // TARGET defined (noTarget — LOB CSAT / MoM); those are left out until
-  // sourced/targeted so they don't drag everyone. Below-target or missing (na)
-  // count as 0 within the denominator (missing data costs the score).
+  // ones with no data SOURCE yet (awaiting — none now that Productivity/login_hours
+  // is live) and ones with no TARGET defined (noTarget — LOB CSAT / MoM); those
+  // are left out until sourced/targeted so they don't drag everyone. So today
+  // modelWeight = 90 (100 − LOB 5 − MoM 5). Below-target or missing (na) count as
+  // 0 within the denominator (missing data costs the score).
   const inModel = kpis.filter((k) => !k.awaiting && !k.noTarget);
   const modelWeight = inModel.reduce((s, k) => s + k.weight, 0);
   const scored = inModel.filter((k) => !k.na && typeof k.score === "number");

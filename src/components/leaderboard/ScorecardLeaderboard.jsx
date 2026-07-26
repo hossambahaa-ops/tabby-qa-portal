@@ -40,7 +40,7 @@ export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, 
     <div className="card" style={{ padding: 0 }}>
       <div style={{ padding: "14px 16px 10px", display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
         <span className="card-title">Scorecard leaderboard</span>
-        <span style={{ fontSize: 11.5, color: "var(--tx3)" }}>new KPI model · {month} · ranked by weighted composite · click a row for the KPI breakdown · Productivity awaits login-hours</span>
+        <span style={{ fontSize: 11.5, color: "var(--tx3)" }}>new KPI model · {month} · ranked by weighted composite · click a row for the KPI breakdown · Productivity = login hours (32h/mo)</span>
       </div>
 
       <div>

@@ -3,8 +3,10 @@ import { computeScorecard } from "../lib/scorecard.js";
 
 // New 10-KPI weighted scorecard, shown in PARALLEL with the legacy
 // final_performance so the two can be compared before any switch.
-// Productivity on Queue (login hours) has no source yet → rendered as
-// "awaiting data" and excluded from the composite (weight redistributed).
+// Productivity on Queue is now sourced from mtd_scores.login_hours
+// (target 32h/month, binary), so the only composite exclusions left are
+// the two no-target LOB CSAT KPIs → modelWeight = 90. The `awaiting`
+// rendering path is kept generic in case a future KPI loses its source.
 
 const scoreColor = (s) => (s == null ? "var(--tx3)" : s >= 85 ? "var(--green)" : s >= 70 ? "var(--amber)" : "var(--red)");
 const scoreBg = (s) => (s == null ? "var(--bd)" : s >= 85 ? "var(--green-bg)" : s >= 70 ? "var(--amber-bg)" : "var(--red-bg)");
