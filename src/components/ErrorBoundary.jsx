@@ -43,7 +43,7 @@ class ErrorBoundary extends React.Component {
           stack: error?.stack,
           context: { componentStack: (info?.componentStack || "").slice(0, 1500) },
         });
-        hardRecoverReload(); // escape a wedged SW instead of looping on reload
+        hardRecoverReload(error?.message || String(error)); // escape a wedged SW instead of looping on reload
         return;
       }
     }

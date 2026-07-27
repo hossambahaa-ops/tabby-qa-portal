@@ -34,22 +34,24 @@ const isStaleChunkMessage = (m) => {
     (s.includes("loading chunk") && s.includes("failed"))
   );
 };
-const tryReloadForStaleChunk = () => {
+const tryReloadForStaleChunk = (reason) => {
   try {
     const last = parseInt(sessionStorage.getItem("__chunk_reload_at") || "0", 10);
     if (Date.now() - last > 30_000) {
       sessionStorage.setItem("__chunk_reload_at", String(Date.now()));
-      hardRecoverReload(); // unregister wedged SW + clear caches, then reload
+      hardRecoverReload(reason); // unregister wedged SW + clear caches, then reload
       return true;
     }
   } catch {}
   return false;
 };
 window.addEventListener("unhandledrejection", (e) => {
-  if (isStaleChunkMessage(e.reason?.message || e.reason)) tryReloadForStaleChunk();
+  const m = e.reason?.message || e.reason;
+  if (isStaleChunkMessage(m)) tryReloadForStaleChunk(m);
 });
 window.addEventListener("error", (e) => {
-  if (isStaleChunkMessage(e.message || e.error?.message)) tryReloadForStaleChunk();
+  const m = e.message || e.error?.message;
+  if (isStaleChunkMessage(m)) tryReloadForStaleChunk(m);
 });
 
 ReactDOM.createRoot(document.getElementById('root')).render(
