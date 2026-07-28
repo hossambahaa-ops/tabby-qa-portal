@@ -1130,13 +1130,16 @@ function QAProfilePage() {
             <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
               <span className="card-title">Performance{profIsRange && <span style={{fontSize:11,fontWeight:500,color:"var(--tx3)"}}> · {selFrom} → {effMonth} ({profRangeMonths.length} mo)</span>}</span>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                {pickerMonths.length > 0 && <select className="select form-input" title="Roll several months up into one view" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={selFrom} onChange={e=>setSelFrom(e.target.value)}>
-                  <option value="">Single month</option>
-                  {pickerMonths.map(mo=><option key={mo} value={mo}>From {mo}</option>)}
-                </select>}
-                {pickerMonths.length > 0 && <select className="select form-input" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={effMonth} onChange={e=>setSelMonth(e.target.value)}>
-                  {pickerMonths.map(mo=><option key={mo} value={mo}>{selFrom && selFrom!==mo ? "To "+mo : mo}</option>)}
-                </select>}
+                {pickerMonths.length > 0 && <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"nowrap"}}>
+                  <select className="select form-input" title="Roll several months up into one view" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={selFrom} onChange={e=>setSelFrom(e.target.value)}>
+                    <option value="">Single month</option>
+                    {pickerMonths.map(mo=><option key={mo} value={mo}>{mo}</option>)}
+                  </select>
+                  <span aria-hidden="true" style={{flex:"none",fontSize:12,color:"var(--tx3)",lineHeight:1}}>&rarr;</span>
+                  <select className="select form-input" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={effMonth} onChange={e=>setSelMonth(e.target.value)}>
+                    {pickerMonths.map(mo=><option key={mo} value={mo}>{mo}</option>)}
+                  </select>
+                </div>}
                 {/* Super-admin: adjust the displayed month's MTD KPIs.
                     The save overwrites the synced columns directly so the
                     new value flows through every consumer (Leaderboard,
