@@ -97,7 +97,7 @@ function ScoreEntryPage(){
     (async () => {
       try {
         const wdRangeStart = new Date(Date.now() - 62 * 864e5).toISOString().slice(0, 10);
-        const [rows, rosterRows, profRows, qualRows, attRows] = await Promise.all([
+        const [rows, rosterRows, profRows, qualRows, attRows, sessRows] = await Promise.all([
           listMtd({ token, filters: "order=month.desc,qa_email.asc" }),
           listRoster({ token, select: "email,queue,manager_email" }),
           listProfiles({ token, select: "id,email,role", cacheKey: "profiles_slim" }),
@@ -106,6 +106,9 @@ function ScoreEntryPage(){
           // Recent attendance — to synthesize QAs who WORKED (have working days)
           // but are missing from the sheet, even at 0 productivity.
           sb.query("qa_attendance", { token, select: "email,date,status", filters: `date=gte.${wdRangeStart}` }).catch(() => []),
+          // Quality enablement sessions DELIVERED (done only) per QA — for the
+          // "Q Sessions" count column. From quality_sessions (sheet-synced).
+          sb.query("quality_sessions", { token, select: "trainer_email,month_label" }).catch(() => []),
         ]);
         setRoster(rosterRows);
         // Working-days per (local-part | "Mon-YYYY") from attendance (worked-day
@@ -123,6 +126,15 @@ function ScoreEntryPage(){
         }
         // Merge quality-task figures onto each MTD row by (qa_email, month).
         const qualByKey = new Map((qualRows || []).map(q => [`${(q.qa_email || "").toLowerCase()}|${q.month}`, q]));
+        // Quality sessions delivered, counted per (local-part | "Mon-YYYY").
+        // trainer_email is @tabby.ai; local-part keying is cross-domain safe.
+        const sessCountByKey = new Map();
+        for (const s of (sessRows || [])) {
+          const lp = (s.trainer_email || "").toLowerCase().split("@")[0];
+          if (!lp || !s.month_label) continue;
+          const key = `${lp}|${s.month_label}`;
+          sessCountByKey.set(key, (sessCountByKey.get(key) || 0) + 1);
+        }
         // Build blacklist: exclude both domain variants of non-QA users
         const nonQaProfiles = profRows.filter(p => p.role !== "qa");
         const blacklist = new Set();
@@ -186,7 +198,9 @@ function ScoreEntryPage(){
         // Real MTD rows, with ABT figures merged on.
         const mtdRows = filtered.map(r => {
           const q = qualByKey.get(`${(r.qa_email || "").toLowerCase()}|${r.month}`);
-          return q ? { ...r, abt_sbs_count: q.abt_sbs_count, abt_sbs_minutes: q.abt_sbs_minutes, abt_validation_count: q.abt_validation_count, abt_validation_minutes: q.abt_validation_minutes } : r;
+          const base = q ? { ...r, abt_sbs_count: q.abt_sbs_count, abt_sbs_minutes: q.abt_sbs_minutes, abt_validation_count: q.abt_validation_count, abt_validation_minutes: q.abt_validation_minutes } : { ...r };
+          base.q_sessions = sessCountByKey.get(`${(r.qa_email || "").toLowerCase().split("@")[0]}|${r.month}`) || 0;
+          return base;
         });
         // Synthesize placeholder rows for active roster QAs who are MISSING
         // from the latest month's MTD sheet (a mid-month sync gap — e.g. Sameh
@@ -215,6 +229,7 @@ function ScoreEntryPage(){
           return {
             qa_email: r.email, month: latestMonth, qa_tl: r.manager_email || null, _synthetic: true,
             working_days: wdMap.get(`${lp}|${latestMonth}`) || 0,
+            q_sessions: sessCountByKey.get(`${lp}|${latestMonth}`) || 0,
             ...(q ? { abt_sbs_count: q.abt_sbs_count, abt_sbs_minutes: q.abt_sbs_minutes, abt_validation_count: q.abt_validation_count, abt_validation_minutes: q.abt_validation_minutes } : {}),
           };
         });
@@ -518,6 +533,7 @@ function ScoreEntryPage(){
       case "occupancy":       return numFromText(r.occupancy_pct);
       case "login_hours":     return r.login_hours == null ? null : Number(r.login_hours);
       case "tickets_handled": return r.tickets_touched == null ? null : Number(r.tickets_touched);
+      case "q_sessions":      return r.q_sessions || null;
       case "st_time":         return r.side_tasks_duration_mins ?? null;
       case "performance":     return Number(r.final_performance) || null;
       default:                return null;
@@ -573,6 +589,8 @@ function ScoreEntryPage(){
     // Green ≥32; below target shows how many hours are still needed to unlock it.
     { k: "login_hours",     label: "Login hrs",   presets: ["all","perf"],         render: r => { const h = r.login_hours==null ? null : Number(r.login_hours); if (h==null || !isFinite(h)) return <span style={{color:"var(--tx3)"}}>—</span>; const done = h>=32; const gap = Math.max(0, 32-h); return <span title={done ? "Productivity KPI unlocked (≥32h)" : `Needs ${gap.toFixed(1)}h more to unlock the Productivity KPI`} style={{color:done?"var(--green)":"var(--tx2)",fontWeight:done?600:400}}>{h.toFixed(1)}h{done ? " 🏆" : <span style={{color:"var(--amber)",fontWeight:500}}> (-{gap.toFixed(1)})</span>}</span>; } },
     { k: "tickets_handled", label: "Handled Tickets", presets: ["all","perf"],   render: r => r.tickets_touched != null ? <span style={{color:"var(--blue)",fontWeight:500}}>{r.tickets_touched}</span> : <span style={{color:"var(--tx3)"}}>—</span> },
+    // Quality enablement sessions this QA delivered (done only), from quality_sessions.
+    { k: "q_sessions",      label: "Q Sessions",      presets: ["all","perf","coach"], render: r => r.q_sessions ? <span style={{color:"var(--tabby-purple)",fontWeight:600}}>{r.q_sessions}</span> : <span style={{color:"var(--tx3)"}}>—</span> },
     { k: "sbs",             label: "SBS",         presets: ["all","perf"],         render: r => r.sbs ?? "—" },
     { k: "non_sbs",         label: "Non-SBS",     presets: ["all","perf"],         render: r => r.non_sbs ?? "—" },
     { k: "dsat",            label: "DSAT",        presets: ["all","perf"],         render: r => r.dsat ?? "—" },
@@ -920,7 +938,7 @@ function ScoreEntryPage(){
             </div>
             <span style={{fontSize:12,color:"var(--tx3)"}} title={sorted[0]?.synced_at ? new Date(sorted[0].synced_at).toLocaleString() : ""}>{(()=>{const ts=sorted[0]?.synced_at;if(!ts)return "Synced: —";const s=(Date.now()-new Date(ts).getTime())/1000;const rel=s<60?"just now":s<3600?`${Math.floor(s/60)}m ago`:s<86400?`${Math.floor(s/3600)}h ago`:`${Math.floor(s/86400)}d ago`;return `Updated ${rel}`;})()}</span>
             <button className="btn btn-outline btn-sm" onClick={()=>{
-              const csv=["QA,Email,TL,SBS,Non-SBS,DSAT,Late,Never,Valid,Invalid,Sessions,On-time Coaching,Eligible,Not Coached,RTR,RTR Score,Observations,Obs %,Calibrations,Calib %,Completion %,On-time %,JKQ,JKQ Result,Tickets/day,Occupancy %,Login hrs,Handled Tickets,Working Days,ST Time (mins),ST Time,CSAT %,Surveys"];
+              const csv=["QA,Email,TL,SBS,Non-SBS,DSAT,Late,Never,Valid,Invalid,Sessions,On-time Coaching,Eligible,Not Coached,RTR,RTR Score,Observations,Obs %,Calibrations,Calib %,Completion %,On-time %,JKQ,JKQ Result,Tickets/day,Occupancy %,Login hrs,Handled Tickets,Q Sessions,Working Days,ST Time (mins),ST Time,CSAT %,Surveys"];
               sorted.forEach(r=>{
                 const stMins=r.side_tasks_duration_mins||0;
                 const stFormatted=stMins?`${Math.floor(stMins/60)}h ${stMins%60}m`:"";
@@ -931,7 +949,7 @@ function ScoreEntryPage(){
                   r.rtr_count||0,r.avg_rtr_score||0,r.observed_coaching_count||0,r.avg_observation_score_pct||0,
                   r.calibration_count||0,r.avg_calibration_match_rate||0,
                   r.coaching_completion_pct||0,r.ontime_coaching_pct||0,
-                  r.jkq_score||"",`"${r.jkq_result||""}"`,r.ticket_per_day||0,r.occupancy_pct||0,r.login_hours||0,r.tickets_touched||0,
+                  r.jkq_score||"",`"${r.jkq_result||""}"`,r.ticket_per_day||0,r.occupancy_pct||0,r.login_hours||0,r.tickets_touched||0,r.q_sessions||0,
                   r.working_days||0,stMins,`"${stFormatted}"`,
                   csatPctValue(r.csat_pct)!=null?csatPctValue(r.csat_pct).toFixed(1):"",r.csat_total??0
                 ].join(","));
@@ -942,7 +960,7 @@ function ScoreEntryPage(){
               <Icon d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" size={13}/>Export CSV
             </button>
             <button className="btn btn-outline btn-sm" onClick={()=>{
-              const header="QA\tEmail\tTL\tSBS\tNon-SBS\tDSAT\tLate\tNever\tValid\tInvalid\tSessions\tOn-time Coaching\tEligible\tNot Coached\tRTR\tRTR Score\tObservations\tObs %\tCalibrations\tCalib %\tCompletion %\tOn-time %\tJKQ\tJKQ Result\tTickets/day\tOccupancy %\tLogin hrs\tHandled Tickets\tWorking Days\tST Time (mins)\tST Time\tCSAT %\tSurveys";
+              const header="QA\tEmail\tTL\tSBS\tNon-SBS\tDSAT\tLate\tNever\tValid\tInvalid\tSessions\tOn-time Coaching\tEligible\tNot Coached\tRTR\tRTR Score\tObservations\tObs %\tCalibrations\tCalib %\tCompletion %\tOn-time %\tJKQ\tJKQ Result\tTickets/day\tOccupancy %\tLogin hrs\tHandled Tickets\tQ Sessions\tWorking Days\tST Time (mins)\tST Time\tCSAT %\tSurveys";
               const rows=sorted.map(r=>{
                 const stMins=r.side_tasks_duration_mins||0;
                 const stFormatted=stMins?`${Math.floor(stMins/60)}h ${stMins%60}m`:"";
@@ -953,7 +971,7 @@ function ScoreEntryPage(){
                   r.rtr_count||0,r.avg_rtr_score||0,r.observed_coaching_count||0,r.avg_observation_score_pct||0,
                   r.calibration_count||0,r.avg_calibration_match_rate||0,
                   r.coaching_completion_pct||0,r.ontime_coaching_pct||0,
-                  r.jkq_score||"",r.jkq_result||"",r.ticket_per_day||0,r.occupancy_pct||0,r.login_hours||0,r.tickets_touched||0,
+                  r.jkq_score||"",r.jkq_result||"",r.ticket_per_day||0,r.occupancy_pct||0,r.login_hours||0,r.tickets_touched||0,r.q_sessions||0,
                   r.working_days||0,stMins,stFormatted,
                   csatPctValue(r.csat_pct)!=null?csatPctValue(r.csat_pct).toFixed(1):"",r.csat_total??0
                 ].join("\t");
