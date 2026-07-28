@@ -12,6 +12,7 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import PageFilters from "../components/PageFilters.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { SYSTEM_COLS, DEFAULT_MTD_COLS, COL_LABELS } from "../lib/mtdColumns.js";
+import { aggregateMtdRange } from "../lib/mtdRange.js";
 import MtdUploadModal from "../components/mtd/MtdUploadModal.jsx";
 import MtdBulkTaskModal from "../components/mtd/MtdBulkTaskModal.jsx";
 import { useRowContextMenu } from "../components/RowContextMenu.jsx";
@@ -23,7 +24,8 @@ function ScoreEntryPage(){
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState([]);
-  const [selMonth, setSelMonth] = useState("");
+  const [selMonth, setSelMonth] = useState("");   // "To" month (anchor)
+  const [selFrom, setSelFrom] = useState("");      // "From" month; "" = single-month (== selMonth)
   const [selQA, setSelQA] = useState([]);
   // Lead + team filters are multi-select.
   const [selTL, setSelTL] = useState([]);
@@ -457,7 +459,20 @@ function ScoreEntryPage(){
   // don't appear here.
   const isSrQa = (r) => /^(sr\.?|senior)\s*qa$/i.test((r?.role || "").trim());
   const srQaEmails = new Set(roster.filter(isSrQa).map(r => r.email?.toLowerCase()).filter(Boolean));
-  const monthData = data.filter(r => r.month === selMonth && !srQaEmails.has(r.qa_email?.toLowerCase()));
+  // From→To month range. selFrom "" (or == selMonth) means a single month and
+  // behaves exactly as before. A wider range rolls each QA up to one row.
+  const rangeMonths = (() => {
+    if (!selMonth) return [];
+    if (!selFrom || selFrom === selMonth) return [selMonth];
+    const iF = months.indexOf(selFrom), iT = months.indexOf(selMonth);
+    if (iF < 0 || iT < 0) return [selMonth];
+    const [lo, hi] = iF <= iT ? [iF, iT] : [iT, iF]; // months is newest-first
+    return months.slice(lo, hi + 1);
+  })();
+  const isRange = rangeMonths.length > 1;
+  const monthData = isRange
+    ? aggregateMtdRange(data, rangeMonths, months, srQaEmails)
+    : data.filter(r => r.month === selMonth && !srQaEmails.has(r.qa_email?.toLowerCase()));
   const qaEmails = [...new Set(monthData.map(r => r.qa_email))].sort();
   const tlEmails = [...new Set(monthData.map(r => r.qa_tl).filter(Boolean))].sort();
   // Skip compound LOBs ("CCU, Escalation, Dispute") that occasionally
@@ -781,8 +796,16 @@ function ScoreEntryPage(){
     <PageFilters
       onClear={() => { setSelDomain(""); setSelTeam([]); setSelTL([]); setSelQA([]); setTableSearch(""); }}
     >
+      {/* From→To month range. "From: single month" keeps the classic
+          single-month view; pick a From month to roll several months up. */}
       <SearchableSelect
-        options={months}
+        options={[{ value: "", label: "From: single month" }, ...months.map(m => ({ value: m, label: "From " + m }))]}
+        value={selFrom}
+        onChange={v => setSelFrom(v)}
+        placeholder="From (range)"
+      />
+      <SearchableSelect
+        options={months.map(m => ({ value: m, label: (selFrom && selFrom !== m) ? ("To " + m) : m }))}
         value={selMonth}
         onChange={v => setSelMonth(v)}
         placeholder="Select month"
@@ -906,16 +929,20 @@ function ScoreEntryPage(){
           // Team "this month vs last" strip. Averages across QAs from the
           // already-loaded data; direction-aware (lower ABT = green).
           const mIdx = months.indexOf(selMonth);
-          const prevMonth = mIdx >= 0 ? months[mIdx + 1] : null;
-          if (!prevMonth) return null;
+          // In single-month mode, compare vs the prior month. In range mode we
+          // show the rolled-up range value with no delta (no obvious baseline).
+          const prevMonth = isRange ? null : (mIdx >= 0 ? months[mIdx + 1] : null);
           const num = (v) => { if (v == null || v === "") return null; const n = parseFloat(String(v).replace("%", "").replace(",", ".")); return isNaN(n) ? null : n; };
           const avg = (m, fn) => { const xs = data.filter(r => r.month === m).map(fn).filter(v => v != null); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
+          // cur is averaged over the visible rows (single month OR the range roll-up).
+          const cur = (fn) => { const xs = monthData.map(fn).filter(v => v != null); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
+          const pv = (fn) => prevMonth ? avg(prevMonth, fn) : null;
           const tiles = [
-            { label: "Occupancy", cur: avg(selMonth, r => num(r.occupancy_pct)), prev: avg(prevMonth, r => num(r.occupancy_pct)), unit: "%", lower: false },
-            { label: "CSAT", cur: avg(selMonth, r => num(r.csat_pct)), prev: avg(prevMonth, r => num(r.csat_pct)), unit: "%", lower: false },
-            { label: "ABT", cur: avg(selMonth, r => num(r.abt)), prev: avg(prevMonth, r => num(r.abt)), unit: " min", lower: true },
-            { label: "Login hrs", cur: avg(selMonth, r => num(r.login_hours)), prev: avg(prevMonth, r => num(r.login_hours)), unit: " h", lower: false },
-            { label: "Tickets", cur: avg(selMonth, r => num(r.tickets_touched)), prev: avg(prevMonth, r => num(r.tickets_touched)), unit: "", lower: false },
+            { label: "Occupancy", cur: cur(r => num(r.occupancy_pct)), prev: pv(r => num(r.occupancy_pct)), unit: "%", lower: false },
+            { label: "CSAT", cur: cur(r => num(r.csat_pct)), prev: pv(r => num(r.csat_pct)), unit: "%", lower: false },
+            { label: "ABT", cur: cur(r => num(r.abt)), prev: pv(r => num(r.abt)), unit: " min", lower: true },
+            { label: "Login hrs", cur: cur(r => num(r.login_hours)), prev: pv(r => num(r.login_hours)), unit: " h", lower: false },
+            { label: "Tickets", cur: cur(r => num(r.tickets_touched)), prev: pv(r => num(r.tickets_touched)), unit: "", lower: false },
           ].filter(t => t.cur != null);
           if (!tiles.length) return null;
           return <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", padding: "12px 4px 14px", borderBottom: "1px solid var(--bd2)", marginBottom: 12 }}>
@@ -932,11 +959,11 @@ function ScoreEntryPage(){
                 </div>
               </div>;
             })}
-            <span style={{ fontSize: 11, color: "var(--tx3)" }}>vs {prevMonth} · lower ABT is better</span>
+            <span style={{ fontSize: 11, color: "var(--tx3)" }}>{isRange ? `${selFrom} → ${selMonth} (${rangeMonths.length} months, rolled up)` : `vs ${prevMonth} · lower ABT is better`}</span>
           </div>;
         })()}
         <div className="card-header">
-          <span className="card-title">{selMonth} — {sorted.length} specialists</span>
+          <span className="card-title">{isRange ? `${selFrom} → ${selMonth}` : selMonth} — {sorted.length} specialists</span>
           <div style={{display:"flex",alignItems:"center",gap:12}}>
             <div style={{display:"flex",borderRadius:8,border:"1px solid var(--bd)",overflow:"hidden"}}>
               <button onClick={()=>setMtdView("qa")} style={{padding:"4px 10px",fontSize:11,fontWeight:600,border:"none",cursor:"pointer",fontFamily:"var(--font)",background:mtdView==="qa"?"var(--tabby-purple)":"transparent",color:mtdView==="qa"?"#fff":"var(--tx3)"}}>By QA</button>
