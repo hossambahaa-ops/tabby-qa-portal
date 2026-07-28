@@ -60,31 +60,19 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   </React.StrictMode>
 );
 
-// Register the SW. When a new SW takes control after an update, soft-reload
-// once so the page picks up the freshly-deployed bundle without a hard refresh.
-// Cache cleanup is owned by the SW's own `activate` handler (deletes every
-// cache except the current CACHE_NAME) — we no longer prune caches here, since
-// the previous startup pruner was pinned to a stale name ('tabby-pulse-v4') and
-// fought the active SW.
+// Service worker RETIRED (2026-07-28). It was the source of chronic stale-chunk
+// crashes and wedged-recovery loops: it intermittently failed to fetch chunks
+// that exist on the server, and the recovery couldn't always break the loop.
+// Cloudflare serves hashed assets as `immutable` (browser caches them for a
+// year) and index.html as `no-store`, so the SW added risk with zero benefit
+// (no push/offline features depend on it). We no longer register a worker; on
+// every load we actively unregister any leftover one and drop its caches, so
+// existing installs self-heal to clean, direct network fetches.
 if ('serviceWorker' in navigator) {
-  let reloading = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (reloading) return;
-    reloading = true;
-    window.location.reload();
-  });
-
-  // updateViaCache:'none' forces the browser to fetch /sw.js from the network
-  // (never the HTTP cache) on every register/update check. Without it, a sw.js
-  // that was once cached with a long TTL can pin users to an old worker for up
-  // to 24h — which stalls EVERY subsequent deploy, not just this one.
-  navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).then((reg) => {
-    reg.update().catch(() => {});
-    // Long-lived tabs poll for SW updates every minute
-    setInterval(() => { reg.update().catch(() => {}); }, 60_000);
-    // Also check on tab focus
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') reg.update().catch(() => {});
-    });
-  }).catch(() => {});
+  navigator.serviceWorker.getRegistrations()
+    .then((regs) => { for (const r of regs) r.unregister().catch(() => {}); })
+    .catch(() => {});
+  if (typeof caches !== 'undefined') {
+    caches.keys().then((keys) => { for (const k of keys) caches.delete(k).catch(() => {}); }).catch(() => {});
+  }
 }
