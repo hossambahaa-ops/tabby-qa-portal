@@ -46,18 +46,27 @@ export function rollupMtdRange(rows, monthsDesc) {
     return d > 0 ? n / d : (cnt > 0 ? sm / cnt : null);
   };
 
-  const evals = (out.sbs || 0) + (out.non_sbs || 0);
+  const evals = (out.sbs || 0) + (out.non_sbs || 0) + (out.dsat || 0);
   const csGood = out.csat_good || 0, csBad = out.csat_bad || 0;
 
   out.csat_pct = (csGood + csBad) > 0 ? (csGood / (csGood + csBad) * 100).toFixed(2) + "%" : null;
+  // ticket_per_day counts SBS + Non-SBS + DSAT (verified against every closed
+  // month: the with-DSAT formula reproduces the stored value 135/135, the
+  // without-DSAT one only 72/135). Excluding DSAT understated it and flipped
+  // real Sample-Size passes into fails.
   out.ticket_per_day = (out.working_days || 0) > 0 ? +(evals / out.working_days).toFixed(2) : num(latest.ticket_per_day);
   out.occupancy_pct = wavg("occupancy_pct", "working_days");
   out.abt = wavg("abt", "tickets_touched");
   out.avg_rtr_score = wavg("avg_rtr_score", "rtr_count");
   out.avg_observation_score_pct = wavg("avg_observation_score_pct", "observed_coaching_count");
-  out.coaching_completion_pct = (out.coaching_eligibility_count || 0) > 0
-    ? +((out.total_ontime_coachings || 0) / out.coaching_eligibility_count * 100).toFixed(2)
-    : wavg("coaching_completion_pct", "coaching_eligibility_count");
+  // Do NOT recompute coaching completion — the sheet's definition doesn't
+  // reproduce cleanly from the parts (the on-time ratio matched only 8/73 rows,
+  // the coached ratio 51/73). Weight-averaging the STORED percentage keeps the
+  // range consistent with what the single-month view shows.
+  out.coaching_completion_pct = wavg("coaching_completion_pct", "coaching_eligibility_count");
+  // Rolled up too — it feeds the legacy 55-point "Coaching on-time" KPI, and
+  // was previously left as the newest month's value inside a range.
+  out.ontime_coaching_pct = wavg("ontime_coaching_pct", "coaching_eligibility_count");
   out.final_performance = wavg("final_performance", "working_days");
   // phase_1/2 score+status, csat_quartile, avg_calibration_match_rate, lob, qa_tl
   // all keep the latest month's value (carried by {...latest}).

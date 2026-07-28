@@ -45,7 +45,11 @@ export const SCORECARD_KPIS = [
       const ded = Math.max(0, Number(sessionDeductEvals) || 0);
       if (wds > 0 && ded > 0) {
         const actual = tpd * wds;                        // ~ evals done this month
-        const adjTarget = Math.max(1, 12 * wds - ded);   // sessions lower the bar
+        // Floor at 25% of the base target: a very large session deduction on a
+        // low-working-days month could otherwise drive the bar to ~1 eval and
+        // hand out a free 100%.
+        const base = 12 * wds;
+        const adjTarget = Math.max(base * 0.25, base - ded);
         const completion = clamp((actual / adjTarget) * 100, 0, 100);
         return { score: completion >= 95 ? 100 : 0, value: completion, valueLabel: completion.toFixed(0) + "%", sub: `${tpd.toFixed(1)}/day · target −${ded} for sessions` };
       }
@@ -79,7 +83,11 @@ export const SCORECARD_KPIS = [
     scorer: ({ row }) => {
       const h = row?.login_hours == null ? null : Number(row.login_hours);
       if (h == null || !isFinite(h)) return { na: true };
-      const TARGET = 32;
+      // login_hours is the only ABSOLUTE-count KPI here. Over a rolled-up month
+      // range the hours are summed, so the target must scale by the number of
+      // months included — otherwise 3 x 12h sums to 36h and falsely "unlocks".
+      const rangeMonths = Math.max(1, Number(row?._rangeMonths) || 1);
+      const TARGET = 32 * rangeMonths;
       const unlocked = h >= TARGET;
       const gap = Math.max(0, TARGET - h);        // hours still needed to complete the KPI
       return {
