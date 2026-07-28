@@ -64,6 +64,18 @@ export function rollupMtdRange(rows, monthsDesc) {
   return out;
 }
 
+// Expand a From→To selection into the list of months it covers. `months` is
+// the page's month list, NEWEST FIRST. from "" (or == to) means single-month.
+// Order-agnostic: picking From after To still yields the same span.
+export function monthsInRange(months, from, to) {
+  if (!to) return [];
+  if (!from || from === to) return [to];
+  const iF = months.indexOf(from), iT = months.indexOf(to);
+  if (iF < 0 || iT < 0) return [to];
+  const [lo, hi] = iF <= iT ? [iF, iT] : [iT, iF];
+  return months.slice(lo, hi + 1);
+}
+
 // Group all rows across a month range by QA and roll each QA up to one row.
 export function aggregateMtdRange(rows, rangeMonths, monthsDesc, excludeEmails) {
   const inRange = new Set(rangeMonths);

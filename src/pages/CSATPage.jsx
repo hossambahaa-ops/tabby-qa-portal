@@ -14,6 +14,8 @@ import PageFilters from "../components/PageFilters.jsx";
 import CsatTopicMatrix from "../components/csat/CsatTopicMatrix.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState, useUrlStateMulti } from "../lib/useUrlState.jsx";
+import { aggregateMtdRange, monthsInRange } from "../lib/mtdRange.js";
+import MonthRangePicker from "../components/MonthRangePicker.jsx";
 
 // Navigate to a QA's profile. Same hash-router pattern used by every
 // other clickable QA name in the app (Occupancy card, Score Entry
@@ -46,7 +48,8 @@ export default function CSATPage() {
   // keeps your context and the URL is shareable. selQA stays local
   // since it's a multi-select with potentially many emails (too noisy
   // in the URL). Same pattern as Score Entry / Leaderboard.
-  const [selMonth, setSelMonth] = useUrlState("month", "");
+  const [selMonth, setSelMonth] = useUrlState("month", "");  // "To" month (anchor)
+  const [selFrom, setSelFrom] = useUrlState("from", "");      // "" = single month
   const [selDomain, setSelDomain] = useUrlState("domain", "");
   // selTeam and selTL are arrays (multi-select). Stored in the URL
   // as comma-separated strings via useUrlStateMulti.
@@ -207,7 +210,13 @@ export default function CSATPage() {
     })();
   }, [token, gf?.month, gf?.teams, reloadKey]);
 
-  const monthData = data.filter(r => r.month === selMonth);
+  // From→To range: single month behaves exactly as before; a wider range rolls
+  // each QA up to one row (surveys/good/bad SUM, CSAT% recomputed from them).
+  const rangeMonths = monthsInRange(months, selFrom, selMonth);
+  const isRange = rangeMonths.length > 1;
+  const monthData = isRange
+    ? aggregateMtdRange(data, rangeMonths, months)
+    : data.filter(r => r.month === selMonth);
   // Literal previous calendar month for the selected month (e.g.
   // "Apr-2026" → "Mar-2026"). We use the calendar prev — not just
   // `months[1]` — so a missing intermediate month doesn't silently
@@ -215,7 +224,7 @@ export default function CSATPage() {
   // null and the delta column just renders "—".
   const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
   const prevMonth = (() => {
-    if (!selMonth) return null;
+    if (!selMonth || isRange) return null; // no clean baseline for a range
     const [m, y] = selMonth.split("-");
     const idx = MON.indexOf(m);
     if (idx < 0 || !y) return null;
@@ -272,7 +281,43 @@ export default function CSATPage() {
   // csat_by_topic.month is stored as text ("Apr-2026"), matching the
   // mtd_scores.month convention — NOT a date.
   const monthKey = selMonth || null;
-  const topicKey = (email) => `${email}__${monthKey}`;
+  // Cache key must include the whole range, else switching From would serve a
+  // stale single-month breakdown from cache.
+  const topicKey = (email) => `${email}__${rangeMonths.join("+")}`;
+  // PostgREST filter matching every month in the range (works for 1 or many).
+  const monthFilter = rangeMonths.length
+    ? `month=in.(${rangeMonths.map(m => `"${m}"`).join(",")})`
+    : `month=eq.${encodeURIComponent(monthKey)}`;
+  // Dedupe per (month, topic) — the import writes a rollup row AND a
+  // "no-sub-category" variant, so within a month we keep the bigger one — then
+  // SUM across the months in range, survey-weighting the score.
+  const aggTopics = (rows) => {
+    const perMonth = {};
+    (rows || []).forEach(t => {
+      const norm = normalizeTopic(t.topic);
+      const surveys = Number(t.surveys_count || 0);
+      const score = t.csat_score != null ? Number(t.csat_score) : null;
+      const k = `${t.month || ""} ${norm}`;
+      if (!perMonth[k] || surveys > perMonth[k].surveys) perMonth[k] = { topic: norm, score, surveys };
+    });
+    const agg = {};
+    Object.values(perMonth).forEach(({ topic, score, surveys }) => {
+      const a = agg[topic] || (agg[topic] = { topic, w: 0, n: 0, s: 0, simpleSum: 0, simpleCount: 0 });
+      if (score != null) {
+        a.simpleSum += score; a.simpleCount++;
+        if (surveys > 0) { a.w += score * surveys; a.n += surveys; }
+      }
+      a.s += surveys;
+    });
+    return Object.values(agg).map(a => ({
+      topic: a.topic,
+      csat_score: a.n > 0 ? a.w / a.n : (a.simpleCount > 0 ? a.simpleSum / a.simpleCount : null),
+      surveys_count: a.s,
+    })).sort((x, y) => {
+      const d = (y.csat_score ?? -1) - (x.csat_score ?? -1);
+      return d !== 0 ? d : (y.surveys_count || 0) - (x.surveys_count || 0);
+    });
+  };
 
   const toggleRow = async (email) => {
     if (expandedEmail === email) { setExpandedEmail(null); return; }
@@ -282,30 +327,13 @@ export default function CSATPage() {
     setTopicsLoading(email);
     try {
       const rows = await sb.query("csat_by_topic", {
-        select: "topic,csat_score,surveys_count",
-        filters: `qa_email=eq.${encodeURIComponent(email)}&month=eq.${encodeURIComponent(monthKey)}`,
+        select: "month,topic,csat_score,surveys_count",
+        filters: `qa_email=eq.${encodeURIComponent(email)}&${monthFilter}`,
         token
       });
-      // The import writes both a "bare" rollup row (e.g. "Billing & Repayment")
-      // AND a no-sub-category variant ("Billing & Repayment -") whose surveys
-      // are already counted inside the bare row. Summing them would double-count.
-      // Keep the variant with the most surveys per normalized topic (= the
-      // rollup when it exists, otherwise the only row we have).
-      const pick = {};
-      (rows || []).forEach(t => {
-        const norm = normalizeTopic(t.topic);
-        const surveys = Number(t.surveys_count || 0);
-        const score = t.csat_score != null ? Number(t.csat_score) : null;
-        if (!pick[norm] || surveys > pick[norm].surveys_count) {
-          pick[norm] = { topic: norm, csat_score: score, surveys_count: surveys };
-        }
-      });
-      const aggRows = Object.values(pick).sort((x, y) => {
-        const diff = (y.csat_score ?? -1) - (x.csat_score ?? -1);
-        if (diff !== 0) return diff;
-        return (y.surveys_count || 0) - (x.surveys_count || 0);
-      });
-      setTopics(prev => ({ ...prev, [key]: aggRows }));
+      // aggTopics dedupes the rollup/variant rows within each month, then sums
+      // across the selected range (identical result for a single month).
+      setTopics(prev => ({ ...prev, [key]: aggTopics(rows) }));
     } catch (e) { setTopics(prev => ({ ...prev, [key]: [] })); }
     setTopicsLoading(null);
   };
@@ -392,18 +420,19 @@ export default function CSATPage() {
     try {
       const emailList = lead.emails.map(e => `"${e}"`).join(",");
       const rows = await sb.query("csat_by_topic", {
-        select: "qa_email,topic,csat_score,surveys_count",
-        filters: `qa_email=in.(${emailList})&month=eq.${encodeURIComponent(monthKey)}`,
+        select: "qa_email,month,topic,csat_score,surveys_count",
+        filters: `qa_email=in.(${emailList})&${monthFilter}`,
         token
       });
-      // Step 1: dedupe variants per (qa, normalized topic) — keep the row
-      // with the most surveys (= the bare rollup when present).
+      // Step 1: dedupe variants per (qa, MONTH, normalized topic) — keep the row
+      // with the most surveys (= the bare rollup when present). Month is part of
+      // the key so a multi-month range SUMS instead of collapsing to one month.
       const perQa = {};
       (rows || []).forEach(t => {
         const norm = normalizeTopic(t.topic);
         const surveys = Number(t.surveys_count || 0);
         const score = t.csat_score != null ? Number(t.csat_score) : null;
-        const key2 = t.qa_email + "\u0000" + norm;
+        const key2 = t.qa_email + "\u0000" + (t.month || "") + "\u0000" + norm;
         if (!perQa[key2] || surveys > perQa[key2].surveys) {
           perQa[key2] = { topic: norm, score, surveys };
         }
@@ -435,13 +464,15 @@ export default function CSATPage() {
   // Matrix view: fetch all scoped csat_by_topic rows for the month, pivot
   // into { agent -> topic -> {score, surveys} }.
   const scopedEmailsKey = csatSorted.map(r => r.qa_email).join(",");
+  // Cache the matrix per (range + scoped QAs) so switching From/To refetches.
+  const matrixKey = rangeMonths.join("+") + "::" + scopedEmailsKey;
   useEffect(() => {
     if (csatView !== "topic" || !monthKey) return;
-    const cached = topicMatrixByMonth[monthKey + "::" + scopedEmailsKey];
+    const cached = topicMatrixByMonth[matrixKey];
     if (cached) return;
     const emails = csatSorted.map(r => r.qa_email);
     if (emails.length === 0) {
-      setTopicMatrixByMonth(prev => ({ ...prev, [monthKey + "::" + scopedEmailsKey]: { topics: [], cells: {}, totalsByTopic: {}, totalsByAgent: {} } }));
+      setTopicMatrixByMonth(prev => ({ ...prev, [matrixKey]: { topics: [], cells: {}, totalsByTopic: {}, totalsByAgent: {} } }));
       return;
     }
     setTopicMatrixLoading(true);
@@ -453,8 +484,8 @@ export default function CSATPage() {
           const slice = emails.slice(i, i + CHUNK);
           const emailList = slice.map(e => `"${e}"`).join(",");
           const rows = await sb.query("csat_by_topic", {
-            select: "qa_email,topic,csat_score,surveys_count",
-            filters: `qa_email=in.(${emailList})&month=eq.${encodeURIComponent(monthKey)}`,
+            select: "qa_email,month,topic,csat_score,surveys_count",
+            filters: `qa_email=in.(${emailList})&${monthFilter}`,
             token
           });
           all.push(...(rows || []));
@@ -471,7 +502,7 @@ export default function CSATPage() {
           topicsSet.add(topic);
           const score = r.csat_score != null ? Number(r.csat_score) : null;
           const surveys = Number(r.surveys_count || 0);
-          const cellKey = r.qa_email + "\u0000" + topic;
+          const cellKey = r.qa_email + "\u0000" + (r.month || "") + "\u0000" + topic;
           const prev = pickByCell[cellKey];
           if (!prev || surveys > prev.surveys) {
             pickByCell[cellKey] = { email: r.qa_email, topic, score, surveys };
@@ -491,16 +522,16 @@ export default function CSATPage() {
           }
         });
         const topicList = [...topicsSet].sort((a, b) => (totalsByTopic[b]?.s || 0) - (totalsByTopic[a]?.s || 0));
-        setTopicMatrixByMonth(prev => ({ ...prev, [monthKey + "::" + scopedEmailsKey]: { topics: topicList, cells, totalsByTopic, totalsByAgent } }));
+        setTopicMatrixByMonth(prev => ({ ...prev, [matrixKey]: { topics: topicList, cells, totalsByTopic, totalsByAgent } }));
       } catch (e) {
         console.error("topic matrix:", e);
-        setTopicMatrixByMonth(prev => ({ ...prev, [monthKey + "::" + scopedEmailsKey]: { topics: [], cells: {}, totalsByTopic: {}, totalsByAgent: {} } }));
+        setTopicMatrixByMonth(prev => ({ ...prev, [matrixKey]: { topics: [], cells: {}, totalsByTopic: {}, totalsByAgent: {} } }));
       }
       setTopicMatrixLoading(false);
     })();
-  }, [csatView, monthKey, scopedEmailsKey, token]);
+  }, [csatView, matrixKey, scopedEmailsKey, token]);
 
-  const matrix = topicMatrixByMonth[monthKey + "::" + scopedEmailsKey];
+  const matrix = topicMatrixByMonth[matrixKey];
   if (loading) return <div className="page"><SkeletonPage /></div>;
 
   return <div className="page">
@@ -523,7 +554,7 @@ export default function CSATPage() {
     <PageFilters
       onClear={() => { setSelDomain(""); setSelTeam([]); setSelTL([]); setSelQA([]); }}
     >
-      <SearchableSelect options={months} value={selMonth} onChange={setSelMonth} placeholder="Select month"/>
+      <MonthRangePicker months={months} from={selFrom} to={selMonth} onFrom={setSelFrom} onTo={setSelMonth} />
       {hasRole(profile?.role,"admin") && (
         <SearchableSelect options={["","tabby.ai","tabby.sa"]} value={selDomain} onChange={setSelDomain} placeholder="All domains"/>
       )}
@@ -574,7 +605,7 @@ export default function CSATPage() {
     ) : (
       <div className="card">
         <div className="card-header">
-          <span className="card-title">CSAT — {selMonth}</span>
+          <span className="card-title">CSAT — {isRange ? `${selFrom} → ${selMonth}` : selMonth}{isRange && <span style={{fontSize:11,fontWeight:500,color:"var(--tx3)"}}> · {rangeMonths.length} months rolled up</span>}</span>
           {/* The 3-button view switcher moved into the PageFilters
               strip above. Only the topic-view's "Min surveys" input
               and the per-row click hint stay here, since they are

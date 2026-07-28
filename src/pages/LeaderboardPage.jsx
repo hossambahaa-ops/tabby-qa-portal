@@ -15,6 +15,8 @@ import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
 import LeaderboardCompareTable from "../components/leaderboard/LeaderboardCompareTable.jsx";
 import ScorecardLeaderboard from "../components/leaderboard/ScorecardLeaderboard.jsx";
+import { aggregateMtdRange, monthsInRange } from "../lib/mtdRange.js";
+import MonthRangePicker from "../components/MonthRangePicker.jsx";
 import EmptyState from "../components/EmptyState.jsx";
 import Badges from "../components/Badges.jsx";
 import TitleBelt, { BeltHoverCard } from "../components/TitleBelt.jsx";
@@ -27,7 +29,8 @@ function LeaderboardPage() {
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   const [months, setMonths] = useState([]);
-  const [selMonth, setSelMonth] = useUrlState("month", "");
+  const [selMonth, setSelMonth] = useUrlState("month", "");   // "To" month (anchor)
+  const [selFrom, setSelFrom] = useUrlState("from", "");       // "" = single month
   const [selTeam, setSelTeam] = useState([]);
   const [selDomain, setSelDomain] = useState("");
   const [view, setView] = useUrlState("view", "individual");
@@ -222,7 +225,22 @@ function LeaderboardPage() {
   const beltsByEmail = React.useMemo(() => holdersByEmail(titleHolders), [titleHolders]);
 
 
-  const monthData = data.filter(r => r.month === selMonth);
+  // From→To range: single month is unchanged; a wider range rolls each QA up
+  // to one row so the rankings reflect the whole span.
+  const rangeMonths = monthsInRange(months, selFrom, selMonth);
+  const isRange = rangeMonths.length > 1;
+  const monthData = isRange
+    ? aggregateMtdRange(data, rangeMonths, months)
+    : data.filter(r => r.month === selMonth);
+  // Session sample-size credit summed over the range (flat map: local-part -> evals).
+  const sessDeductFlat = (() => {
+    const out = {};
+    for (const m of rangeMonths) {
+      const mm = sessDeductByMonth[m] || {};
+      for (const k of Object.keys(mm)) out[k] = (out[k] || 0) + (Number(mm[k]) || 0);
+    }
+    return out;
+  })();
   const rosterMap = {};
   roster.forEach(r => { rosterMap[r.email?.toLowerCase()] = r; });
   const teams = [...new Set(roster.filter(r => r.queue && (!selDomain || r.email?.endsWith("@"+selDomain))).map(r => r.queue))].sort();
@@ -293,7 +311,7 @@ function LeaderboardPage() {
           onClear={() => { setSelDomain(""); setSelTeam([]); setSearch(""); }}
           searchProps={view === "individual" ? { value: search, onChange: setSearch, placeholder: "Search by name or email…" } : null}
         >
-          <SearchableSelect options={months} value={selMonth} onChange={v => setSelMonth(v)} placeholder="Select month"/>
+          <MonthRangePicker months={months} from={selFrom} to={selMonth} onFrom={setSelFrom} onTo={setSelMonth} />
           <SearchableSelect options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]} value={selDomain} onChange={v => { setSelDomain(v); setSelTeam([]); }} placeholder="All domains"/>
           <SearchableSelect multi options={teams} value={selTeam} onChange={setSelTeam} placeholder={`All teams (${teams.length})`}/>
           <div className="tabs" style={{display:"flex",gap:0}}>
@@ -594,7 +612,7 @@ function LeaderboardPage() {
         {/* Full ranking table */}
         <div className="card">
           <div className="card-header">
-            <span className="card-title">Full rankings — {selMonth}</span>
+            <span className="card-title">Full rankings — {isRange ? `${selFrom} → ${selMonth}` : selMonth}{isRange && <span style={{fontSize:11,fontWeight:500,color:"var(--tx3)"}}> · {rangeMonths.length} months rolled up</span>}</span>
             <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
               <span style={{fontSize:12,color:"var(--tx3)"}}>{visibleRanked.length} specialists · Scored out of {maxScore}{pinnedEmails.size>0?` · ${pinnedEmails.size} pinned`:""}</span>
               {/* Refreshed pill moved here from the page header — sits
@@ -809,8 +827,9 @@ function LeaderboardPage() {
           rows={filtered}
           rosterMap={rosterMap}
           lobCsatByMonth={lobCsatByMonth}
-          sessDeductByMonth={sessDeductByMonth}
+          sessDeductFlat={sessDeductFlat}
           month={selMonth}
+          monthLabel={isRange ? `${selFrom} → ${selMonth} (${rangeMonths.length} months)` : selMonth}
           onSelectQa={(email)=>{ window.location.hash = "#/profile?qa=" + encodeURIComponent(email); }}
         />
       )}

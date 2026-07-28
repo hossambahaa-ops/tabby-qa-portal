@@ -12,7 +12,8 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import PageFilters from "../components/PageFilters.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { SYSTEM_COLS, DEFAULT_MTD_COLS, COL_LABELS } from "../lib/mtdColumns.js";
-import { aggregateMtdRange } from "../lib/mtdRange.js";
+import { aggregateMtdRange, monthsInRange } from "../lib/mtdRange.js";
+import MonthRangePicker from "../components/MonthRangePicker.jsx";
 import MtdUploadModal from "../components/mtd/MtdUploadModal.jsx";
 import MtdBulkTaskModal from "../components/mtd/MtdBulkTaskModal.jsx";
 import { useRowContextMenu } from "../components/RowContextMenu.jsx";
@@ -461,14 +462,7 @@ function ScoreEntryPage(){
   const srQaEmails = new Set(roster.filter(isSrQa).map(r => r.email?.toLowerCase()).filter(Boolean));
   // From→To month range. selFrom "" (or == selMonth) means a single month and
   // behaves exactly as before. A wider range rolls each QA up to one row.
-  const rangeMonths = (() => {
-    if (!selMonth) return [];
-    if (!selFrom || selFrom === selMonth) return [selMonth];
-    const iF = months.indexOf(selFrom), iT = months.indexOf(selMonth);
-    if (iF < 0 || iT < 0) return [selMonth];
-    const [lo, hi] = iF <= iT ? [iF, iT] : [iT, iF]; // months is newest-first
-    return months.slice(lo, hi + 1);
-  })();
+  const rangeMonths = monthsInRange(months, selFrom, selMonth);
   const isRange = rangeMonths.length > 1;
   const monthData = isRange
     ? aggregateMtdRange(data, rangeMonths, months, srQaEmails)
@@ -798,18 +792,7 @@ function ScoreEntryPage(){
     >
       {/* From→To month range. "From: single month" keeps the classic
           single-month view; pick a From month to roll several months up. */}
-      <SearchableSelect
-        options={[{ value: "", label: "From: single month" }, ...months.map(m => ({ value: m, label: "From " + m }))]}
-        value={selFrom}
-        onChange={v => setSelFrom(v)}
-        placeholder="From (range)"
-      />
-      <SearchableSelect
-        options={months.map(m => ({ value: m, label: (selFrom && selFrom !== m) ? ("To " + m) : m }))}
-        value={selMonth}
-        onChange={v => setSelMonth(v)}
-        placeholder="Select month"
-      />
+      <MonthRangePicker months={months} from={selFrom} to={selMonth} onFrom={setSelFrom} onTo={setSelMonth} />
       <SearchableSelect
         options={[{value:"tabby.ai",label:"tabby.ai"},{value:"tabby.sa",label:"tabby.sa"}]}
         value={selDomain}

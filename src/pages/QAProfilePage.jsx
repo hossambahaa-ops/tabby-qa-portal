@@ -6,6 +6,7 @@ import SkeletonPage from "../components/Skeleton.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import EvalHistory from "../components/EvalHistory.jsx";
 import Scorecard from "../components/Scorecard.jsx";
+import { rollupMtdRange, monthsInRange } from "../lib/mtdRange.js";
 import { lobChannelKey, normLob } from "../lib/scorecard.js";
 import QuartilePill from "../components/QuartilePill.jsx";
 import CoachingTimeline from "../components/coaching/CoachingTimeline.jsx";
@@ -64,6 +65,7 @@ function QAProfilePage() {
   const [expandedPlan, setExpandedPlan] = useState(null);
   const [expandedTask, setExpandedTask] = useState(null);
   const [selMonth, setSelMonth] = useState(null);
+  const [selFrom, setSelFrom] = useState("");   // "" = single month
   const [csatByMonth, setCsatByMonth] = useState({}); // month -> {good,bad} from csat_by_topic (Q_Support_Performance)
   const [qualityByMonth, setQualityByMonth] = useState({}); // month -> {sbsCount,sbsMin,valCount,valMin} from qa_quality_tasks (ABT SBS + ABT Validation)
   const [lobCsatByMonth, setLobCsatByMonth] = useState({}); // month -> { normLob -> {good,bad,pct,lob} } from csat_population — LOB/channel-level CSAT for the Scorecard
@@ -192,6 +194,17 @@ function QAProfilePage() {
   const csatMonths = sortMonthsDesc(Object.keys(csatByMonth).filter(mo => csatForMonth(mo)));
   // Month-picker options: MTD months plus any CSAT-only months.
   const pickerMonths = sortMonthsDesc([...new Set([...qaMtd.map(m => m.month), ...csatMonths])]);
+  // From→To range for this QA. "" = single month (unchanged behaviour).
+  const effMonth = selMonth || latestMtd?.month || pickerMonths[0] || "";
+  const profRangeMonths = monthsInRange(pickerMonths, selFrom, effMonth);
+  const profIsRange = profRangeMonths.length > 1;
+  // One rolled-up row shared by the Scorecard AND the Performance card so the
+  // two never disagree. null in single-month mode.
+  const rangeMtdRow = profIsRange
+    ? rollupMtdRange(qaMtd.filter(r => profRangeMonths.includes(r.month)), pickerMonths)
+    : null;
+  // Session sample-size credit summed across the range.
+  const profSessDeduct = profRangeMonths.reduce((sum, mo) => sum + (sessDeductByMonth[mo]?.evals || 0), 0);
   // Freshest CSAT month for the summary header (may have no MTD row yet).
   const headlineCsatMonth = csatMonths[0] || latestMtd?.month || null;
 
@@ -1100,14 +1113,14 @@ function QAProfilePage() {
         {selectedQA && <EvalHistory qaEmail={selectedQA} matchQA={matchQA} teamTargets={teamTargets} qa={qa} qaMtd={qaMtd} qualMinByYM={qualMinByYM} />}
         {/* New 10-KPI Scorecard — parallel to final_performance, same month selector */}
         {(() => {
-          const scRow = selMonth ? qaMtd.find(x => x.month === selMonth) : latestMtd;
+          const scRow = rangeMtdRow || (selMonth ? qaMtd.find(x => x.month === selMonth) : latestMtd);
           if (!scRow) return null;
           const MO = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
           const prior = (mm) => { const [m0, y0] = String(mm || "").split("-"); let i = MO.indexOf(m0), y = +y0; i--; if (i < 0) { i = 11; y--; } return (i >= 0 && isFinite(y)) ? `${MO[i]}-${y}` : null; };
           const lobKey = lobChannelKey(scRow.lob || qa?.queue);
           const lobCsat = lobKey ? lobCsatByMonth[scRow.month]?.[lobKey] : null;
           const lobCsatPrev = lobKey ? lobCsatByMonth[prior(scRow.month)]?.[lobKey] : null;
-          return <Scorecard row={scRow} lobCsat={lobCsat} lobCsatPrev={lobCsatPrev} month={scRow.month} sessionDeductEvals={sessDeductByMonth[scRow.month]?.evals || 0} />;
+          return <Scorecard row={scRow} lobCsat={lobCsat} lobCsatPrev={lobCsatPrev} month={scRow.month} sessionDeductEvals={profIsRange ? profSessDeduct : (sessDeductByMonth[scRow.month]?.evals || 0)} />;
         })()}
 
         {/* Performance + Trend in 2-col */}
@@ -1115,10 +1128,14 @@ function QAProfilePage() {
           {/* Performance metrics with month selector */}
           <div className="card">
             <div className="card-header" style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:8}}>
-              <span className="card-title">Performance</span>
+              <span className="card-title">Performance{profIsRange && <span style={{fontSize:11,fontWeight:500,color:"var(--tx3)"}}> · {selFrom} → {effMonth} ({profRangeMonths.length} mo)</span>}</span>
               <div style={{display:"flex",alignItems:"center",gap:8}}>
-                {pickerMonths.length > 0 && <select className="select form-input" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={selMonth||latestMtd?.month||pickerMonths[0]||""} onChange={e=>setSelMonth(e.target.value)}>
-                  {pickerMonths.map(mo=><option key={mo} value={mo}>{mo}</option>)}
+                {pickerMonths.length > 0 && <select className="select form-input" title="Roll several months up into one view" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={selFrom} onChange={e=>setSelFrom(e.target.value)}>
+                  <option value="">Single month</option>
+                  {pickerMonths.map(mo=><option key={mo} value={mo}>From {mo}</option>)}
+                </select>}
+                {pickerMonths.length > 0 && <select className="select form-input" style={{width:"auto",fontSize:12,padding:"4px 8px"}} value={effMonth} onChange={e=>setSelMonth(e.target.value)}>
+                  {pickerMonths.map(mo=><option key={mo} value={mo}>{selFrom && selFrom!==mo ? "To "+mo : mo}</option>)}
                 </select>}
                 {/* Super-admin: adjust the displayed month's MTD KPIs.
                     The save overwrites the synced columns directly so the
@@ -1126,6 +1143,7 @@ function QAProfilePage() {
                     Dashboard, Profile) without a separate "official"
                     flag. */}
                 {isSuperAdmin && (() => {
+                  if (profIsRange) return null; // editing applies to one month
                   const m = selMonth ? qaMtd.find(x=>x.month===selMonth) : latestMtd;
                   if (!m) return null;
                   return (
@@ -1143,7 +1161,7 @@ function QAProfilePage() {
               </div>
             </div>
             {(()=>{
-              const realM = selMonth ? qaMtd.find(x=>x.month===selMonth) : latestMtd;
+              const realM = rangeMtdRow || (selMonth ? qaMtd.find(x=>x.month===selMonth) : latestMtd);
               // CSAT-only month (in csat_by_topic but no MTD row yet): render a
               // stub so CSAT shows and every other KPI falls back to "—".
               const m = realM || (selMonth ? { month: selMonth } : null);
@@ -1152,9 +1170,11 @@ function QAProfilePage() {
               // On-time falls back to "—" when there's no eval-date eligibility
               // yet (the source SQL otherwise hands us a misleading "0%").
               const onTime = Number(m.coaching_eligibility_count || 0) > 0 ? fmtPct(m.ontime_coaching_pct) : "—";
-              const csatVal = (() => { const c = csatForMonth(m.month); const v = c ? c.pct : csatPctValue(m.csat_pct); const s = c ? c.total : Number(m.csat_total || 0); return (v != null && s > 0) ? v.toFixed(1) + "%" : "—"; })();
-              const surveysVal = csatForMonth(m.month)?.total ?? m.csat_total ?? "—";
-              const occM = computedOccForMonth(m.month);
+              // In range mode the per-month overlays (fresh CSAT feed, recomputed
+              // occupancy) do not apply — use the rolled-up row instead.
+              const csatVal = (() => { const c = profIsRange ? null : csatForMonth(m.month); const v = c ? c.pct : csatPctValue(m.csat_pct); const s = c ? c.total : Number(m.csat_total || 0); return (v != null && s > 0) ? v.toFixed(1) + "%" : "—"; })();
+              const surveysVal = (profIsRange ? null : csatForMonth(m.month)?.total) ?? m.csat_total ?? "—";
+              const occM = profIsRange ? null : computedOccForMonth(m.month);
               const occVal = occM != null ? occM.toFixed(1) + "%" : fmtPct(m.occupancy_pct);
               const q = qualityByMonth[m.month];
               // Grouped, validated metrics only. Login Hours / Tickets Handled /
@@ -1163,7 +1183,7 @@ function QAProfilePage() {
               // Evaluations from the live feed (match the Eval-History table);
               // the feed's non_sbs folds in DSATs, so no separate DSAT tile. Fall
               // back to the MTD sheet (non_sbs + dsat) when the feed has no rows.
-              const fe = feedEvalsForMonth(m.month);
+              const fe = profIsRange ? null : feedEvalsForMonth(m.month);
               const evSbs = fe ? fe.sbs : Number(m.sbs || 0);
               const evNonSbs = fe ? fe.non_sbs : (Number(m.non_sbs || 0) + Number(m.dsat || 0));
               const groups = [

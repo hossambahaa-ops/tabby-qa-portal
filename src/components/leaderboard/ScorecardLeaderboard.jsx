@@ -16,7 +16,7 @@ const rankStyle = (rank) => rank > 3
       background: rank === 1 ? "linear-gradient(135deg,#FEF3C7,#FDE68A)" : rank === 2 ? "linear-gradient(135deg,#F3F4F6,#E5E7EB)" : "linear-gradient(135deg,#FED7AA,#FDBA74)",
       color: rank === 1 ? "#92400E" : rank === 2 ? "#374151" : "#9A3412" };
 
-export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, sessDeductByMonth, month, onSelectQa }) {
+export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, sessDeductFlat, month, monthLabel, onSelectQa }) {
   const [expanded, setExpanded] = useState(null);
 
   const ranked = useMemo(() => {
@@ -28,21 +28,21 @@ export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, 
       const lobCsat = lobKey ? lobCsatByMonth?.[month]?.[lobKey] : null;
       const lobCsatPrev = lobKey ? lobCsatByMonth?.[prev]?.[lobKey] : null;
       const lp = String(email || "").toLowerCase().split("@")[0];
-      const sessionDeductEvals = sessDeductByMonth?.[month]?.[lp] || 0;
+      const sessionDeductEvals = sessDeductFlat?.[lp] || 0;
       const sc = computeScorecard({ row: r, lobCsat, lobCsatPrev, sessionDeductEvals });
       return { email, name: nameFromEmail(email), sc };
     });
     out.sort((a, b) => (b.sc.composite ?? -1) - (a.sc.composite ?? -1));
     return out;
-  }, [rows, rosterMap, lobCsatByMonth, sessDeductByMonth, month]);
+  }, [rows, rosterMap, lobCsatByMonth, sessDeductFlat, month]);
 
-  if (!ranked.length) return <div style={{ padding: 24, textAlign: "center", color: "var(--tx3)" }}>No QAs for {month}.</div>;
+  if (!ranked.length) return <div style={{ padding: 24, textAlign: "center", color: "var(--tx3)" }}>No QAs for {monthLabel || month}.</div>;
 
   return (
     <div className="card" style={{ padding: 0 }}>
       <div style={{ padding: "14px 16px 10px", display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
         <span className="card-title">Scorecard leaderboard</span>
-        <span style={{ fontSize: 11.5, color: "var(--tx3)" }}>new KPI model · {month} · ranked by weighted composite · click a row for the KPI breakdown · Productivity = login hours (32h/mo)</span>
+        <span style={{ fontSize: 11.5, color: "var(--tx3)" }}>new KPI model · {monthLabel || month} · ranked by weighted composite · click a row for the KPI breakdown · Productivity = login hours (32h/mo)</span>
       </div>
 
       <div>
