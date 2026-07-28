@@ -888,6 +888,8 @@ function ScoreEntryPage(){
             { label: "Occupancy", cur: avg(selMonth, r => num(r.occupancy_pct)), prev: avg(prevMonth, r => num(r.occupancy_pct)), unit: "%", lower: false },
             { label: "CSAT", cur: avg(selMonth, r => num(r.csat_pct)), prev: avg(prevMonth, r => num(r.csat_pct)), unit: "%", lower: false },
             { label: "ABT", cur: avg(selMonth, r => num(r.abt)), prev: avg(prevMonth, r => num(r.abt)), unit: " min", lower: true },
+            { label: "Login hrs", cur: avg(selMonth, r => num(r.login_hours)), prev: avg(prevMonth, r => num(r.login_hours)), unit: " h", lower: false },
+            { label: "Tickets", cur: avg(selMonth, r => num(r.tickets_touched)), prev: avg(prevMonth, r => num(r.tickets_touched)), unit: "", lower: false },
           ].filter(t => t.cur != null);
           if (!tiles.length) return null;
           return <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", padding: "12px 4px 14px", borderBottom: "1px solid var(--bd2)", marginBottom: 12 }}>
