@@ -67,6 +67,7 @@ function QAProfilePage() {
   const [csatByMonth, setCsatByMonth] = useState({}); // month -> {good,bad} from csat_by_topic (Q_Support_Performance)
   const [qualityByMonth, setQualityByMonth] = useState({}); // month -> {sbsCount,sbsMin,valCount,valMin} from qa_quality_tasks (ABT SBS + ABT Validation)
   const [lobCsatByMonth, setLobCsatByMonth] = useState({}); // month -> { normLob -> {good,bad,pct,lob} } from csat_population — LOB/channel-level CSAT for the Scorecard
+  const [sessDeductByMonth, setSessDeductByMonth] = useState({}); // month -> eval deduction from delivered quality sessions (>4h/wk) — Scorecard Sample Size credit
   const [refreshing, setRefreshing] = useState(false);
   // Tab state — "overview" (today + activity) vs "monthly" (perf + trend + expertise)
   const [activeTab, setActiveTab] = useUrlState("ptab", "overview");
@@ -258,6 +259,26 @@ function QAProfilePage() {
     })();
     return () => { cancelled = true; };
   }, [token]);
+
+  // Sample-size credit for delivering quality sessions (>4h/week): eval
+  // deduction per month for THIS QA, from quality_session_deductions_v.
+  useEffect(() => {
+    if (!token || !selectedQA) { setSessDeductByMonth({}); return; }
+    let cancelled = false;
+    (async () => {
+      try {
+        const lp = String(selectedQA).toLowerCase().split("@")[0];
+        const rows = await sb.query("quality_session_deductions_v", {
+          token, select: "month_label,deduct_evals,total_hours",
+          filters: `qa_local=eq.${encodeURIComponent(lp)}`,
+        }).catch(() => []);
+        const by = {};
+        for (const r of (rows || [])) if (r.month_label) by[r.month_label] = { evals: Number(r.deduct_evals || 0), hours: Number(r.total_hours || 0) };
+        if (!cancelled) setSessDeductByMonth(by);
+      } catch { if (!cancelled) setSessDeductByMonth({}); }
+    })();
+    return () => { cancelled = true; };
+  }, [token, selectedQA]);
 
   // CSAT surveys per month from csat_by_topic (Q_Support_Performance) — the
   // fresh CSAT source. Used to overlay CSAT % / Surveys and to surface
@@ -1086,7 +1107,7 @@ function QAProfilePage() {
           const lobKey = lobChannelKey(scRow.lob || qa?.queue);
           const lobCsat = lobKey ? lobCsatByMonth[scRow.month]?.[lobKey] : null;
           const lobCsatPrev = lobKey ? lobCsatByMonth[prior(scRow.month)]?.[lobKey] : null;
-          return <Scorecard row={scRow} lobCsat={lobCsat} lobCsatPrev={lobCsatPrev} month={scRow.month} />;
+          return <Scorecard row={scRow} lobCsat={lobCsat} lobCsatPrev={lobCsatPrev} month={scRow.month} sessionDeductEvals={sessDeductByMonth[scRow.month]?.evals || 0} />;
         })()}
 
         {/* Performance + Trend in 2-col */}

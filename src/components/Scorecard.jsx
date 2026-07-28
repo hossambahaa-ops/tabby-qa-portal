@@ -11,10 +11,10 @@ import { computeScorecard } from "../lib/scorecard.js";
 const scoreColor = (s) => (s == null ? "var(--tx3)" : s >= 85 ? "var(--green)" : s >= 70 ? "var(--amber)" : "var(--red)");
 const scoreBg = (s) => (s == null ? "var(--bd)" : s >= 85 ? "var(--green-bg)" : s >= 70 ? "var(--amber-bg)" : "var(--red-bg)");
 
-export default function Scorecard({ row, lobCsat, lobCsatPrev, month }) {
+export default function Scorecard({ row, lobCsat, lobCsatPrev, month, sessionDeductEvals = 0 }) {
   const { kpis, composite, zeroWeight, awaitingWeight, noTargetWeight } = useMemo(
-    () => computeScorecard({ row, lobCsat, lobCsatPrev }),
-    [row, lobCsat, lobCsatPrev]
+    () => computeScorecard({ row, lobCsat, lobCsatPrev, sessionDeductEvals }),
+    [row, lobCsat, lobCsatPrev, sessionDeductEvals]
   );
 
   return (

@@ -106,9 +106,10 @@ function ScoreEntryPage(){
           // Recent attendance — to synthesize QAs who WORKED (have working days)
           // but are missing from the sheet, even at 0 productivity.
           sb.query("qa_attendance", { token, select: "email,date,status", filters: `date=gte.${wdRangeStart}` }).catch(() => []),
-          // Quality enablement sessions DELIVERED (done only) per QA — for the
-          // "Q Sessions" count column. From quality_sessions (sheet-synced).
-          sb.query("quality_sessions", { token, select: "trainer_email,month_label" }).catch(() => []),
+          // Quality enablement sessions DELIVERED (done only) per QA — count +
+          // hours + sample-size eval deduction (>4h/wk), pre-aggregated per
+          // (qa_local, month) by quality_session_deductions_v.
+          sb.query("quality_session_deductions_v", { token, select: "qa_local,month_label,session_count,deduct_evals,total_hours" }).catch(() => []),
         ]);
         setRoster(rosterRows);
         // Working-days per (local-part | "Mon-YYYY") from attendance (worked-day
@@ -126,14 +127,14 @@ function ScoreEntryPage(){
         }
         // Merge quality-task figures onto each MTD row by (qa_email, month).
         const qualByKey = new Map((qualRows || []).map(q => [`${(q.qa_email || "").toLowerCase()}|${q.month}`, q]));
-        // Quality sessions delivered, counted per (local-part | "Mon-YYYY").
-        // trainer_email is @tabby.ai; local-part keying is cross-domain safe.
-        const sessCountByKey = new Map();
+        // Quality sessions delivered — count + hours + sample-size deduction,
+        // keyed by (local-part | "Mon-YYYY"). qa_local is already the local-part.
+        const sessInfoByKey = new Map();
         for (const s of (sessRows || [])) {
-          const lp = (s.trainer_email || "").toLowerCase().split("@")[0];
-          if (!lp || !s.month_label) continue;
-          const key = `${lp}|${s.month_label}`;
-          sessCountByKey.set(key, (sessCountByKey.get(key) || 0) + 1);
+          if (!s.qa_local || !s.month_label) continue;
+          sessInfoByKey.set(`${String(s.qa_local).toLowerCase()}|${s.month_label}`, {
+            count: Number(s.session_count || 0), deduct: Number(s.deduct_evals || 0), hours: Number(s.total_hours || 0),
+          });
         }
         // Build blacklist: exclude both domain variants of non-QA users
         const nonQaProfiles = profRows.filter(p => p.role !== "qa");
@@ -199,7 +200,10 @@ function ScoreEntryPage(){
         const mtdRows = filtered.map(r => {
           const q = qualByKey.get(`${(r.qa_email || "").toLowerCase()}|${r.month}`);
           const base = q ? { ...r, abt_sbs_count: q.abt_sbs_count, abt_sbs_minutes: q.abt_sbs_minutes, abt_validation_count: q.abt_validation_count, abt_validation_minutes: q.abt_validation_minutes } : { ...r };
-          base.q_sessions = sessCountByKey.get(`${(r.qa_email || "").toLowerCase().split("@")[0]}|${r.month}`) || 0;
+          const si = sessInfoByKey.get(`${(r.qa_email || "").toLowerCase().split("@")[0]}|${r.month}`);
+          base.q_sessions = si?.count || 0;
+          base.q_session_deduct = si?.deduct || 0;
+          base.q_session_hours = si?.hours || 0;
           return base;
         });
         // Synthesize placeholder rows for active roster QAs who are MISSING
@@ -229,7 +233,9 @@ function ScoreEntryPage(){
           return {
             qa_email: r.email, month: latestMonth, qa_tl: r.manager_email || null, _synthetic: true,
             working_days: wdMap.get(`${lp}|${latestMonth}`) || 0,
-            q_sessions: sessCountByKey.get(`${lp}|${latestMonth}`) || 0,
+            q_sessions: (sessInfoByKey.get(`${lp}|${latestMonth}`)?.count) || 0,
+            q_session_deduct: (sessInfoByKey.get(`${lp}|${latestMonth}`)?.deduct) || 0,
+            q_session_hours: (sessInfoByKey.get(`${lp}|${latestMonth}`)?.hours) || 0,
             ...(q ? { abt_sbs_count: q.abt_sbs_count, abt_sbs_minutes: q.abt_sbs_minutes, abt_validation_count: q.abt_validation_count, abt_validation_minutes: q.abt_validation_minutes } : {}),
           };
         });
@@ -590,7 +596,7 @@ function ScoreEntryPage(){
     { k: "login_hours",     label: "Login hrs",   presets: ["all","perf"],         render: r => { const h = r.login_hours==null ? null : Number(r.login_hours); if (h==null || !isFinite(h)) return <span style={{color:"var(--tx3)"}}>—</span>; const done = h>=32; const gap = Math.max(0, 32-h); return <span title={done ? "Productivity KPI unlocked (≥32h)" : `Needs ${gap.toFixed(1)}h more to unlock the Productivity KPI`} style={{color:done?"var(--green)":"var(--tx2)",fontWeight:done?600:400}}>{h.toFixed(1)}h{done ? " 🏆" : <span style={{color:"var(--amber)",fontWeight:500}}> (-{gap.toFixed(1)})</span>}</span>; } },
     { k: "tickets_handled", label: "Handled Tickets", presets: ["all","perf"],   render: r => r.tickets_touched != null ? <span style={{color:"var(--blue)",fontWeight:500}}>{r.tickets_touched}</span> : <span style={{color:"var(--tx3)"}}>—</span> },
     // Quality enablement sessions this QA delivered (done only), from quality_sessions.
-    { k: "q_sessions",      label: "Q Sessions",      presets: ["all","perf","coach"], render: r => r.q_sessions ? <span style={{color:"var(--tabby-purple)",fontWeight:600}}>{r.q_sessions}</span> : <span style={{color:"var(--tx3)"}}>—</span> },
+    { k: "q_sessions",      label: "Q Sessions",      presets: ["all","perf","coach"], render: r => r.q_sessions ? <span title={`${(r.q_session_hours||0).toFixed(1)}h delivered${r.q_session_deduct>0?` · sample size reduced by ${r.q_session_deduct} evals (>4h/week)`:""}`} style={{color:"var(--tabby-purple)",fontWeight:600}}>{r.q_sessions}{r.q_session_deduct>0 && <span style={{color:"var(--tx3)",fontWeight:400,fontSize:11}}> (−{r.q_session_deduct})</span>}</span> : <span style={{color:"var(--tx3)"}}>—</span> },
     { k: "sbs",             label: "SBS",         presets: ["all","perf"],         render: r => r.sbs ?? "—" },
     { k: "non_sbs",         label: "Non-SBS",     presets: ["all","perf"],         render: r => r.non_sbs ?? "—" },
     { k: "dsat",            label: "DSAT",        presets: ["all","perf"],         render: r => r.dsat ?? "—" },

@@ -35,9 +35,20 @@ const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
 export const SCORECARD_KPIS = [
   {
     key: "sample_size", label: "Sample Size Completion", weight: 15, target: "95%", targetScore: 95,
-    scorer: ({ row }) => {
+    scorer: ({ row, sessionDeductEvals }) => {
       const tpd = row?.ticket_per_day == null ? null : Number(row.ticket_per_day);
       if (tpd == null || !isFinite(tpd)) return { na: true };
+      // Quality-session credit: delivering >4h of sessions/week lowers the
+      // expected sample size (1 eval per 15 min over the allowance, summed over
+      // the month by quality_session_deductions_v). Applied as a smaller target.
+      const wds = Number(row?.working_days) || 0;
+      const ded = Math.max(0, Number(sessionDeductEvals) || 0);
+      if (wds > 0 && ded > 0) {
+        const actual = tpd * wds;                        // ~ evals done this month
+        const adjTarget = Math.max(1, 12 * wds - ded);   // sessions lower the bar
+        const completion = clamp((actual / adjTarget) * 100, 0, 100);
+        return { score: completion >= 95 ? 100 : 0, value: completion, valueLabel: completion.toFixed(0) + "%", sub: `${tpd.toFixed(1)}/day · target −${ded} for sessions` };
+      }
       const completion = clamp((tpd / 12) * 100, 0, 100);
       return { score: completion >= 95 ? 100 : 0, value: completion, valueLabel: completion.toFixed(0) + "%", sub: `${tpd.toFixed(1)} of 12 evals/day` };
     },

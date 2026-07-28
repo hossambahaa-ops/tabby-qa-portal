@@ -16,7 +16,7 @@ const rankStyle = (rank) => rank > 3
       background: rank === 1 ? "linear-gradient(135deg,#FEF3C7,#FDE68A)" : rank === 2 ? "linear-gradient(135deg,#F3F4F6,#E5E7EB)" : "linear-gradient(135deg,#FED7AA,#FDBA74)",
       color: rank === 1 ? "#92400E" : rank === 2 ? "#374151" : "#9A3412" };
 
-export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, month, onSelectQa }) {
+export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, sessDeductByMonth, month, onSelectQa }) {
   const [expanded, setExpanded] = useState(null);
 
   const ranked = useMemo(() => {
@@ -27,12 +27,14 @@ export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, 
       const lobKey = lobChannelKey(lob);
       const lobCsat = lobKey ? lobCsatByMonth?.[month]?.[lobKey] : null;
       const lobCsatPrev = lobKey ? lobCsatByMonth?.[prev]?.[lobKey] : null;
-      const sc = computeScorecard({ row: r, lobCsat, lobCsatPrev });
+      const lp = String(email || "").toLowerCase().split("@")[0];
+      const sessionDeductEvals = sessDeductByMonth?.[month]?.[lp] || 0;
+      const sc = computeScorecard({ row: r, lobCsat, lobCsatPrev, sessionDeductEvals });
       return { email, name: nameFromEmail(email), sc };
     });
     out.sort((a, b) => (b.sc.composite ?? -1) - (a.sc.composite ?? -1));
     return out;
-  }, [rows, rosterMap, lobCsatByMonth, month]);
+  }, [rows, rosterMap, lobCsatByMonth, sessDeductByMonth, month]);
 
   if (!ranked.length) return <div style={{ padding: 24, textAlign: "center", color: "var(--tx3)" }}>No QAs for {month}.</div>;
 

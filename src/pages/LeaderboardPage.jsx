@@ -87,6 +87,26 @@ function LeaderboardPage() {
     return () => { cancelled = true; };
   }, [token]);
 
+  // Quality-session sample-size credit per (QA local-part, month) — feeds the
+  // Scorecard Sample Size KPI so session-heavy QAs aren't penalised on volume.
+  const [sessDeductByMonth, setSessDeductByMonth] = useState({});
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const rows = await sb.query("quality_session_deductions_v", { token, select: "qa_local,month_label,deduct_evals" }).catch(() => []);
+        const byMonth = {};
+        for (const r of (rows || [])) {
+          if (!r.month_label || !r.qa_local) continue;
+          (byMonth[r.month_label] || (byMonth[r.month_label] = {}))[String(r.qa_local).toLowerCase()] = Number(r.deduct_evals || 0);
+        }
+        if (!cancelled) setSessDeductByMonth(byMonth);
+      } catch { if (!cancelled) setSessDeductByMonth({}); }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
+
   // "Refreshed Xm ago" — set whenever data finishes loading
   const [lastLoadedAt, setLastLoadedAt] = useState(null);
   // Tick every minute so the relative timestamp advances live
@@ -789,6 +809,7 @@ function LeaderboardPage() {
           rows={filtered}
           rosterMap={rosterMap}
           lobCsatByMonth={lobCsatByMonth}
+          sessDeductByMonth={sessDeductByMonth}
           month={selMonth}
           onSelectQa={(email)=>{ window.location.hash = "#/profile?qa=" + encodeURIComponent(email); }}
         />
