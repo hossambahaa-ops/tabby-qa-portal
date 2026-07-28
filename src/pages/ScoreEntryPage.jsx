@@ -517,6 +517,7 @@ function ScoreEntryPage(){
       case "tickets_per_day": return Number(r.ticket_per_day) || null;
       case "occupancy":       return numFromText(r.occupancy_pct);
       case "login_hours":     return r.login_hours == null ? null : Number(r.login_hours);
+      case "tickets_handled": return r.tickets_touched == null ? null : Number(r.tickets_touched);
       case "st_time":         return r.side_tasks_duration_mins ?? null;
       case "performance":     return Number(r.final_performance) || null;
       default:                return null;
@@ -571,6 +572,7 @@ function ScoreEntryPage(){
     // Queue login hours this month (Scorecard Productivity KPI target 32h/mo).
     // Green ≥32; below target shows how many hours are still needed to unlock it.
     { k: "login_hours",     label: "Login hrs",   presets: ["all","perf"],         render: r => { const h = r.login_hours==null ? null : Number(r.login_hours); if (h==null || !isFinite(h)) return <span style={{color:"var(--tx3)"}}>—</span>; const done = h>=32; const gap = Math.max(0, 32-h); return <span title={done ? "Productivity KPI unlocked (≥32h)" : `Needs ${gap.toFixed(1)}h more to unlock the Productivity KPI`} style={{color:done?"var(--green)":"var(--tx2)",fontWeight:done?600:400}}>{h.toFixed(1)}h{done ? " 🏆" : <span style={{color:"var(--amber)",fontWeight:500}}> (-{gap.toFixed(1)})</span>}</span>; } },
+    { k: "tickets_handled", label: "Handled Tickets", presets: ["all","perf"],   render: r => r.tickets_touched != null ? <span style={{color:"var(--blue)",fontWeight:500}}>{r.tickets_touched}</span> : <span style={{color:"var(--tx3)"}}>—</span> },
     { k: "sbs",             label: "SBS",         presets: ["all","perf"],         render: r => r.sbs ?? "—" },
     { k: "non_sbs",         label: "Non-SBS",     presets: ["all","perf"],         render: r => r.non_sbs ?? "—" },
     { k: "dsat",            label: "DSAT",        presets: ["all","perf"],         render: r => r.dsat ?? "—" },
@@ -918,7 +920,7 @@ function ScoreEntryPage(){
             </div>
             <span style={{fontSize:12,color:"var(--tx3)"}} title={sorted[0]?.synced_at ? new Date(sorted[0].synced_at).toLocaleString() : ""}>{(()=>{const ts=sorted[0]?.synced_at;if(!ts)return "Synced: —";const s=(Date.now()-new Date(ts).getTime())/1000;const rel=s<60?"just now":s<3600?`${Math.floor(s/60)}m ago`:s<86400?`${Math.floor(s/3600)}h ago`:`${Math.floor(s/86400)}d ago`;return `Updated ${rel}`;})()}</span>
             <button className="btn btn-outline btn-sm" onClick={()=>{
-              const csv=["QA,Email,TL,SBS,Non-SBS,DSAT,Late,Never,Valid,Invalid,Sessions,On-time Coaching,Eligible,Not Coached,RTR,RTR Score,Observations,Obs %,Calibrations,Calib %,Completion %,On-time %,JKQ,JKQ Result,Tickets/day,Occupancy %,Login hrs,Working Days,ST Time (mins),ST Time,CSAT %,Surveys"];
+              const csv=["QA,Email,TL,SBS,Non-SBS,DSAT,Late,Never,Valid,Invalid,Sessions,On-time Coaching,Eligible,Not Coached,RTR,RTR Score,Observations,Obs %,Calibrations,Calib %,Completion %,On-time %,JKQ,JKQ Result,Tickets/day,Occupancy %,Login hrs,Handled Tickets,Working Days,ST Time (mins),ST Time,CSAT %,Surveys"];
               sorted.forEach(r=>{
                 const stMins=r.side_tasks_duration_mins||0;
                 const stFormatted=stMins?`${Math.floor(stMins/60)}h ${stMins%60}m`:"";
@@ -929,7 +931,7 @@ function ScoreEntryPage(){
                   r.rtr_count||0,r.avg_rtr_score||0,r.observed_coaching_count||0,r.avg_observation_score_pct||0,
                   r.calibration_count||0,r.avg_calibration_match_rate||0,
                   r.coaching_completion_pct||0,r.ontime_coaching_pct||0,
-                  r.jkq_score||"",`"${r.jkq_result||""}"`,r.ticket_per_day||0,r.occupancy_pct||0,r.login_hours||0,
+                  r.jkq_score||"",`"${r.jkq_result||""}"`,r.ticket_per_day||0,r.occupancy_pct||0,r.login_hours||0,r.tickets_touched||0,
                   r.working_days||0,stMins,`"${stFormatted}"`,
                   csatPctValue(r.csat_pct)!=null?csatPctValue(r.csat_pct).toFixed(1):"",r.csat_total??0
                 ].join(","));
@@ -940,7 +942,7 @@ function ScoreEntryPage(){
               <Icon d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" size={13}/>Export CSV
             </button>
             <button className="btn btn-outline btn-sm" onClick={()=>{
-              const header="QA\tEmail\tTL\tSBS\tNon-SBS\tDSAT\tLate\tNever\tValid\tInvalid\tSessions\tOn-time Coaching\tEligible\tNot Coached\tRTR\tRTR Score\tObservations\tObs %\tCalibrations\tCalib %\tCompletion %\tOn-time %\tJKQ\tJKQ Result\tTickets/day\tOccupancy %\tLogin hrs\tWorking Days\tST Time (mins)\tST Time\tCSAT %\tSurveys";
+              const header="QA\tEmail\tTL\tSBS\tNon-SBS\tDSAT\tLate\tNever\tValid\tInvalid\tSessions\tOn-time Coaching\tEligible\tNot Coached\tRTR\tRTR Score\tObservations\tObs %\tCalibrations\tCalib %\tCompletion %\tOn-time %\tJKQ\tJKQ Result\tTickets/day\tOccupancy %\tLogin hrs\tHandled Tickets\tWorking Days\tST Time (mins)\tST Time\tCSAT %\tSurveys";
               const rows=sorted.map(r=>{
                 const stMins=r.side_tasks_duration_mins||0;
                 const stFormatted=stMins?`${Math.floor(stMins/60)}h ${stMins%60}m`:"";
@@ -951,7 +953,7 @@ function ScoreEntryPage(){
                   r.rtr_count||0,r.avg_rtr_score||0,r.observed_coaching_count||0,r.avg_observation_score_pct||0,
                   r.calibration_count||0,r.avg_calibration_match_rate||0,
                   r.coaching_completion_pct||0,r.ontime_coaching_pct||0,
-                  r.jkq_score||"",r.jkq_result||"",r.ticket_per_day||0,r.occupancy_pct||0,r.login_hours||0,
+                  r.jkq_score||"",r.jkq_result||"",r.ticket_per_day||0,r.occupancy_pct||0,r.login_hours||0,r.tickets_touched||0,
                   r.working_days||0,stMins,stFormatted,
                   csatPctValue(r.csat_pct)!=null?csatPctValue(r.csat_pct).toFixed(1):"",r.csat_total??0
                 ].join("\t");
