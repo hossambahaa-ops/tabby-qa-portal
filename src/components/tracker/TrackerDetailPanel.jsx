@@ -71,6 +71,13 @@ const cleanForSave = (form) => {
   return out;
 };
 
+// Format seconds spent working → compact "Xd Yh" / "Yh Zm" / "Zm".
+const fmtDur = (s) => {
+  s = Math.max(0, Math.floor(Number(s) || 0));
+  const d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600), m = Math.floor((s % 3600) / 60);
+  return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m}m` : `${m}m`;
+};
+
 export default function TrackerDetailPanel({
   stack = [],
   rows = [],
@@ -398,6 +405,16 @@ export default function TrackerDetailPanel({
           </div>
 
           {error && <div style={{ color: "var(--red)", fontSize: 12, marginBottom: 10 }}>{error}</div>}
+
+          {!isCreate && currentRow && currentRow.in_progress_seconds != null && (
+            <div style={{ fontSize: 12, color: "var(--tx2)", marginTop: 14, display: "flex", alignItems: "center", gap: 7 }}>
+              <span aria-hidden>⏱</span>
+              <strong style={{ color: "var(--tx)", fontVariantNumeric: "tabular-nums" }}>{fmtDur(currentRow.in_progress_seconds)}</strong>
+              <span style={{ color: "var(--tx3)" }}>
+                {currentRow.currently_in_progress ? "in progress (still running)" : currentRow.status === "Done" ? "of active work to complete" : "of active work so far"}
+              </span>
+            </div>
+          )}
 
           {!isCreate && currentRow?.created_by && (
             <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 14, paddingTop: 10, borderTop: "1px solid var(--bd2)" }}>

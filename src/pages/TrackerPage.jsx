@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useApp } from "../lib/AppContext.jsx";
 import { hasRole } from "../lib/constants.js";
+import { sb } from "../lib/supabase.js";
 import { listInitiatives, createInitiative, updateInitiative, deleteInitiative } from "../api/initiatives.js";
 import { listProfiles } from "../api/profiles.js";
 import { listRoster } from "../api/roster.js";
@@ -78,12 +79,18 @@ export default function TrackerPage() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [initiatives, profs, roster] = await Promise.all([
+      const [initiatives, profs, roster, timeRows] = await Promise.all([
         listInitiatives({ token }),
         listProfiles({ token, select: "email,display_name,role,status" }),
         listRoster({ token, select: "email,display_name" }).catch(() => []),
+        // Time each task has spent "In progress" (pauses excluded) — audit view.
+        sb.query("initiative_time_v", { token, select: "initiative_id,in_progress_seconds,currently_in_progress" }).catch(() => []),
       ]);
-      setRows(initiatives);
+      const timeById = new Map((timeRows || []).map(t => [t.initiative_id, t]));
+      setRows((initiatives || []).map(r => {
+        const t = timeById.get(r.id);
+        return t ? { ...r, in_progress_seconds: Number(t.in_progress_seconds || 0), currently_in_progress: !!t.currently_in_progress } : r;
+      }));
       // Assignee pool = active profiles ∪ everyone on the roster. Merging the
       // roster (a small, reliably-readable table) means the picker is never
       // blank on a transient/empty profiles fetch, and ANY roster member is
