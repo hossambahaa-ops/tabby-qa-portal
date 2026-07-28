@@ -756,9 +756,10 @@ function ScoreEntryPage(){
     <div style={{marginBottom: 12}}>
       <SavedViews
         pageKey="mtd"
-        currentFilters={{selMonth, selDomain, selTeam, selTL, selQA, mtdView, qaSort, leadSort, groupsCollapsed, tableDense, tableSearch, hiddenCols: [...hiddenCols]}}
+        currentFilters={{selMonth, selFrom, selDomain, selTeam, selTL, selQA, mtdView, qaSort, leadSort, groupsCollapsed, tableDense, tableSearch, hiddenCols: [...hiddenCols]}}
         onApply={(f) => {
           if ('selMonth' in f) setSelMonth(f.selMonth || "");
+          if ('selFrom' in f) setSelFrom(f.selFrom || "");
           if ('selDomain' in f) setSelDomain(f.selDomain || "");
           if ('selTeam' in f) setSelTeam(Array.isArray(f.selTeam) ? f.selTeam : (f.selTeam ? [f.selTeam] : []));
           if ('selTL' in f) setSelTL(Array.isArray(f.selTL) ? f.selTL : (f.selTL ? [f.selTL] : []));
