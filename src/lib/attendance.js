@@ -126,7 +126,11 @@ export const ATTENDANCE_TYPES = [
   { code: "Tabby Day", label: "Tabby Day (annual perk)", group: "holiday", color: "#A855F7", bg: "#A855F720" },
   // ── off: grey. Not a working day; no expectation either way. ──
   { code: "OFF",     label: "Weekend / Holiday",  group: "off",      color: "#9CA3AF", bg: "#9CA3AF15" },
-  { code: "X",       label: "Not Employed",       group: "off",      color: "#6B7280", bg: "#6B728010" },
+  // X marks a person who is no longer on the team (left / offboarded), or who
+  // had not joined yet on that date. It is a statement of fact by a lead, not a
+  // leave request, so it stays out of APPROVAL_CODES. Already treated as
+  // "absent, do not count" by the dashboard + coaching-cadence logic.
+  { code: "X",       label: "No longer on the team", group: "off",    color: "#6B7280", bg: "#6B728010" },
   // ── incident: red. Reserved. Nothing else in the grid is red. ──
   // Carries a heavier tint than every other code as well as the exclusive
   // hue: leave sits in the neighbouring rose band, and severity should
@@ -176,7 +180,7 @@ export const ATT_SIMPLIFIED_START = "2026-06-01";
 // (AL, SL, Casual, PH-Off, Tabby Day, Lieu, Maternity Leave), alongside the
 // work/holiday codes. These are OUTCOMES — the plan grid uses PLAN_TYPES
 // (work codes only) so leads can't "plan" a leave.
-export const SIMPLIFIED_CODES = new Set(["P", "H", "PH", "OFF", "CDO", "AL", "Paid SL", "Casual", "PH-Off", "Tabby Day", "Lieu", "ML"]);
+export const SIMPLIFIED_CODES = new Set(["P", "H", "PH", "OFF", "CDO", "AL", "Paid SL", "Casual", "PH-Off", "Tabby Day", "Lieu", "ML", "X"]);
 export const SIMPLIFIED_TYPES = ATTENDANCE_TYPES.filter(t => SIMPLIFIED_CODES.has(t.code));
 
 // Plan grid picker — schedule/work codes only. Leaves are actual outcomes,
