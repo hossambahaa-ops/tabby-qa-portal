@@ -510,7 +510,7 @@ function ScoreEntryPage(){
     switch (key) {
       case "specialist":      return nameFromEmail(r.qa_email).toLowerCase();
       case "tl":              return r.qa_tl ? nameFromEmail(r.qa_tl).toLowerCase() : "";
-      case "wds":             return r.working_days ?? null;
+      case "wds":             return (r.working_days_effective ?? r.working_days) ?? null;
       case "csat_pct": {
         const v = csatPctValue(r.csat_pct);
         return Number(r.csat_total||0) > 0 ? v : null;
@@ -545,7 +545,7 @@ function ScoreEntryPage(){
       case "ontime_pct":      return numFromText(r.ontime_coaching_pct);
       case "jkq":             return r.jkq_result === "Pass" ? 2 : r.jkq_result === "Missed" ? 0 : 1;
       case "tickets_per_day": return Number(r.ticket_per_day) || null;
-      case "occupancy":       return numFromText(r.occupancy_pct);
+      case "occupancy":       return numFromText(r.occupancy_pct_effective ?? r.occupancy_pct);
       case "login_hours":     return r.login_hours == null ? null : Number(r.login_hours);
       case "tickets_handled": return r.tickets_touched == null ? null : Number(r.tickets_touched);
       case "q_sessions":      return r.q_sessions || null;
@@ -597,7 +597,7 @@ function ScoreEntryPage(){
       </div>
     )},
     { k: "tl",              label: "TL",          align: "left", presets: ["all","perf","coach"], render: r => <span style={{fontSize:12,color:"var(--tx2)",whiteSpace:"nowrap"}}>{r.qa_tl ? nameFromEmail(r.qa_tl) : "—"}</span> },
-    { k: "wds",             label: "WDs",         presets: ["all","perf"],         render: r => r.working_days ?? "—" },
+    { k: "wds",             label: "WDs",         presets: ["all","perf"],         render: r => { const w = r.working_days_effective ?? r.working_days; return w ? <span title={(!r.working_days && w) ? "From Pulse attendance — the MTD sheet has no working days for this QA" : undefined} style={{color:(!r.working_days && w)?"var(--blue)":undefined}}>{w}</span> : "—"; } },
     { k: "csat_pct",        label: "CSAT %",      presets: ["all","perf"],         render: r => { const v=csatPctValue(r.csat_pct); const s=Number(r.csat_total||0); const show=v!=null&&s>0; return <span style={{fontWeight:show?600:400,color:csatColor(v,s)}}>{show?v.toFixed(1)+"%":"—"}</span>; } },
     { k: "surveys",         label: "Surveys",     presets: ["all","perf"],         render: r => r.csat_total ?? "—" },
     // Queue login hours this month (Scorecard Productivity KPI target 32h/mo).
@@ -640,7 +640,7 @@ function ScoreEntryPage(){
         : <span style={{color:"var(--tx3)"}}>—</span>
     },
     { k: "tickets_per_day", label: "Tickets/D",            presets: ["all","perf"],  render: r => <span style={{color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</span> },
-    { k: "occupancy",       label: "Occupancy",            presets: ["all","perf"],  render: r => fmtPct(r.occupancy_pct) },
+    { k: "occupancy",       label: "Occupancy",            presets: ["all","perf"],  render: r => { const eff = r.occupancy_pct_effective; const fromSheet = Number(r.occupancy_pct_stored) > 0; if (eff == null) return fmtPct(r.occupancy_pct); return <span title={fromSheet ? undefined : "Recomputed from the daily productivity feed — the MTD sheet has no occupancy for this QA"} style={{color: fromSheet ? undefined : "var(--blue)"}}>{Number(eff).toFixed(1)}%</span>; } },
     { k: "st_time",         label: "ST Time",              presets: ["all"],         render: r => <span style={{fontSize:12,color:"var(--tx2)"}}>{r.side_tasks_duration_mins ? `${Math.floor(r.side_tasks_duration_mins/60)}h ${r.side_tasks_duration_mins%60}m` : "—"}</span> },
   ];
   // Two collapsible groups. EVAL_KEYS / COACH_KEYS list the underlying
@@ -922,7 +922,7 @@ function ScoreEntryPage(){
           const cur = (fn) => { const xs = monthData.map(fn).filter(v => v != null); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
           const pv = (fn) => prevMonth ? avg(prevMonth, fn) : null;
           const tiles = [
-            { label: "Occupancy", cur: cur(r => num(r.occupancy_pct)), prev: pv(r => num(r.occupancy_pct)), unit: "%", lower: false },
+            { label: "Occupancy", cur: cur(r => num(r.occupancy_pct_effective ?? r.occupancy_pct)), prev: pv(r => num(r.occupancy_pct_effective ?? r.occupancy_pct)), unit: "%", lower: false },
             { label: "CSAT", cur: cur(r => num(r.csat_pct)), prev: pv(r => num(r.csat_pct)), unit: "%", lower: false },
             { label: "ABT", cur: cur(r => num(r.abt)), prev: pv(r => num(r.abt)), unit: " min", lower: true },
             { label: "Login hrs", cur: cur(r => num(r.login_hours)), prev: pv(r => num(r.login_hours)), unit: " h", lower: false },
