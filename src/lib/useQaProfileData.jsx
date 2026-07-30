@@ -44,7 +44,15 @@ export function useQaProfileData(token, profile) {
   // even if sessions / plans / attendance are still in flight. The page
   // can render the QA picker (which only needs roster + lead set) at that
   // point instead of waiting for the slowest detail query.
+  //
+  // Both flags matter to the caller: the two groups race, so `loading`
+  // (detail) can land first and leave roster/mtd/profiles empty. Gating
+  // the page on `loading` alone paints an empty profile — see headerError
+  // for the case where the header group fails outright.
   const [headerLoading, setHeaderLoading] = useState(true);
+  const [headerError, setHeaderError] = useState(null);
+  // Bumped by reload() to re-run the effect without a full page refresh.
+  const [reloadKey, setReloadKey] = useState(0);
   // qaLeadSet + allProfiles drive the QA-only filter; we keep them in
   // state instead of stashing on `window` like the original code did.
   const [qaLeadSet, setQaLeadSet] = useState(() => new Set());
@@ -60,6 +68,7 @@ export function useQaProfileData(token, profile) {
       setMtd(d.mtd);
       setAllProfiles(d.profList);
       setQaLeadSet(new Set(d.profList.filter(p => p.role === "qa_lead").map(p => p.email?.toLowerCase()).filter(Boolean)));
+      setHeaderError(null);
       setHeaderLoading(false);
     };
     const applyDetail = (d) => {
@@ -125,7 +134,10 @@ export function useQaProfileData(token, profile) {
 
     headerPromise.then(applyHeader, e => {
       console.error("QA Profile header load:", e);
-      if (!cancelled) setHeaderLoading(false);
+      // Surface it — roster/mtd/profiles stay empty on failure, and a
+      // silently empty profile page is indistinguishable from "this QA
+      // has no data". The page renders a retry instead.
+      if (!cancelled) { setHeaderError(e?.message || "Could not load the QA list"); setHeaderLoading(false); }
     });
     detailPromise.then(applyDetail, e => {
       console.error("QA Profile detail load:", e);
@@ -141,7 +153,16 @@ export function useQaProfileData(token, profile) {
     }).catch(() => {});
 
     return () => { cancelled = true; };
-  }, [token]);
+  }, [token, reloadKey]);
+
+  // Retry after a failed load: drop the cache and re-run the effect.
+  const reload = useCallback(() => {
+    bustBulkCache();
+    setHeaderError(null);
+    setHeaderLoading(true);
+    setLoading(true);
+    setReloadKey(k => k + 1);
+  }, []);
 
   // Build full list: roster + anyone in MTD not in roster — only QAs
   // under the qa_lead set, with non-QA roles and Sr QA both excluded.
@@ -203,6 +224,7 @@ export function useQaProfileData(token, profile) {
 
   return {
     roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
-    loading, headerLoading, allQAs, qaLeadSet, allProfiles, refreshDailyScores, refreshMtd,
+    loading, headerLoading, headerError, reload, allQAs, qaLeadSet, allProfiles,
+    refreshDailyScores, refreshMtd,
   };
 }

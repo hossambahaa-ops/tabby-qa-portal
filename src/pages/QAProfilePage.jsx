@@ -43,8 +43,13 @@ function QAProfilePage() {
   // selection / search / expanded-row state plus the per-QA derivations.
   const {
     roster, mtd, sessions, plans, tasks, flags, qaAttendance, dailyScores, teamTargets,
-    loading, allQAs, qaLeadSet, allProfiles, refreshDailyScores, refreshMtd,
+    loading, headerLoading, headerError, reload, allQAs, qaLeadSet, allProfiles,
+    refreshDailyScores, refreshMtd,
   } = useQaProfileData(token, profile);
+  // The hook runs two racing fetch groups. `loading` only tracks the detail
+  // group, so on its own it lets the page paint before roster/mtd/profiles
+  // exist — an empty picker, or a profile with every KPI blank.
+  const booting = loading || headerLoading;
 
   // Super-admin-only inline editor for the headline KPI columns on a
   // single mtd_scores row. RLS rejects the PATCH for everyone else, so
@@ -134,8 +139,8 @@ function QAProfilePage() {
 
   // QAs land on their own profile by default — once data loads.
   useEffect(() => {
-    if (!loading && isQA && myEmail && !selectedQA) setSelectedQA(myEmail);
-  }, [loading, isQA, myEmail, selectedQA, setSelectedQA]);
+    if (!loading && !headerLoading && isQA && myEmail && !selectedQA) setSelectedQA(myEmail);
+  }, [loading, headerLoading, isQA, myEmail, selectedQA, setSelectedQA]);
 
   // Scope: QAs see only themselves, leads see their team, supervisors+ see all
   const visibleQAs = (() => {
@@ -490,7 +495,20 @@ function QAProfilePage() {
     return n.toFixed(1) + "%";
   };
 
-  if (loading) return <div className="page"><SkeletonPage/></div>;
+  if (booting && !headerError) return <div className="page"><SkeletonPage/></div>;
+
+  // Header group failed — without this the page would render a QA list with
+  // zero rows (or a profile with every metric "—") and look like real data.
+  if (headerError) return (
+    <div className="page">
+      <div className="page-header"><div className="page-title">QA Profiles</div></div>
+      <div className="card" style={{padding:24,textAlign:"center"}}>
+        <div style={{fontSize:14,fontWeight:600,marginBottom:6}}>Couldn't load the QA list</div>
+        <div style={{fontSize:12,color:"var(--tx2)",marginBottom:16}}>{headerError}</div>
+        <button className="btn btn-primary btn-sm" onClick={reload}>Try again</button>
+      </div>
+    </div>
+  );
 
   // ═══ LIST VIEW (no QA selected, or QA role sees own profile directly) ═══
   if (!selectedQA && !isQA) return (
