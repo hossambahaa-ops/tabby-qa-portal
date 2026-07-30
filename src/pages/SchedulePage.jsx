@@ -1035,7 +1035,16 @@ function SchedulePage() {
   // the header, then a grid skeleton as wide as this month and as deep as
   // the team was last time. `lastTeamSize` is remembered across reloads so
   // the very first paint is already the right height and nothing jumps.
-  if (loading) return (
+  // `loading` only covers loadData() (roster + attendance). The lead list is
+  // fetched by its OWN effect, and the whole lead/QA grouping — and therefore
+  // visibleQAs — derives from it. When loadData resolved first the page rendered
+  // a confident, wrong "0 team members — July 2026" with an empty grid until a
+  // manual refresh. Keep showing the skeleton until the lead list has landed
+  // too. Its retry chain always terminates (populated, or profilesError set
+  // after the final attempt), so this can't hang: on error we fall through and
+  // render the error banner instead of an empty grid.
+  const profilesPending = !!token && profiles.length === 0 && !profilesError;
+  if (loading || profilesPending) return (
     <div className="page">
       <div className="page-header">
         <div className="page-title">Schedule & Attendance</div>
