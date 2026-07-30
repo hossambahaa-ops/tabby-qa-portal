@@ -56,7 +56,7 @@ export default function MonthlySummary({ visibleQAs, attendance, selMonth, token
       // code introduced 2026-06-01. From June onwards leads only
       // pick "Leave"; this stays accurate across the cutover so
       // payroll exports don't undercount.
-      const leaveAggregate = count("Leave", "AL", "Paid SL", "ML", "UL", "EL", "Casual", "PH-Off", "Lieu");
+      const leaveAggregate = count("Leave", "AL", "Paid SL", "ML", "UL", "EL", "Casual", "PH-Off", "Lieu", "Marriage");
       return {
         email: em,
         name: nameFromEmail(em),

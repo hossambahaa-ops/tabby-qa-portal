@@ -1011,7 +1011,7 @@ function SchedulePage() {
       // QAs pick the umbrella "Leave" code instead, so we roll up
       // every leave-family code under the same field. Existing UI
       // labels still read "AL" but the value reflects all leave types.
-      al: count(approved, "AL", "Paid SL", "ML", "UL", "EL", "Leave"),
+      al: count(approved, "AL", "Paid SL", "ML", "UL", "EL", "Leave", "Marriage"),
       tabbyDay: count(approved, "Tabby Day"),
       otApproved: approved.filter(a => a.status === "OT").reduce((s, a) => s + (parseFloat(a.ot_hours) || 0), 0),
       otPending: pending.filter(a => a.status === "OT").reduce((s, a) => s + (parseFloat(a.ot_hours) || 0), 0),

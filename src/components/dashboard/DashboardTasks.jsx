@@ -141,7 +141,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
       }
       if(assignees.length===0){globalToast("error","No QAs found to assign. Make sure you have team members or select 'All QAs'.");return;}
       const today=riyadhTodayStr();
-      const absentStatuses=new Set(["AL","Paid SL","ML","UL","EL","Leave","NSNC","OFF","X"]);
+      const absentStatuses=new Set(["AL","Paid SL","ML","UL","EL","Leave","Marriage","NSNC","OFF","X"]);
       let todayAtt=[];
       try{todayAtt=await sb.query("qa_attendance",{select:"email,status",filters:`date=eq.${today}`,token}).catch(()=>[]);}catch{}
       const absentSet=new Set((Array.isArray(todayAtt)?todayAtt:[]).filter(a=>absentStatuses.has(a.status)).map(a=>a.email?.toLowerCase()));
@@ -280,7 +280,7 @@ function DashboardTasks({ roster, appProfiles, todayAttendance, dailyScores }){
         // Check attendance for the task's target day, not today. Priority:
         // eta_date > due_date > today.
         const checkDate = taskForm.eta_date || taskForm.due_date || riyadhTodayStr();
-        const absentStatuses=new Set(["AL","Paid SL","ML","UL","EL","Leave","NSNC","OFF","X"]);
+        const absentStatuses=new Set(["AL","Paid SL","ML","UL","EL","Leave","Marriage","NSNC","OFF","X"]);
         for(const em of assignees){
           const attCheck=await sb.query("qa_attendance",{select:"status",filters:`email=eq.${em.toLowerCase()}&date=eq.${checkDate}`,token}).catch(()=>[]);
           const att=Array.isArray(attCheck)&&attCheck.length>0?attCheck[0]:null;

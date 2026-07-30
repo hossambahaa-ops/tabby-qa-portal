@@ -121,6 +121,10 @@ export const ATTENDANCE_TYPES = [
   // leave (it's an absence the lead approves), pushed to the fuchsia end
   // so it doesn't collide with the four rose codes next to it.
   { code: "Lieu",    label: "Lieu Day",           group: "leave",    color: "#A21CAF", bg: "#A21CAF20" },
+  // Marriage leave — a distinct statutory entitlement, kept separate from AL
+  // so it can be reported on its own. Fuchsia-800 keeps it inside the leave
+  // family while staying distinguishable from Lieu (fuchsia-700) next to it.
+  { code: "Marriage", label: "Marriage Leave",    group: "leave",    color: "#86198F", bg: "#86198F20" },
   // ── holiday: violet family. Entitled day off, nobody is expected in. ──
   { code: "PH-Off",  label: "Public Holiday (day off)", group: "holiday", color: "#7C3AED", bg: "#7C3AED20" },
   { code: "Tabby Day", label: "Tabby Day (annual perk)", group: "holiday", color: "#A855F7", bg: "#A855F720" },
@@ -158,7 +162,7 @@ export function groupTypes(types = ATTENDANCE_TYPES) {
 
 // Codes that need lead approval when set by a QA themselves. Leads
 // setting these for their team approve them implicitly.
-export const APPROVAL_CODES = new Set(["OT", "PH", "CDO", "Tabby Day", "Leave", "AL", "Paid SL", "ML", "UL", "Casual", "PH-Off", "Lieu"]);
+export const APPROVAL_CODES = new Set(["OT", "PH", "CDO", "Tabby Day", "Leave", "AL", "Paid SL", "ML", "UL", "Casual", "PH-Off", "Lieu", "Marriage"]);
 
 // Codes shown in the cell picker. OT is intentionally excluded — it's a
 // separate request flow behind the "Request OT" header button so it
@@ -180,7 +184,7 @@ export const ATT_SIMPLIFIED_START = "2026-06-01";
 // (AL, SL, Casual, PH-Off, Tabby Day, Lieu, Maternity Leave), alongside the
 // work/holiday codes. These are OUTCOMES — the plan grid uses PLAN_TYPES
 // (work codes only) so leads can't "plan" a leave.
-export const SIMPLIFIED_CODES = new Set(["P", "H", "PH", "OFF", "CDO", "AL", "Paid SL", "Casual", "PH-Off", "Tabby Day", "Lieu", "ML", "X"]);
+export const SIMPLIFIED_CODES = new Set(["P", "H", "PH", "OFF", "CDO", "AL", "Paid SL", "Casual", "PH-Off", "Tabby Day", "Lieu", "ML", "Marriage", "X"]);
 export const SIMPLIFIED_TYPES = ATTENDANCE_TYPES.filter(t => SIMPLIFIED_CODES.has(t.code));
 
 // Plan grid picker — schedule/work codes only. Leaves are actual outcomes,
@@ -212,7 +216,7 @@ export function pickerCodesForDate(date) {
 // The new umbrella "Leave" code is included so it gets the same
 // "approved, no check-in needed" treatment as the legacy granular
 // codes it replaces.
-export const LEAVE_CODES = new Set(["AL", "Paid SL", "PH", "ML", "UL", "Leave", "Casual", "PH-Off", "Lieu", "Tabby Day"]);
+export const LEAVE_CODES = new Set(["AL", "Paid SL", "PH", "ML", "UL", "Leave", "Casual", "PH-Off", "Lieu", "Tabby Day", "Marriage"]);
 
 // Convenience helper — leave + NSNC together cover every "resolved
 // without a check-in" state. Useful for callers that want one set
