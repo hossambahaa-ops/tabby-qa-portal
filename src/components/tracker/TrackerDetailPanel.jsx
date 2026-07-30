@@ -29,14 +29,17 @@ import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 //   onOpenRow    — (row) => void; pushes that row onto the stack
 //   onOpenNew    — ({ parentId }) => void; pushes a create entry
 
-const blank = (parentId) => ({
+// defaultAssignee pre-fills the assignee on CREATE only (the person opening the
+// form is usually the one doing the work). Editing an existing task never
+// touches its assignee, and the picker can still be changed before saving.
+const blank = (parentId, defaultAssignee) => ({
   title: "",
   description: "",
   status: "Not started",
   priority: "Medium",
   team: [],
   task_type: [],
-  assigned_to: "",
+  assigned_to: defaultAssignee || "",
   start_date: "",
   eta_date: "",
   links: [],
@@ -82,6 +85,7 @@ export default function TrackerDetailPanel({
   stack = [],
   rows = [],
   profiles = [],
+  defaultAssignee = "",
   readOnlyFor,
   onClose, onPop, onSave, onDelete,
   onOpenRow, onOpenNew,
@@ -93,7 +97,7 @@ export default function TrackerDetailPanel({
   const isCreate = top?.kind === "create";
   const readOnly = !isCreate && currentRow && readOnlyFor ? readOnlyFor(currentRow) : false;
 
-  const [form, setForm] = useState(() => blank(top?.parentId));
+  const [form, setForm] = useState(() => blank(top?.parentId, defaultAssignee));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -102,7 +106,7 @@ export default function TrackerDetailPanel({
   useEffect(() => {
     if (!top) return;
     if (top.kind === "create") {
-      setForm(blank(top.parentId));
+      setForm(blank(top.parentId, defaultAssignee));
     } else if (currentRow) {
       setForm({
         title: currentRow.title || "",

@@ -386,6 +386,7 @@ export default function TrackerPage() {
         stack={panelStack}
         rows={rows}
         profiles={profiles}
+        defaultAssignee={myEmail}
         readOnlyFor={(row) => !canEdit(row, myEmail, isAdmin)}
         onClose={closePanel}
         onPop={popPanel}
