@@ -107,7 +107,11 @@ export default function CSATPage() {
           listMtd({ token, filters: "order=month.desc,qa_email.asc" }),
           listRoster({ token, select: "email,queue,manager_email" }),
           listProfiles({ token, select: "id,email,role", cacheKey: "profiles_slim" }),
-          sb.query("csat_by_topic", { token, select: "qa_email,month,good,bad" }).catch(() => []),
+          // Pre-aggregated per-QA/month rollup (~40 rows/month). The raw
+          // csat_by_topic table is one row per topic and passed PostgREST's
+          // 1000-row cap in Aug-2026, so reading it unfiltered silently
+          // dropped whole months of CSAT.
+          sb.query("csat_qa_month_v", { token, select: "qa_local,month,good,bad" }).catch(() => []),
         ]);
         setRoster(rosterRows);
         // Mirror ScoreEntryPage filtering: exclude non-QA profiles and entries
@@ -150,25 +154,47 @@ export default function CSATPage() {
         // surveys come from csat_by_topic; TL/LOB from the roster; ticket-level
         // columns stay blank. This makes the CSAT tab reflect the fresh CSAT
         // source rather than only the (lagging) MTD sheet.
+        // Keyed by local-part so a QA whose MTD row is @tabby.sa still
+        // matches their @tabby.ai CSAT rows (and vice versa).
+        const localOf = (e) => String(e || "").toLowerCase().split("@")[0];
         const csatAgg = new Map();
         for (const t of (csatTopicRows || [])) {
-          const em = (t.qa_email || "").toLowerCase();
-          if (!em || !t.month) continue;
-          const k = `${em} ${t.month}`;
-          const a = csatAgg.get(k) || { good: 0, bad: 0, email: t.qa_email, month: t.month };
+          const lp = localOf(t.qa_local);
+          if (!lp || !t.month) continue;
+          const k = `${lp}|${t.month}`;
+          const a = csatAgg.get(k) || { good: 0, bad: 0, local: lp, month: t.month };
           a.good += Number(t.good || 0); a.bad += Number(t.bad || 0);
           csatAgg.set(k, a);
         }
-        const mtdKeys = new Set(rows.map(r => `${(r.qa_email || "").toLowerCase()} ${r.month}`));
-        const rosterByEmail = new Map(rosterRows.map(r => [(r.email || "").toLowerCase(), r]));
+        // mtd_scores' csat_good/bad/total come from the MTD sheet, which
+        // stopped filling them after May-2026 — every Jun+ row carries 0
+        // surveys and "0.00%", and the table hides zero-survey QAs, so the
+        // page rendered empty. csat_by_topic is the live source and is
+        // already what the QA Profile shows, so overlay it onto every row
+        // that has surveys there. Rows with no CSAT feed keep their MTD
+        // values, so this can only add data, never blank it.
+        const applyCsat = (r) => {
+          const a = csatAgg.get(`${localOf(r.qa_email)}|${r.month}`);
+          if (!a) return r;
+          const total = a.good + a.bad;
+          if (total <= 0) return r;
+          return {
+            ...r,
+            csat_good: a.good, csat_bad: a.bad, csat_total: total,
+            csat_pct: (a.good / total * 100).toFixed(2) + "%",
+          };
+        };
+        const overlaidRows = rows.map(applyCsat);
+        const mtdKeys = new Set(rows.map(r => `${localOf(r.qa_email)}|${r.month}`));
+        const rosterByLocal = new Map(rosterRows.map(r => [localOf(r.email), r]));
         const csatOnlyRows = [];
         for (const a of csatAgg.values()) {
-          if (mtdKeys.has(`${a.email.toLowerCase()} ${a.month}`)) continue;
+          if (mtdKeys.has(`${a.local}|${a.month}`)) continue;
           const total = a.good + a.bad;
           if (total <= 0) continue;
-          const ros = rosterByEmail.get(a.email.toLowerCase());
+          const ros = rosterByLocal.get(a.local);
           csatOnlyRows.push({
-            qa_email: a.email, month: a.month,
+            qa_email: ros?.email || a.local, month: a.month,
             qa_tl: ros?.manager_email || null,
             lob: ros?.queue || null,
             csat_good: a.good, csat_bad: a.bad, csat_total: total,
@@ -176,7 +202,7 @@ export default function CSATPage() {
             tickets_touched: null, abt: null, csat_quartile: null,
           });
         }
-        const allRows = csatOnlyRows.length ? rows.concat(csatOnlyRows) : rows;
+        const allRows = csatOnlyRows.length ? overlaidRows.concat(csatOnlyRows) : overlaidRows;
         const filtered = allRows.filter(r => {
           const em = r.qa_email?.toLowerCase();
           if (blacklist.has(em)) return false;
@@ -297,7 +323,7 @@ export default function CSATPage() {
       const norm = normalizeTopic(t.topic);
       const surveys = Number(t.surveys_count || 0);
       const score = t.csat_score != null ? Number(t.csat_score) : null;
-      const k = `${t.month || ""} ${norm}`;
+      const k = `${t.month || ""}|${norm}`;
       if (!perMonth[k] || surveys > perMonth[k].surveys) perMonth[k] = { topic: norm, score, surveys };
     });
     const agg = {};
