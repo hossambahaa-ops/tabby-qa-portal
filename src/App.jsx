@@ -43,13 +43,12 @@ const AuditTrailPage = lazy(() => import("./pages/AuditTrailPage.jsx"));
 const AdminPage = lazy(() => import("./pages/AdminPage.jsx"));
 const LeaderboardPage = lazy(() => import("./pages/LeaderboardPage.jsx"));
 const DsatReviewsPage = lazy(() => import("./pages/DsatReviewsPage.jsx"));
-const DAMPage = lazy(() => import("./pages/DAMPage.jsx"));
-const ActionPlanPage = lazy(() => import("./pages/ActionPlanPage.jsx"));
-const CoachingPage = lazy(() => import("./pages/CoachingPage.jsx"));
+// DAMPage / ActionPlanPage / CoachingPage / CoachingViolationsPage are NOT
+// declared here: /dam, /plans, /coaching and /violations all redirect to
+// /quality, and QualityControlPage lazy-loads those four itself as tabs.
 const CoachingAckPage = lazy(() => import("./pages/CoachingAckPage.jsx"));
 const VerbalWarningPage = lazy(() => import("./pages/VerbalWarningPage.jsx"));
 const CalibrationMissPage = lazy(() => import("./pages/CalibrationMissPage.jsx"));
-const CoachingViolationsPage = lazy(() => import("./pages/CoachingViolationsPage.jsx"));
 const EscalationsPage = lazy(() => import("./pages/EscalationsPage.jsx"));
 const QualityControlPage = lazy(() => import("./pages/QualityControlPage.jsx"));
 const QAProfilePage = lazy(() => import("./pages/QAProfilePage.jsx"));

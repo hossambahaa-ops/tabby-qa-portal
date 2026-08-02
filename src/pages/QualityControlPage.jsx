@@ -1,11 +1,17 @@
-import React, { useState, useEffect } from "react";
-import { hasRole } from "../lib/constants.js";
+import React, { useState, useEffect, Suspense } from "react";
 import { useApp } from "../lib/AppContext.jsx";
 import { useUrlState } from "../lib/useUrlState.jsx";
-import DAMPage from "./DAMPage.jsx";
-import CoachingViolationsPage from "./CoachingViolationsPage.jsx";
-import CoachingPage from "./CoachingPage.jsx";
-import ActionPlanPage from "./ActionPlanPage.jsx";
+import { lazyWithRetry as lazy } from "../lib/lazyWithRetry.js";
+
+// One tab is visible at a time, so load one tab's code at a time. These were
+// static imports, which meant opening Quality Control pulled all four pages
+// (~181 kB raw — AP/PIP and Coaching are ~70 kB each) before rendering the
+// default Violations tab. lazyWithRetry, not bare React.lazy, so a tab still
+// recovers from a stale chunk after a deploy like every other route does.
+const DAMPage = lazy(() => import("./DAMPage.jsx"));
+const CoachingViolationsPage = lazy(() => import("./CoachingViolationsPage.jsx"));
+const CoachingPage = lazy(() => import("./CoachingPage.jsx"));
+const ActionPlanPage = lazy(() => import("./ActionPlanPage.jsx"));
 // Performance Candidates rolled into AP/PIP → Detection tab instead
 // of a standalone Quality Control tab. CandidatesPanel.jsx kept on
 // disk for now in case it's useful as a fallback view, but it's not
@@ -54,10 +60,19 @@ function QualityControlPage() {
           ))}
         </div>
       </div>
-      {tab === "dam" && <DAMPage />}
-      {tab === "violations" && <CoachingViolationsPage />}
-      {tab === "coaching" && <CoachingPage />}
-      {tab === "plans" && <ActionPlanPage />}
+      {/* Local Suspense, not the router's: the route-level boundary would
+          blank the header and tab bar too, so switching tabs would flash the
+          whole page instead of just the panel being loaded. */}
+      <Suspense fallback={
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: 220 }}>
+          <div className="pulse-loader" />
+        </div>
+      }>
+        {tab === "dam" && <DAMPage />}
+        {tab === "violations" && <CoachingViolationsPage />}
+        {tab === "coaching" && <CoachingPage />}
+        {tab === "plans" && <ActionPlanPage />}
+      </Suspense>
     </div>
   );
 }
