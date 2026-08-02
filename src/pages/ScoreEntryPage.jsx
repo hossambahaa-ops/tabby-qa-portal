@@ -917,16 +917,38 @@ function ScoreEntryPage(){
           // show the rolled-up range value with no delta (no obvious baseline).
           const prevMonth = isRange ? null : (mIdx >= 0 ? months[mIdx + 1] : null);
           const num = (v) => { if (v == null || v === "") return null; const n = parseFloat(String(v).replace("%", "").replace(",", ".")); return isNaN(n) ? null : n; };
-          const avg = (m, fn) => { const xs = data.filter(r => r.month === m).map(fn).filter(v => v != null); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
-          // cur is averaged over the visible rows (single month OR the range roll-up).
-          const cur = (fn) => { const xs = monthData.map(fn).filter(v => v != null); return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null; };
-          const pv = (fn) => prevMonth ? avg(prevMonth, fn) : null;
+          const rowsIn = (m) => data.filter(r => r.month === m);
+          // A stored 0 is NOT the same as "no data". mtd_scores carries
+          // csat_pct "0.00%" for a QA with no surveys at all, login_hours 0
+          // when the feed has no session for them, and abt 0 when they handled
+          // no ticket. Averaging those in dragged CSAT ~15 pts down (58.1% vs
+          // a true 73.0% in Jul-2026) and made ABT look ~1.4 min BETTER than
+          // it is. Each tile now averages only over QAs who actually have the
+          // metric — which is what the table already does: its CSAT column
+          // renders "—" when surveys is 0.
+          const positive = (v) => v != null && v > 0;
+          const meanOf = (rows, fn, keep) => { const xs = rows.map(fn).filter(keep); return xs.length ? { v: xs.reduce((a, b) => a + b, 0) / xs.length, n: xs.length } : null; };
+          // Team CSAT is survey-weighted: a QA with 2 surveys must not swing it
+          // as hard as one with 40. Same formula the CSAT page uses per lead.
+          const csatOf = (rows) => {
+            let w = 0, s = 0, qas = 0;
+            rows.forEach(r => {
+              const n = num(r.csat_total) || 0, p = num(r.csat_pct);
+              if (n > 0 && p != null) { w += p * n; s += n; qas++; }
+            });
+            return s > 0 ? { v: w / s, n: qas } : null;
+          };
+          const mk = (label, fn, unit, lower, keep = (v) => v != null, agg = null) => {
+            const c = agg ? agg(monthData) : meanOf(monthData, fn, keep);
+            const p = !prevMonth ? null : (agg ? agg(rowsIn(prevMonth)) : meanOf(rowsIn(prevMonth), fn, keep));
+            return { label, cur: c?.v ?? null, n: c?.n ?? 0, prev: p?.v ?? null, unit, lower };
+          };
           const tiles = [
-            { label: "Occupancy", cur: cur(r => num(r.occupancy_pct_effective ?? r.occupancy_pct)), prev: pv(r => num(r.occupancy_pct_effective ?? r.occupancy_pct)), unit: "%", lower: false },
-            { label: "CSAT", cur: cur(r => num(r.csat_pct)), prev: pv(r => num(r.csat_pct)), unit: "%", lower: false },
-            { label: "ABT", cur: cur(r => num(r.abt)), prev: pv(r => num(r.abt)), unit: " min", lower: true },
-            { label: "Login hrs", cur: cur(r => num(r.login_hours)), prev: pv(r => num(r.login_hours)), unit: " h", lower: false },
-            { label: "Tickets", cur: cur(r => num(r.tickets_touched)), prev: pv(r => num(r.tickets_touched)), unit: "", lower: false },
+            mk("Occupancy", r => num(r.occupancy_pct_effective ?? r.occupancy_pct), "%", false),
+            mk("CSAT", null, "%", false, undefined, csatOf),
+            mk("ABT", r => num(r.abt), " min", true, positive),
+            mk("Login hrs", r => num(r.login_hours), " h", false, positive),
+            mk("Tickets", r => num(r.tickets_touched), "", false),
           ].filter(t => t.cur != null);
           if (!tiles.length) return null;
           return <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", padding: "12px 4px 14px", borderBottom: "1px solid var(--bd2)", marginBottom: 12 }}>
@@ -935,8 +957,13 @@ function ScoreEntryPage(){
               const flat = d == null || Math.abs(d) < 0.05;
               const good = flat ? null : (t.lower ? d < 0 : d > 0);
               const col = flat ? "var(--tx3)" : good ? "var(--green)" : "var(--red)";
-              return <div key={t.label} style={{ background: "var(--bg3)", borderRadius: 10, padding: "8px 14px", minWidth: 118 }}>
-                <div style={{ fontSize: 10.5, color: "var(--tx3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>{t.label}</div>
+              // Say how many QAs the average actually covers, so a tile that
+              // skips QAs with no data can't be mistaken for a team-wide figure.
+              const covers = `Averaged over ${t.n} of ${monthData.length} QAs${t.n < monthData.length ? ` — ${monthData.length - t.n} have no ${t.label.toLowerCase()} data this month` : ""}`;
+              return <div key={t.label} title={covers} style={{ background: "var(--bg3)", borderRadius: 10, padding: "8px 14px", minWidth: 118 }}>
+                <div style={{ fontSize: 10.5, color: "var(--tx3)", fontWeight: 700, textTransform: "uppercase", letterSpacing: ".4px" }}>
+                  {t.label}{t.n < monthData.length && <span style={{ fontWeight: 600, letterSpacing: 0, textTransform: "none" }}> · {t.n}</span>}
+                </div>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 2 }}>
                   <span style={{ fontSize: 19, fontWeight: 800, color: "var(--tx)", fontVariantNumeric: "tabular-nums" }}>{t.cur.toFixed(1)}{t.unit}</span>
                   {d != null && <span style={{ fontSize: 11.5, fontWeight: 700, color: col }} title={`vs ${prevMonth}`}>{flat ? "—" : (d > 0 ? "▲" : "▼")}{flat ? "" : " " + Math.abs(d).toFixed(1) + t.unit}</span>}
