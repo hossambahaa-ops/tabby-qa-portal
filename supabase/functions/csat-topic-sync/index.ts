@@ -1,7 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const CSV_URL = Deno.env.get("CSAT_TOPIC_CSV_URL") || "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRnIghymNLeQ2FUHP7ObNQGgHOtUpZvJ3qW_p2O3QaZD3vvJjPQxxMEbecUCFAL-7q1dmtBdiYstf/pub?gid=442745427&single=true&output=csv";
+// gid=1833729566 is the "QA CSAT" tab that replaced gid=442745427 on
+// 2026-08-02. It covers Jul-2026 onward only; Apr–Jun-2026 stay frozen in the
+// table (cleanup never visits a month the feed does not carry).
+const CSV_URL = Deno.env.get("CSAT_TOPIC_CSV_URL") || "https://docs.google.com/spreadsheets/d/e/2PACX-1vQXRnIghymNLeQ2FUHP7ObNQGgHOtUpZvJ3qW_p2O3QaZD3vvJjPQxxMEbecUCFAL-7q1dmtBdiYstf/pub?gid=1833729566&single=true&output=csv";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
@@ -56,6 +59,25 @@ function parseCSV(text: string): string[][] {
 
 function normEmail(e: string | null | undefined): string { return (e || "").trim().toLowerCase(); }
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+// The feed has had two shapes. The original tab carried a `month` cell already
+// in "Jul-2026" form (occasionally prefixed, e.g. "2026 | Jul-2026"). The tab
+// introduced 2026-08 is per-day instead, with `resolved_day` like "2026-7-1"
+// (month/day NOT zero-padded). Both roll up to the same month label, so the
+// sync accepts either and the sheet can be switched over in any order.
+function monthLabel(monthCell: string | undefined, dayCell: string | undefined): string {
+  const raw = (monthCell || "").trim();
+  if (raw) return (raw.includes("|") ? raw.split("|").pop()! : raw).trim();
+  const d = (dayCell || "").trim();
+  const m = d.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) {
+    const mi = parseInt(m[2], 10) - 1;
+    if (mi >= 0 && mi < 12) return `${MONTHS[mi]}-${m[1]}`;
+  }
+  return "";
+}
+
 function toInt(v: string | undefined): number {
   if (v == null) return 0;
   const t = String(v).trim().replace(/\s/g, "").replace(",", ".");
@@ -97,13 +119,20 @@ async function runSync(supabase: any, triggeredBy: string): Promise<Record<strin
   const header = rows[0].map(h => h.trim().toLowerCase());
   const idx = (label: string) => header.findIndex(h => h === label.toLowerCase());
 
-  const iEmail = idx("resolver");
+  // `qa_email` (current tab) and `resolver` (original tab) name the same thing.
+  const iEmail = idx("qa_email") >= 0 ? idx("qa_email") : idx("resolver");
   const iTopic = idx("human_topic");
   const iGood = idx("good");
   const iBad = idx("bad");
   const iTotal = idx("total_csat");
   const iMonthCell = idx("month");
+  const iDay = idx("resolved_day");
+  // `business_role` is present on the current tab but deliberately ignored: it
+  // tags several real QAs as "Agent" (abdulrahman.hesham, hussam.khaled,
+  // lama.alanezi.95 and others), so filtering on it would silently drop them.
+  // Who counts as a QA is decided by the roster / profiles, not by this feed.
   if (iEmail < 0 || iTopic < 0 || iGood < 0 || iBad < 0) return { error: "CSV missing required columns", details: { header } };
+  if (iMonthCell < 0 && iDay < 0) return { error: "CSV has neither a 'month' nor a 'resolved_day' column", details: { header } };
 
   // Bridge domain discrepancies: index the roster by local-part. A source
   // resolver keyed name@tabby.ai is stored under the roster's canonical
@@ -125,8 +154,7 @@ async function runSync(supabase: any, triggeredBy: string): Promise<Record<strin
     if (!rawEmail || !rawEmail.includes("@")) { dropped++; continue; }
     const email = rosterByLocal.get(rawEmail.split("@")[0]) || rawEmail;
     const topic = (row[iTopic] || "").trim() || "-";
-    const monthRaw = (iMonthCell >= 0 ? row[iMonthCell] : "") || "";
-    const month = (monthRaw.includes("|") ? monthRaw.split("|").pop() : monthRaw).trim();
+    const month = monthLabel(iMonthCell >= 0 ? row[iMonthCell] : "", iDay >= 0 ? row[iDay] : "");
     if (!month) { dropped++; continue; }
     monthsTouched.add(month);
 
