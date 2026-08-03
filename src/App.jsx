@@ -21,7 +21,6 @@ import MyBeltIndicator from "./components/MyBeltIndicator.jsx";
 import BeltAnnouncementModal from "./components/BeltAnnouncementModal.jsx";
 import GlobalSearch from "./components/GlobalSearch.jsx";
 import MandatorySurveyModal from "./components/MandatorySurveyModal.jsx";
-import EtaReminderModal from "./components/EtaReminderModal.jsx";
 // Lazy — only loaded when the user opens the composer from the topbar
 // (or from the dashboard action bar, but that fallback path is gone).
 const AnnouncementForm = lazy(() => import("./components/dashboard/AnnouncementForm.jsx"));
@@ -1075,9 +1074,6 @@ function AppInner(){
         existing response, only mounts the UI if there's something
         outstanding. No-ops otherwise. */}
     <MandatorySurveyModal/>
-    {/* Global so a task whose ETA has landed finds you on any page, not just
-        the Tracker. Renders nothing when there is nothing due. */}
-    <EtaReminderModal/>
 
     {/* ═══ DAILY REFRESH GATE — new KSA day, blocks until user reloads ═══ */}
     {showDailyRefresh&&<div role="dialog" aria-modal="true" aria-label="Daily refresh" style={{

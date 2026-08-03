@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useApp } from "../lib/AppContext.jsx";
-import { useUrlState } from "../lib/useUrlState.jsx";
 import { hasRole } from "../lib/constants.js";
 import { sb } from "../lib/supabase.js";
 import { listInitiatives, createInitiative, updateInitiative, deleteInitiative } from "../api/initiatives.js";
@@ -60,16 +59,9 @@ export default function TrackerPage() {
   // or { kind: 'create', parentId? }. The top of the stack is what the
   // panel currently displays; back pops one, close clears.
   const [panelStack, setPanelStack] = useState([]);
-  // ?task=<seq> makes an individual task addressable, which it wasn't before —
-  // the panel lived purely in local state, so nothing could link to a task.
-  // The ETA reminder and the notification bell both deep-link through this.
-  // Opening a task also writes the param, so any task can just be copied out
-  // of the address bar and shared.
-  const [deepTask, setDeepTask] = useUrlState("task", "");
-  const honouredDeepTask = useRef("");
   const pushPanel = useCallback((entry) => setPanelStack(prev => [...prev, entry]), []);
   const popPanel  = useCallback(() => setPanelStack(prev => prev.slice(0, -1)), []);
-  const closePanel = useCallback(() => { setPanelStack([]); setDeepTask(""); }, [setDeepTask]);
+  const closePanel = useCallback(() => setPanelStack([]), []);
 
   // Filters
   const [search, setSearch] = useState("");
@@ -200,28 +192,9 @@ export default function TrackerPage() {
   };
 
   const openCreate = useCallback(() => setPanelStack([{ kind: "create" }]), []);
-  const openRow    = useCallback((row) => {
-    setPanelStack([{ kind: "view", rowId: row.id }]);
-    const key = row.seq != null ? String(row.seq) : row.id;
-    honouredDeepTask.current = key;   // we opened it, so don't re-open via the effect
-    setDeepTask(key);
-  }, [setDeepTask]);
+  const openRow    = useCallback((row) => setPanelStack([{ kind: "view", rowId: row.id }]), []);
   const openNewSubtask = useCallback(({ parentId } = {}) => pushPanel({ kind: "create", parentId }), [pushPanel]);
   const openChildRow = useCallback((row) => pushPanel({ kind: "view", rowId: row.id }), [pushPanel]);
-
-  // Honour ?task=<seq|id> once the rows are in. Matching accepts the short seq
-  // (what links use) or the raw uuid. A param that matches nothing says so
-  // rather than silently opening nothing — an ETA link pointing at a deleted
-  // task should be visible, not a dead click.
-  useEffect(() => {
-    if (!deepTask || rows.length === 0) return;
-    if (honouredDeepTask.current === String(deepTask)) return;
-    honouredDeepTask.current = String(deepTask);
-    const want = String(deepTask).trim().toLowerCase();
-    const row = rows.find(r => String(r.seq) === want || String(r.id).toLowerCase() === want);
-    if (row) setPanelStack([{ kind: "view", rowId: row.id }]);
-    else globalToast?.("error", `Task ${deepTask} not found — it may have been deleted.`);
-  }, [deepTask, rows, globalToast]);
 
   // Look up the row currently shown by the panel (top of stack).
   const top = panelStack[panelStack.length - 1] || null;
