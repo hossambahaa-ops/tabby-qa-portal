@@ -188,6 +188,10 @@ function NotificationBell({ onNavigate }) {
             title: `Tracker: ${i.title}`,
             sub: `${i.created_by ? "From " + i.created_by.split("@")[0] : "Assigned"}${i.eta_date ? " · ETA: " + new Date(i.eta_date + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""}`,
             time: i.created_at,
+            // Deep-link straight to the task. This used to be page:"tracker",
+            // which dropped you on the board with no idea which task the
+            // notification meant.
+            route: `/tracker?task=${encodeURIComponent(i.seq ?? i.id)}`,
             page: "tracker",
           })),
           ...escalations.map(e => ({ id: "e-"+e.id, type: "escalation", title: `Escalation: ${e.category}`, sub: "Anonymous submission", time: e.created_at, page: "escalations" })),
