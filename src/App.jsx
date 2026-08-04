@@ -1273,19 +1273,19 @@ function VersionBanner() {
       padding: "9px 16px",
       background: "linear-gradient(90deg, var(--tabby-purple, #6A2C79) 0%, var(--tabby-purple-light, #8B5CF6) 100%)",
       color: "#fff", fontSize: 13, fontWeight: 600, zIndex: 9999,
-      fontFamily: "'Inter', system-ui, sans-serif",
+      fontFamily: "var(--font)",
     }}>
       <span>✨ A new version of Tabby Pulse is available — your work-in-progress is preserved on reload.</span>
       <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
         <button onClick={() => window.location.reload()} style={{
           background: "#fff", border: "none", borderRadius: 6,
           padding: "4px 14px", fontSize: 12, cursor: "pointer",
-          fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 700, color: "#6A2C79",
+          fontFamily: "var(--font)", fontWeight: 700, color: "#6A2C79",
         }}>Reload now</button>
         <button onClick={() => setUpdateAvailable(false)} style={{
           background: "rgba(0,0,0,.2)", border: "none", borderRadius: 6,
           padding: "4px 12px", fontSize: 12, cursor: "pointer",
-          fontFamily: "'Inter', system-ui, sans-serif", fontWeight: 600, color: "#fff",
+          fontFamily: "var(--font)", fontWeight: 600, color: "#fff",
         }}>Later</button>
       </div>
     </div>

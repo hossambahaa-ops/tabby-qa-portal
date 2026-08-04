@@ -1,4 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter+Tight:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap');
+/* Figtree — chosen 2026-08-04 to sit closer to the new Tabby brand. The logo
+   itself is custom lettering (the t has two crossbars), so no released face
+   matches it; Figtree shares its geometric, high-x-height character. Variable
+   axis 300..900 covers every weight the UI asks for, and the italic axis is
+   included because ~11 places set font-style: italic inline. */
+@import url('https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,300..900;1,300..900&display=swap');
 
 :root {
   /* Tabby Brand */
@@ -41,7 +46,7 @@
   --shadow-md: 0 4px 12px rgba(106,44,121,.06), 0 2px 4px rgba(0,0,0,.04);
   --shadow-lg: 0 12px 32px rgba(106,44,121,.08), 0 4px 8px rgba(0,0,0,.04);
   --shadow-glow: 0 0 20px rgba(59,255,157,.15);
-  --font: 'Inter Tight', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font: 'Figtree', -apple-system, BlinkMacSystemFont, sans-serif;
   --sidebar-w: 260px;
 
   /* Transitions */
