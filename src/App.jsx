@@ -33,7 +33,7 @@ import { ToastProvider, useGlobalToast } from "./lib/ToastContext.jsx";
 import { subscribeRealtime } from "./lib/realtime.js";
 import useKeyboard from "./lib/useKeyboard.jsx";
 import PulseMark from "./components/PulseMark.jsx";
-import TabbyPulseWordmark from "./components/TabbyPulseWordmark.jsx";
+import TabbyPulseWordmark, { TabbyWord } from "./components/TabbyPulseWordmark.jsx";
 const DashboardPage = lazy(() => import("./pages/DashboardPage.jsx"));
 const QualityDNAPage = lazy(() => import("./pages/QualityDNAPage.jsx"));
 const ScoreEntryPage = lazy(() => import("./pages/ScoreEntryPage.jsx"));
@@ -617,7 +617,10 @@ function AppInner(){
           <TabbyPulseWordmark height={56} uid="tpw-login" style={{color:"#fff"}}/>
         </div>
         <h1 className="login-v2-h1">
-          Where Tabby measures<br/>
+          {/* The brand word as artwork, not type — same reason as the
+              wordmark: the letterforms are custom. alt keeps it readable
+              to screen readers and to anyone with images off. */}
+          Where <TabbyWord/> measures<br/>
           <span className="login-v2-h1-accent">customer experience.</span>
         </h1>
         <p className="login-v2-lede">

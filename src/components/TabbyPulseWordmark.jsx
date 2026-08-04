@@ -55,6 +55,31 @@ const EKG = `M${EKG_X} 78 L${EKG_X + 6} 78 L${EKG_X + 12} 70 L${EKG_X + 18} 78 `
 const SE_X = EKG_X + 58;
 const VB_W = SE_X + 96;
 
+/* The brand word on its own, sized to sit inline in a sentence — e.g. the
+ * login headline "Where tabby measures…". Everything is in `em` so it tracks
+ * whatever font-size it lands in, including the mobile breakpoint.
+ *
+ * height 0.84em puts the artwork's ascender (85.5% of it) on ~0.72em, which is
+ * Inter's cap height, so it optically matches the words around it. It is then
+ * nudged down 0.12em because `vertical-align: baseline` aligns the image's
+ * BOTTOM edge, while the artwork carries the y descender below its own
+ * baseline. The brand word is lowercase by design.
+ */
+export function TabbyWord({ className, style, alt = "tabby" }) {
+  return (
+    <img
+      src={tabbyWord}
+      alt={alt}
+      className={className}
+      style={{
+        height: "0.84em", width: "auto", display: "inline-block",
+        verticalAlign: "baseline", position: "relative", top: "0.12em",
+        ...style,
+      }}
+    />
+  );
+}
+
 export default function TabbyPulseWordmark({
   height = 40,
   animated = true,
