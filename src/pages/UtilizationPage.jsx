@@ -139,6 +139,14 @@ export default function UtilizationPage() {
       <div className="page-header">
         <div className="page-title">App utilization</div>
         <div className="page-subtitle">Who's using the app, when, and where their time goes.</div>
+        {/* The metric's definition changed, so a range spanning the cutover
+            mixes two different things. Say so rather than let a 30-day view
+            read as a drop in usage. */}
+        <div style={{ fontSize: 11.5, color: "var(--tx3)", marginTop: 6, lineHeight: 1.5 }}>
+          Time counts <strong style={{ color: "var(--tx2)" }}>active minutes</strong> — tab visible and the
+          user interacting. Before 4 Aug 2026 it counted any open tab, so figures
+          spanning that date are not comparable and earlier ones read high.
+        </div>
       </div>
 
       <div className="card" style={{ padding: 12, marginBottom: 12 }}>
