@@ -118,17 +118,25 @@ export default function CalendarDayCell({
           and only ever showed as a pre-check-in window hint on today). */}
       {enhanced && (checkInAt || isPlannedNoCheckIn || (att?.shift_start && att?.shift_end)) && (() => {
         const badge = shiftBadge(att?.shift_start, att?.shift_end);
+        // A resolved day never owes a check-in, so it gets no timing text.
+        // This block also renders just to show the shift badge (third
+        // condition above), and without this guard an approved AL/PH day
+        // fell through to "Not yet" — which reads as "you still have to
+        // check in" on leave the lead had already approved.
+        const noCheckInDue = LEAVE_CODES.has(st) || st === "NSNC";
         const timing = checkInAt
           ? `✓ ${fmtTime(checkInAt)}`
-          : isFutureDay
-            ? "planned"
-            : isToday
-              ? "⏳ not in yet"
-              : "Not yet";
+          : noCheckInDue
+            ? null
+            : isFutureDay
+              ? "planned"
+              : isToday
+                ? "⏳ not in yet"
+                : "Not yet";
         return (
           <div style={{ marginTop: "auto", paddingTop: 4, fontSize: 9.5, color: "var(--tx3)", fontVariantNumeric: "tabular-nums", fontWeight: 500, display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 6, rowGap: 2 }}>
             {badge && <span title="Assigned shift" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 9, fontWeight: 700, padding: "1px 7px", borderRadius: 6, background: "rgba(130,130,150,.18)", color: badge.color }}><span style={{ width: 5, height: 5, borderRadius: 99, background: badge.color, flex: "none" }}/>{badge.label}</span>}
-            <span>{timing}</span>
+            {timing && <span>{timing}</span>}
           </div>
         );
       })()}
