@@ -43,6 +43,38 @@ function logRecovery(reason) {
   } catch { /* never throw from recovery */ }
 }
 
+// Replace poisoned HTTP-cache entries for the build's assets.
+//
+// caches.delete() only clears Cache Storage (the service-worker cache). It does
+// NOT touch the browser's HTTP disk cache — and that is where the damage lives:
+// if an /assets/*.js request was ever answered with index.html (the old SPA
+// fallback), the browser cached an HTML body under a .js URL as
+// `immutable, max-age=1y`. Reloading can't fix it, because `_swr=` busts the
+// DOCUMENT url while the asset urls stay byte-identical and immutable, so the
+// same poisoned bytes are served from disk on every attempt. That is precisely
+// the loop a QA sat in for two days.
+//
+// fetch(url, {cache:'reload'}) forces a network round-trip and OVERWRITES the
+// cache entry, which is the only way back. We walk index.html -> entry chunk to
+// collect every hashed asset (lazy chunks included) and refetch them all.
+// Entirely time-boxed and best-effort — the reload happens regardless.
+async function purgePoisonedAssets() {
+  const bust = `?_p=${Date.now()}`;
+  const html = await fetch(`/index.html${bust}`, { cache: "no-store" }).then(r => r.text());
+  const names = new Set(html.match(/[A-Za-z0-9_.-]+-[A-Za-z0-9_-]{8}\.(?:js|css)/g) || []);
+  const entry = [...names].find(n => n.startsWith("index-") && n.endsWith(".js"));
+  if (entry) {
+    const js = await fetch(`/assets/${entry}${bust}`, { cache: "reload" }).then(r => r.text());
+    (js.match(/[A-Za-z0-9_.-]+-[A-Za-z0-9_-]{8}\.(?:js|css|png|svg|woff2)/g) || [])
+      .forEach(n => names.add(n));
+  }
+  // Bounded so a huge manifest can't stall recovery.
+  await Promise.all([...names].slice(0, 120).map(n =>
+    fetch(`/assets/${n}`, { cache: "reload" }).catch(() => {})
+  ));
+  return names.size;
+}
+
 let recovering = false;
 
 export async function hardRecoverReload(reason) {
@@ -67,6 +99,10 @@ export async function hardRecoverReload(reason) {
       }
     }
   } catch { /* best effort */ }
+
+  // The step that actually breaks the loop. Generously time-boxed (rather than
+  // skipped) because without it a poisoned browser reloads forever.
+  try { await withTimeout(purgePoisonedAssets(), 6000); } catch { /* best effort */ }
 
   try {
     const u = new URL(window.location.href);
