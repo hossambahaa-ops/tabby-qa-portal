@@ -11,7 +11,12 @@
 # A genuine 404 fails cleanly instead: the import rejects, lazyWithRetry /
 # ErrorBoundary fire, and hardRecoverReload() purges and reloads.
 #
+# The target is deliberately NOT named 404.html: Cloudflare Pages treats a
+# literal 404.html as the site-wide not-found page, which overrides the
+# catch-all below and makes every non-root path 404 instead of loading the
+# app. Naming it something else keeps the SPA fallback intact.
+#
 # Real files are unaffected — Cloudflare Pages serves static assets BEFORE
 # applying redirect rules, so this only ever catches assets that don't exist.
-/assets/*  /404.html  404
+/assets/*  /_asset-missing.html  404
 /*         /index.html  200
