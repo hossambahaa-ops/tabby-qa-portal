@@ -11,12 +11,19 @@
 # A genuine 404 fails cleanly instead: the import rejects, lazyWithRetry /
 # ErrorBoundary fire, and hardRecoverReload() purges and reloads.
 #
-# The target is deliberately NOT named 404.html: Cloudflare Pages treats a
-# literal 404.html as the site-wide not-found page, which overrides the
-# catch-all below and makes every non-root path 404 instead of loading the
-# app. Naming it something else keeps the SPA fallback intact.
+# The target MUST be named 404.html. Pages only honours a 404-status redirect
+# when it points at the literal 404.html; with any other filename the rule is
+# silently ignored and /assets/* falls through to the catch-all again (verified
+# both ways in production).
+#
+# Side effect: Pages then treats 404.html as the site-wide not-found page, so
+# non-root paths like /schedule return 404 rather than the app. That is safe
+# here and was checked: the app is HashRouter, every real URL is /#/route, the
+# only link the app builds is the bare origin (the OAuth redirect), and
+# /schedule never worked as a deep link anyway — it served index.html and the
+# router then showed the default route.
 #
 # Real files are unaffected — Cloudflare Pages serves static assets BEFORE
 # applying redirect rules, so this only ever catches assets that don't exist.
-/assets/*  /_asset-missing.html  404
+/assets/*  /404.html  404
 /*         /index.html  200
