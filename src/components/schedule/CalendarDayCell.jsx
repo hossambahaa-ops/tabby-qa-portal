@@ -83,8 +83,14 @@ export default function CalendarDayCell({
         if (checkInAt) return true;                               // QA self-checked in
         if (st === "NSNC") return true;                            // auto / manual NSNC
         if (LEAVE_CODES.has(st)) return true;                       // approved leave
-        if (planned && st !== planned) return true;                // mismatch — keep visible
-        return false;                                              // default-status echoing the plan → hide
+        // Hide ONLY when the status literally echoes an existing plan code.
+        // The old test was `planned && st !== planned`, which fell through to
+        // `false` whenever planned_code was NULL — so a real, lead-set status
+        // on an unplanned day (P, OFF, H, X, OT) rendered as an empty cell.
+        // That is why a QA marked P on 5 Aug 2026 saw nothing at all: no plan
+        // code, no check-in time, so every branch above missed and the badge
+        // was suppressed. With no plan there is nothing to echo, so show it.
+        return st !== planned;
       })() && (
         <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
           <span
