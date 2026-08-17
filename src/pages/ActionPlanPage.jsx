@@ -26,8 +26,12 @@ import { loadTeamForViewer } from "../lib/teamScope.js";
 
 function ActionPlanPage() {
   const{token,profile,globalToast}=useApp();
-  const [tab, setTab] = useUrlState("ap_tab", "active"); // active | create | detection | calibration | history
-  useKeyboard({"1":()=>setTab("active"),"2":()=>setTab("detection"),"3":()=>setTab("create"),"4":()=>setTab("calibration"),"5":()=>setTab("history")});
+  // Detection is no longer a tab — its candidates render inside Active.
+  // "detection" is still accepted from an old bookmarked ?ap_tab= URL and
+  // redirected below, so those links don't land on a blank page.
+  const [tabRaw, setTab] = useUrlState("ap_tab", "active"); // active | create | calibration | history
+  const tab = tabRaw === "detection" ? "active" : tabRaw;
+  useKeyboard({"1":()=>setTab("active"),"2":()=>setTab("create"),"3":()=>setTab("calibration"),"4":()=>setTab("history")});
   const [loading, setLoading] = useState(true);
   // Outstanding calibration follow-ups, reported up by the panel so the tab
   // bar can show the count without this page duplicating the query.
@@ -437,17 +441,13 @@ function ActionPlanPage() {
     const plan = plans.find(p => p.id === week.plan_id);
     if (!plan) { globalToast("error", "Plan not found"); return; }
 
-    // Parse the plan's targets to know which KPIs to pull
-    let targetData = {};
-    try { targetData = JSON.parse(week.target_data || "{}"); } catch { }
+    // Via the shared helpers, which tolerate both jsonb encodings — a raw
+    // JSON.parse here threw on object-form rows (the auto-draft RPC writes
+    // real jsonb), leaving targetKeys empty so "pull from MTD" silently
+    // pulled nothing.
+    const targetData = safeJson(week.target_data);
     const targetKeys = Object.keys(targetData);
-
-    // Parse plan targets to get raw_key mapping
-    let planMetrics = [];
-    try {
-      const parsed = JSON.parse(plan.targets || "[]");
-      planMetrics = Array.isArray(parsed) ? parsed : (parsed.metrics || []);
-    } catch { }
+    const planMetrics = parseTargets(plan.targets).metrics;
 
     // Pull MTD data for the selected month (or latest if not specified)
     const months = sortMonthsDesc([...new Set(mtd.map(r => r.month))]);
@@ -784,9 +784,6 @@ function ActionPlanPage() {
         <button className={`tab-btn ${tab === "active" ? "active" : ""}`} onClick={() => setTab("active")}>
           Active ({activePlans.length})
         </button>
-        <button className={`tab-btn ${tab === "detection" ? "active" : ""}`} onClick={() => setTab("detection")}>
-          Detection {visibleDetections.length > 0 && <span style={{ marginLeft: 4, padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 700, background: "var(--red-bg)", color: "var(--red)" }}>{visibleDetections.length}</span>}
-        </button>
         {showCreateForm && <button className={`tab-btn ${tab === "create" ? "active" : ""}`} onClick={() => setTab("create")}>
           Create plan
         </button>}
@@ -804,14 +801,20 @@ function ActionPlanPage() {
           repeated on all four and was easy to scroll straight past. */}
       <CalibrationFollowupsPanel visible={tab === "calibration"} onCount={setCalCount} />
 
-      {/* ═══ DETECTION TAB ═══ */}
-      {tab === "detection" && <APDetectionTab
+      {/* ═══ DETECTED CANDIDATES — now part of Active ═══
+          Detection used to be its own tab, which split one decision across two
+          places: the drafts needing review sat in Active while the candidates
+          needing the same review/not-applicable call sat behind another tab
+          nobody opened. Both are "something waiting on you", so they live
+          together at the top of Active, above the running plans. */}
+      {tab === "active" && <APDetectionTab
         detections={visibleDetections}
         startCreate={startCreate}
         dismissDetectionDB={dismissDetectionDB}
         nameFromEmail={nameFromEmail}
         initialsFromEmail={initialsFromEmail}
         scoreColor={scoreColor}
+        embedded
       />}
 
       {/* ═══ CREATE TAB ═══ */}
@@ -852,13 +855,19 @@ function ActionPlanPage() {
 
       {/* ═══ ACTIVE PLANS TAB ═══ */}
       {tab === "active" && <div>
+        {/* Only "all clear" when there is nothing running AND nothing detected
+            — the detected list renders directly above this, so showing an
+            empty state next to a queue of candidates would contradict it.
+            Copy no longer points at a Detection tab; there isn't one. */}
         {activePlans.length === 0 ? (
+          visibleDetections.length === 0 && (
           <div className="card"><EmptyState
             tone="good"
             illus="check"
             title={isAdmin ? "No active plans" : isSupervisor ? "No active plans in your domain" : "No active plans for your team"}
-            description={isAdmin ? "Nobody currently on an Action Plan or PIP. Check the Detection tab for candidates, or create one manually from the button above." : isSupervisor ? "No QA in your domain is currently on an AP or PIP. Check the Detection tab for candidates." : "None of your direct reports is on an AP or PIP. Check the Detection tab for candidates."}
+            description={isAdmin ? "Nobody currently on an Action Plan or PIP, and nothing detected for review. Create one manually from the button above." : isSupervisor ? "No QA in your domain is currently on an AP or PIP, and nothing is awaiting review." : "None of your direct reports is on an AP or PIP, and nothing is awaiting review."}
           /></div>
+          )
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             {activePlans.map(plan => (

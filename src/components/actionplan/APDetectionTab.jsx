@@ -12,6 +12,10 @@ export default function APDetectionTab({
   nameFromEmail,
   initialsFromEmail,
   scoreColor,
+  // Rendered inside the Active view now, which has its own empty state — so
+  // when there is nothing detected this renders nothing at all rather than
+  // stacking a second "all clear" card above the running plans.
+  embedded = false,
 }) {
   const { profile } = useApp();
   const [dismissModalAP, setDismissModalAP] = useState(null);
@@ -27,9 +31,10 @@ export default function APDetectionTab({
   return (
     <div>
       {detections.length === 0 ? (
+        embedded ? null :
         <div className="card"><EmptyState tone="good" illus="check" title="No auto-detections" description='No QAs currently need an Action Plan. AP/PIP detection is triggered by DAM escalation steps with "includes PIP" enabled.'/></div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12, marginBottom: embedded ? 16 : 0 }}>
           <div style={{ padding: "10px 14px", background: "var(--amber-bg)", borderRadius: 8, fontSize: 13, color: "var(--amber)", fontWeight: 500 }}>
             ⚠️ {detections.length} QA specialist{detections.length !== 1 ? "s" : ""} flagged for potential Action Plan. Review and confirm below.
           </div>

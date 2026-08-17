@@ -103,17 +103,29 @@ export function buildPlanCandidates({
 }
 export const scoreBg = (v) => v >= 55 * 0.7 ? "var(--green-bg)" : v >= 55 * 0.4 ? "var(--amber-bg)" : "var(--red-bg)";
 
-export const safeJson = (str) => { try { return JSON.parse(str || "{}"); } catch { return {}; } };
-export const safeJsonArr = (str) => { try { return JSON.parse(str || "[]"); } catch { return []; } };
+// `targets` and `target_data` are jsonb columns, but the client writes
+// JSON.stringify(...) into them — which Postgres stores as a jsonb STRING
+// scalar, so it reads back as a string and JSON.parse works. A writer that
+// stores a real jsonb OBJECT (the auto-draft RPC does) reads back as an
+// object, and JSON.parse(object) stringifies it to "[object Object]" and
+// throws — silently yielding empty metrics, which blanked the targets table
+// and the "raised for" summary on every auto-raised draft.
+// Both encodings are now valid on the wire, so decode defensively.
+const decode = (v, fallback) => {
+  if (v == null) return fallback;
+  if (typeof v === "object") return v;           // already-parsed jsonb
+  try { return JSON.parse(v); } catch { return fallback; }
+};
+
+export const safeJson = (v) => { const d = decode(v, {}); return (d && typeof d === "object" && !Array.isArray(d)) ? d : {}; };
+export const safeJsonArr = (v) => { const d = decode(v, []); return Array.isArray(d) ? d : []; };
 
 // Parse targets — handles old format (array) and new format ({follow_up_mode, metrics})
-export const parseTargets = (str) => {
-  try {
-    const parsed = JSON.parse(str || "[]");
-    if (Array.isArray(parsed)) return { follow_up_mode: "weekly", metrics: parsed };
-    if (parsed.metrics) return parsed;
-    return { follow_up_mode: "weekly", metrics: [] };
-  } catch { return { follow_up_mode: "weekly", metrics: [] }; }
+export const parseTargets = (v) => {
+  const parsed = decode(v, []);
+  if (Array.isArray(parsed)) return { follow_up_mode: "weekly", metrics: parsed };
+  if (parsed?.metrics) return parsed;
+  return { follow_up_mode: "weekly", metrics: [] };
 };
 
 // Per-row KPI scores using the slab engine.
