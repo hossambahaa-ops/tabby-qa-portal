@@ -88,7 +88,15 @@ const DayCell = React.memo(function DayCell({
     ? `${attType?.label || st} — pending lead approval${att?.requested_by ? ` (by ${nameFromEmail(att.requested_by)})` : ""}${att?.request_note ? ` · "${att.request_note}"` : ""}${planLabel && !planLabel.startsWith("Planned: " + st) ? ` · ${planLabel}` : ""}`
     : isDenied
     ? `${attType?.label || st} — denied by ${nameFromEmail(att?.denied_by || "")}${att?.denial_reason ? ` · "${att.denial_reason}"` : ""}${planLabel ? ` · ${planLabel}` : ""}`
-    : (actualLabel || planLabel);
+    // Approved rows kept their note hidden: the note was only ever surfaced on
+    // the pending branch, so once a lead approved an OT the QA's justification
+    // vanished from the grid. Show it on settled rows too, with the hours.
+    : `${actualLabel || planLabel}${att?.ot_hours ? ` · ${att.ot_hours}h` : ""}${att?.request_note ? ` · "${att.request_note}"` : ""}`;
+
+  // A tooltip nobody knows to hover over is not visible information, so a cell
+  // carrying a comment gets a small corner dot. Pending/denied already have
+  // their own corner marker, so this only fills the settled case.
+  const hasNote = !!att?.request_note && !isPending && !isDenied;
 
   // Visual style for the letter span.
   const baseBg = attType?.bg || "var(--bg3)";
@@ -134,6 +142,7 @@ const DayCell = React.memo(function DayCell({
           <span style={letterStyle}>{st || planned}</span>
           {isPending && <span style={{ position: "absolute", top: -4, right: -4, fontSize: 8, lineHeight: 1, background: "var(--bg3)", border: "1px solid var(--amber)", color: "var(--amber)", borderRadius: 6, padding: "1px 2px", fontWeight: 700 }}>⏳</span>}
           {isDenied && <span style={{ position: "absolute", top: -4, right: -4, fontSize: 8, lineHeight: 1, background: "var(--bg3)", border: "1px solid var(--red)", color: "var(--red)", borderRadius: 6, padding: "1px 2px", fontWeight: 700 }}>✗</span>}
+          {hasNote && <span style={{ position: "absolute", top: -3, right: -3, width: 5, height: 5, borderRadius: 99, background: "var(--tabby-purple)" }} />}
         </span>
       ) : (
         <span style={{ fontSize: 10, color: "var(--bd2)", pointerEvents: "none" }}>·</span>

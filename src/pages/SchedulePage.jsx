@@ -770,7 +770,12 @@ function SchedulePage() {
     const rows = [];
     for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
       const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-      rows.push({ email: targetEmail, date: dateStr, status: "OT", approval_status, requested_by, approved_by, approved_at, ot_hours: hours, notes: otNote || null, created_by: myEmail });
+      // request_note, NOT notes. Every other request path writes request_note,
+      // and it is the only one the page selects (see the select list in
+      // loadData) or renders (PendingApprovals, DayCell tooltip). OT alone
+      // wrote `notes`, so the QA's justification was stored in a column
+      // nothing ever read — the lead saw an OT with no comment at all.
+      rows.push({ email: targetEmail, date: dateStr, status: "OT", approval_status, requested_by, approved_by, approved_at, ot_hours: hours, request_note: otNote || null, created_by: myEmail });
     }
     if (rows.length === 0) { globalToast("error", "No days in range"); return; }
     try {
