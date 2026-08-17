@@ -42,6 +42,54 @@ export default function APDetectionTab({
             <div key={d.email} className="card" style={{
               borderLeft: `4px solid ${d.severity === "critical" ? "var(--red)" : d.severity === "warning" ? "var(--amber)" : "var(--blue)"}`,
             }}>
+              {/* Same review banner as an auto-raised draft plan: a status pill,
+                  what it is, and the decisions on the right. Detected candidates
+                  and pending_review drafts now sit in one list, so they read as
+                  the same kind of thing — something waiting on your call. */}
+              <div style={{ marginBottom: 12, padding: "9px 12px", borderRadius: 8, background: "var(--bg)", border: "1px dashed var(--bd)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".5px", textTransform: "uppercase", padding: "2px 8px", borderRadius: 10, background: "var(--amber-bg)", color: "var(--amber)" }}>Needs review</span>
+                  <span style={{ fontSize: 12, color: "var(--tx2)", flex: 1, minWidth: 180 }}>
+                    {d.latestMonth ? `Detected from ${d.latestMonth} review. ` : "Detected from performance review. "}
+                    {d.planType ? "No plan yet — create it, or mark it non-applicable." : "Handle the DAM action below, then dismiss."}
+                  </span>
+                  {d.planType && (
+                    <button className="btn btn-primary btn-sm" onClick={() => startCreate(d.email, d.planType)} style={d.planType === "pip" ? { background: "var(--red)", color: "#fff" } : {}}>
+                      <Icon d={d.planType === "pip" ? icons.dam : icons.plan} size={14} />
+                      Create {d.planType.toUpperCase()}{d.pipActionType === "extension" ? " (extension)" : ""}
+                    </button>
+                  )}
+                  {/* EGY escape hatch — PIP recommended but a lead may choose AP.
+                      KSA never gets PIP, so it is hidden there. */}
+                  {d.planType === "pip" && d.domain === "tabby.ai" && (
+                    <button className="btn btn-outline btn-sm" onClick={() => startCreate(d.email, "ap")}>Create AP instead</button>
+                  )}
+                  <button className="btn btn-outline btn-sm" onClick={() => openModal(d, "na")}
+                          title="No AP/PIP should be run for this QA this month — records a justification">
+                    Not applicable
+                  </button>
+                  {hasRole(profile?.role, "super_admin") ?
+                    <button className="btn btn-outline btn-sm" onClick={() => dismissDetectionDB(d.email, "", "dismissed")}>Dismiss</button> :
+                    <button className="btn btn-outline btn-sm" onClick={() => openModal(d, "dismiss")}>Dismiss</button>
+                  }
+                </div>
+                {/* Why it fired — same "Raised for" chip row as a draft plan. */}
+                {d.kpis?.length > 0 && (
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, alignItems: "center" }} title={d.reason || ""}>
+                    <span style={{ fontSize: 10, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".4px", fontWeight: 700 }}>Raised for</span>
+                    {d.kpis.map(k => (
+                      <span key={k.key} style={{
+                        fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, whiteSpace: "nowrap",
+                        background: k.slab.slab === 0 ? "var(--red-bg)" : k.slab.slab === 1 ? "var(--amber-bg)" : "var(--green-bg)",
+                        color: k.slab.slab === 0 ? "var(--red)" : k.slab.slab === 1 ? "var(--amber)" : "var(--green)",
+                      }}>
+                        {k.label} {k.rawPct !== null ? k.rawPct.toFixed(1) + "%" : "—"}
+                        <span style={{ color: "var(--tx3)", fontWeight: 500 }}> · {k.slab.label}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                   <div style={{ width: 40, height: 40, borderRadius: "50%", background: "var(--accent-light)", color: "var(--accent-text)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 600 }}>
@@ -68,18 +116,8 @@ export default function APDetectionTab({
                 {d.reason}
               </div>
 
-              {/* KPI breakdown mini */}
-              <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-                {d.kpis.map(k => (
-                  <div key={k.key} style={{
-                    padding: "4px 10px", borderRadius: 8, fontSize: 11, fontWeight: 500,
-                    background: k.slab.slab === 0 ? "var(--red-bg)" : k.slab.slab === 1 ? "var(--amber-bg)" : "var(--green-bg)",
-                    color: k.slab.slab === 0 ? "var(--red)" : k.slab.slab === 1 ? "var(--amber)" : "var(--green)",
-                  }}>
-                    {k.label}: {k.rawPct !== null ? k.rawPct.toFixed(1) + "%" : "—"} ({k.slab.label})
-                  </div>
-                ))}
-              </div>
+              {/* KPI breakdown now lives in the "Raised for" row of the banner
+                  above, alongside the actions it justifies. */}
 
               {/* Nudge: this QA already has an active AP/PIP. Shown
                   ABOVE the DAM action label so the lead sees it
@@ -128,43 +166,6 @@ export default function APDetectionTab({
                   )}
                 </div>
               )}
-              <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-                {/* Create button only when there's an app-side plan
-                    to create (planType != null). For HR Investigation
-                    / Termination / KSA warning-only steps the lead
-                    actions are outside the app — dismiss after
-                    handling. */}
-                {d.planType ? (
-                  <button className="btn btn-primary btn-sm" onClick={() => startCreate(d.email, d.planType)} style={d.planType === "pip" ? { background: "var(--red)", color: "#fff" } : {}}>
-                    <Icon d={d.planType === "pip" ? icons.dam : icons.plan} size={14} />
-                    Create {d.planType.toUpperCase()}{d.pipActionType === "extension" ? " (extension)" : ""}
-                  </button>
-                ) : (
-                  <div style={{ fontSize: 11, color: "var(--tx3)", fontStyle: "italic", padding: "6px 0" }}>
-                    No app plan — handle the DAM action above, then dismiss this row.
-                  </div>
-                )}
-                {/* EGY escape hatch — if PIP is recommended, give the lead a way
-                    to choose AP instead. KSA never gets PIP, so the
-                    button is hidden there. Also hidden when planType
-                    is null (HR-level, no plan applicable). */}
-                {d.planType === "pip" && d.domain === "tabby.ai" && (
-                  <button className="btn btn-outline btn-sm" onClick={() => startCreate(d.email, "ap")}>
-                    Create AP instead
-                  </button>
-                )}
-                {hasRole(profile?.role, "super_admin") ?
-                  <button className="btn btn-outline btn-sm" onClick={() => dismissDetectionDB(d.email, "", "dismissed")}>Dismiss</button> :
-                  <button className="btn btn-outline btn-sm" onClick={() => openModal(d, "dismiss")}>Dismiss</button>
-                }
-                {/* Non-applicable — the QA shouldn't get a plan for this month
-                    at all (long leave, role change, data issue). Always goes
-                    through the modal so the justification is captured. */}
-                <button className="btn btn-outline btn-sm" onClick={() => openModal(d, "na")}
-                        title="No AP/PIP should be run for this QA this month — records a justification">
-                  Not applicable
-                </button>
-              </div>
             </div>
           ))}
         </div>
