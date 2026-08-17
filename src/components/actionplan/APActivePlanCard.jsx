@@ -171,13 +171,29 @@ export default function APActivePlanCard({
       opacity: isDraft ? 0.94 : 1,
     }}>
       {isDraft && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12, padding: "9px 12px", borderRadius: 8, background: "var(--bg)", border: "1px dashed var(--bd)" }}>
-          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".5px", textTransform: "uppercase", padding: "2px 8px", borderRadius: 10, background: "var(--amber-bg)", color: "var(--amber)" }}>Draft — needs review</span>
-          <span style={{ fontSize: 12, color: "var(--tx2)", flex: 1, minWidth: 180 }}>
-            {plan.auto_created ? `Auto-raised from ${plan.source_month || "month-end"} review. ` : ""}Not live yet — activate it, or conclude it as non-applicable.
-          </span>
-          <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); activateDraft(); }} disabled={loading}>Activate</button>
-          <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setConcludingPlan(plan); setConclusionOutcome("non_applicable"); }}>Not applicable</button>
+        <div style={{ marginBottom: 12, padding: "9px 12px", borderRadius: 8, background: "var(--bg)", border: "1px dashed var(--bd)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".5px", textTransform: "uppercase", padding: "2px 8px", borderRadius: 10, background: "var(--amber-bg)", color: "var(--amber)" }}>Draft — needs review</span>
+            <span style={{ fontSize: 12, color: "var(--tx2)", flex: 1, minWidth: 180 }}>
+              {plan.auto_created ? `Auto-raised from ${plan.source_month || "month-end"} review. ` : ""}Not live yet — activate it, or conclude it as non-applicable.
+            </span>
+            <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); activateDraft(); }} disabled={loading}>Activate</button>
+            <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setConcludingPlan(plan); setConclusionOutcome("non_applicable"); }}>Not applicable</button>
+          </div>
+          {/* Why this was raised. The banner said a plan existed but never what
+              failed, so a lead had to expand the card to judge it. Each chip is
+              the KPI that missed, its actual value, and the target it missed. */}
+          {targets?.length > 0 && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8, alignItems: "center" }} title={plan.reason || ""}>
+              <span style={{ fontSize: 10, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".4px", fontWeight: 700 }}>Raised for</span>
+              {targets.map(t => (
+                <span key={t.kpi_key} style={{ fontSize: 11, fontWeight: 600, padding: "2px 8px", borderRadius: 10, background: "var(--red-bg)", color: "var(--red)", whiteSpace: "nowrap" }}>
+                  {t.label} {t.current_value != null ? `${Number(t.current_value).toFixed(1)}${t.unit || ""}` : "—"}
+                  <span style={{ color: "var(--tx3)", fontWeight: 500 }}> vs {t.target_value}{t.unit || ""}</span>
+                </span>
+              ))}
+            </div>
+          )}
         </div>
       )}
       {/* Header */}
