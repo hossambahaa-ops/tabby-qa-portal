@@ -18,6 +18,7 @@ export default function APConcludeModal({
 
   const rec = getAutoRecommendation(concludingPlan);
   const prog = getPlanProgress(concludingPlan);
+  const isNA = conclusionOutcome === "non_applicable";
 
   return (
     <Modal onClose={() => setConcludingPlan(null)} maxWidth={520}>
@@ -35,14 +36,18 @@ export default function APConcludeModal({
           </div>
         )}
 
-        <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
           <button onClick={() => setConclusionOutcome("pass")} className={`btn ${conclusionOutcome === "pass" ? "btn-primary" : "btn-outline"}`} style={conclusionOutcome === "pass" ? { background: "var(--green)", color: "#fff" } : {}}>✅ Passed</button>
           <button onClick={() => setConclusionOutcome("fail")} className={`btn ${conclusionOutcome === "fail" ? "btn-primary" : "btn-outline"}`} style={conclusionOutcome === "fail" ? { background: "var(--red)", color: "#fff" } : {}}>❌ Failed</button>
+          {/* Closes the plan without a performance judgement — for plans that
+              shouldn't have been run (long leave, role change, bad KPI data).
+              Never creates a DAM flag; requires a justification. */}
+          <button onClick={() => setConclusionOutcome("non_applicable")} className={`btn ${isNA ? "btn-primary" : "btn-outline"}`} style={isNA ? { background: "var(--tx3)", color: "#fff" } : {}} title="No pass/fail — the plan should not have applied">⊘ Non-applicable</button>
         </div>
 
         <div className="form-group">
-          <label className="form-label">Conclusion notes</label>
-          <textarea className="form-input" rows={3} value={conclusionNotes} onChange={e => setConclusionNotes(e.target.value)} placeholder="Document the final assessment..." style={{ resize: "vertical" }} />
+          <label className="form-label">{isNA ? "Justification (required)" : "Conclusion notes"}</label>
+          <textarea className="form-input" rows={3} value={conclusionNotes} onChange={e => setConclusionNotes(e.target.value)} placeholder={isNA ? "Why does this plan not apply? e.g. QA on long-term leave, moved role, KPI data was wrong" : "Document the final assessment..."} style={{ resize: "vertical" }} />
         </div>
 
         {/* Pre-flight summary — spells out exactly what the click will
@@ -52,15 +57,24 @@ export default function APConcludeModal({
         {conclusionOutcome && (
           <div style={{
             marginTop: 12, padding: "10px 12px", borderRadius: 8,
-            background: conclusionOutcome === "pass" ? "var(--green-bg)" : (concludingPlan.type === "pip" ? "var(--red-bg)" : "var(--amber-bg)"),
-            border: `1px solid ${conclusionOutcome === "pass" ? "var(--green)" : (concludingPlan.type === "pip" ? "var(--red)" : "var(--amber)")}`,
+            background: isNA ? "var(--bg)" : conclusionOutcome === "pass" ? "var(--green-bg)" : (concludingPlan.type === "pip" ? "var(--red-bg)" : "var(--amber-bg)"),
+            border: `1px solid ${isNA ? "var(--bd)" : conclusionOutcome === "pass" ? "var(--green)" : (concludingPlan.type === "pip" ? "var(--red)" : "var(--amber)")}`,
             fontSize: 12, lineHeight: 1.5,
           }}>
-            <div style={{ fontWeight: 700, marginBottom: 6, color: conclusionOutcome === "pass" ? "var(--green)" : (concludingPlan.type === "pip" ? "var(--red)" : "var(--amber)") }}>
+            <div style={{ fontWeight: 700, marginBottom: 6, color: isNA ? "var(--tx2)" : conclusionOutcome === "pass" ? "var(--green)" : (concludingPlan.type === "pip" ? "var(--red)" : "var(--amber)") }}>
               When you click Confirm:
             </div>
             <ul style={{ margin: 0, paddingLeft: 18, color: "var(--tx2)" }}>
-              {conclusionOutcome === "pass" ? (
+              {isNA ? (
+                <>
+                  <li>Plan status → <strong>non_applicable</strong>. It leaves the active list and is filed in History.</li>
+                  <li><strong>No pass or fail is recorded</strong>, and <strong>no DAM flag is created</strong> — this is not a performance outcome.</li>
+                  <li>Your justification is stored on the plan and visible to supervisors.</li>
+                  {!conclusionNotes.trim() && (
+                    <li style={{ color: "var(--red)", fontWeight: 600 }}>⚠ A justification is required before you can confirm.</li>
+                  )}
+                </>
+              ) : conclusionOutcome === "pass" ? (
                 <>
                   <li>Plan status → <strong>completed_pass</strong>; the QA exits the {concludingPlan.type.toUpperCase()} clean.</li>
                   <li>DAM history for this {concludingPlan.type.toUpperCase()} is closed — no new flag is created.</li>
@@ -86,7 +100,7 @@ export default function APConcludeModal({
         )}
 
         <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
-          <button className="btn btn-primary" onClick={concludePlan} disabled={!conclusionOutcome || loading || (conclusionOutcome === "pass" && prog.filledWeeks.length === 0)}>
+          <button className="btn btn-primary" onClick={concludePlan} disabled={!conclusionOutcome || loading || (conclusionOutcome === "pass" && prog.filledWeeks.length === 0) || (isNA && !conclusionNotes.trim())}>
             {loading ? "Processing..." : "Confirm conclusion"}
           </button>
           <button className="btn btn-outline" onClick={() => { setConcludingPlan(null); setConclusionOutcome(""); setConclusionNotes(""); }}>Cancel</button>

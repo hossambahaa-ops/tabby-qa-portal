@@ -508,13 +508,22 @@ function ActionPlanPage() {
         return;
       }
     }
+    // Non-applicable closes the plan without a pass/fail judgement, so the
+    // justification is the only record of why — required here as well as by a
+    // DB CHECK, so it can't be bypassed by a direct API call.
+    if (conclusionOutcome === "non_applicable" && !conclusionNotes.trim()) {
+      globalToast("error", "A justification is required to mark this plan non-applicable.");
+      return;
+    }
     concludingRef.current = true;
     setLoading(true);
     try {
       await sb.query("action_plans", {
         token, method: "PATCH",
         body: {
-          status: conclusionOutcome === "pass" ? "completed_pass" : "completed_fail",
+          status: conclusionOutcome === "pass" ? "completed_pass"
+                : conclusionOutcome === "non_applicable" ? "non_applicable"
+                : "completed_fail",
           conclusion: conclusionOutcome,
           conclusion_notes: conclusionNotes,
           concluded_by: profile?.email,
@@ -625,6 +634,9 @@ function ActionPlanPage() {
           console.error("DAM flag creation:", e);
           globalToast("error", "AP concluded as failed. Could not create DAM flag: " + e.message);
         }
+      } else if (conclusionOutcome === "non_applicable") {
+        globalToast("success", `${concludingPlan.type.toUpperCase()} marked non-applicable`);
+        logActivity(token, profile?.email, `${concludingPlan.type}_non_applicable`, "action_plans", concludingPlan.id, `QA: ${concludingPlan.qa_email}, Justification: ${conclusionNotes.trim()}`);
       } else {
         globalToast("success", `${concludingPlan.type.toUpperCase()} concluded as ${conclusionOutcome === "pass" ? "PASSED" : "FAILED"}`);
         logActivity(token, profile?.email, `${concludingPlan.type}_concluded`, "action_plans", concludingPlan.id, `QA: ${concludingPlan.qa_email}, Result: ${conclusionOutcome}`);
@@ -634,7 +646,9 @@ function ActionPlanPage() {
       setConclusionOutcome("");
       setConclusionNotes("");
       // Optimistic update
-      const newStatus = conclusionOutcome === "pass" ? "completed_pass" : "completed_fail";
+      const newStatus = conclusionOutcome === "pass" ? "completed_pass"
+                      : conclusionOutcome === "non_applicable" ? "non_applicable"
+                      : "completed_fail";
       setPlans(prev => prev.map(p => p.id === concludingPlan.id ? { ...p, status: newStatus, conclusion: conclusionOutcome, conclusion_notes: conclusionNotes, concluded_by: profile?.email, concluded_at: new Date().toISOString() } : p));
     } catch (e) { globalToast("error", safeError(e)); }
     setLoading(false);
@@ -646,7 +660,11 @@ function ActionPlanPage() {
   // Month-end KPI candidates and DAM real-time flags live in
   // different tables. Route the dismissal to the right one so it
   // actually filters the row out next load.
-  const dismissDetectionDB = async (email, reason) => {
+  // `resolution` separates "not now" (dismissed) from "this QA should never
+  // get a plan for this month" (non_applicable). Non-applicable always carries
+  // a justification — the DB rejects a blank one — so the reason is auditable
+  // rather than the row just vanishing from the list.
+  const dismissDetectionDB = async (email, reason, resolution = "dismissed") => {
     try {
       const det = detections.find(d => d.email === email);
       if (det?.source === "month-end") {
@@ -661,6 +679,7 @@ function ActionPlanPage() {
             month: det.latestMonth,
             dismissed_by: profile?.email,
             reason: reason || "Dismissed by super admin",
+            resolution,
           },
         });
       } else {
@@ -670,10 +689,14 @@ function ActionPlanPage() {
           reason: reason || "Dismissed by super admin",
           month: mtd.length ? sortMonthsDesc([...new Set(mtd.map(r => r.month))])[0] : "",
           detection_info: det?.reason || "",
+          resolution,
         }});
       }
       setDetections(prev => prev.filter(d => d.email !== email));
-      globalToast("success", "Detection dismissed for " + nameFromEmail(email));
+      const isNA = resolution === "non_applicable";
+      globalToast("success", `${isNA ? "Marked non-applicable" : "Detection dismissed"} for ${nameFromEmail(email)}`);
+      logActivity(token, profile?.email, isNA ? "ap_pip_non_applicable" : "ap_pip_dismissed",
+                  "action_plans", null, `QA: ${email}${reason ? ` — ${reason}` : ""}`);
     } catch (e) { globalToast("error", safeError(e)); }
   };
 

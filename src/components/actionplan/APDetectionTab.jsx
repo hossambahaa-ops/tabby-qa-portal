@@ -16,6 +16,13 @@ export default function APDetectionTab({
   const { profile } = useApp();
   const [dismissModalAP, setDismissModalAP] = useState(null);
   const [dismissReasonAP, setDismissReasonAP] = useState("");
+  // "dismiss" = not now; "na" = this QA should not get a plan for this month.
+  // Non-applicable ALWAYS requires a justification, for every role — a
+  // super_admin can dismiss without a reason, but never mark N/A without one.
+  const [dismissModeAP, setDismissModeAP] = useState("dismiss");
+  const isNAMode = dismissModeAP === "na";
+  const openModal = (d, mode) => { setDismissModalAP(d); setDismissModeAP(mode); setDismissReasonAP(""); };
+  const closeModal = () => { setDismissModalAP(null); setDismissReasonAP(""); setDismissModeAP("dismiss"); };
 
   return (
     <div>
@@ -142,29 +149,50 @@ export default function APDetectionTab({
                   </button>
                 )}
                 {hasRole(profile?.role, "super_admin") ?
-                  <button className="btn btn-outline btn-sm" onClick={() => dismissDetectionDB(d.email, "")}>Dismiss</button> :
-                  <button className="btn btn-outline btn-sm" onClick={() => { setDismissModalAP(d); setDismissReasonAP(""); }}>Dismiss</button>
+                  <button className="btn btn-outline btn-sm" onClick={() => dismissDetectionDB(d.email, "", "dismissed")}>Dismiss</button> :
+                  <button className="btn btn-outline btn-sm" onClick={() => openModal(d, "dismiss")}>Dismiss</button>
                 }
+                {/* Non-applicable — the QA shouldn't get a plan for this month
+                    at all (long leave, role change, data issue). Always goes
+                    through the modal so the justification is captured. */}
+                <button className="btn btn-outline btn-sm" onClick={() => openModal(d, "na")}
+                        title="No AP/PIP should be run for this QA this month — records a justification">
+                  Not applicable
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Dismiss reason modal for non-super-admins */}
-      {dismissModalAP && <Modal onClose={()=>{setDismissModalAP(null);setDismissReasonAP("");}} maxWidth={480}>
-          <div className="card-header" style={{marginBottom:16}}><span className="card-title">Dismiss Detection — {nameFromEmail(dismissModalAP.email)}</span></div>
+      {/* Reason modal — used for a lead's dismissal and for "not applicable"
+          (any role). Both require a justification before the button enables. */}
+      {dismissModalAP && <Modal onClose={closeModal} maxWidth={480}>
+          <div className="card-header" style={{marginBottom:16}}>
+            <span className="card-title">
+              {isNAMode ? "Mark Non-Applicable" : "Dismiss Detection"} — {nameFromEmail(dismissModalAP.email)}
+            </span>
+          </div>
           <div style={{fontSize:13,color:"var(--tx2)",marginBottom:12}}>{dismissModalAP.reason}</div>
+          {isNAMode && (
+            <div style={{fontSize:12,color:"var(--tx2)",background:"var(--bg)",border:"1px solid var(--bd)",borderRadius:6,padding:"8px 10px",marginBottom:12}}>
+              No AP or PIP will be run for this QA for this period. The justification below is stored against the record and is visible to supervisors.
+            </div>
+          )}
           <div className="form-group">
-            <label className="form-label">Reason for dismissal (required — visible to your supervisor)</label>
-            <textarea className="form-input" rows={3} value={dismissReasonAP} onChange={e=>setDismissReasonAP(e.target.value)} placeholder="Why is this detection being dismissed?" style={{resize:"vertical"}}/>
+            <label className="form-label">
+              {isNAMode ? "Justification (required)" : "Reason for dismissal (required — visible to your supervisor)"}
+            </label>
+            <textarea className="form-input" rows={3} value={dismissReasonAP} onChange={e=>setDismissReasonAP(e.target.value)}
+              placeholder={isNAMode ? "Why does no AP/PIP apply? e.g. on long-term leave, changed role, KPI data incorrect" : "Why is this detection being dismissed?"}
+              style={{resize:"vertical"}}/>
           </div>
           <div style={{display:"flex",gap:8,marginTop:12}}>
             <button className="btn btn-primary" disabled={!dismissReasonAP.trim()} onClick={async()=>{
-              await dismissDetectionDB(dismissModalAP.email, dismissReasonAP.trim());
-              setDismissModalAP(null);setDismissReasonAP("");
-            }}>Confirm dismissal</button>
-            <button className="btn btn-outline" onClick={()=>{setDismissModalAP(null);setDismissReasonAP("");}}>Cancel</button>
+              await dismissDetectionDB(dismissModalAP.email, dismissReasonAP.trim(), isNAMode ? "non_applicable" : "dismissed");
+              closeModal();
+            }}>{isNAMode ? "Confirm non-applicable" : "Confirm dismissal"}</button>
+            <button className="btn btn-outline" onClick={closeModal}>Cancel</button>
           </div>
       </Modal>}
     </div>

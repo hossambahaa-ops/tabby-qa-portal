@@ -149,10 +149,37 @@ export default function APActivePlanCard({
   const progressPct = prog.totalWeeks ? (prog.elapsed / prog.totalWeeks) * 100 : 0;
   const daysLeft = plan.end_date ? Math.max(0, Math.ceil((new Date(plan.end_date) - Date.now()) / (1000 * 60 * 60 * 24))) : null;
 
+  // Drafts raised by the monthly auto-detect job land here as pending_review.
+  // They are NOT live against the QA until a human activates them, so the card
+  // says so plainly and offers the two ways out: activate, or conclude as
+  // non-applicable (which the conclude modal makes require a justification).
+  const isDraft = plan.status === "pending_review";
+  const activateDraft = async () => {
+    if (!(await confirmAsk(`Activate this ${plan.type.toUpperCase()} for ${nameFromEmail(plan.qa_email)}? It becomes live and the QA will see it.`))) return;
+    try {
+      await sb.query("action_plans", {
+        token, method: "PATCH", body: { status: "active" }, filters: `id=eq.${plan.id}`,
+      });
+      setPlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: "active" } : p));
+      globalToast("success", `${plan.type.toUpperCase()} activated for ${nameFromEmail(plan.qa_email)}`);
+    } catch (e) { globalToast("error", safeError(e)); }
+  };
+
   return (
     <div className="card" style={{
-      borderLeft: `4px solid ${plan.type === "pip" ? "var(--red)" : "var(--amber)"}`,
+      borderLeft: `4px solid ${isDraft ? "var(--tx3)" : plan.type === "pip" ? "var(--red)" : "var(--amber)"}`,
+      opacity: isDraft ? 0.94 : 1,
     }}>
+      {isDraft && (
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12, padding: "9px 12px", borderRadius: 8, background: "var(--bg)", border: "1px dashed var(--bd)" }}>
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".5px", textTransform: "uppercase", padding: "2px 8px", borderRadius: 10, background: "var(--amber-bg)", color: "var(--amber)" }}>Draft — needs review</span>
+          <span style={{ fontSize: 12, color: "var(--tx2)", flex: 1, minWidth: 180 }}>
+            {plan.auto_created ? `Auto-raised from ${plan.source_month || "month-end"} review. ` : ""}Not live yet — activate it, or conclude it as non-applicable.
+          </span>
+          <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); activateDraft(); }} disabled={loading}>Activate</button>
+          <button className="btn btn-outline btn-sm" onClick={(e) => { e.stopPropagation(); setConcludingPlan(plan); setConclusionOutcome("non_applicable"); }}>Not applicable</button>
+        </div>
+      )}
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 12, cursor: "pointer" }} onClick={() => setExpandedPlan(isExp ? null : plan.id)}>
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
