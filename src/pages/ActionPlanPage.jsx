@@ -26,9 +26,12 @@ import { loadTeamForViewer } from "../lib/teamScope.js";
 
 function ActionPlanPage() {
   const{token,profile,globalToast}=useApp();
-  const [tab, setTab] = useUrlState("ap_tab", "active"); // active | create | detection | history
-  useKeyboard({"1":()=>setTab("active"),"2":()=>setTab("detection"),"3":()=>setTab("create"),"4":()=>setTab("history")});
+  const [tab, setTab] = useUrlState("ap_tab", "active"); // active | create | detection | calibration | history
+  useKeyboard({"1":()=>setTab("active"),"2":()=>setTab("detection"),"3":()=>setTab("create"),"4":()=>setTab("calibration"),"5":()=>setTab("history")});
   const [loading, setLoading] = useState(true);
+  // Outstanding calibration follow-ups, reported up by the panel so the tab
+  // bar can show the count without this page duplicating the query.
+  const [calCount, setCalCount] = useState(0);
   const [plans, setPlans] = useState([]);
   const [weeks, setWeeks] = useState([]);
   const [mtd, setMtd] = useState([]);
@@ -787,13 +790,19 @@ function ActionPlanPage() {
         {showCreateForm && <button className={`tab-btn ${tab === "create" ? "active" : ""}`} onClick={() => setTab("create")}>
           Create plan
         </button>}
+        <button className={`tab-btn ${tab === "calibration" ? "active" : ""}`} onClick={() => setTab("calibration")}>
+          Calibration {calCount > 0 && <span style={{ marginLeft: 4, padding: "1px 7px", borderRadius: 10, fontSize: 10, fontWeight: 700, background: "var(--amber-bg)", color: "var(--amber)" }}>{calCount}</span>}
+        </button>
         <button className={`tab-btn ${tab === "history" ? "active" : ""}`} onClick={() => setTab("history")}>
           History ({historyPlans.length})
         </button>
       </div>
 
-      {/* Outstanding calibration verbal-warnings / missed-reviews for this lead */}
-      <CalibrationFollowupsPanel />
+      {/* Outstanding calibration verbal-warnings / missed-reviews for this lead.
+          Always mounted so the tab badge above stays accurate, but it only
+          renders inside its own tab — it used to sit above every tab, so it
+          repeated on all four and was easy to scroll straight past. */}
+      <CalibrationFollowupsPanel visible={tab === "calibration"} onCount={setCalCount} />
 
       {/* ═══ DETECTION TAB ═══ */}
       {tab === "detection" && <APDetectionTab
