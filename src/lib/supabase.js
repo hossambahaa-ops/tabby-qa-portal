@@ -22,6 +22,23 @@ if (!SUPABASE_URL) {
 if (!SUPABASE_ANON) {
   console.error("Missing VITE_SUPABASE_ANON_KEY — check your .env file");
 }
+// Read a PostgREST response body without assuming there IS one.
+//
+// A write sent with `Prefer: return=minimal` comes back with an EMPTY body —
+// and, for a POST, with status 201, not 204. The old code only special-cased
+// 204 and then called r.json() regardless, so every minimal write blew up on
+// `JSON.parse("")` with "Unexpected end of JSON input". That is what a lead
+// saw when dismissing an AP/PIP: the row was written correctly, the toast
+// reported failure, and the entry stayed on screen so they retried.
+// Applies to any minimal-write caller (dismissals, VMV nominations, feature
+// releases), not just this one.
+async function readBody(res) {
+  if (res.status === 204 || res.status === 205) return [];
+  const text = await res.text();
+  if (!text) return [];
+  try { return JSON.parse(text); } catch { return []; }
+}
+
 export const sb = {
   headers: (token) => ({ apikey: SUPABASE_ANON, Authorization: `Bearer ${token || SUPABASE_ANON}`, "Content-Type": "application/json", Prefer: "return=representation" }),
   async query(table, { select = "*", filters = "", token, method = "GET", body, headers: extra } = {}) {
@@ -53,17 +70,15 @@ export const sb = {
         if (body) retryOpts.body = JSON.stringify(body);
         const r2 = await fetch(url, retryOpts);
         if (!r2.ok) { const e = await r2.json().catch(() => ({})); throw new Error(e.message || e.details || r2.statusText); }
-        if (r2.status === 204) return [];
         // Notify app to update token
         window.dispatchEvent(new CustomEvent("session-refreshed", { detail: session }));
-        return r2.json();
+        return readBody(r2);
       }
       const e = await r.json().catch(() => ({}));
       throw new Error("Session expired. Please sign in again.");
     }
     if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.message || e.details || r.statusText); window.dispatchEvent(new CustomEvent("sb-error", { detail: { table, method, error: err.message } })); throw err; }
-    if (r.status === 204) return [];
-    return r.json();
+    return readBody(r);
   },
   async rpc(fn, params, token) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${fn}`, { method: "POST", headers: this.headers(token), body: JSON.stringify(params) });
