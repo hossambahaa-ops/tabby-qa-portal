@@ -383,7 +383,7 @@ function EscalationsPage() {
 
           <div className="form-group" style={{ marginBottom: 12 }}>
             <label className="form-label">Attachments <span style={{fontWeight:400,color:"var(--tx3)"}}>(optional, max 5 files, 5MB each)</span></label>
-            <label style={{display:"inline-flex",alignItems:"center",gap:8,padding:"8px 16px",borderRadius:8,border:"1px dashed var(--border)",cursor:"pointer",fontSize:13,color:"var(--tx2)",transition:"border-color .2s"}}>
+            <label style={{display:"inline-flex",alignItems:"center",gap:8,padding:"8px 16px",borderRadius:8,border:"1px dashed var(--border)",cursor:"pointer",fontSize:13,color:"var(--tx2)",transition:"border-color var(--d2)"}}>
               <Icon d="M12 5v14M5 12h14" size={16}/>
               Add files
               <input type="file" multiple accept="image/*,.pdf,.doc,.docx,.txt,.csv,.xlsx" onChange={handleFileSelect} style={{display:"none"}}/>

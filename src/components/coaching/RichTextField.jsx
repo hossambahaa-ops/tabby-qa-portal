@@ -151,7 +151,7 @@ export default function RichTextField({ value, onChange, placeholder = "", maxCh
       border: `1px solid ${isFocused ? "var(--tabby-purple)" : "var(--bd)"}`,
       borderRadius: "var(--radius)",
       background: "var(--bg3)",
-      transition: "border-color .15s",
+      transition: "border-color var(--d1)",
     }}>
       <div style={{
         display: "flex", alignItems: "center", gap: 2,

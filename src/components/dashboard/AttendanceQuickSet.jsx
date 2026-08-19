@@ -58,7 +58,6 @@ export default function AttendanceQuickSet({ myEmail, todayAttendance, token, gl
     fontWeight: 600,
     cursor: submitting ? "wait" : "pointer",
     fontFamily: "var(--font)",
-    transition: "all .2s",
     backdropFilter: "blur(4px)",
     display: "flex",
     alignItems: "center",
@@ -86,6 +85,7 @@ export default function AttendanceQuickSet({ myEmail, todayAttendance, token, gl
         Today:
       </span>
       <button
+        className="mo-ctl"
         onClick={() => setStatus("P")}
         disabled={submitting}
         title="Mark today as Present (in office)"
@@ -95,6 +95,7 @@ export default function AttendanceQuickSet({ myEmail, todayAttendance, token, gl
         Office
       </button>
       <button
+        className="mo-ctl"
         onClick={() => setStatus("H")}
         disabled={submitting}
         title="Mark today as Work from Home"

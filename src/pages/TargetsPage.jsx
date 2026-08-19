@@ -228,9 +228,9 @@ function TargetsPage() {
       {/* Tab switcher */}
       <div style={{display:"flex",gap:0,marginBottom:16,borderBottom:"2px solid var(--bd)"}}>
         {[{key:"team",label:"Team Defaults"},{key:"qa",label:"QA Overrides"}].map(t => (
-          <button key={t.key} onClick={()=>setTab(t.key)} style={{
+          <button key={t.key} className="mo-ctl" onClick={()=>setTab(t.key)} style={{
             padding:"10px 20px",fontSize:13,fontWeight:600,cursor:"pointer",border:"none",borderBottom:tab===t.key?"2px solid var(--tabby-purple)":"2px solid transparent",
-            background:"none",color:tab===t.key?"var(--tabby-purple)":"var(--tx3)",marginBottom:-2,fontFamily:"var(--font)",transition:"all .15s"
+            background:"none",color:tab===t.key?"var(--tabby-purple)":"var(--tx3)",marginBottom:-2,fontFamily:"var(--font)"
           }}>{t.label}{t.key==="qa" && qasWithOverrides.length > 0 ? ` (${qasWithOverrides.length})` : ""}</button>
         ))}
       </div>
@@ -243,9 +243,9 @@ function TargetsPage() {
             <div style={{fontSize:10,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>Team</div>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {teamNames.map(tn => (
-                <button key={tn} onClick={() => setSelTeam(tn)} style={{
+                <button key={tn} className="mo-ctl" onClick={() => setSelTeam(tn)} style={{
                   padding:"5px 12px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid var(--bd)",fontFamily:"var(--font)",
-                  background:selTeam===tn?"var(--tabby-purple)":"transparent",color:selTeam===tn?"#fff":"var(--tx2)",transition:"all .15s"
+                  background:selTeam===tn?"var(--tabby-purple)":"transparent",color:selTeam===tn?"#fff":"var(--tx2)"
                 }}>{tn}</button>
               ))}
             </div>
@@ -254,9 +254,9 @@ function TargetsPage() {
             <div style={{fontSize:10,fontWeight:600,color:"var(--tx3)",textTransform:"uppercase",letterSpacing:".5px",marginBottom:6}}>Domain</div>
             <div style={{display:"flex",gap:6}}>
               {["all","tabby.ai","tabby.sa"].map(d => (
-                <button key={d} onClick={() => setSelDomain(d)} style={{
+                <button key={d} className="mo-ctl" onClick={() => setSelDomain(d)} style={{
                   padding:"5px 12px",borderRadius:8,fontSize:11,fontWeight:600,cursor:"pointer",border:"1px solid var(--bd)",fontFamily:"var(--font)",
-                  background:selDomain===d?"var(--tabby-purple)":"transparent",color:selDomain===d?"#fff":"var(--tx2)",transition:"all .15s"
+                  background:selDomain===d?"var(--tabby-purple)":"transparent",color:selDomain===d?"#fff":"var(--tx2)"
                 }}>{d === "all" ? "All domains" : d}</button>
               ))}
             </div>
@@ -279,7 +279,7 @@ function TargetsPage() {
             const isCustom = targets.some(t => t.team_name === selTeam && t.domain === selDomain && t.metric === m.key);
             const isInherited = !isCustom && (selTeam !== "Default" || selDomain !== "all");
             return (
-              <div key={m.key} style={{background:"var(--bg)",borderRadius:12,padding:16,textAlign:"center",border:"1px solid var(--bd)",cursor:isEdit?"default":"pointer",transition:"all .15s"}}
+              <div key={m.key} className="mo-ctl" style={{background:"var(--bg)",borderRadius:12,padding:16,textAlign:"center",border:"1px solid var(--bd)",cursor:isEdit?"default":"pointer"}}
                 onClick={()=>{if(!isEdit){setEditing(m.key);setEditValue(target?.target_value||"");}}}
                 onMouseEnter={e=>{if(!isEdit)e.currentTarget.style.borderColor="var(--tabby-purple)";}}
                 onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--bd)";}}

@@ -146,7 +146,7 @@ export default function AdminErrorsPage() {
                   <React.Fragment key={g.key}>
                     <tr onClick={() => setExpandedGroup(isExp ? null : g.key)} style={{ cursor: "pointer" }}>
                       <td>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{ transition: "transform .2s", transform: isExp ? "rotate(180deg)" : "none" }}><path d="M6 9l6 6 6-6" /></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{ transition: "transform var(--d2)", transform: isExp ? "rotate(180deg)" : "none" }}><path d="M6 9l6 6 6-6" /></svg>
                       </td>
                       <td style={{ textAlign: "right", fontWeight: 700, color: g.items.length >= 10 ? "var(--red)" : g.items.length >= 3 ? "var(--amber)" : "var(--tx)" }}>{g.items.length}</td>
                       <td style={{ fontSize: 12, color: "var(--tx3)", whiteSpace: "nowrap" }}>
@@ -205,7 +205,7 @@ export default function AdminErrorsPage() {
                   <React.Fragment key={r.id}>
                     <tr onClick={() => setExpandedId(isExp ? null : r.id)} style={{ cursor: "pointer" }}>
                       <td>
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{ transition: "transform .2s", transform: isExp ? "rotate(180deg)" : "none" }}><path d="M6 9l6 6 6-6" /></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{ transition: "transform var(--d2)", transform: isExp ? "rotate(180deg)" : "none" }}><path d="M6 9l6 6 6-6" /></svg>
                       </td>
                       <td style={{ fontSize: 12, color: "var(--tx3)", whiteSpace: "nowrap" }}>
                         {new Date(r.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}

@@ -792,11 +792,11 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
           <div className="card-header"><span className="card-title">Performance rating</span></div>
           <div style={{display:"grid",gridTemplateColumns:"repeat(5, 1fr)",gap:6}}>
             {PERF_OPTIONS.map(p => (
-              <button key={p.val} onClick={()=>setPerfRating(perfRating===p.val?"":p.val)} style={{
+              <button key={p.val} className="mo-ctl" onClick={()=>setPerfRating(perfRating===p.val?"":p.val)} style={{
                 padding:"12px 4px",border:perfRating===p.val?`2px solid ${p.color}`:"1.5px solid var(--bd)",
                 borderRadius:8,background:perfRating===p.val?p.bg:"var(--bg)",cursor:"pointer",textAlign:"center",
                 fontSize:11,fontWeight:perfRating===p.val?700:500,color:perfRating===p.val?p.color:"var(--tx2)",
-                fontFamily:"var(--font)",transition:"all .15s",lineHeight:1.3
+                fontFamily:"var(--font)",lineHeight:1.3
               }}>
                 <div style={{fontSize:18,marginBottom:4}}>{p.emoji}</div>{p.val}
               </button>

@@ -1651,7 +1651,7 @@ function SchedulePage() {
                                       minHeight: 58,
                                       borderRadius: 7,
                                       padding: "3px 4px",
-                                      transition: "transform .15s, box-shadow .15s",
+                                      transition: "transform var(--d1), box-shadow var(--d1)",
                                       display: "flex",
                                       flexDirection: "column",
                                       gap: 0,

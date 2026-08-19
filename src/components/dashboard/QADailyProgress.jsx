@@ -155,10 +155,10 @@ function QADailyProgress({ dailyScores, myData, myEmail, teamTargets, roster, mo
   const topWeak = weakKPIs.slice(0, 3);
 
   const barStyle = (done, target) => {
-    if (!target) return { width: "0%", background: "var(--bd2)" };
+    if (!target) return { transform: "scaleX(0)", background: "var(--bd2)" };
     const pct = Math.min((done / target) * 100, 100);
     const color = pct >= 100 ? "var(--green)" : pct >= 60 ? "var(--amber)" : "var(--red)";
-    return { width: pct + "%", background: color };
+    return { transform: `scaleX(${pct / 100})`, background: color };
   };
 
   return (
@@ -176,7 +176,7 @@ function QADailyProgress({ dailyScores, myData, myEmail, teamTargets, roster, mo
             <span style={{ fontWeight: 600 }}>{sbsDone} / {sbsTarget}</span>
           </div>
           <div style={{ height: 6, background: "var(--bd2)", borderRadius: 3, overflow: "hidden" }}>
-            <div style={{ height: "100%", borderRadius: 3, transition: "width .4s", ...barStyle(sbsDone, sbsTarget) }} />
+            <div className="mo-bar" style={{ height: "100%", ...barStyle(sbsDone, sbsTarget) }} />
           </div>
         </div>}
 
@@ -186,7 +186,7 @@ function QADailyProgress({ dailyScores, myData, myEmail, teamTargets, roster, mo
             <span style={{ fontWeight: 600 }}>{nonSbsDone} / {nonSbsTarget}</span>
           </div>
           <div style={{ height: 6, background: "var(--bd2)", borderRadius: 3, overflow: "hidden" }}>
-            <div style={{ height: "100%", borderRadius: 3, transition: "width .4s", ...barStyle(nonSbsDone, nonSbsTarget) }} />
+            <div className="mo-bar" style={{ height: "100%", ...barStyle(nonSbsDone, nonSbsTarget) }} />
           </div>
         </div>}
 

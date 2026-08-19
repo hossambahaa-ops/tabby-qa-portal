@@ -229,7 +229,7 @@ export default function PendingApprovals({
                         >
                           <span>{whenLabel}</span>
                           <span style={{ fontSize: 10, padding: "1px 6px", borderRadius: 10, background: "var(--tabby-purple)", color: "#fff", fontWeight: 700 }}>{g.days} days</span>
-                          <span style={{ fontSize: 9, color: "var(--tx3)", transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform .15s" }}>▾</span>
+                          <span style={{ fontSize: 9, color: "var(--tx3)", transform: isExpanded ? "rotate(180deg)" : "none", transition: "transform var(--d1)" }}>▾</span>
                         </button>
                       ) : (
                         <button

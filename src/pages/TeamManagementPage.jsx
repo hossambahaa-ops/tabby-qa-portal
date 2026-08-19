@@ -235,7 +235,7 @@ function TeamManagementPage(){
               return (<React.Fragment key={lead.leadId}>
                 <tr onClick={() => setExpandedLead(isExp ? null : lead.leadId)} style={{ cursor: "pointer" }}>
                   <td style={{ textAlign: "center", padding: "8px 4px" }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: isExp ? "rotate(180deg)" : "rotate(0)", transition: "transform .2s", color: "var(--tx3)" }}><path d="M6 9l6 6 6-6" /></svg>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: isExp ? "rotate(180deg)" : "rotate(0)", transition: "transform var(--d2)", color: "var(--tx3)" }}><path d="M6 9l6 6 6-6" /></svg>
                   </td>
                   <td>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

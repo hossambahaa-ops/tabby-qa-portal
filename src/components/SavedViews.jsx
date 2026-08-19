@@ -122,7 +122,7 @@ export default function SavedViews({ pageKey, currentFilters, onApply, applyOnLo
       {views.map(v => {
         const isActive = activeId === v.id;
         return (
-          <div key={v.id} style={{
+          <div key={v.id} className="mo-ctl" style={{
             display: "inline-flex", alignItems: "center",
             background: isActive ? "var(--tabby-purple)" : "var(--bg2)",
             color: isActive ? "#fff" : "var(--tx2)",
@@ -131,7 +131,6 @@ export default function SavedViews({ pageKey, currentFilters, onApply, applyOnLo
             padding: "2px 4px 2px 10px",
             fontSize: 11, fontWeight: 600,
             cursor: "pointer",
-            transition: "all .15s",
           }}>
             <span title={v.is_default ? "Default for this page (auto-applies on next visit)" : "Saved view — click to apply"} onClick={() => apply(v)} style={{ display: "inline-flex", alignItems: "center", gap: 4, paddingRight: 4 }}>
               {v.is_default ? "⭐" : "📌"} {v.name}

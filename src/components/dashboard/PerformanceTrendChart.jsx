@@ -137,10 +137,10 @@ export default function PerformanceTrendChart({ mtd, months, teamEmails, monthsS
 
         {/* Performance points */}
         {perfPoints.map((p, i) => (
-          <g key={`pp-${i}`} style={{ transition: "transform .15s" }}>
+          <g key={`pp-${i}`} style={{ transition: "transform var(--d1)" }}>
             <circle cx={p.x} cy={p.y} r={hover === i ? 7 : 4.5}
               fill="var(--chart-perf)" stroke="var(--bg)" strokeWidth="2"
-              style={{ filter: hover === i ? "drop-shadow(0 0 8px var(--chart-perf))" : "none", transition: "r .15s, filter .15s" }}/>
+              style={{ filter: hover === i ? "drop-shadow(0 0 8px var(--chart-perf))" : "none", transition: "r var(--d1), filter var(--d1)" }}/>
           </g>
         ))}
 
@@ -148,7 +148,7 @@ export default function PerformanceTrendChart({ mtd, months, teamEmails, monthsS
         {csatPoints.map((p, i) => (
           <circle key={`cp-${i}`} cx={p.x} cy={p.y} r={3}
             fill="var(--blue)" stroke="var(--bg)" strokeWidth="1.5"
-            style={{ transition: "r .15s" }}/>
+            style={{ transition: "r var(--d1)" }}/>
         ))}
 
         {/* Month labels on x-axis */}
@@ -194,7 +194,7 @@ export default function PerformanceTrendChart({ mtd, months, teamEmails, monthsS
           backdropFilter: "blur(16px) saturate(160%)",
           WebkitBackdropFilter: "blur(16px) saturate(160%)",
           pointerEvents: "none",
-          transition: "left .12s, top .12s",
+          transition: "left var(--d1), top var(--d1)",
           color: "var(--tx)",
         }}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>{focused.month}</div>

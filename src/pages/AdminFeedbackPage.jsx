@@ -52,7 +52,7 @@ function AdminFeedbackPage(){
         const isExp=expandedId===f.id;
         return <React.Fragment key={f.id}>
           <tr onClick={()=>setExpandedId(isExp?null:f.id)} style={{cursor:"pointer"}}>
-            <td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
+            <td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform var(--d2)",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
             <td style={{fontWeight:500}}>{f.user_name||f.user_email?.split("@")[0]}</td>
             <td><span style={{fontSize:12}}>{catIcon[f.category]} {catLabel[f.category]}</span></td>
             <td style={{color:"var(--tx2)",fontSize:12,maxWidth:250,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{f.message?.slice(0,60)}{f.message?.length>60?"...":""}</td>

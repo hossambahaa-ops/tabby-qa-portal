@@ -928,7 +928,7 @@ function AppInner(){
           </div>
         </div>
         <span className="topbar-domain-badge" style={{fontSize:10,padding:"2px 8px",borderRadius:8,background:safe(effectiveProfile?.domain)==="tabby.sa"?"rgba(234,88,12,.1)":"rgba(79,70,229,.1)",color:safe(effectiveProfile?.domain)==="tabby.sa"?"#EA580C":"#4F46E5",fontWeight:600}}>{safe(effectiveProfile?.domain)}</span>
-        <button className="topbar-signout-btn" onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{background:"none",border:"1px solid var(--bd)",borderRadius:8,padding:"5px 12px",fontSize:11,color:"var(--tx3)",cursor:"pointer",fontFamily:"var(--font)",fontWeight:500,transition:"all .2s"}}
+        <button className="topbar-signout-btn mo-ctl" onClick={()=>{sb.auth.signOut();setSession(null);setProfile(null);window.location.hash="";}} style={{background:"none",border:"1px solid var(--bd)",borderRadius:8,padding:"5px 12px",fontSize:11,color:"var(--tx3)",cursor:"pointer",fontFamily:"var(--font)",fontWeight:500}}
           onMouseEnter={e=>{e.currentTarget.style.borderColor="var(--red)";e.currentTarget.style.color="var(--red)";}}
           onMouseLeave={e=>{e.currentTarget.style.borderColor="var(--bd)";e.currentTarget.style.color="var(--tx3)";}}
         >Sign out</button>
@@ -1060,10 +1060,10 @@ function AppInner(){
         {/* Footer — must acknowledge */}
         <div style={{padding:"16px 24px",borderTop:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span style={{fontSize:11,color:"var(--tx3)"}}>You must acknowledge to continue</span>
-          <button onClick={()=>acknowledgeAnnouncement(pendingAnnouncements[0].id)} style={{
+          <button className="mo-ctl" onClick={()=>acknowledgeAnnouncement(pendingAnnouncements[0].id)} style={{
             padding:"10px 24px",borderRadius:10,border:"none",
             background:"var(--tabby-purple,#6A2C79)",color:"#fff",fontSize:13,fontWeight:700,
-            cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",
+            cursor:"pointer",fontFamily:"var(--font)",
           }}
             onMouseEnter={e=>{e.currentTarget.style.background="var(--tabby-purple-light,#8B4D99)";e.currentTarget.style.transform="translateY(-1px)";}}
             onMouseLeave={e=>{e.currentTarget.style.background="var(--tabby-purple,#6A2C79)";e.currentTarget.style.transform="translateY(0)";}}
@@ -1114,10 +1114,10 @@ function AppInner(){
         {/* Footer — must acknowledge */}
         <div style={{padding:"16px 24px",borderTop:"1px solid var(--bd2)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
           <span style={{fontSize:11,color:"var(--tx3)"}}>You must sign in again to continue</span>
-          <button onClick={acknowledgeDailyRefresh} style={{
+          <button className="mo-ctl" onClick={acknowledgeDailyRefresh} style={{
             padding:"10px 24px",borderRadius:10,border:"none",
             background:"var(--tabby-purple,#6A2C79)",color:"#fff",fontSize:13,fontWeight:700,
-            cursor:"pointer",fontFamily:"var(--font)",transition:"all .2s",
+            cursor:"pointer",fontFamily:"var(--font)",
           }}
             onMouseEnter={e=>{e.currentTarget.style.background="var(--tabby-purple-light,#8B4D99)";e.currentTarget.style.transform="translateY(-1px)";}}
             onMouseLeave={e=>{e.currentTarget.style.background="var(--tabby-purple,#6A2C79)";e.currentTarget.style.transform="translateY(0)";}}
@@ -1142,11 +1142,11 @@ function AppInner(){
     </div>}
 
     {/* ═══ FEEDBACK FLOATING BUTTON + MODAL ═══ */}
-    {!showFeedback&&<button className="feedback-fab" onClick={()=>{setShowFeedback(true);setFeedbackSent(false);setFeedbackForm({category:"general",message:"",rating:0});}} style={{
+    {!showFeedback&&<button className="feedback-fab mo-ctl" onClick={()=>{setShowFeedback(true);setFeedbackSent(false);setFeedbackForm({category:"general",message:"",rating:0});}} style={{
       position:"fixed",bottom:24,right:24,width:48,height:48,borderRadius:"50%",border:"none",
       background:"var(--tabby-purple,#6A2C79)",color:"#fff",fontSize:20,cursor:"pointer",
       boxShadow:"0 4px 20px rgba(106,44,121,.4)",display:"flex",alignItems:"center",justifyContent:"center",
-      zIndex:900,transition:"all .2s",
+      zIndex:900,
     }}
       onMouseEnter={e=>{e.currentTarget.style.transform="scale(1.1)";e.currentTarget.style.boxShadow="0 6px 28px rgba(106,44,121,.5)";}}
       onMouseLeave={e=>{e.currentTarget.style.transform="scale(1)";e.currentTarget.style.boxShadow="0 4px 20px rgba(106,44,121,.4)";}}
@@ -1181,7 +1181,7 @@ function AppInner(){
             <div style={{display:"flex",justifyContent:"center",gap:8}}>
               {[1,2,3,4,5].map(star=>(
                 <button key={star} onClick={()=>setFeedbackForm({...feedbackForm,rating:star})} style={{
-                  background:"none",border:"none",cursor:"pointer",fontSize:28,transition:"transform .15s",
+                  background:"none",border:"none",cursor:"pointer",fontSize:28,transition:"transform var(--d1)",
                   transform:feedbackForm.rating>=star?"scale(1.1)":"scale(1)",
                   filter:feedbackForm.rating>=star?"none":"grayscale(1) opacity(0.3)",
                 }}>⭐</button>
@@ -1194,11 +1194,11 @@ function AppInner(){
             <label className="form-label">Category</label>
             <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
               {[{v:"bug",l:"🐛 Bug",c:"var(--red)"},{v:"feature",l:"💡 Feature Request",c:"var(--blue)"},{v:"improvement",l:"✨ Improvement",c:"var(--amber)"},{v:"general",l:"💬 General",c:"var(--tx3)"}].map(cat=>(
-                <button key={cat.v} onClick={()=>setFeedbackForm({...feedbackForm,category:cat.v})} style={{
+                <button key={cat.v} className="mo-ctl" onClick={()=>setFeedbackForm({...feedbackForm,category:cat.v})} style={{
                   padding:"5px 12px",borderRadius:20,border:"1px solid "+(feedbackForm.category===cat.v?cat.c:"var(--bd)"),
                   background:feedbackForm.category===cat.v?"var(--bg)":"transparent",
                   color:feedbackForm.category===cat.v?cat.c:"var(--tx3)",fontSize:11,fontWeight:600,
-                  cursor:"pointer",fontFamily:"var(--font)",transition:"all .15s",
+                  cursor:"pointer",fontFamily:"var(--font)",
                 }}>{cat.l}</button>
               ))}
             </div>

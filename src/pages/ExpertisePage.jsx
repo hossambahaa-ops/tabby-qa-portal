@@ -49,7 +49,7 @@ const ProductBar = ({ label, value, max = 3 }) => {
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <span style={{ fontSize: 11, fontWeight: 600, color: "var(--tx3)", width: 64, flexShrink: 0 }}>{label}</span>
       <div style={{ flex: 1, height: 6, background: "var(--bd)", borderRadius: 3, overflow: "hidden" }}>
-        <div style={{ width: pct + "%", height: "100%", background: c, borderRadius: 3, transition: "width .3s" }} />
+        <div className="mo-bar" style={{ transform: `scaleX(${pct / 100})`, height: "100%", background: c }} />
       </div>
       <span style={{ fontSize: 11, fontWeight: 700, color: c, width: 36, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{fmtScore(value)}</span>
     </div>
@@ -690,7 +690,7 @@ export default function ExpertisePage() {
                     height: `${Math.max(2, (b.val / max) * 22)}px`,
                     background: b.color,
                     borderRadius: 2,
-                    transition: "height .2s",
+                    transition: "height var(--d2)",
                     opacity: b.val === 0 ? 0.25 : 1,
                   }} />
                   <span style={{ fontSize: 9, color: "var(--tx3)", marginTop: 2, lineHeight: 1 }}>{b.label}</span>
@@ -743,7 +743,7 @@ export default function ExpertisePage() {
                     <React.Fragment key={r.qa_email}>
                       <tr
                         onClick={() => setExpanded(isExp ? null : r.qa_email)}
-                        style={{ cursor: "pointer", background: baseTint, transition: "background .15s" }}
+                        style={{ cursor: "pointer", background: baseTint, transition: "background var(--d1)" }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg)"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = baseTint; }}
                       >

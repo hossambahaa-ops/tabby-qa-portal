@@ -68,7 +68,7 @@ export default function ScorecardLeaderboard({ rows, rosterMap, lobCsatByMonth, 
                 <span style={{ padding: "3px 12px", borderRadius: 20, fontSize: 14, fontWeight: 800, background: scoreBg(comp), color: scoreColor(comp) }}>
                   {comp != null ? comp.toFixed(1) + "%" : "—"}
                 </span>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{ justifySelf: "center", transition: "transform .2s", transform: isExp ? "rotate(180deg)" : "none" }}><path d="M6 9l6 6 6-6" /></svg>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{ justifySelf: "center", transition: "transform var(--d2)", transform: isExp ? "rotate(180deg)" : "none" }}><path d="M6 9l6 6 6-6" /></svg>
               </div>
 
               {/* Expanded KPI breakdown */}

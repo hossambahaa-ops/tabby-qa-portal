@@ -128,7 +128,7 @@ export default function TrackerTable({ rows, onOpen }) {
               <tr
                 key={r.id}
                 onClick={() => onOpen?.(r)}
-                style={{ borderBottom: "1px solid var(--bd)", cursor: "pointer", transition: "background-color .1s ease" }}
+                style={{ borderBottom: "1px solid var(--bd)", cursor: "pointer", transition: "background-color var(--d1) var(--ease)" }}
                 onMouseEnter={e => e.currentTarget.style.backgroundColor = "var(--bg2)"}
                 onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}
               >

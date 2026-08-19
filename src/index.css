@@ -1039,6 +1039,50 @@ a, [style*="cursor: pointer"], [style*="cursor:pointer"] {
   }
 }
 
+/* ── Motion utilities ──────────────────────────────────────────────────────
+   Reach for one of these instead of hand-writing a transition in a style prop.
+   Inline transitions can't be deduplicated and can't be tuned from one
+   place, which is how Pulse ended up with fourteen different durations for
+   the same gesture. Every class below names its properties explicitly, so
+   nothing animates padding or font-size by accident when density mode or a
+   breakpoint changes it.
+
+   Pick by what the element IS, not by how long you want it to take:
+     .mo-tap    a small thing that only responds to the pointer
+     .mo-ctl    a control the user operates — button, chip, tab, filter
+     .mo-panel  something that opens, expands or arrives
+     .mo-fade   an element appearing or leaving
+     .mo-bar    a progress fill (see the transform note below)          */
+
+.mo-tap, .mo-ctl, .mo-panel {
+  transition-property: background-color, border-color, color, box-shadow, transform, opacity;
+  transition-timing-function: var(--ease);
+}
+.mo-tap   { transition-duration: var(--d1); }
+.mo-ctl   { transition-duration: var(--d2); }
+.mo-panel { transition-duration: var(--d3); transition-timing-function: var(--ease-out); }
+
+.mo-fade {
+  transition-property: opacity, transform;
+  transition-duration: var(--d3);
+  transition-timing-function: var(--ease-out);
+}
+
+/* Progress fills scale instead of resizing: animating `width` reflows the
+   page on every frame, `transform` does not. The fill is laid out at full
+   width and squashed with scaleX(0..1) from its left edge, so the element
+   the class lands on must be 100% wide and its track must clip. Keep the
+   rounded ends on the TRACK — a radius on the fill itself gets visibly
+   stretched by the scale. */
+.mo-bar {
+  width: 100%;
+  transform-origin: left center;
+  transition-property: transform, background-color;
+  transition-duration: var(--d4);
+  transition-timing-function: var(--ease-out);
+}
+.mo-bar-track { overflow: hidden; }
+
 /* ── Placeholder float animation ── */
 @keyframes placeholderFloat {
   0%, 100% { transform: translateY(0); }

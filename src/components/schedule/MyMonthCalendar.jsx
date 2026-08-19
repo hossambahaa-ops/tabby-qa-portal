@@ -185,6 +185,7 @@ export default function MyMonthCalendar({
   const expander = (open, setOpen, labelOpen, labelClosed) => (
     <button
       type="button"
+      className="mo-ctl"
       onClick={() => setOpen(!open)}
       style={{
         width: "100%",
@@ -202,7 +203,6 @@ export default function MyMonthCalendar({
         alignItems: "center",
         justifyContent: "center",
         gap: 8,
-        transition: "all .2s",
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.background = "rgba(60,255,165,.06)";
@@ -213,7 +213,7 @@ export default function MyMonthCalendar({
         e.currentTarget.style.borderColor = "rgba(255,255,255,.16)";
       }}
     >
-      <span style={{ transition: "transform .25s", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+      <span style={{ transition: "transform var(--d2)", transform: open ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
       <span>{open ? labelOpen : labelClosed}</span>
     </button>
   );

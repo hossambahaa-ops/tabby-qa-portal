@@ -29,7 +29,7 @@ function Column({ laneKey, status, items, onOpen, childCountsById, isSubMap, des
         borderRadius: 10,
         border: `1px solid ${isOver ? meta.border || "var(--tabby-purple)" : "var(--bd2)"}`,
         boxShadow: isOver ? "0 0 0 2px " + (meta.border || "var(--tabby-purple)") + "33" : "none",
-        transition: "border-color .12s ease, box-shadow .12s ease",
+        transition: "border-color var(--d1) var(--ease), box-shadow var(--d1) var(--ease)",
         padding: 8,
         gap: 6,
         maxHeight: "calc(100vh - 240px)",

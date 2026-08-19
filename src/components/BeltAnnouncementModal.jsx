@@ -158,7 +158,7 @@ export default function BeltAnnouncementModal() {
                   borderRadius: 12,
                   opacity: visible ? 1 : 0,
                   transform: visible ? "translateY(0) scale(1)" : "translateY(8px) scale(.98)",
-                  transition: "opacity .45s var(--ease), transform .45s cubic-bezier(.16,1,.3,1)",
+                  transition: "opacity var(--d4) var(--ease), transform var(--d4) var(--ease-out)",
                   boxShadow: isMine ? `0 4px 16px ${cat.color}33` : "none",
                   position: "relative",
                   overflow: "hidden",

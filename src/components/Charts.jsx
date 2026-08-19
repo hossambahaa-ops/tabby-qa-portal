@@ -27,7 +27,9 @@ export const ProgressRing = ({ value, max, size = 64, stroke = 5, color = "var(-
         <circle cx={size/2} cy={size/2} r={r} fill="none" className="progress-ring-track" strokeWidth={stroke} />
         <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={stroke}
           strokeDasharray={circ} strokeDashoffset={offset} strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 1s cubic-bezier(.4,0,.2,1)" }} />
+          style={{ // A one-shot line-draw reveal, deliberately slower than the token
+// scale — the whole point is watching the line travel.
+transition: "stroke-dashoffset 1s var(--ease)" }} />
       </svg>
       {(label || sublabel) && <div>
         {label && <div style={{ fontSize: 22, fontWeight: 800, letterSpacing: "-1px", fontVariantNumeric: "tabular-nums" }}>{renderedLabel}</div>}
@@ -59,7 +61,7 @@ export const MiniBarChart = ({ data, height = 48, color = "var(--tabby-green)", 
                   : "currentColor",
                 color: isLatest ? undefined : "var(--tx3)",
                 opacity: isLatest ? 1 : 0.18 + (i / data.length) * 0.30,
-                transition: "height .6s cubic-bezier(.4,0,.2,1), opacity .3s",
+                transition: "height var(--d4) var(--ease), opacity var(--d3)",
                 boxShadow: isLatest ? `0 0 10px ${color}` : "none",
               }} title={`${d.label}: ${d.value}`} />
             </div>

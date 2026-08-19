@@ -99,7 +99,7 @@ export default function MyResponsibilities({ roster, onNavigate }) {
         border: "none",
         position: "relative", overflow: "hidden",
         cursor: onClick ? "pointer" : "default",
-        transition: "transform .2s var(--ease), background .2s ease, box-shadow .2s ease",
+        transition: "transform var(--d2) var(--ease), background var(--d2) var(--ease), box-shadow var(--d2) var(--ease)",
         textAlign: "left", color: "var(--tx)",
         fontFamily: "var(--font)",
         boxShadow: `0 6px 18px -4px rgba(${toneRgb}, .18), 0 2px 6px -2px rgba(${toneRgb}, .12), inset 0 1px 0 rgba(255,255,255,.10)`,

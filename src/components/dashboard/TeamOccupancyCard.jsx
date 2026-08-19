@@ -325,7 +325,7 @@ export default function TeamOccupancyCard() {
             background: "none", border: "none", padding: 0, cursor: "pointer",
             color: "var(--tabby-purple)", fontFamily: "var(--font)", fontSize: 12,
             fontWeight: 600, textAlign: "left", textDecoration: "underline",
-            textDecorationColor: "transparent", textUnderlineOffset: 2, transition: "text-decoration-color .15s",
+            textDecorationColor: "transparent", textUnderlineOffset: 2, transition: "text-decoration-color var(--d1)",
           }}
           onMouseEnter={e => e.currentTarget.style.textDecorationColor = "var(--tabby-purple)"}
           onMouseLeave={e => e.currentTarget.style.textDecorationColor = "transparent"}

@@ -740,7 +740,7 @@ export default function CSATPage() {
                   return <React.Fragment key={r.id+"-csat"}>
                     <tr onClick={()=>toggleRow(r.qa_email)} style={{cursor:"pointer",background:isExpanded?"var(--accent-light)":undefined}}>
                       <td style={{textAlign:"center",padding:"4px 0"}}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s",color:"var(--tx3)",opacity:.6}}><path d="M6 9l6 6 6-6"/></svg>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform var(--d2)",color:"var(--tx3)",opacity:.6}}><path d="M6 9l6 6 6-6"/></svg>
                       </td>
                       <td style={{padding:"4px 8px"}} title={`Open ${r.qa_email}'s QA Profile`}>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>
@@ -768,7 +768,7 @@ export default function CSATPage() {
                               textDecorationColor: "var(--tabby-purple)",
                               textDecorationThickness: 1,
                               textUnderlineOffset: 2,
-                              transition: "text-decoration-thickness .15s",
+                              transition: "text-decoration-thickness var(--d1)",
                             }}
                             onMouseEnter={e => { e.currentTarget.style.textDecorationThickness = "2px"; }}
                             onMouseLeave={e => { e.currentTarget.style.textDecorationThickness = "1px"; }}
@@ -836,7 +836,7 @@ export default function CSATPage() {
                   return <React.Fragment key={tlKey+"-csat-lead"}>
                     <tr onClick={()=>toggleLeadRow(l)} style={{cursor:"pointer",background:isExpanded?"var(--accent-light)":undefined}}>
                       <td style={{textAlign:"center",padding:"4px 0"}}>
-                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s",color:"var(--tx3)",opacity:.6}}><path d="M6 9l6 6 6-6"/></svg>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform var(--d2)",color:"var(--tx3)",opacity:.6}}><path d="M6 9l6 6 6-6"/></svg>
                       </td>
                       <td style={{padding:"4px 8px"}} title={l.tl||""}>
                         <div style={{display:"flex",alignItems:"center",gap:8}}>

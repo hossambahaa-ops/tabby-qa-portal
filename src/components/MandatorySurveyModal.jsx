@@ -42,7 +42,7 @@ function StarPicker({ value, onChange }) {
             background: "none", border: "none", cursor: "pointer",
             padding: 4, lineHeight: 0,
             transform: display >= n ? "scale(1.05)" : "scale(1)",
-            transition: "transform .15s",
+            transition: "transform var(--d1)",
           }}
         >
           <svg width={STAR_SIZE} height={STAR_SIZE} viewBox="0 0 24 24"
@@ -212,6 +212,7 @@ export default function MandatorySurveyModal() {
         }}>
           <span style={{ fontSize: 11, color: "var(--tx3)" }}>You must submit to continue</span>
           <button
+            className="mo-ctl"
             onClick={onSubmit}
             disabled={!rating || submitting}
             style={{
@@ -220,7 +221,7 @@ export default function MandatorySurveyModal() {
               color: !rating || submitting ? "var(--tx3)" : "#fff",
               fontSize: 13, fontWeight: 700,
               cursor: !rating || submitting ? "not-allowed" : "pointer",
-              fontFamily: "var(--font)", transition: "all .2s",
+              fontFamily: "var(--font)",
             }}
             onMouseEnter={e => {
               if (rating && !submitting) {

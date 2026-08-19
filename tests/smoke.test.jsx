@@ -14,11 +14,19 @@ describe('TabbyPulseWordmark', () => {
     expect(getByRole('img').getAttribute('aria-label')).toBe('tabbyPulse');
   });
 
-  it('honors a custom height prop and 4:1 aspect ratio', () => {
+  // The width is DERIVED from the viewBox, which is in turn derived from the
+  // real artwork's proportions (1319x359) -- so it is not a round number and
+  // pinning it to one only records whatever the layout happened to be. What
+  // has to hold is that the rendered box matches the viewBox, because any
+  // drift between them stretches the wordmark.
+  it('honors a custom height prop without distorting the artwork', () => {
     const { container } = render(<TabbyPulseWordmark height={40} uid="t1" />);
     const svg = container.querySelector('svg');
     expect(svg.getAttribute('height')).toBe('40');
-    expect(svg.getAttribute('width')).toBe('160');
+
+    const [, , vbW, vbH] = svg.getAttribute('viewBox').split(/\s+/).map(Number);
+    const rendered = Number(svg.getAttribute('width')) / 40;
+    expect(rendered).toBeCloseTo(vbW / vbH, 5);
   });
 
   it('namespaces gradient/filter ids per uid so multiple instances do not collide', () => {

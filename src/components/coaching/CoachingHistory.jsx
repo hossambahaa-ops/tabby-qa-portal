@@ -291,7 +291,7 @@ export default function CoachingHistory({ sessions, onDelete }) {
                 }catch(err){globalToast("error",safeError(err));}
               },"Delete","var(--red)");}}><Icon d={icons.trash} size={14}/></button>
             </td>}
-            <td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
+            <td><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform var(--d2)",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
           </tr>
 
           {/* Expanded session details */}

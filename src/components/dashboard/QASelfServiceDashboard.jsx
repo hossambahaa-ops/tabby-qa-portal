@@ -113,7 +113,7 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
   // Progress bar helper
   const bar = (val, max, color) => (
     <div style={{ height: 6, background: "var(--bd2)", borderRadius: 3, overflow: "hidden", marginTop: 6 }}>
-      <div style={{ width: Math.min(100, max > 0 ? (val / max) * 100 : 0) + "%", height: "100%", borderRadius: 3, background: color, transition: "width .5s" }} />
+      <div className="mo-bar" style={{ transform: `scaleX(${Math.min(1, max > 0 ? val / max : 0)})`, height: "100%", background: color }} />
     </div>
   );
 

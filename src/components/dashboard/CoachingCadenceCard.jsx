@@ -307,7 +307,7 @@ export default function CoachingCadenceCard() {
           <div style={{ fontSize: 10, color: "var(--tx3)" }}>{sub}</div>
         </div>
         <div style={{ flex: 1, position: "relative", height: 10, background: "var(--bg)", borderRadius: 6, overflow: "hidden", border: "1px solid var(--bd2)" }}>
-          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${pct}%`, background: tone, transition: "width .25s" }} />
+          <div className="mo-bar" style={{ position: "absolute", left: 0, top: 0, bottom: 0, transform: `scaleX(${pct / 100})`, background: tone }} />
         </div>
         <div style={{ flex: "0 0 110px", textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
           <span style={{ fontSize: 14, fontWeight: 800, color: tone }}>{num}/{den}</span>
@@ -358,7 +358,7 @@ export default function CoachingCadenceCard() {
       {/* Single progress bar for the active cadence. */}
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
         <div style={{ flex: 1, position: "relative", height: 14, background: "var(--bg)", borderRadius: 8, overflow: "hidden", border: "1px solid var(--bd2)" }}>
-          <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${stats.pct}%`, background: pctTone, transition: "width .25s" }} />
+          <div className="mo-bar" style={{ position: "absolute", left: 0, top: 0, bottom: 0, transform: `scaleX(${stats.pct / 100})`, background: pctTone }} />
         </div>
         <div style={{ flex: "0 0 auto", textAlign: "right", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
           <span style={{ fontSize: 16, fontWeight: 800, color: pctTone }}>{stats.num}/{stats.denom}</span>

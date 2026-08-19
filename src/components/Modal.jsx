@@ -226,7 +226,7 @@ export default function Modal({
                   alignItems: "center",
                   justifyContent: "center",
                   opacity: 0.6,
-                  transition: "opacity .15s ease, background .15s ease",
+                  transition: "opacity var(--d1) var(--ease), background var(--d1) var(--ease)",
                 }}
                 onMouseEnter={(e) => { e.currentTarget.style.opacity = "1"; e.currentTarget.style.background = "var(--bg)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.opacity = "0.6"; e.currentTarget.style.background = "transparent"; }}

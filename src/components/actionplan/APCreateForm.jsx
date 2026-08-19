@@ -145,11 +145,10 @@ export default function APCreateForm({
             const row2 = selQaEmail ? mtd.find(r => r.month === months2[0] && r.qa_email?.toLowerCase() === selQaEmail.toLowerCase()) : null;
             const curVal = row2 ? parseRaw(row2[def.rawKey]) : null;
             return (
-              <div key={key} onClick={() => toggleKpi(key)} style={{
+              <div key={key} className="mo-ctl" onClick={() => toggleKpi(key)} style={{
                 padding: "10px 16px", borderRadius: 10, cursor: "pointer", minWidth: 140,
                 border: isOn ? "2px solid var(--accent)" : "2px solid var(--bd2)",
                 background: isOn ? "var(--accent-light)" : "var(--bg)",
-                transition: "all .15s",
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <div style={{ width: 18, height: 18, borderRadius: 4, border: isOn ? "none" : "2px solid var(--bd)", background: isOn ? "var(--accent)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>

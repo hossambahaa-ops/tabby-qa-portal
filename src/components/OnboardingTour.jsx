@@ -133,7 +133,11 @@ export default function OnboardingTour({ onDismiss, role }) {
           {steps.map((_, i) => (
             <div key={i} onClick={() => setStep(i)} style={{
               width: i === step ? 20 : 7, height: 7, borderRadius: 4, cursor: "pointer",
-              background: i === step ? "var(--tabby-purple)" : i < step ? "var(--green)" : "var(--bd)", transition: "all .3s",
+              background: i === step ? "var(--tabby-purple)" : i < step ? "var(--green)" : "var(--bd)",
+              /* The active dot stretches into a pill, so width is animated on
+                 purpose here — it stays inline because index.css is guarded
+                 against layout-animating transitions. */
+              transition: "width var(--d3) var(--ease-out), background-color var(--d3) var(--ease)",
             }} />
           ))}
         </div>

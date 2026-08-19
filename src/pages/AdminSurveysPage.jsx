@@ -52,10 +52,9 @@ function StarBar({ count, total, n }) {
         </svg>
       </span>
       <div style={{ flex: 1, height: 8, background: "var(--bg2)", borderRadius: 4, overflow: "hidden" }}>
-        <div style={{
-          width: `${pct}%`, height: "100%",
+        <div className="mo-bar" style={{
+          transform: `scaleX(${pct / 100})`, height: "100%",
           background: "linear-gradient(90deg, var(--tabby-purple-light,#8B4D99), var(--tabby-purple,#6A2C79))",
-          transition: "width .5s ease-out",
         }}/>
       </div>
       <span style={{ width: 60, textAlign: "right", color: "var(--tx2)", fontVariantNumeric: "tabular-nums" }}>
@@ -242,7 +241,7 @@ export default function AdminSurveysPage() {
                     textAlign: "left", background: selectedId === s.id ? "var(--accent-light)" : "transparent",
                     border: "1px solid " + (selectedId === s.id ? "var(--tabby-purple-light,#8B4D99)" : "var(--bd2)"),
                     borderRadius: 10, padding: "10px 12px", cursor: "pointer",
-                    transition: "background .15s",
+                    transition: "background var(--d1)",
                     fontFamily: "var(--font)",
                   }}
                   onMouseEnter={e => { if (selectedId !== s.id) e.currentTarget.style.background = "var(--bg)"; }}

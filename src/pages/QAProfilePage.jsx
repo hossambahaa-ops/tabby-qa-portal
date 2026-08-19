@@ -737,8 +737,8 @@ function QAProfilePage() {
         const sbsArc = sbsFrac * pct / 100 * circumference;
         const nsbsArc = nsbsFrac * pct / 100 * circumference;
         const occPctOfTarget = occTarget > 0 ? Math.round((occPct / occTarget) * 100) : 0;
-        const miniBar = (val, max, color) => <div style={{width:"100%",height:4,borderRadius:2,background:"var(--bd2)",marginTop:4}}>
-          <div style={{width:Math.min(100,max>0?(val/max)*100:0)+"%",height:4,borderRadius:2,background:color,transition:"width .4s"}}/>
+        const miniBar = (val, max, color) => <div style={{width:"100%",height:4,borderRadius:2,background:"var(--bd2)",marginTop:4,overflow:"hidden"}}>
+          <div className="mo-bar" style={{transform:`scaleX(${Math.min(1,max>0?val/max:0)})`,height:4,background:color}}/>
         </div>;
         return <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12,marginBottom:16}}>
           {/* Today's Evals */}
@@ -936,7 +936,7 @@ function QAProfilePage() {
                     background:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green-bg)":"var(--amber-bg)",
                     color:s.performance_rating==="Outstanding"||s.performance_rating==="Exceeds Expectations"?"var(--green)":"var(--amber)"
                   }}>{safe(s.performance_rating)}</span>}
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform .2s"}}><path d="M6 9l6 6 6-6"/></svg>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" style={{transform:isExpanded?"rotate(180deg)":"rotate(0)",transition:"transform var(--d2)"}}><path d="M6 9l6 6 6-6"/></svg>
                 </div>
               </div>
               {isExpanded && <div style={{padding:12,background:"var(--bg)",borderRadius:8,margin:"8px 0",borderBottom:"1px solid var(--bd)"}}>
@@ -1014,7 +1014,7 @@ function QAProfilePage() {
                         <span style={{color:done?"var(--green)":"var(--tx3)",fontWeight:600}}>{pct}%</span>
                       </div>
                       <div style={{marginTop:4,height:4,borderRadius:2,background:"var(--bd2)",overflow:"hidden"}}>
-                        <div style={{height:"100%",width:`${pct}%`,borderRadius:2,background:done?"var(--green)":"var(--amber)",transition:"width .3s"}}/>
+                        <div className="mo-bar" style={{height:"100%",transform:`scaleX(${pct/100})`,background:done?"var(--green)":"var(--amber)"}}/>
                       </div>
                       {t.auto_close && <div style={{fontSize:10,color:"var(--tx3)",marginTop:2}}>{done?"✓ Auto-completed":"Auto-closes when target is met"}</div>}
                     </div>;
@@ -1047,7 +1047,7 @@ function QAProfilePage() {
                         background:p.status==="active"?"var(--blue-bg)":p.status.includes("pass")?"var(--green-bg)":"var(--red-bg)",
                         color:p.status==="active"?"var(--blue)":p.status.includes("pass")?"var(--green)":"var(--red)"
                       }}>{p.status}</span>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" style={{transform:isExp?"rotate(180deg)":"rotate(0)",transition:"transform .2s"}}><path d="M6 9l6 6 6-6"/></svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" style={{transform:isExp?"rotate(180deg)":"rotate(0)",transition:"transform var(--d2)"}}><path d="M6 9l6 6 6-6"/></svg>
                     </div>
                   </div>
                   <div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>{new Date(p.start_date).toLocaleDateString("en-GB",{day:"numeric",month:"short"})} — {new Date(p.end_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"})}</div>
@@ -1096,7 +1096,7 @@ function QAProfilePage() {
                         background:f.severity==="critical"?"var(--red-bg)":f.severity==="warning"?"var(--amber-bg)":"var(--blue-bg)",
                         color:f.severity==="critical"?"var(--red)":f.severity==="warning"?"var(--amber)":"var(--blue)"
                       }}>{f.severity}</span>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" style={{transform:isExp?"rotate(180deg)":"rotate(0)",transition:"transform .2s"}}><path d="M6 9l6 6 6-6"/></svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" style={{transform:isExp?"rotate(180deg)":"rotate(0)",transition:"transform var(--d2)"}}><path d="M6 9l6 6 6-6"/></svg>
                     </div>
                   </div>
                   <div style={{fontSize:11,color:"var(--tx3)",marginTop:2}}>{f.status} — {new Date(f.triggered_at).toLocaleDateString("en-GB",{day:"numeric",month:"short"})}</div>

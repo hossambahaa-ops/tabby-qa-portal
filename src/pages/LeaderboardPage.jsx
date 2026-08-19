@@ -520,7 +520,7 @@ function LeaderboardPage() {
                       color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)"
                     }}>{k.slab.label} ({k.slab.pct}%)</span>
                   </div>
-                  <div style={{height:5,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .4s"}}/></div>
+                  <div style={{height:5,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div className="mo-bar" style={{transform:`scaleX(${(k.score/k.weight)})`,height:"100%",background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}/></div>
                   <div style={{display:"flex",justifyContent:"space-between",fontSize:9,color:"var(--tx3)",marginTop:3}}>
                     <span>Slab 1: ≥{k.thresholds[0]}%</span><span>Slab 2: ≥{k.thresholds[1]}%</span><span>Slab 3: ≥{k.thresholds[2]}%</span>
                   </div>
@@ -551,13 +551,13 @@ function LeaderboardPage() {
                     style={{
                       display:"flex",flexDirection:"column",alignItems:"center",flex:1,gap:4,
                       cursor:"pointer",background:"transparent",border:"none",padding:"0 2px",
-                      fontFamily:"var(--font)",borderRadius:6,transition:"background .15s",
+                      fontFamily:"var(--font)",borderRadius:6,transition:"background var(--d1)",
                     }}
                     onMouseEnter={e=>{ if(!isActive) e.currentTarget.style.background="var(--bg)"; }}
                     onMouseLeave={e=>{ e.currentTarget.style.background="transparent"; }}
                   >
                     <span style={{fontSize:10,fontWeight:isActive?700:400,color:isActive?scoreColor(h.score):"var(--tx3)"}}>{h.score.toFixed(1)}</span>
-                    <div style={{width:"100%",height:`${Math.max(pct*0.5,4)}px`,borderRadius:4,background:barColor,transition:"height .3s, background .2s",boxShadow:isActive?`0 0 0 2px ${scoreColor(h.score)}33`:"none"}}/>
+                    <div style={{width:"100%",height:`${Math.max(pct*0.5,4)}px`,borderRadius:4,background:barColor,transition:"height var(--d3), background var(--d2)",boxShadow:isActive?`0 0 0 2px ${scoreColor(h.score)}33`:"none"}}/>
                     <span style={{fontSize:9,color:isActive?"var(--tx2)":"var(--tx3)",fontWeight:isActive?700:400}}>{h.month.split("-")[0]}</span>
                   </button>;
                 })}
@@ -576,10 +576,10 @@ function LeaderboardPage() {
               2: { bg: "linear-gradient(135deg, rgba(156,163,175,.08), rgba(156,163,175,.02))", border: "rgba(156,163,175,.2)", medal: "#9CA3AF", ring: "#9CA3AF" },
               3: { bg: "linear-gradient(135deg, rgba(234,88,12,.06), rgba(234,88,12,.02))", border: "rgba(234,88,12,.2)", medal: "#EA580C", ring: "#EA580C" },
             }[rank];
-            return (<div key={r.qa_email} style={{
+            return (<div key={r.qa_email} className="mo-panel" style={{
               textAlign:"center", padding:isGold?"28px 32px":"22px 26px", minWidth:isGold?200:170,
               background: podiumColors.bg, border: `1px solid ${podiumColors.border}`,
-              borderRadius: 16, transform:isGold?"translateY(-12px)":"none", transition:"all .3s cubic-bezier(.4,0,.2,1)",
+              borderRadius: 16, transform:isGold?"translateY(-12px)":"none",
               position: "relative", overflow: "hidden",
             }}
               onMouseEnter={e => e.currentTarget.style.transform = isGold ? "translateY(-16px) scale(1.02)" : "translateY(-4px) scale(1.02)"}
@@ -709,7 +709,7 @@ function LeaderboardPage() {
                   <td><div style={{display:"flex",alignItems:"center",gap:10}}>
                     {/* Pin/star — visible always for leads+, click toggles. Pinned QAs float to the top of the list. */}
                     {hasRole(profile?.role,"qa_lead") && (()=>{const isPinned = pinnedEmails.has(r.qa_email?.toLowerCase()); return (
-                      <button onClick={(e)=>{e.stopPropagation();togglePin(r.qa_email);}} title={isPinned?"Unpin from top":"Pin to top of list"} aria-label={isPinned?"Unpin":"Pin"} style={{background:"none",border:"none",padding:2,cursor:"pointer",lineHeight:0,opacity:isPinned?1:.35,transition:"opacity .15s, transform .15s",flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=isPinned?1:.35}>
+                      <button onClick={(e)=>{e.stopPropagation();togglePin(r.qa_email);}} title={isPinned?"Unpin from top":"Pin to top of list"} aria-label={isPinned?"Unpin":"Pin"} style={{background:"none",border:"none",padding:2,cursor:"pointer",lineHeight:0,opacity:isPinned?1:.35,transition:"opacity var(--d1), transform var(--d1)",flexShrink:0}} onMouseEnter={e=>e.currentTarget.style.opacity=1} onMouseLeave={e=>e.currentTarget.style.opacity=isPinned?1:.35}>
                         <svg width="16" height="16" viewBox="0 0 24 24" fill={isPinned?"#F59E0B":"none"} stroke={isPinned?"#F59E0B":"var(--tx3)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
                       </button>
                     );})()}
@@ -733,13 +733,13 @@ function LeaderboardPage() {
                     <td key={k.key} className="lb-col-kpi" style={{textAlign:"center",padding:"8px 6px"}}>
                       <div style={{fontSize:13,fontWeight:600,color:scoreColor(k.score/k.weight*maxScore)}}>{k.score.toFixed(1)}</div>
                       <div style={{fontSize:10,color:"var(--tx3)"}}>{k.rawPct !== null ? k.rawPct.toFixed(1)+"%" : "—"}</div>
-                      <div style={{height:3,background:"var(--bd2)",borderRadius:2,marginTop:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:2,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .3s"}}/></div>
+                      <div style={{height:3,background:"var(--bd2)",borderRadius:2,marginTop:3,overflow:"hidden"}}><div className="mo-bar" style={{transform:`scaleX(${(k.score/k.weight)})`,height:"100%",background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}/></div>
                     </td>
                   ))}
                   <td style={{textAlign:"center"}}>
                     <span style={{display:"inline-block",padding:"3px 10px",borderRadius:20,fontSize:13,fontWeight:600,background:scoreBg(total),color:scoreColor(total)}}>{total.toFixed(1)}</span>
                   </td>
-                  <td className="lb-col-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform .2s",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
+                  <td className="lb-col-arrow"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--tx3)" strokeWidth="2" strokeLinecap="round" style={{transition:"transform var(--d2)",transform:isExp?"rotate(180deg)":"none"}}><path d="M6 9l6 6 6-6"/></svg></td>
                 </tr>
 
                 {/* Expanded KPI detail */}
@@ -759,7 +759,7 @@ function LeaderboardPage() {
                             color:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)"
                           }}>{k.slab.label} ({k.slab.pct}%)</span>
                         </div>
-                        <div style={{height:6,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div style={{width:`${(k.score/k.weight)*100}%`,height:"100%",borderRadius:3,background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)",transition:"width .4s"}}/></div>
+                        <div style={{height:6,background:"var(--bd2)",borderRadius:3,overflow:"hidden"}}><div className="mo-bar" style={{transform:`scaleX(${(k.score/k.weight)})`,height:"100%",background:k.slab.pct===100?"var(--green)":k.slab.pct>=75?"var(--blue)":k.slab.pct>=50?"var(--amber)":"var(--red)"}}/></div>
                         <div style={{display:"flex",justifyContent:"space-between",fontSize:10,color:"var(--tx3)",marginTop:4}}>
                           <span>Slab 1: ≥{k.thresholds[0]}%</span>
                           <span>Slab 2: ≥{k.thresholds[1]}%</span>
@@ -997,10 +997,10 @@ function LeaderboardPage() {
                 2: { bg: "linear-gradient(135deg, rgba(156,163,175,.08), rgba(156,163,175,.02))", border: "rgba(156,163,175,.2)", medal: "#9CA3AF" },
                 3: { bg: "linear-gradient(135deg, rgba(234,88,12,.06), rgba(234,88,12,.02))", border: "rgba(234,88,12,.2)", medal: "#EA580C" },
               }[rank];
-              return (<div key={qa.email} style={{
+              return (<div key={qa.email} className="mo-panel" style={{
                 textAlign:"center",padding:isGold?"28px 32px":"22px 26px",minWidth:isGold?200:170,
                 background:podiumColors.bg,border:`1px solid ${podiumColors.border}`,borderRadius:16,
-                transform:isGold?"translateY(-12px)":"none",transition:"all .3s cubic-bezier(.4,0,.2,1)",
+                transform:isGold?"translateY(-12px)":"none",
               }}
                 onMouseEnter={e => e.currentTarget.style.transform = isGold ? "translateY(-16px) scale(1.02)" : "translateY(-4px) scale(1.02)"}
                 onMouseLeave={e => e.currentTarget.style.transform = isGold ? "translateY(-12px)" : "none"}

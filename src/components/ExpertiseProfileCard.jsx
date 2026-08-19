@@ -29,7 +29,7 @@ const ProductBar = ({ label, value, max = 3 }) => {
         <span style={{ fontSize: 11, fontWeight: 700, color: c, fontVariantNumeric: "tabular-nums" }}>{fmtScore(value)}</span>
       </div>
       <div style={{ height: 5, background: "var(--bd)", borderRadius: 3, overflow: "hidden" }}>
-        <div style={{ width: pct + "%", height: "100%", background: c, borderRadius: 3, transition: "width .3s" }} />
+        <div className="mo-bar" style={{ transform: `scaleX(${pct / 100})`, height: "100%", background: c }} />
       </div>
     </div>
   );

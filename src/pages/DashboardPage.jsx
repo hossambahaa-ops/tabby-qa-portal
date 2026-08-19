@@ -334,7 +334,7 @@ function DashboardPage(){
         {daysLeft!==null&&<span style={{fontSize:13,fontWeight:600,color:daysLeft<=7?"var(--red)":"var(--tx2)"}}>{daysLeft} days remaining</span>}
         </div>
         <div style={{height:6,background:"var(--bd2)",borderRadius:3,overflow:"hidden",marginBottom:8}}>
-          <div style={{width:`${progressPct}%`,height:"100%",borderRadius:3,background:successRate>=60?"var(--green)":"var(--amber)",transition:"width .4s"}}/>
+          <div className="mo-bar" style={{transform:`scaleX(${progressPct/100})`,height:"100%",background:successRate>=60?"var(--green)":"var(--amber)"}}/>
         </div>
         <div style={{display:"flex",justifyContent:"space-between",fontSize:11,color:"var(--tx3)",marginBottom:14}}>
           <span>Week {elapsed} of {totalW}</span>
@@ -592,7 +592,7 @@ function DashboardPage(){
                   </div>
                 </div>
                 <div style={{height:6,background:"var(--bd2)",borderRadius:3,overflow:"hidden",position:"relative"}}>
-                  <div style={{width:`${pct}%`,height:"100%",borderRadius:3,background:pctColor,transition:"width .5s"}}/>
+                  <div className="mo-bar" style={{transform:`scaleX(${pct/100})`,height:"100%",background:pctColor}}/>
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between",marginTop:4,fontSize:11,color:"var(--tx3)"}}>
                   <span>Your value: {m.key==="score"?myVal.toFixed(1):m.key==="tpd"?myVal.toFixed(1):myVal.toFixed(1)+"%"}</span>

@@ -285,7 +285,7 @@ function CoachingViolationsPage() {
               {pendingV.map(v => {
                 const vc = violationColor(v.violation_type);
                 return (
-                  <tr key={v.id} onClick={() => openReview(v)} style={{cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <tr key={v.id} onClick={() => openReview(v)} style={{cursor:"pointer",transition:"background var(--d1)"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <td style={{ fontWeight: 500, fontSize: 13 }}>
                       {v.qa_email?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
                     </td>
@@ -316,7 +316,7 @@ function CoachingViolationsPage() {
                       </div>
                     </td>
                     {isSuperAdmin && <td style={{textAlign:"center"}} onClick={e=>e.stopPropagation()}>
-                      <button title="Delete violation" aria-label="Delete violation" onClick={()=>deleteViolation(v)} style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:6,color:"var(--tx3)",lineHeight:0,transition:"background .15s, color .15s"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--red)";e.currentTarget.style.background="var(--red-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}>
+                      <button title="Delete violation" aria-label="Delete violation" onClick={()=>deleteViolation(v)} style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:6,color:"var(--tx3)",lineHeight:0,transition:"background var(--d1), color var(--d1)"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--red)";e.currentTarget.style.background="var(--red-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                       </button>
                     </td>}
@@ -350,7 +350,7 @@ function CoachingViolationsPage() {
               {reviewedV.map(v => {
                 const vc = violationColor(v.violation_type);
                 return (
-                  <tr key={v.id} onClick={() => openReview(v)} style={{cursor:"pointer",transition:"background .15s"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
+                  <tr key={v.id} onClick={() => openReview(v)} style={{cursor:"pointer",transition:"background var(--d1)"}} onMouseEnter={e=>e.currentTarget.style.background="var(--bg)"} onMouseLeave={e=>e.currentTarget.style.background="transparent"}>
                     <td style={{ fontWeight: 500, fontSize: 13 }}>
                       {v.qa_email?.split("\n").map((e, i) => <div key={i}>{nameFromEmail(e)}</div>)}
                     </td>
@@ -374,7 +374,7 @@ function CoachingViolationsPage() {
                       {v.reviewed_at ? new Date(v.reviewed_at).toLocaleDateString("en-GB", { month: "short", day: "numeric" }) : "—"}
                     </td>
                     {isSuperAdmin && <td style={{textAlign:"center"}} onClick={e=>e.stopPropagation()}>
-                      <button title="Delete violation" aria-label="Delete violation" onClick={()=>deleteViolation(v)} style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:6,color:"var(--tx3)",lineHeight:0,transition:"background .15s, color .15s"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--red)";e.currentTarget.style.background="var(--red-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}>
+                      <button title="Delete violation" aria-label="Delete violation" onClick={()=>deleteViolation(v)} style={{background:"none",border:"none",cursor:"pointer",padding:6,borderRadius:6,color:"var(--tx3)",lineHeight:0,transition:"background var(--d1), color var(--d1)"}} onMouseEnter={e=>{e.currentTarget.style.color="var(--red)";e.currentTarget.style.background="var(--red-bg)";}} onMouseLeave={e=>{e.currentTarget.style.color="var(--tx3)";e.currentTarget.style.background="none";}}>
                         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 01-2 2H9a2 2 0 01-2-2L5 6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
                       </button>
                     </td>}

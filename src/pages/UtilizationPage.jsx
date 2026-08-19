@@ -281,7 +281,7 @@ export default function UtilizationPage() {
                     <span style={{ fontSize: 11, color: "var(--tx3)", fontVariantNumeric: "tabular-nums" }}>{count}</span>
                   </div>
                   <div style={{ width: "100%", height: 6, background: "var(--bg)", borderRadius: 3, overflow: "hidden" }}>
-                    <div style={{ width: pct + "%", height: "100%", background: i === 0 ? "var(--tabby-purple)" : "var(--accent-light)", transition: "width .3s" }} />
+                    <div className="mo-bar" style={{ transform: `scaleX(${pct / 100})`, height: "100%", background: i === 0 ? "var(--tabby-purple)" : "var(--accent-light)" }} />
                   </div>
                 </div>
               );

@@ -47,7 +47,7 @@ export default function CalendarDayCell({
         display: "flex",
         flexDirection: "column",
         gap: 4,
-        transition: "background .12s ease, border-color .12s ease",
+        transition: "background var(--d1) var(--ease), border-color var(--d1) var(--ease)",
       }}
       onMouseEnter={(e) => { if (canEdit) e.currentTarget.style.borderColor = isToday ? "var(--tabby-purple)" : "var(--tabby-purple)"; }}
       onMouseLeave={(e) => { e.currentTarget.style.borderColor = isToday ? "var(--tabby-purple)" : "var(--bd2)"; }}

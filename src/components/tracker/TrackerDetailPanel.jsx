@@ -212,7 +212,7 @@ export default function TrackerDetailPanel({
           background: "rgba(0,0,0,0.4)",
           opacity: open ? 1 : 0,
           pointerEvents: open ? "auto" : "none",
-          transition: "opacity .18s ease",
+          transition: "opacity var(--d2) var(--ease)",
         }}
       />
       <aside
@@ -239,7 +239,7 @@ export default function TrackerDetailPanel({
             : "translate(-50%, -8px) scale(.98)",
           opacity: open ? 1 : 0,
           pointerEvents: open ? "auto" : "none",
-          transition: "transform .18s ease, opacity .18s ease",
+          transition: "transform var(--d2) var(--ease), opacity var(--d2) var(--ease)",
           display: "flex", flexDirection: "column",
         }}
       >

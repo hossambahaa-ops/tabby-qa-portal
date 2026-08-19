@@ -13,9 +13,13 @@ import { join, resolve } from "node:path";
 
 const css = readFileSync(resolve(process.cwd(), "src/index.css"), "utf8");
 
-// Strip cubic-bezier(...) before scanning: its commas and decimals otherwise
-// look like extra properties and bare durations.
-const cssNoBezier = css.replace(/cubic-bezier\([^)]*\)/g, "EASE");
+// Strip comments before scanning -- these tests read declarations, and prose
+// that happens to mention a property name is not a declaration. Then strip
+// cubic-bezier(...), whose commas and decimals otherwise look like extra
+// properties and bare durations.
+const cssNoBezier = css
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/cubic-bezier\([^)]*\)/g, "EASE");
 
 const transitionDecls = [
   ...cssNoBezier.matchAll(/transition:\s*([^;]*);/g),
@@ -81,7 +85,7 @@ describe("inline transitions in JSX are shrinking", () => {
   // how the values drifted apart in the first place. Held at the count found
   // when the token scale landed -- lower this number as they move into CSS;
   // it must never go up.
-  const BASELINE = 87;
+  const BASELINE = 48;
 
   const walk = (dir) =>
     readdirSync(dir).flatMap((e) => {
@@ -89,9 +93,30 @@ describe("inline transitions in JSX are shrinking", () => {
       return statSync(p).isDirectory() ? walk(p) : p.endsWith(".jsx") ? [p] : [];
     });
 
+  const jsxTransitions = () =>
+    walk(resolve(process.cwd(), "src")).flatMap((f) =>
+      [...readFileSync(f, "utf8").matchAll(/transition:\s*"([^"]*)"/g)].map((m) => ({
+        file: f,
+        value: m[1],
+      })),
+    );
+
   it(`declares no more than ${BASELINE} inline transitions`, () => {
-    const count = walk(resolve(process.cwd(), "src"))
-      .reduce((n, f) => n + (readFileSync(f, "utf8").match(/transition:\s*"/g) || []).length, 0);
-    expect(count).toBeLessThanOrEqual(BASELINE);
+    expect(jsxTransitions().length).toBeLessThanOrEqual(BASELINE);
+  });
+
+  it("never uses `all` inline either", () => {
+    expect(jsxTransitions().filter((t) => /^\s*all\b/.test(t.value))).toEqual([]);
+  });
+
+  // The one survivor is the chart's line-draw reveal, which is deliberately
+  // slower than anything on the scale -- watching the line travel IS the
+  // effect. Everything else has to name a token, or the durations drift
+  // apart again exactly the way they did before.
+  it("declares no raw durations inline except the documented line-draw", () => {
+    const offenders = jsxTransitions()
+      .filter((t) => /(^|\s)\.?\d+(\.\d+)?m?s\b/.test(t.value.replace(/cubic-bezier\([^)]*\)/g, "")))
+      .filter((t) => !/stroke-dashoffset/.test(t.value));
+    expect(offenders).toEqual([]);
   });
 });
