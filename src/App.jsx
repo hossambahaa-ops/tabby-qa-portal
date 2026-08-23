@@ -282,6 +282,15 @@ function AppInner(){
     window.addEventListener("session-refreshed",handler);
     return()=>window.removeEventListener("session-refreshed",handler);
   },[]);
+  // ...and for the other outcome: a 401 that couldn't be refreshed. Dropping
+  // straight to the login screen is the honest response — the alternative,
+  // which is what used to happen, is a dashboard that looks signed in but
+  // renders "—" for every value because nothing can be fetched.
+  useEffect(()=>{
+    const handler=()=>{setSession(null);setProfile(null);};
+    window.addEventListener("session-expired",handler);
+    return()=>window.removeEventListener("session-expired",handler);
+  },[]);
   // Listen for legacy "navigate" custom events from child pages
   useEffect(()=>{const handler=(e)=>navigate("/"+e.detail);window.addEventListener("navigate",handler);return()=>window.removeEventListener("navigate",handler);},[navigate]);
 

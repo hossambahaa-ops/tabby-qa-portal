@@ -24,6 +24,21 @@ if (!SUPABASE_ANON) {
 }
 // Read a PostgREST response body without assuming there IS one.
 //
+// Read the `exp` claim out of a JWT without verifying it.
+//
+// Only ever used to decide WHEN to refresh — the server stays the sole
+// authority on whether a token is actually valid, so an unverified read is
+// safe here. It exists because the OAuth callback hash doesn't reliably carry
+// `expires_at`, and the token itself always knows when it dies.
+function jwtExp(token) {
+  try {
+    const [, payload] = String(token || "").split(".");
+    if (!payload) return 0;
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return Number(JSON.parse(json).exp) || 0;
+  } catch { return 0; }
+}
+
 // A write sent with `Prefer: return=minimal` comes back with an EMPTY body —
 // and, for a POST, with status 201, not 204. The old code only special-cased
 // 204 and then called r.json() regardless, so every minimal write blew up on
@@ -74,7 +89,12 @@ export const sb = {
         window.dispatchEvent(new CustomEvent("session-refreshed", { detail: session }));
         return readBody(r2);
       }
-      const e = await r.json().catch(() => ({}));
+      // We got a 401 and getSession() couldn't produce a different token, so
+      // this session is dead and retrying will never fix it. Tear it down and
+      // tell the app, rather than leaving the user on a shell that renders "—"
+      // in every field while background pollers re-fail every few minutes.
+      try { localStorage.removeItem("sb_session"); } catch {}
+      window.dispatchEvent(new CustomEvent("session-expired"));
       throw new Error("Session expired. Please sign in again.");
     }
     if (!r.ok) { const e = await r.json().catch(() => ({})); const err = new Error(e.message || e.details || r.statusText); window.dispatchEvent(new CustomEvent("sb-error", { detail: { table, method, error: err.message } })); throw err; }
@@ -86,7 +106,27 @@ export const sb = {
     const t = await r.text(); return t ? JSON.parse(t) : null;
   },
   auth: {
-    async getSession() { const s = localStorage.getItem("sb_session"); if (!s) return null; try { const p = JSON.parse(s); if (p.expires_at && Date.now()/1000 > p.expires_at-60) return sb.auth.refresh(p.refresh_token); return p; } catch { localStorage.removeItem("sb_session"); return null; } },
+    async getSession() {
+      const s = localStorage.getItem("sb_session");
+      if (!s) return null;
+      try {
+        const p = JSON.parse(s);
+        // Fall back to the token's own `exp` when the stored session has no
+        // usable expires_at. This guard used to be `if (p.expires_at && ...)`,
+        // so a session stored with expires_at: 0 -- which happens whenever the
+        // OAuth callback hash omits the field -- was never eligible for
+        // refresh. The dead token then got replayed on every poll: one QA sat
+        // on the same expired JWT for 19 hours and 69 straight 401s, seeing a
+        // dashboard where every field rendered "—".
+        //
+        // No expiry we can read at all means we can't reason about the token,
+        // so try to refresh rather than trust it; refresh() clears the session
+        // if the refresh token is dead too.
+        const exp = Number(p.expires_at) || jwtExp(p.access_token);
+        if (!exp || Date.now()/1000 > exp - 60) return sb.auth.refresh(p.refresh_token);
+        return p;
+      } catch { localStorage.removeItem("sb_session"); return null; }
+    },
     async refresh(rt) { try { const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, { method:"POST", headers:{apikey:SUPABASE_ANON,"Content-Type":"application/json"}, body:JSON.stringify({refresh_token:rt}) }); if(!r.ok){localStorage.removeItem("sb_session");return null;} const d=await r.json(); const s={access_token:d.access_token,refresh_token:d.refresh_token,expires_at:d.expires_at,user:d.user}; localStorage.setItem("sb_session",JSON.stringify(s)); return s; } catch{localStorage.removeItem("sb_session");return null;} },
     signInWithGoogle(){window.location.href=`${SUPABASE_URL}/auth/v1/authorize?provider=google&redirect_to=${encodeURIComponent(CANONICAL_APP_URL)}`;},
     async handleCallback(){
@@ -111,10 +151,17 @@ export const sb = {
       }
       if (tokenParams && tokenParams.get("access_token")) {
         const access_token = tokenParams.get("access_token");
+        // Three sources for the expiry, in descending order of directness.
+        // `expires_at` is not guaranteed to be in the callback hash, and
+        // Number(null) is 0 — storing that zero is what created the
+        // never-refreshing zombie sessions, so always land on a real number.
+        const expiresIn = Number(tokenParams.get("expires_in"));
         const s = {
           access_token,
           refresh_token: tokenParams.get("refresh_token"),
-          expires_at: Number(tokenParams.get("expires_at")),
+          expires_at: Number(tokenParams.get("expires_at"))
+            || (expiresIn ? Math.floor(Date.now() / 1000) + expiresIn : 0)
+            || jwtExp(access_token),
           user: null,
         };
         // Decode the JWT payload to get identity without a second network
