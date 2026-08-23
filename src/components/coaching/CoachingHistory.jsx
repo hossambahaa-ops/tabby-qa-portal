@@ -7,8 +7,7 @@ import { Icon, icons } from "../Icons.jsx";
 import { useApp } from "../../lib/AppContext.jsx";
 import EmptyState from "../EmptyState.jsx";
 import RichText from "../RichText.jsx";
-
-const ENUM_TO_LABEL = {"weekly_1on1":"WPR","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
+import { ENUM_TO_LABEL } from "../../lib/coachingTemplates.js";
 
 export default function CoachingHistory({ sessions, onDelete }) {
   const { token, profile, globalToast } = useApp();

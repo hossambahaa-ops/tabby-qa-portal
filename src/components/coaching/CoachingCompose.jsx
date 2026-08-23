@@ -13,6 +13,7 @@ import { riyadhTodayStr } from "../../lib/attendancePlan.js";
 import {
   MEETING_TYPES,
   MEETING_TYPE_ENUM,
+  ENUM_TO_LABEL,
   TARGET_TYPES,
   PERF_OPTIONS,
   PERF_MESSAGES,
@@ -314,7 +315,6 @@ export default function CoachingCompose({ roster, pickerCandidates, mtdByQa = {}
 
   // Get previous sessions for selected member
   const memberHistory = sessions.filter(s => emailsMatchLoose(s.qa_email, toEmail)).slice(0, 5);
-  const ENUM_TO_LABEL = {"weekly_1on1":"WPR","performance_review":"MPR","ad_hoc":"Coaching Session","ap_checkin":"Action Plan Review","pip_checkin":"PIP Review","return_from_leave":"Return from Leave"};
 
   // CC auto-fill: whenever the recipient changes (typed or picked), rebuild
   // CC from supervisor + Amanda, dropping whoever the sender is. The user

@@ -4,6 +4,7 @@
 export const MEETING_TYPES = [
   "WPR",
   "MPR",
+  "Performance Review",
   "Coaching Session",
   "Action Plan Review",
   "PIP Review",
@@ -14,9 +15,15 @@ export const MEETING_TYPES = [
 // is unchanged — only the display label moved from "1:1 Meeting" to
 // "WPR" (Weekly Performance Review). Legacy labels still resolve to
 // their enum so any old draft / saved view keeps working.
+//
+// Watch the two performance-review rows: the generic-sounding
+// `performance_review` is the MONTHLY one (MPR) — it was named that
+// before the standalone review existed, and 147 rows use it, so it
+// keeps the name. The standalone review is `formal_performance_review`.
 export const MEETING_TYPE_ENUM = {
   "WPR": "weekly_1on1",
   "MPR": "performance_review",
+  "Performance Review": "formal_performance_review",
   "Coaching Session": "ad_hoc",
   "Action Plan Review": "ap_checkin",
   "PIP Review": "pip_checkin",
@@ -24,6 +31,23 @@ export const MEETING_TYPE_ENUM = {
   // the old string maps to the same enum.
   "1:1 Meeting": "weekly_1on1",
   "Weekly Check-in": "weekly_1on1",
+};
+
+// The reverse map, for rendering a stored row's type back as a label.
+//
+// Derived rather than hand-written: this used to be copy-pasted into both
+// CoachingCompose and CoachingHistory, so adding a meeting type meant
+// remembering to edit three places, and whichever one you forgot silently
+// rendered the raw enum instead. Built from the canonical labels only —
+// the legacy aliases above are deliberately excluded so they can't win the
+// reverse lookup and re-surface a retired label.
+//
+// `return_from_leave` is a DB enum value with no entry in MEETING_TYPES: it
+// can't be picked in compose, but historical rows still have to render, so
+// it gets a label here.
+export const ENUM_TO_LABEL = {
+  ...Object.fromEntries(MEETING_TYPES.map(l => [MEETING_TYPE_ENUM[l], l])),
+  "return_from_leave": "Return from Leave",
 };
 
 // Meeting types that show the per-week target table (AP / PIP reviews).
@@ -61,6 +85,7 @@ export const normalizePerfRating = (val) =>
 export const INTRO_MAP = {
   "WPR": "This is a formal summary of our Weekly Performance Review.",
   "MPR": "This is a formal summary of your MPR session.",
+  "Performance Review": "This is a formal summary of your Performance Review.",
   "Coaching Session": "This is a formal summary of your Coaching Session.",
   "Action Plan Review": "This is a formal summary of your Action Plan Review. Please review your weekly targets and progress carefully.",
   "PIP Review": "This is a formal summary of your Performance Improvement Plan (PIP) Review. Please review your weekly targets and progress carefully.",

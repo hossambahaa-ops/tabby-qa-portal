@@ -10,6 +10,7 @@ import { rollupMtdRange, monthsInRange } from "../lib/mtdRange.js";
 import { lobChannelKey, normLob } from "../lib/scorecard.js";
 import QuartilePill from "../components/QuartilePill.jsx";
 import CoachingTimeline from "../components/coaching/CoachingTimeline.jsx";
+import { ENUM_TO_LABEL } from "../lib/coachingTemplates.js";
 import RichText from "../components/RichText.jsx";
 import { riyadhTodayStr } from "../lib/attendancePlan.js";
 import { useUrlState } from "../lib/useUrlState.jsx";
@@ -929,7 +930,7 @@ function QAProfilePage() {
               <div onClick={()=>setExpandedSession(isExpanded?null:s.id)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 0",borderBottom:"1px solid var(--bd)",cursor:"pointer"}}>
                 <div>
                   <div style={{fontSize:12,fontWeight:600,color:"var(--tx)"}}>{s.session_date ? new Date(s.session_date).toLocaleDateString("en-GB",{day:"numeric",month:"short",year:"numeric"}) : "—"}</div>
-                  <div style={{fontSize:11,color:"var(--tx3)"}}>{s.meeting_type?.replace(/_/g," ")} — by {nameFromEmail(s.sender_email)}</div>
+                  <div style={{fontSize:11,color:"var(--tx3)"}}>{ENUM_TO_LABEL[s.meeting_type] || s.meeting_type?.replace(/_/g," ")} — by {nameFromEmail(s.sender_email)}</div>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:6}}>
                   {s.performance_rating && <span style={{fontSize:10,padding:"2px 6px",borderRadius:6,fontWeight:600,

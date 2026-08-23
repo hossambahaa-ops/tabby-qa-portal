@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { nameFromEmail } from "../../lib/utils.js";
+import { ENUM_TO_LABEL } from "../../lib/coachingTemplates.js";
 
 // Per-QA coaching timeline shown on the QA Profile. Combines two
 // recommendations:
@@ -152,7 +153,7 @@ export default function CoachingTimeline({ sessions = [], mtd = [] }) {
                   <div style={{ fontSize: 10, color: "var(--tx3)" }}>{sessMonth}</div>
                 </div>
                 <div>
-                  <div style={{ fontWeight: 600 }}>{(s.meeting_type || "").replace(/_/g, " ")}</div>
+                  <div style={{ fontWeight: 600 }}>{ENUM_TO_LABEL[s.meeting_type] || (s.meeting_type || "").replace(/_/g, " ")}</div>
                   <div style={{ fontSize: 11, color: "var(--tx3)" }}>by {nameFromEmail(s.sender_email)}</div>
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
