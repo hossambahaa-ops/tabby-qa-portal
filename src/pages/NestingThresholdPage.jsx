@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useId } from "react";
+import React, { useState, useMemo, useId, useEffect, useRef } from "react";
 import {
   PRIMARY, VALIDATION, REASSESSMENT, ATTRIBUTE_FAILS,
   BASELINE_THRESHOLD, SCORE_STEP, REGIONS,
@@ -20,7 +20,9 @@ import {
 // diagonal hatch, every bar is labelled, and there is a legend plus a data
 // table. That redundancy is deliberate; don't strip it back to colour.
 
-const PRESETS = [70, 75, 80, 85, 90, 100];
+// 70 was removed: no agent can score between 68.75 and 75, so a "70%" bar was
+// the same policy as 75% and only ever added a false choice to the room.
+const PRESETS = [75, 80, 85, 90, 100];
 
 const fmtPct = (n) => `${n.toFixed(1)}%`;
 // Scores land on 6.25 steps, so they need 2dp to be exact but look absurd as
@@ -30,7 +32,7 @@ const fmtScore = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(
 /* ── Distribution ─────────────────────────────────────────────────────────
    Where the agents actually sit, with the threshold drawn through them. This
    is the chart that answers "who am I cutting?". */
-function DistributionChart({ bars, threshold, hatchId }) {
+function DistributionChart({ bars, threshold, hatchId, onPick }) {
   const W = 880, H = 300;
   const padL = 44, padR = 12, padT = 22, padB = 52;
   const plotW = W - padL - padR, plotH = H - padT - padB;
@@ -66,59 +68,70 @@ function DistributionChart({ bars, threshold, hatchId }) {
             <line x1={padL} x2={W - padR} y1={padT + plotH * f} y2={padT + plotH * f}
                   stroke="var(--bd)" strokeWidth="1" opacity={f === 1 ? .9 : .35}/>
             <text x={padL - 8} y={padT + plotH * f + 4} textAnchor="end"
-                  fontSize="10" fill="var(--tx3)" fontVariantNumeric="tabular-nums">
+                  fontSize="10" fill="var(--tx3)" style={{ fontVariantNumeric: "tabular-nums" }}>
               {Math.round(maxCount * (1 - f))}
             </text>
           </g>
         ))}
 
-        {/* Fail region wash — makes the cut readable before you read anything */}
-        {markerX > padL && (
-          <rect x={padL} y={padT} width={markerX - padL} height={plotH} fill="var(--red)" opacity=".045"/>
-        )}
+        {/* Fail region wash. Drawn full-width and squashed with scaleX so it
+            can transition — animating the rect's own width would not, and
+            would reflow the SVG on every frame of the slider drag. */}
+        <g className="nts-anim"
+           style={{ transform: `scaleX(${(markerX - padL) / plotW})`, transformOrigin: `${padL}px ${padT}px` }}>
+          <rect x={padL} y={padT} width={plotW} height={plotH} fill="var(--red)" opacity=".05"/>
+        </g>
 
         {bars.map((b, i) => {
           const h = plotH - (y(b.count) - padT);
           const isHover = hover === i;
           return (
-            <g key={b.score}>
+            <g key={b.score} className="nts-col"
+               onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+               onClick={() => onPick(b.score)}>
               {b.count > 0 && (
                 <>
                   {/* Fail bars tint --red rather than using --red-bg: in dark
                       mode --red-bg sits at a 1.06 contrast ratio against the
                       card and the bars vanish. --red reads in both themes. */}
-                  <rect x={x(i) - barW / 2} y={y(b.count)} width={barW} height={Math.max(h, 2)} rx="4"
+                  <rect className="nts-bar"
+                        x={x(i) - barW / 2} y={y(b.count)} width={barW} height={Math.max(h, 2)} rx="4"
                         fill={b.passing ? "var(--green)" : "var(--red)"}
-                        opacity={b.passing ? (isHover ? 1 : .92) : (isHover ? .32 : .22)}/>
+                        opacity={b.passing ? .92 : .22}/>
                   {!b.passing && (
                     <>
                       <rect x={x(i) - barW / 2} y={y(b.count)} width={barW} height={Math.max(h, 2)} rx="4"
-                            fill={`url(#${hatchId})`}/>
+                            fill={`url(#${hatchId})`} pointerEvents="none"/>
                       <rect x={x(i) - barW / 2} y={y(b.count)} width={barW} height={Math.max(h, 2)} rx="4"
-                            fill="none" stroke="var(--red)" strokeWidth="1.5" opacity=".75"/>
+                            fill="none" stroke="var(--red)" strokeWidth="1.5" opacity=".75" pointerEvents="none"/>
                     </>
                   )}
-                  <text x={x(i)} y={y(b.count) - 6} textAnchor="middle" fontSize="11" fontWeight="700"
-                        fill="var(--tx)" fontVariantNumeric="tabular-nums">{b.count}</text>
+                  <text className="nts-count" x={x(i)} y={y(b.count) - 6} textAnchor="middle"
+                        fontSize="11" fontWeight="700" fill="var(--tx)"
+                        style={{ fontVariantNumeric: "tabular-nums" }} pointerEvents="none">{b.count}</text>
                 </>
               )}
-              <text x={x(i)} y={H - padB + 18} textAnchor="middle" fontSize="10"
-                    fill={isHover ? "var(--tx)" : "var(--tx3)"} fontVariantNumeric="tabular-nums">
+              <text className="nts-tick" x={x(i)} y={H - padB + 18} textAnchor="middle" fontSize="10"
+                    fill={isHover ? "var(--tx)" : "var(--tx3)"} style={{ fontVariantNumeric: "tabular-nums" }}
+                    pointerEvents="none">
                 {fmtScore(b.score)}
               </text>
-              {/* Hit target spans the full column, not just the bar */}
-              <rect x={padL + slot * i} y={padT} width={slot} height={plotH} fill="transparent"
-                    onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}/>
+              {/* Hit target spans the full column, not just the bar, so short
+                  bars are as easy to click as tall ones. */}
+              <rect x={padL + slot * i} y={padT} width={slot} height={plotH} fill="transparent"/>
             </g>
           );
         })}
 
-        {/* Threshold marker */}
-        <line x1={markerX} x2={markerX} y1={padT - 10} y2={padT + plotH}
-              stroke="var(--tabby-purple)" strokeWidth="2.5" strokeDasharray="6 4"/>
-        <text x={markerX + 6} y={padT - 12} fontSize="11" fontWeight="700" fill="var(--tabby-purple)">
-          Pass mark {fmtScore(threshold)}%
-        </text>
+        {/* Threshold marker. Translated rather than repositioned, for the same
+            reason as the wash above. */}
+        <g className="nts-anim" style={{ transform: `translateX(${markerX}px)` }} pointerEvents="none">
+          <line x1="0" x2="0" y1={padT - 10} y2={padT + plotH}
+                stroke="var(--primary-text)" strokeWidth="2.5" strokeDasharray="6 4"/>
+          <text x="6" y={padT - 12} fontSize="11" fontWeight="700" fill="var(--primary-text)">
+            Pass mark {fmtScore(threshold)}%
+          </text>
+        </g>
         <text x={padL} y={H - 10} fontSize="10" fill="var(--tx3)">Agent score (%)</text>
       </svg>
 
@@ -166,7 +179,7 @@ function TradeOffCurve({ curve, threshold, onPick }) {
             <line x1={padL} x2={W - padR} y1={ys(p)} y2={ys(p)}
                   stroke="var(--bd)" strokeWidth="1" opacity={p === 0 ? .9 : .35}/>
             <text x={padL - 8} y={ys(p) + 4} textAnchor="end" fontSize="10" fill="var(--tx3)"
-                  fontVariantNumeric="tabular-nums">{p}%</text>
+                  style={{ fontVariantNumeric: "tabular-nums" }}>{p}%</text>
           </g>
         ))}
 
@@ -176,12 +189,12 @@ function TradeOffCurve({ curve, threshold, onPick }) {
         <text x={xs(BASELINE_THRESHOLD)} y={padT + 12} fontSize="10" fill="var(--tx3)"
               textAnchor="middle">baseline 75</text>
 
-        <path d={area} fill="var(--tabby-purple)" opacity=".08"/>
-        <path d={line} fill="none" stroke="var(--tabby-purple)" strokeWidth="2.5"
+        <path d={area} fill="var(--primary-text)" opacity=".10"/>
+        <path d={line} fill="none" stroke="var(--primary-text)" strokeWidth="2.5"
               strokeLinejoin="round" strokeLinecap="round"/>
 
         {curve.map((p, i) => (
-          <circle key={p.threshold} cx={xs(p.threshold)} cy={ys(p.passRate)}
+          <circle key={p.threshold} className="nts-point" cx={xs(p.threshold)} cy={ys(p.passRate)}
                   r={i === active ? 7 : 3.5}
                   fill={i === active ? "var(--tabby-purple)" : "var(--bg3)"}
                   stroke="var(--tabby-purple)" strokeWidth="2"/>
@@ -197,7 +210,7 @@ function TradeOffCurve({ curve, threshold, onPick }) {
           <g key={`hit-${p.threshold}`}>
             <text x={xs(p.threshold)} y={H - padB + 20} textAnchor="middle" fontSize="10"
                   fill={i === active ? "var(--tx)" : "var(--tx3)"}
-                  fontWeight={i === active ? 700 : 400} fontVariantNumeric="tabular-nums">
+                  fontWeight={i === active ? 700 : 400} style={{ fontVariantNumeric: "tabular-nums" }}>
               {fmtScore(p.threshold)}
             </text>
             <rect x={xs(p.threshold) - plotW / (curve.length * 2)} y={padT}
@@ -231,6 +244,44 @@ function TradeOffCurve({ curve, threshold, onPick }) {
 }
 
 /* ── Small building blocks ───────────────────────────────────────────────── */
+
+// Roll a number to its new value instead of snapping. On a page whose whole
+// purpose is "watch what changes when I move this", a figure that slides makes
+// the delta legible; one that jumps just blinks. Honours reduced-motion, and
+// always lands exactly on the target rather than near it.
+function useAnimatedNumber(target, decimals = 0) {
+  const [shown, setShown] = useState(target);
+  const fromRef = useRef(target);
+  const rafRef = useRef(0);
+
+  useEffect(() => {
+    const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const from = fromRef.current;
+    // requestAnimationFrame does not fire in a hidden tab, so an animation
+    // started there would park the tile on the PREVIOUS value until the tab is
+    // looked at again. On a page whose numbers drive a policy decision, a
+    // stale figure is worse than no animation — so when nobody is watching,
+    // skip straight to the answer.
+    if (reduced || document.hidden || from === target) {
+      fromRef.current = target; setShown(target); return;
+    }
+
+    const DURATION = 380;
+    let start = null;
+    const tick = (ts) => {
+      if (start === null) start = ts;
+      const t = Math.min((ts - start) / DURATION, 1);
+      const eased = 1 - Math.pow(1 - t, 3);          // ease-out cubic
+      setShown(from + (target - from) * eased);
+      if (t < 1) rafRef.current = requestAnimationFrame(tick);
+      else { fromRef.current = target; setShown(target); }
+    };
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [target]);
+
+  return Number(shown.toFixed(decimals));
+}
 
 function Metric({ label, value, sub, tone }) {
   const color = tone === "bad" ? "var(--red)" : tone === "good" ? "var(--green)" : "var(--tx)";
@@ -290,6 +341,10 @@ export default function NestingThresholdPage() {
   // misreading this page cannot afford.
   const attrAxisMax = Math.max(10, Math.ceil(Math.max(...ATTRIBUTE_FAILS.rows.map((r) => r.rate)) / 10) * 10);
 
+  const animRate = useAnimatedNumber(sim.passRate, 1);
+  const animPass = useAnimatedNumber(sim.pass);
+  const animFail = useAnimatedNumber(sim.fail);
+
   return (
     <div className="page">
       <div className="page-header" style={{ marginBottom: 16 }}>
@@ -301,11 +356,11 @@ export default function NestingThresholdPage() {
 
       {/* ── Recommendation ── */}
       <div className="card" style={{
-        borderLeft: "4px solid var(--tabby-purple)", marginBottom: 16,
+        borderLeft: "4px solid var(--primary-text)", marginBottom: 16,
         display: "flex", gap: 16, alignItems: "flex-start", flexWrap: "wrap",
       }}>
         <div style={{ flex: "1 1 420px" }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--tabby-purple)", textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 4 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: "var(--primary-text)", textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 4 }}>
             Provisional recommendation
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
@@ -319,7 +374,7 @@ export default function NestingThresholdPage() {
           </div>
         </div>
         <div style={{ flex: "0 0 auto", textAlign: "right", minWidth: 130 }}>
-          <div style={{ fontSize: 34, fontWeight: 800, color: "var(--tabby-purple)", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
+          <div style={{ fontSize: 34, fontWeight: 800, color: "var(--primary-text)", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
             {fmtPct(primaryAt75.passRate)}
           </div>
           <div style={{ fontSize: 11, color: "var(--tx3)" }}>pass at 75% · all regions</div>
@@ -392,9 +447,9 @@ export default function NestingThresholdPage() {
 
       {/* ── Headline metrics ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 12, marginBottom: 16 }}>
-        <Metric label="Pass rate" value={fmtPct(sim.passRate)} sub={`${regionLabel} · ${sim.total} agents`}/>
-        <Metric label="Passing" value={`${sim.pass}`} sub={`of ${sim.total} agents`} tone="good"/>
-        <Metric label="Failing" value={`${sim.fail}`} sub={`of ${sim.total} agents`} tone="bad"/>
+        <Metric label="Pass rate" value={fmtPct(animRate)} sub={`${regionLabel} · ${sim.total} agents`}/>
+        <Metric label="Passing" value={`${animPass}`} sub={`of ${sim.total} agents`} tone="good"/>
+        <Metric label="Failing" value={`${animFail}`} sub={`of ${sim.total} agents`} tone="bad"/>
         <Metric
           label={`vs ${fmtScore(BASELINE_THRESHOLD)}% baseline`}
           value={deltaAgents === 0 ? "—" : `${deltaAgents > 0 ? "+" : ""}${deltaAgents}`}
@@ -407,7 +462,7 @@ export default function NestingThresholdPage() {
       {/* ── Trade-off curve ── */}
       <Panel
         title="Trade-off: pass rate at every candidate threshold"
-        caption={<>Each point is a policy option. Click one to select it. The curve is steepest
+        caption={<>Each point is a policy option — <strong>click any point</strong> to select it. The curve is steepest
           between 75% and 87.5%, where the bulk of agents sit — so a step up from 75% costs far
           more people than a step down saves. Computed on {sim.total} agents ({regionLabel}).</>}>
         <TradeOffCurve curve={curve} threshold={threshold} onPick={setThreshold}/>
@@ -417,9 +472,10 @@ export default function NestingThresholdPage() {
       <div style={{ marginTop: 16 }}>
         <Panel
           title="Where agents actually score"
-          caption={<>Scores land only on multiples of {SCORE_STEP} because each agent is the mean of
-            4 tickets scored out of 4 attributes. A threshold set between two steps behaves
-            identically to the step below it.</>}>
+          caption={<><strong>Click any bar</strong> to move the pass mark to that score. Scores land
+            only on multiples of {SCORE_STEP} because each agent is the mean of 4 tickets scored out
+            of 4 attributes, so a threshold set between two steps behaves identically to the step
+            below it. Keyboard users can drive the same thing with the slider above.</>}>
           <div style={{ display: "flex", gap: 16, alignItems: "center", flexWrap: "wrap", marginBottom: 4 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--tx2)" }}>
               <span style={{ width: 13, height: 13, borderRadius: 3, background: "var(--green)" }}/> Pass
@@ -434,7 +490,7 @@ export default function NestingThresholdPage() {
               {showTable ? "Hide" : "Show"} data table
             </button>
           </div>
-          <DistributionChart bars={sim.bars} threshold={threshold} hatchId={`hatch-${hatchId}`}/>
+          <DistributionChart bars={sim.bars} threshold={threshold} hatchId={`hatch-${hatchId}`} onPick={setThreshold}/>
           {showTable && (
             <div style={{ overflowX: "auto", marginTop: 12 }}>
               <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
@@ -492,7 +548,7 @@ export default function NestingThresholdPage() {
                 <div style={{ height: 8, background: "var(--bd2)", borderRadius: 4, overflow: "hidden" }}>
                   <div className="mo-bar" style={{
                     transform: `scaleX(${r.rate / attrAxisMax})`, height: "100%",
-                    background: r.scored ? "var(--tabby-purple)" : "var(--tx3)",
+                    background: r.scored ? "var(--primary-text)" : "var(--tx3)",
                   }}/>
                 </div>
               </div>

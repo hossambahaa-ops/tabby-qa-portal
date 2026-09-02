@@ -1083,6 +1083,42 @@ a, [style*="cursor: pointer"], [style*="cursor:pointer"] {
 }
 .mo-bar-track { overflow: hidden; }
 
+/* ── Nesting threshold simulator ──────────────────────────────────────────
+   Chart motion for the threshold page. Everything here animates transform,
+   opacity or paint — never geometry — so moving the threshold never reflows
+   the SVG, and the index.css layout-animation guard stays satisfied.
+
+   The marker and the fail-region wash are positioned with a translate/scale
+   on a <g> rather than by setting x/width, precisely so they can transition:
+   SVG geometry attributes are not reliably CSS-animatable across browsers,
+   transforms are. */
+.nts-anim {
+  transition-property: transform, opacity, fill, stroke;
+  transition-duration: var(--d3);
+  transition-timing-function: var(--ease-out);
+}
+.nts-bar {
+  transition-property: fill, opacity, stroke;
+  transition-duration: var(--d2);
+  transition-timing-function: var(--ease);
+  cursor: pointer;
+}
+/* The whole column is the hit target, so the hover cue has to come from the
+   bar itself rather than a :hover on the rect under the pointer. */
+.nts-col:hover .nts-bar { opacity: 1; }
+.nts-col:hover .nts-count { fill: var(--primary-text); }
+.nts-count, .nts-tick {
+  transition-property: fill, font-weight;
+  transition-duration: var(--d2);
+  transition-timing-function: var(--ease);
+}
+.nts-col:focus-visible, .nts-point:focus-visible { outline: none; }
+.nts-col:focus-visible .nts-bar, .nts-point:focus-visible {
+  stroke: var(--primary-text);
+  stroke-width: 2.5;
+}
+.nts-point { transition-property: r, fill; transition-duration: var(--d2); transition-timing-function: var(--ease-out); cursor: pointer; }
+
 /* ── Placeholder float animation ── */
 @keyframes placeholderFloat {
   0%, 100% { transform: translateY(0); }
