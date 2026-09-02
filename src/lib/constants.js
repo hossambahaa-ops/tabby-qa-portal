@@ -20,3 +20,20 @@ export const sortMonthsDesc=(months)=>[...months].sort((a,b)=>{const[am,ay]=a.sp
 // to live here but only a handful of pages consumed them, so they're
 // now per-page filters via the new <PageFilters> strip.
 export const defaultFilters = { domain: "", month: "" };
+
+// ── Nesting Pass Threshold Simulator visibility ──────────────────────────
+// A private decision tool while the Nesting pass threshold is still being
+// chosen: it shows unpublished batch data and a provisional recommendation,
+// so it is owner-only until the threshold is signed off.
+//
+// Deliberately an email allowlist rather than a role check. `super_admin` is
+// a role other people can be granted, and this page must not become visible
+// as a side effect of someone being promoted.
+//
+// Matched on the local part so the same person resolves across @tabby.sa and
+// @tabby.ai, which several staff have (see the cross-domain identity split).
+const NESTING_SIM_LOCALPARTS = ["hossam.bahaa"];
+export const canSeeNestingSim = (email) => {
+  const local = String(email || "").toLowerCase().split("@")[0];
+  return !!local && NESTING_SIM_LOCALPARTS.includes(local);
+};
