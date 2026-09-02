@@ -4,6 +4,7 @@ import {
   BASELINE_THRESHOLD, SCORE_STEP,
   simulate, tradeOffCurve, thresholdScale,
   medianScore, meanScore, modeScore,
+  alignedShare, PRIMARY_SCALE,
 } from "../src/lib/nestingThreshold.js";
 
 // This page is shown to C-level to pick a policy threshold, so the arithmetic
@@ -160,5 +161,44 @@ describe("attribute failure rates", () => {
 
   it("flags Compliance as unscored, since it zeroes a ticket rather than losing points", () => {
     expect(ATTRIBUTE_FAILS.rows.find((r) => r.attribute === "Compliance").scored).toBe(false);
+  });
+});
+
+describe("aligning two cohorts for comparison", () => {
+  it("puts the V2 pilot on the same 13-point scale as the primary model", () => {
+    const rows = alignedShare(VALIDATION);
+    expect(rows.map((r) => r.score)).toEqual(PRIMARY_SCALE);
+  });
+
+  it("fills the buckets the pilot never produced with a real zero", () => {
+    const rows = alignedShare(VALIDATION);
+    // 42 agents, none of whom scored 25, 31.25, 43.75 or 56.25.
+    for (const s of [25, 31.25, 43.75, 56.25]) {
+      const row = rows.find((r) => r.score === s);
+      expect(row.count, `score ${s}`).toBe(0);
+      expect(row.share, `score ${s}`).toBe(0);
+    }
+  });
+
+  it("preserves the underlying counts while normalising", () => {
+    const rows = alignedShare(VALIDATION);
+    expect(rows.reduce((n, r) => n + r.count, 0)).toBe(VALIDATION.agents);
+    expect(rows.reduce((n, r) => n + r.share, 0)).toBeCloseTo(100, 6);
+  });
+
+  it("normalises cohorts of very different size onto a comparable axis", () => {
+    // The whole point: 42 vs 137 agents must not make the pilot look tiny.
+    const pilot = alignedShare(VALIDATION);
+    const primary = alignedShare(PRIMARY);
+    expect(primary.reduce((n, r) => n + r.share, 0)).toBeCloseTo(100, 6);
+    // 10 of 42 pilot agents scored 87.5 -> 23.8%, vs 21 of 137 -> 15.3%.
+    expect(pilot.find((r) => r.score === 87.5).share).toBeCloseTo(23.81, 2);
+    expect(primary.find((r) => r.score === 87.5).share).toBeCloseTo(15.33, 2);
+  });
+
+  it("respects the region filter on the primary model", () => {
+    const ksa = alignedShare(PRIMARY, "ksa");
+    expect(ksa.reduce((n, r) => n + r.count, 0)).toBe(80);
+    expect(ksa.reduce((n, r) => n + r.share, 0)).toBeCloseTo(100, 6);
   });
 });

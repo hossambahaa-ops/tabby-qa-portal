@@ -135,6 +135,30 @@ const countFor = (row, region) =>
 /** Every score on the scale, ascending — the x-axis for the distribution. */
 export const scoreScale = (dataset = PRIMARY) => dataset.byScore.map((r) => r.score);
 
+/** The full 25→100 grid. Datasets with gaps get aligned onto this. */
+export const PRIMARY_SCALE = scoreScale(PRIMARY);
+
+/**
+ * Put any dataset on a shared score scale and express each bucket as a SHARE
+ * of its own cohort.
+ *
+ * Both halves matter for comparison. The alignment fills the buckets a smaller
+ * cohort never produced (the V2 pilot has nobody at 25, 31.25, 43.75 or 56.25)
+ * so two series can be drawn against one axis. The share is what makes them
+ * comparable at all: the pilot is 42 agents against the primary model's 137,
+ * so plotting raw counts would draw a genuinely similar distribution as a
+ * flat line along the bottom.
+ */
+export function alignedShare(dataset, region = "all", scale = PRIMARY_SCALE) {
+  const byScore = new Map(dataset.byScore.map((r) => [r.score, r]));
+  const total = dataset.byScore.reduce((n, r) => n + countFor(r, region), 0);
+  return scale.map((score) => {
+    const row = byScore.get(score);
+    const count = row ? countFor(row, region) : 0;
+    return { score, count, share: total ? (count / total) * 100 : 0 };
+  });
+}
+
 /** Every threshold a viewer can choose, ascending. */
 export const thresholdScale = () => {
   const out = [];

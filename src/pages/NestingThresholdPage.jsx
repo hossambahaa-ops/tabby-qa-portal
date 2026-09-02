@@ -3,7 +3,7 @@ import {
   PRIMARY, VALIDATION, REASSESSMENT, ATTRIBUTE_FAILS,
   BASELINE_THRESHOLD, SCORE_STEP, REGIONS,
   simulate, tradeOffCurve, thresholdScale,
-  medianScore, meanScore, modeScore,
+  medianScore, meanScore, modeScore, alignedShare,
 } from "../lib/nestingThreshold.js";
 
 // Nesting Pass Threshold Simulator — a decision tool for choosing the pass
@@ -31,23 +31,40 @@ const fmtScore = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(
 
 /* ── Distribution ─────────────────────────────────────────────────────────
    Where the agents actually sit, with the threshold drawn through them. This
-   is the chart that answers "who am I cutting?". */
-function DistributionChart({ bars, threshold, hatchId, onPick }) {
+   is the chart that answers "who am I cutting?".
+
+   With a comparison cohort loaded it switches from counts to SHARE of cohort,
+   because the pilot is 42 agents against the primary model's 137 — plotting
+   raw counts side by side would draw a similar distribution as a flat line
+   along the bottom and invite exactly the wrong conclusion. */
+function DistributionChart({ bars, threshold, hatchId, onPick, overlay, overlayLabel }) {
   const W = 880, H = 300;
-  const padL = 44, padR = 12, padT = 22, padB = 52;
+  const padL = 46, padR = 12, padT = 22, padB = 52;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const [hover, setHover] = useState(null);
+  const comparing = !!overlay;
 
-  const maxCount = Math.max(...bars.map((b) => b.count), 1);
+  const val = (b) => (comparing ? b.share : b.count);
+  const rawMax = Math.max(...bars.map(val), ...(overlay ? overlay.map((o) => o.share) : []), 1);
+  // Round the axis up to a multiple of 4 so bars never touch the ceiling AND
+  // the four gridlines land on whole numbers — a share axis rounded to 25 gives
+  // quarters of 6.25 and prints "19%, 13%, 6%", which looks like a mistake.
+  const maxVal = Math.ceil(rawMax / 4) * 4;
+
   const slot = plotW / bars.length;
   const barW = Math.min(slot * 0.62, 46);
   const x = (i) => padL + slot * i + slot / 2;
-  const y = (c) => padT + plotH - (c / maxCount) * plotH;
+  const y = (v) => padT + plotH - (v / maxVal) * plotH;
+  const axisLabel = (v) => (comparing ? `${Math.round(v)}%` : String(Math.round(v)));
 
   // The threshold sits BETWEEN buckets: it belongs just left of the first
   // passing bar, not on top of it, or it reads as "this bar is the cutoff".
   const firstPass = bars.findIndex((b) => b.passing);
   const markerX = firstPass === -1 ? padL + plotW : padL + slot * firstPass;
+
+  const overlayPts = overlay
+    ? overlay.map((o, i) => `${x(i)},${y(o.share)}`).join(" ")
+    : null;
 
   return (
     <div style={{ position: "relative" }}>
@@ -69,7 +86,7 @@ function DistributionChart({ bars, threshold, hatchId, onPick }) {
                   stroke="var(--bd)" strokeWidth="1" opacity={f === 1 ? .9 : .35}/>
             <text x={padL - 8} y={padT + plotH * f + 4} textAnchor="end"
                   fontSize="10" fill="var(--tx3)" style={{ fontVariantNumeric: "tabular-nums" }}>
-              {Math.round(maxCount * (1 - f))}
+              {axisLabel(maxVal * (1 - f))}
             </text>
           </g>
         ))}
@@ -83,7 +100,8 @@ function DistributionChart({ bars, threshold, hatchId, onPick }) {
         </g>
 
         {bars.map((b, i) => {
-          const h = plotH - (y(b.count) - padT);
+          const v = val(b);
+          const h = plotH - (y(v) - padT);
           const isHover = hover === i;
           return (
             <g key={b.score} className="nts-col"
@@ -95,20 +113,22 @@ function DistributionChart({ bars, threshold, hatchId, onPick }) {
                       mode --red-bg sits at a 1.06 contrast ratio against the
                       card and the bars vanish. --red reads in both themes. */}
                   <rect className="nts-bar"
-                        x={x(i) - barW / 2} y={y(b.count)} width={barW} height={Math.max(h, 2)} rx="4"
+                        x={x(i) - barW / 2} y={y(v)} width={barW} height={Math.max(h, 2)} rx="4"
                         fill={b.passing ? "var(--green)" : "var(--red)"}
                         opacity={b.passing ? .92 : .22}/>
                   {!b.passing && (
                     <>
-                      <rect x={x(i) - barW / 2} y={y(b.count)} width={barW} height={Math.max(h, 2)} rx="4"
+                      <rect x={x(i) - barW / 2} y={y(v)} width={barW} height={Math.max(h, 2)} rx="4"
                             fill={`url(#${hatchId})`} pointerEvents="none"/>
-                      <rect x={x(i) - barW / 2} y={y(b.count)} width={barW} height={Math.max(h, 2)} rx="4"
+                      <rect x={x(i) - barW / 2} y={y(v)} width={barW} height={Math.max(h, 2)} rx="4"
                             fill="none" stroke="var(--red)" strokeWidth="1.5" opacity=".75" pointerEvents="none"/>
                     </>
                   )}
-                  <text className="nts-count" x={x(i)} y={y(b.count) - 6} textAnchor="middle"
+                  <text className="nts-count" x={x(i)} y={y(v) - 6} textAnchor="middle"
                         fontSize="11" fontWeight="700" fill="var(--tx)"
-                        style={{ fontVariantNumeric: "tabular-nums" }} pointerEvents="none">{b.count}</text>
+                        style={{ fontVariantNumeric: "tabular-nums" }} pointerEvents="none">
+                    {comparing ? `${b.share.toFixed(0)}%` : b.count}
+                  </text>
                 </>
               )}
               <text className="nts-tick" x={x(i)} y={H - padB + 18} textAnchor="middle" fontSize="10"
@@ -123,6 +143,22 @@ function DistributionChart({ bars, threshold, hatchId, onPick }) {
           );
         })}
 
+        {/* Comparison cohort. Drawn as a dashed line with square markers, not
+            a second set of bars: the teal/purple pair only clears deuteranopia
+            separation in the 6–8 band, so the two series must differ in FORM
+            as well as hue. */}
+        {overlay && (
+          <g pointerEvents="none">
+            <polyline points={overlayPts} fill="none" stroke="var(--teal)" strokeWidth="2.5"
+                      strokeDasharray="7 4" strokeLinejoin="round" strokeLinecap="round"/>
+            {overlay.map((o, i) => (
+              <rect key={o.score} x={x(i) - 4} y={y(o.share) - 4} width="8" height="8"
+                    fill="var(--teal)" stroke="var(--bg3)" strokeWidth="1.5"
+                    transform={`rotate(45 ${x(i)} ${y(o.share)})`}/>
+            ))}
+          </g>
+        )}
+
         {/* Threshold marker. Translated rather than repositioned, for the same
             reason as the wash above. */}
         <g className="nts-anim" style={{ transform: `translateX(${markerX}px)` }} pointerEvents="none">
@@ -132,7 +168,9 @@ function DistributionChart({ bars, threshold, hatchId, onPick }) {
             Pass mark {fmtScore(threshold)}%
           </text>
         </g>
-        <text x={padL} y={H - 10} fontSize="10" fill="var(--tx3)">Agent score (%)</text>
+        <text x={padL} y={H - 10} fontSize="10" fill="var(--tx3)">
+          Agent score (%){comparing ? " — bars and line both show share of their own cohort" : ""}
+        </text>
       </svg>
 
       {hover !== null && bars[hover] && (
@@ -142,8 +180,14 @@ function DistributionChart({ bars, threshold, hatchId, onPick }) {
           padding: "6px 12px", fontSize: 12, pointerEvents: "none", whiteSpace: "nowrap",
           boxShadow: "var(--shadow-md)", zIndex: 2,
         }}>
-          <strong>{fmtScore(bars[hover].score)}%</strong> · {bars[hover].count} agent
-          {bars[hover].count === 1 ? "" : "s"} ·{" "}
+          <strong>{fmtScore(bars[hover].score)}%</strong> ·{" "}
+          {comparing
+            ? <>{bars[hover].share.toFixed(1)}% primary vs{" "}
+                <span style={{ color: "var(--teal)", fontWeight: 700 }}>
+                  {overlay[hover].share.toFixed(1)}% {overlayLabel}
+                </span></>
+            : <>{bars[hover].count} agent{bars[hover].count === 1 ? "" : "s"}</>}
+          {" · "}
           <span style={{ color: bars[hover].passing ? "var(--green)" : "var(--red)", fontWeight: 700 }}>
             {bars[hover].passing ? "Pass" : "Fail"}
           </span>
@@ -156,7 +200,7 @@ function DistributionChart({ bars, threshold, hatchId, onPick }) {
 /* ── Trade-off curve ──────────────────────────────────────────────────────
    The chart the decision actually turns on: pass rate at every threshold the
    business could pick, so the cost of each step is visible at once. */
-function TradeOffCurve({ curve, threshold, onPick }) {
+function TradeOffCurve({ curve, threshold, onPick, curveB, curveBLabel }) {
   const W = 880, H = 340;
   const padL = 48, padR = 18, padT = 20, padB = 52;
   const plotW = W - padL - padR, plotH = H - padT - padB;
@@ -192,6 +236,21 @@ function TradeOffCurve({ curve, threshold, onPick }) {
         <path d={area} fill="var(--primary-text)" opacity=".10"/>
         <path d={line} fill="none" stroke="var(--primary-text)" strokeWidth="2.5"
               strokeLinejoin="round" strokeLinecap="round"/>
+
+        {/* Comparison cohort: dashed, with diamond markers. Differs in form as
+            well as hue — see the note in DistributionChart. */}
+        {curveB && (
+          <g pointerEvents="none">
+            <path d={curveB.map((p, i) => `${i ? "L" : "M"}${xs(p.threshold)} ${ys(p.passRate)}`).join(" ")}
+                  fill="none" stroke="var(--teal)" strokeWidth="2.5" strokeDasharray="7 4"
+                  strokeLinejoin="round" strokeLinecap="round"/>
+            {curveB.map((p) => (
+              <rect key={p.threshold} x={xs(p.threshold) - 3.5} y={ys(p.passRate) - 3.5}
+                    width="7" height="7" fill="var(--teal)"
+                    transform={`rotate(45 ${xs(p.threshold)} ${ys(p.passRate)})`}/>
+            ))}
+          </g>
+        )}
 
         {curve.map((p, i) => (
           <circle key={p.threshold} className="nts-point" cx={xs(p.threshold)} cy={ys(p.passRate)}
@@ -237,6 +296,16 @@ function TradeOffCurve({ curve, threshold, onPick }) {
           <div style={{ color: "var(--tx2)" }}>
             {pt.pass} pass · <span style={{ color: "var(--red)", fontWeight: 700 }}>{pt.fail} fail</span>
           </div>
+          {curveB && curveB[active] && (
+            <div style={{ marginTop: 4, paddingTop: 4, borderTop: "1px solid var(--bd2)" }}>
+              <div style={{ color: "var(--teal)", fontWeight: 700 }}>
+                {fmtPct(curveB[active].passRate)} {curveBLabel}
+              </div>
+              <div style={{ color: "var(--tx3)", fontSize: 11 }}>
+                gap {Math.abs(pt.passRate - curveB[active].passRate).toFixed(1)} pts
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -320,6 +389,7 @@ export default function NestingThresholdPage() {
   const [threshold, setThreshold] = useState(BASELINE_THRESHOLD);
   const [region, setRegion] = useState("all");
   const [showTable, setShowTable] = useState(false);
+  const [compare, setCompare] = useState(false);
   const hatchId = useId();
 
   const sim = useMemo(() => simulate(threshold, region), [threshold, region]);
@@ -340,6 +410,22 @@ export default function NestingThresholdPage() {
   // bar, which reads as "everything failed" to someone skimming — the exact
   // misreading this page cannot afford.
   const attrAxisMax = Math.max(10, Math.ceil(Math.max(...ATTRIBUTE_FAILS.rows.map((r) => r.rate)) / 10) * 10);
+
+  // Comparison layer: the cohort assessed natively on V2. Shares are computed
+  // against each cohort's own total so 42 agents can be read against 137.
+  const primaryShare = useMemo(() => alignedShare(PRIMARY, region), [region]);
+  const pilotShare   = useMemo(() => alignedShare(VALIDATION), []);
+  const pilotCurve   = useMemo(() => tradeOffCurve("all", VALIDATION), []);
+  const barsWithShare = useMemo(
+    () => sim.bars.map((b) => ({ ...b, share: primaryShare.find((r) => r.score === b.score)?.share ?? 0 })),
+    [sim.bars, primaryShare],
+  );
+  // The pilot is KSA-only, so comparing it against All or Egypt is not
+  // like-for-like. Say so rather than letting the gap be read as a finding.
+  const cohortMismatch = compare && region !== "ksa";
+
+  const pilotAt = useMemo(() => simulate(threshold, "all", VALIDATION), [threshold]);
+  const gapPts = Math.abs(sim.passRate - pilotAt.passRate);
 
   const animRate = useAnimatedNumber(sim.passRate, 1);
   const animPass = useAnimatedNumber(sim.pass);
@@ -442,7 +528,44 @@ export default function NestingThresholdPage() {
               ))}
             </div>
           </div>
+
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 8 }}>
+              Compare
+            </div>
+            <button className="mo-ctl" onClick={() => setCompare((v) => !v)}
+              aria-pressed={compare}
+              style={{
+                padding: "6px 16px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, cursor: "pointer",
+                fontFamily: "var(--font)", display: "inline-flex", alignItems: "center", gap: 8,
+                border: `1px solid ${compare ? "var(--teal)" : "var(--bd)"}`,
+                background: compare ? "var(--teal-bg)" : "transparent",
+                color: compare ? "var(--teal)" : "var(--tx2)",
+              }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, transform: "rotate(45deg)",
+                background: compare ? "var(--teal)" : "var(--bd)" }}/>
+              Native V2 pilot
+            </button>
+          </div>
         </div>
+
+        {cohortMismatch && (
+          <div style={{
+            marginTop: 14, padding: "9px 12px", borderRadius: 8, fontSize: 12, lineHeight: 1.6,
+            background: "var(--amber-bg)", border: "1px solid var(--amber)", color: "var(--tx)",
+          }}>
+            The native V2 pilot is <strong>KSA only</strong>, so comparing it against{" "}
+            {regionLabel === "All" ? "all regions" : regionLabel} is not like-for-like — some of the
+            gap you see is just a different population.{" "}
+            <button className="mo-ctl" onClick={() => setRegion("ksa")}
+              style={{ border: "none", background: "none", padding: 0, cursor: "pointer",
+                color: "var(--tx)", fontWeight: 700, textDecoration: "underline",
+                fontFamily: "var(--font)", fontSize: 12 }}>
+              Switch the primary model to KSA
+            </button>{" "}
+            to compare fairly.
+          </div>
+        )}
       </div>
 
       {/* ── Headline metrics ── */}
@@ -459,13 +582,70 @@ export default function NestingThresholdPage() {
           sub={`sit exactly on ${fmtScore(threshold)}% — one step from failing`}/>
       </div>
 
+      {/* ── Side-by-side at the selected threshold ── */}
+      {compare && (
+        <div className="card" style={{ marginBottom: 16, borderLeft: "4px solid var(--teal)" }}>
+          <div style={{ display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center" }}>
+            <div style={{ flex: "0 0 auto" }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: "var(--teal)", textTransform: "uppercase", letterSpacing: ".6px" }}>
+                At {fmtScore(threshold)}%
+              </div>
+              <div style={{ fontSize: 12, color: "var(--tx2)", marginTop: 2 }}>Two cohorts, same bar</div>
+            </div>
+
+            {[
+              { k: `Re-scored model · ${regionLabel}`, r: sim.passRate, n: `${sim.pass}/${sim.total}`, c: "var(--primary-text)" },
+              { k: "Native V2 pilot · KSA", r: pilotAt.passRate, n: `${pilotAt.pass}/${pilotAt.total}`, c: "var(--teal)" },
+            ].map((d) => (
+              <div key={d.k} style={{ flex: "1 1 160px" }}>
+                <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>{d.k}</div>
+                <div style={{ fontSize: 26, fontWeight: 800, color: d.c, lineHeight: 1.2, fontVariantNumeric: "tabular-nums" }}>
+                  {fmtPct(d.r)}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--tx2)" }}>{d.n} agents</div>
+              </div>
+            ))}
+
+            <div style={{ flex: "0 0 auto", textAlign: "right", minWidth: 120 }}>
+              <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>Gap</div>
+              <div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.2, fontVariantNumeric: "tabular-nums",
+                color: gapPts <= 5 ? "var(--green)" : gapPts <= 10 ? "var(--amber)" : "var(--red)" }}>
+                {gapPts.toFixed(1)} pts
+              </div>
+              <div style={{ fontSize: 11, color: "var(--tx2)" }}>
+                {gapPts <= 5 ? "models agree" : gapPts <= 10 ? "diverging" : "models disagree"}
+              </div>
+            </div>
+          </div>
+          <div style={{ fontSize: 11.5, color: "var(--tx2)", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--bd2)", lineHeight: 1.6 }}>
+            The pilot was scored <strong>directly on V2</strong>; the primary model re-scores legacy
+            assessments under V2 rules. Where the two curves stay close, the re-scoring is doing an
+            honest job. Where they separate, trust the pilot and treat the re-score as optimistic —
+            it can only grade evidence an evaluator already wrote down.
+          </div>
+        </div>
+      )}
+
       {/* ── Trade-off curve ── */}
       <Panel
-        title="Trade-off: pass rate at every candidate threshold"
+        title={compare ? "Trade-off: re-scored model vs native V2 pilot" : "Trade-off: pass rate at every candidate threshold"}
         caption={<>Each point is a policy option — <strong>click any point</strong> to select it. The curve is steepest
           between 75% and 87.5%, where the bulk of agents sit — so a step up from 75% costs far
           more people than a step down saves. Computed on {sim.total} agents ({regionLabel}).</>}>
-        <TradeOffCurve curve={curve} threshold={threshold} onPick={setThreshold}/>
+        {compare && (
+          <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 6 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--tx2)" }}>
+              <svg width="26" height="10" aria-hidden="true"><line x1="0" y1="5" x2="26" y2="5" stroke="var(--primary-text)" strokeWidth="2.5"/></svg>
+              Re-scored model ({regionLabel}, {sim.total} agents)
+            </span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--tx2)" }}>
+              <svg width="26" height="10" aria-hidden="true"><line x1="0" y1="5" x2="26" y2="5" stroke="var(--teal)" strokeWidth="2.5" strokeDasharray="7 4"/></svg>
+              Native V2 pilot (KSA, {VALIDATION.agents} agents)
+            </span>
+          </div>
+        )}
+        <TradeOffCurve curve={curve} threshold={threshold} onPick={setThreshold}
+          curveB={compare ? pilotCurve : null} curveBLabel="native V2 pilot"/>
       </Panel>
 
       {/* ── Distribution ── */}
@@ -483,6 +663,12 @@ export default function NestingThresholdPage() {
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--tx2)" }}>
               <span style={{ width: 13, height: 13, borderRadius: 3, background: "var(--red)", opacity: .35, border: "1px solid var(--red)" }}/> Fail (hatched)
             </span>
+            {compare && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--tx2)" }}>
+                <span style={{ width: 9, height: 9, transform: "rotate(45deg)", background: "var(--teal)" }}/>
+                Native V2 pilot (dashed)
+              </span>
+            )}
             <button className="mo-ctl" onClick={() => setShowTable((v) => !v)}
               style={{ marginLeft: "auto", padding: "4px 12px", borderRadius: 8, fontSize: 11.5,
                 fontWeight: 600, cursor: "pointer", fontFamily: "var(--font)",
@@ -490,7 +676,9 @@ export default function NestingThresholdPage() {
               {showTable ? "Hide" : "Show"} data table
             </button>
           </div>
-          <DistributionChart bars={sim.bars} threshold={threshold} hatchId={`hatch-${hatchId}`} onPick={setThreshold}/>
+          <DistributionChart bars={barsWithShare} threshold={threshold} hatchId={`hatch-${hatchId}`}
+            onPick={setThreshold}
+            overlay={compare ? pilotShare : null} overlayLabel="pilot"/>
           {showTable && (
             <div style={{ overflowX: "auto", marginTop: 12 }}>
               <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
