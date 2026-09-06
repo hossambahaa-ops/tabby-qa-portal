@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { hasRole, sortMonthsDesc } from "../lib/constants.js";
+import { hasRole, sortMonthsDesc, visibleQaRows } from "../lib/constants.js";
 import { sb, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, initialsFromEmail, emailsMatchLoose } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
@@ -157,7 +157,7 @@ function LeaderboardPage() {
           if (email.endsWith("@tabby.sa")) blacklist.add(local + "@tabby.ai");
         });
         const qaOnlyRows = rows.filter(r => !blacklist.has(r.qa_email?.toLowerCase()));
-        setData(qaOnlyRows);
+        setData(visibleQaRows(profile?.role, qaOnlyRows));
         const uniqueMonths = sortMonthsDesc([...new Set(qaOnlyRows.map(r => r.month))]);
         setMonths(uniqueMonths);
         // Global filter month takes priority, then default to latest

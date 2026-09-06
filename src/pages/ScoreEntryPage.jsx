@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { hasRole, sortMonthsDesc } from "../lib/constants.js";
+import { hasRole, sortMonthsDesc, visibleQaRows } from "../lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, logActivity, csatPctValue, csatColor } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
@@ -242,7 +242,8 @@ function ScoreEntryPage(){
             ...(q ? { abt_sbs_count: q.abt_sbs_count, abt_sbs_minutes: q.abt_sbs_minutes, abt_validation_count: q.abt_validation_count, abt_validation_minutes: q.abt_validation_minutes } : {}),
           };
         });
-        setData([...mtdRows, ...syntheticRows]);
+        // Supervisor-only QAs are filtered out for lead-level viewers.
+        setData(visibleQaRows(profile?.role, [...mtdRows, ...syntheticRows]));
         setMonths(uniqueMonths);
         // Seed-from-defaults block — ONLY runs on first load.
         // Re-runs (auto-refresh every 60s, manual ↻ Refresh button)

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { hasRole, sortMonthsDesc } from "../lib/constants.js";
+import { hasRole, sortMonthsDesc, visibleQaRows } from "../lib/constants.js";
 import { sb } from "../lib/supabase.js";
 import { csatPctValue, csatColor, normalizeTopic, nameFromEmail, emailsMatchLoose } from "../lib/utils.js";
 import QuartilePill from "../components/QuartilePill.jsx";
@@ -213,7 +213,7 @@ export default function CSATPage() {
           }
           return true;
         });
-        setData(filtered);
+        setData(visibleQaRows(profile?.role, filtered));
         const uniqueMonths = sortMonthsDesc([...new Set(filtered.map(r => r.month))]);
         setMonths(uniqueMonths);
         // Only auto-pick month/team when the effect was triggered by a

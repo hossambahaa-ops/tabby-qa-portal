@@ -37,3 +37,26 @@ export const canSeeNestingSim = (email) => {
   const local = String(email || "").toLowerCase().split("@")[0];
   return !!local && NESTING_SIM_LOCALPARTS.includes(local);
 };
+
+/* ═══ SUPERVISOR-ONLY QAs ═══ */
+// A few QAs' numbers are visible only from qa_supervisor upward — QA leads
+// (level 3) do not see their rows at all. This is a deliberate reporting
+// restriction, not a data problem: the rows exist and are complete in
+// mtd_scores, they are simply filtered out of lead-level views.
+//
+// Matched on the email LOCAL PART so a QA whose identity is split across
+// @tabby.ai and @tabby.sa (which several are) can't leak through the domain
+// they happen to be keyed under. See the alias handling in
+// supabase/queries/mtd_login_hours_by_qa.sql for the same problem.
+const SUPERVISOR_ONLY_LOCALPARTS = ["yara.ashraf.786", "yara.ashraf"];
+
+/** True when `viewerRole` is allowed to see this QA's row. */
+export const canSeeQaRow = (viewerRole, qaEmail) => {
+  const lp = String(qaEmail || "").toLowerCase().split("@")[0];
+  if (!SUPERVISOR_ONLY_LOCALPARTS.includes(lp)) return true;
+  return hasRole(viewerRole, "qa_supervisor");
+};
+
+/** Filter a list of rows (each with a qa_email) down to what the viewer may see. */
+export const visibleQaRows = (viewerRole, rows, key = "qa_email") =>
+  (rows || []).filter((r) => canSeeQaRow(viewerRole, r?.[key]));

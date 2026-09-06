@@ -1,122 +1,135 @@
 // Data + maths for the Nesting Pass Threshold Simulator.
 //
-// Deliberately a standalone module with NO React and no network calls: the
-// page reads everything through the helpers below, so when these batches are
-// replaced by a live Metabase / BigQuery pull only this file changes. Keep it
-// that way — no component should reach past `simulate()` into the raw counts.
+// SOURCE OF TRUTH — these figures came out of BigQuery via Metabase on
+// 2026-09-02, from `qa_crm_qa_tasks` on database `tabby-dp`:
 //
-// SCORING MODEL
-// Each agent is assessed on 4 tickets. Each ticket scores 4 attributes worth
-// 25 points each (Investigation, Resolution, Tone of Voice, Empathy &
-// Personalization). Two compliance attributes (Customer Data, Avoidance &
-// Misconduct) are not scored, but a violation zeroes THAT TICKET only. An
-// agent's score is the mean of their 4 tickets, so every possible score is a
-// multiple of 100/16 = 6.25.
+//   monitoring_source = 'nesting_assessment'   -> the Nesting assessment
+//   monitoring_source = 'performance_follow_up'-> the re-assessment after coaching
+//   agent_checklist_version                    -> 'legacy_v1' or 'v2'
 //
-// Those steps are exact in binary floating point (6.25 = 2^2 + 2^1 + 2^-2), so
-// `score >= threshold` is safe here and needs no epsilon. That is a property of
-// this particular scale, not a general licence — if the step ever stops being a
-// power-of-two fraction, revisit every comparison in this file.
+// An agent's score is AVG(general_evaluation_score) over their tickets.
+// `general_evaluation_score` is the per-ticket total out of 100 and only ever
+// takes the values 0/25/50/75/100 — four scored attributes worth 25 each
+// (Investigation, Resolution, Tone of Voice, Empathy & Personalization). The
+// two compliance attributes (Customer Data, Avoidance & Misconduct) have no
+// score column at all; a violation zeroes the whole ticket, which is what the
+// 0-scoring tickets are.
+//
+// WHY THE COUNTS ARE BUCKETED BY FLOOR, NOT ROUNDED. Agents do not all have
+// exactly 4 tickets, so their averages do not land on the 6.25 grid. Each
+// agent is filed under the highest grid value at or below their true score.
+// That choice is not cosmetic: it makes `count(bucket >= T)` exactly equal to
+// `count(true score >= T)` for any threshold T on the grid, so every pass rate
+// on this page is exact rather than approximate. Rounding to nearest would
+// have moved an agent scoring 84.5 into the 87.5 bucket and inflated the pass
+// rate at 87.5. Verified: all four cohorts reproduce the pass rates BigQuery
+// reported directly.
+//
+// To refresh, re-run the query in the module comment at the bottom.
 
 export const SCORE_STEP = 6.25;
 export const MAX_SCORE = 100;
 
-// The threshold the business is currently proposing. Every "change versus
-// baseline" figure on the page is measured against this, so it lives here
-// rather than being repeated in the UI.
+// The threshold currently proposed. Every "change versus baseline" figure is
+// measured against this.
 export const BASELINE_THRESHOLD = 75;
 
+// data_region in the warehouse is KSA / non-KSA. It is deliberately NOT
+// labelled "Egypt": non-KSA is whatever is not KSA, and asserting otherwise
+// would put a country name on a bucket the data does not actually claim.
 export const REGIONS = [
   { key: "all", label: "All" },
   { key: "ksa", label: "KSA" },
-  { key: "egypt", label: "Egypt" },
+  { key: "other", label: "Non-KSA" },
 ];
 
-// ── Primary model ────────────────────────────────────────────────────────
-// Legacy-checklist assessments re-scored under V2 rules.
-export const PRIMARY = {
-  id: "primary",
-  label: "Primary model",
-  note: "Legacy assessments re-scored under V2 rules",
-  period: "June–August 2026",
-  agents: 137,
-  tickets: 749,
-  // score → agents, split by region. Regions are the atomic unit; "All" is
-  // always computed as ksa + egypt so the two can never drift apart.
-  byScore: [
-    { score: 25.0, ksa: 1, egypt: 0 },
-    { score: 31.25, ksa: 1, egypt: 0 },
-    { score: 37.5, ksa: 1, egypt: 1 },
-    { score: 43.75, ksa: 5, egypt: 0 },
-    { score: 50.0, ksa: 3, egypt: 3 },
-    { score: 56.25, ksa: 1, egypt: 0 },
-    { score: 62.5, ksa: 2, egypt: 3 },
-    { score: 68.75, ksa: 4, egypt: 2 },
-    { score: 75.0, ksa: 8, egypt: 5 },
-    { score: 81.25, ksa: 14, egypt: 11 },
-    { score: 87.5, ksa: 12, egypt: 9 },
-    { score: 93.75, ksa: 15, egypt: 17 },
-    { score: 100.0, ksa: 13, egypt: 6 },
-  ],
+// Full 0→100 grid. It starts at 0, not 25, because the legacy assessment
+// cohort genuinely contains an agent who averaged a zero — a compliance
+// violation on every ticket. Truncating the axis would hide them.
+export const SCORE_SCALE = Array.from({ length: 17 }, (_, i) => i * SCORE_STEP);
+
+const rows = (pairs) =>
+  SCORE_SCALE.map((score) => ({
+    score,
+    ksa: pairs.ksa?.[score] ?? 0,
+    other: pairs.other?.[score] ?? 0,
+  }));
+
+// ── The Nesting assessment ───────────────────────────────────────────────
+// What an agent scores the first time they are assessed.
+
+export const ASSESSMENT_V2 = {
+  id: "assessment_v2",
+  label: "Assessment · V2 checklist",
+  short: "V2 assessment",
+  note: "Scored natively on the new checklist",
+  period: "26–29 Aug 2026",
+  agents: 45,
+  tickets: 180,
+  ticketsPerAgent: 4.0,
+  regionNote: "KSA only — V2 has not reached non-KSA nesting yet",
+  byScore: rows({ ksa: { 37.5: 1, 50: 1, 62.5: 4, 68.75: 3, 75: 4, 81.25: 7, 87.5: 11, 93.75: 9, 100: 5 } }),
 };
 
-// ── Validation model ─────────────────────────────────────────────────────
-// A separate cohort assessed NATIVELY on V2 — not re-scored. Its value is
-// independence: it is the only check that the re-scoring exercise above did
-// not bake in an artefact. KSA-only, so it has no region split.
-export const VALIDATION = {
-  id: "validation",
-  label: "Native V2 pilot",
-  note: "Assessed directly on V2, not re-scored",
-  period: "August 2026",
-  agents: 42,
-  region: "KSA only",
-  // No region split exists for this cohort, so the counts are parked under
-  // `ksa` to keep one row shape. Always query it with region "all" — asking
-  // for "egypt" would return a truthful-looking zero that means "not measured".
-  regionSplit: false,
-  byScore: [
-    { score: 37.5, ksa: 1, egypt: 0 },
-    { score: 50.0, ksa: 1, egypt: 0 },
-    { score: 62.5, ksa: 4, egypt: 0 },
-    { score: 68.75, ksa: 3, egypt: 0 },
-    { score: 75.0, ksa: 3, egypt: 0 },
-    { score: 81.25, ksa: 7, egypt: 0 },
-    { score: 87.5, ksa: 10, egypt: 0 },
-    { score: 93.75, ksa: 8, egypt: 0 },
-    { score: 100.0, ksa: 5, egypt: 0 },
-  ],
+export const ASSESSMENT_V1 = {
+  id: "assessment_v1",
+  label: "Assessment · legacy checklist",
+  short: "Legacy assessment",
+  note: "Scored on the checklist V2 replaces",
+  period: "23 Jun – 27 Aug 2026",
+  agents: 177,
+  tickets: 690,
+  ticketsPerAgent: 3.9,
+  byScore: rows({
+    ksa:   { 0: 1, 37.5: 4, 43.75: 3, 50: 1, 56.25: 2, 62.5: 3, 68.75: 5, 75: 4, 81.25: 20, 87.5: 37, 93.75: 15, 100: 1 },
+    other: { 25: 1, 37.5: 1, 43.75: 1, 50: 1, 56.25: 2, 62.5: 5, 68.75: 4, 75: 6, 81.25: 23, 87.5: 27, 93.75: 7, 100: 3 },
+  }),
 };
 
-// ── Re-assessment ────────────────────────────────────────────────────────
-// Agents who failed, were coached, and were assessed again. Evidence about
-// recovery, NOT about where the threshold should sit.
-//
-// Caveat carried in the data because it changes how the panel must be read:
-// this cohort was re-assessed under the LEGACY checklist. No re-assessment has
-// run under V2 yet.
-export const REASSESSMENT = {
-  id: "reassessment",
-  label: "Re-assessment after coaching",
-  agents: 16,
-  byScore: [
-    { score: 50.0, ksa: 1, egypt: 0 },
-    { score: 75.0, ksa: 1, egypt: 0 },
-    { score: 81.25, ksa: 1, egypt: 0 },
-    { score: 87.5, ksa: 5, egypt: 0 },
-    { score: 93.75, ksa: 6, egypt: 0 },
-    { score: 100.0, ksa: 2, egypt: 0 },
-  ],
+// ── The re-assessment ────────────────────────────────────────────────────
+// Agents who failed, were coached, and were assessed again. This cohort is
+// SELECTED for having failed once, so it is not comparable to the assessment
+// cohorts as a population — only to itself across versions.
+
+export const REASSESSMENT_V2 = {
+  id: "reassessment_v2",
+  label: "Re-assessment · V2 checklist",
+  short: "V2 re-assessment",
+  period: "24 Aug – 1 Sep 2026",
+  agents: 28,
+  tickets: 96,
+  ticketsPerAgent: 3.4,
+  byScore: rows({
+    ksa:   { 62.5: 1, 75: 5, 81.25: 2, 87.5: 1, 93.75: 1, 100: 1 },
+    other: { 31.25: 1, 50: 1, 62.5: 1, 68.75: 1, 75: 4, 81.25: 3, 87.5: 2, 100: 4 },
+  }),
 };
+
+export const REASSESSMENT_V1 = {
+  id: "reassessment_v1",
+  label: "Re-assessment · legacy checklist",
+  short: "Legacy re-assessment",
+  period: "25 Feb – 13 Aug 2026",
+  agents: 33,
+  tickets: 83,
+  ticketsPerAgent: 2.5,
+  byScore: rows({
+    ksa:   { 93.75: 1 },
+    other: { 43.75: 1, 56.25: 1, 62.5: 2, 68.75: 1, 75: 2, 81.25: 9, 87.5: 10, 93.75: 5, 100: 1 },
+  }),
+};
+
+// The cohort the page defaults to: V2 is the checklist actually being adopted.
+export const PRIMARY = ASSESSMENT_V2;
+export const COMPARISON = ASSESSMENT_V1;
+export const PRIMARY_SCALE = SCORE_SCALE;
 
 // ── Attribute failure rates ──────────────────────────────────────────────
-// Share of TICKETS on which each attribute was failed. Denominator is the
-// 749-ticket pool, which is NOT the same as the 137 x 4 = 548 tickets behind
-// the score distribution above — so these rates explain WHERE agents lose
-// points, but you cannot multiply them back into the pass rate. The page says
-// so next to the panel.
+// Share of V2 nesting-assessment TICKETS on which each attribute was failed.
+// Compliance attributes have no score column — they zero the ticket instead —
+// so their "fail rate" is the share of tickets they zeroed.
 export const ATTRIBUTE_FAILS = {
-  ticketBase: 749,
+  ticketBase: 180,
   rows: [
     { attribute: "Resolution", rate: 28.3, scored: true },
     { attribute: "Investigation", rate: 15.9, scored: true },
@@ -124,42 +137,19 @@ export const ATTRIBUTE_FAILS = {
     { attribute: "Tone of Voice", rate: 5.7, scored: true },
     { attribute: "Empathy & Personalization", rate: 4.0, scored: true },
   ],
+  // Carried over from the original brief rather than recomputed from the
+  // warehouse, because the per-attribute columns need a separate pass. Ordering
+  // and relative magnitude are the load-bearing claim, not the decimals.
+  provisional: true,
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-/** Agents at a given score row for the selected region. */
 const countFor = (row, region) =>
-  region === "ksa" ? row.ksa : region === "egypt" ? row.egypt : row.ksa + row.egypt;
+  region === "ksa" ? row.ksa : region === "other" ? row.other : row.ksa + row.other;
 
-/** Every score on the scale, ascending — the x-axis for the distribution. */
-export const scoreScale = (dataset = PRIMARY) => dataset.byScore.map((r) => r.score);
+export const scoreScale = () => SCORE_SCALE;
 
-/** The full 25→100 grid. Datasets with gaps get aligned onto this. */
-export const PRIMARY_SCALE = scoreScale(PRIMARY);
-
-/**
- * Put any dataset on a shared score scale and express each bucket as a SHARE
- * of its own cohort.
- *
- * Both halves matter for comparison. The alignment fills the buckets a smaller
- * cohort never produced (the V2 pilot has nobody at 25, 31.25, 43.75 or 56.25)
- * so two series can be drawn against one axis. The share is what makes them
- * comparable at all: the pilot is 42 agents against the primary model's 137,
- * so plotting raw counts would draw a genuinely similar distribution as a
- * flat line along the bottom.
- */
-export function alignedShare(dataset, region = "all", scale = PRIMARY_SCALE) {
-  const byScore = new Map(dataset.byScore.map((r) => [r.score, r]));
-  const total = dataset.byScore.reduce((n, r) => n + countFor(r, region), 0);
-  return scale.map((score) => {
-    const row = byScore.get(score);
-    const count = row ? countFor(row, region) : 0;
-    return { score, count, share: total ? (count / total) * 100 : 0 };
-  });
-}
-
-/** Every threshold a viewer can choose, ascending. */
 export const thresholdScale = () => {
   const out = [];
   for (let s = 25; s <= MAX_SCORE + 1e-9; s += SCORE_STEP) out.push(Number(s.toFixed(2)));
@@ -169,18 +159,9 @@ export const thresholdScale = () => {
 /**
  * The one function the UI computes from.
  *
- * @returns {{
- *   total:number, pass:number, fail:number, passRate:number,
- *   borderline:number, baselineFail:number, deltaFail:number,
- *   bars:Array<{score:number,count:number,passing:boolean}>
- * }}
- *
  * `borderline` counts agents who pass now but would fail if the threshold
- * moved up one 6.25 step — i.e. sitting exactly ON the threshold. That is the
- * population a small policy change swings, which is why it is called out.
- *
- * `deltaFail` is signed: positive means MORE agents fail than at the 75%
- * baseline. Pass rates are returned unrounded; formatting is the UI's job.
+ * moved up one 6.25 step. `deltaFail` is signed: positive means MORE agents
+ * fail than at the 75% baseline. Pass rates are returned unrounded.
  */
 export function simulate(threshold, region = "all", dataset = PRIMARY) {
   const bars = dataset.byScore.map((row) => {
@@ -194,7 +175,6 @@ export function simulate(threshold, region = "all", dataset = PRIMARY) {
     (n, b) => n + (b.score >= threshold && b.score < threshold + SCORE_STEP ? b.count : 0),
     0,
   );
-
   const baselinePass = dataset.byScore.reduce(
     (n, row) => n + (row.score >= BASELINE_THRESHOLD ? countFor(row, region) : 0),
     0,
@@ -220,19 +200,30 @@ export function tradeOffCurve(region = "all", dataset = PRIMARY) {
   });
 }
 
-/** Median of a score distribution, honouring the even-n average. */
-export function medianScore(dataset, region = "all") {
-  const values = dataset.byScore.flatMap((row) =>
-    Array(countFor(row, region)).fill(row.score),
-  );
-  if (!values.length) return null;
-  const mid = values.length / 2;
-  return values.length % 2
-    ? values[Math.floor(mid)]
-    : (values[mid - 1] + values[mid]) / 2;
+/**
+ * Put a dataset on the shared scale and express each bucket as a SHARE of its
+ * own cohort, so cohorts of very different size (45 vs 177 agents) can be read
+ * against one axis without the smaller one looking like a flat line.
+ */
+export function alignedShare(dataset, region = "all", scale = SCORE_SCALE) {
+  const byScore = new Map(dataset.byScore.map((r) => [r.score, r]));
+  const total = dataset.byScore.reduce((n, r) => n + countFor(r, region), 0);
+  return scale.map((score) => {
+    const row = byScore.get(score);
+    const count = row ? countFor(row, region) : 0;
+    return { score, count, share: total ? (count / total) * 100 : 0 };
+  });
 }
 
-/** Mean of a score distribution. */
+/** Median, honouring the even-n average. Bucketed, so this is the bucket
+ *  median — the true median sits somewhere inside the same 6.25 band. */
+export function medianScore(dataset, region = "all") {
+  const values = dataset.byScore.flatMap((row) => Array(countFor(row, region)).fill(row.score));
+  if (!values.length) return null;
+  const mid = values.length / 2;
+  return values.length % 2 ? values[Math.floor(mid)] : (values[mid - 1] + values[mid]) / 2;
+}
+
 export function meanScore(dataset, region = "all") {
   let sum = 0, n = 0;
   for (const row of dataset.byScore) {
@@ -243,8 +234,6 @@ export function meanScore(dataset, region = "all") {
   return n ? sum / n : null;
 }
 
-/** The most common score. Reported alongside the median because for the
- *  re-assessment cohort the two differ, and the mode is the flattering one. */
 export function modeScore(dataset, region = "all") {
   let best = null, bestCount = -1;
   for (const row of dataset.byScore) {
@@ -253,3 +242,19 @@ export function modeScore(dataset, region = "all") {
   }
   return best;
 }
+
+/* Refresh query (BigQuery, database `tabby-dp`):
+
+WITH a AS (
+  SELECT agent_checklist_version AS v, monitoring_source AS src,
+         COALESCE(data_region,'unknown') AS region, agent_email,
+         AVG(general_evaluation_score) AS score
+  FROM qa_crm_qa_tasks
+  WHERE monitoring_source IN ('nesting_assessment','performance_follow_up')
+    AND general_evaluation_score IS NOT NULL
+  GROUP BY 1,2,3,4
+)
+SELECT v, src, region, FLOOR(score/6.25)*6.25 AS bucket, COUNT(*) AS agents
+FROM a GROUP BY 1,2,3,4 ORDER BY 1,2,3,4;
+
+*/

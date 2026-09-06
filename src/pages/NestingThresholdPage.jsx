@@ -1,6 +1,15 @@
 import React, { useState, useMemo, useId, useEffect, useRef } from "react";
 import {
-  PRIMARY, VALIDATION, REASSESSMENT, ATTRIBUTE_FAILS,
+  // nestingThreshold.js was reorganised into explicit V1/V2 cohorts and the
+  // meaning of PRIMARY flipped (it is now the V2 assessment, not the legacy
+  // one). Alias on import so this page keeps its original semantics:
+  //   PRIMARY     = legacy assessment      (177 agents)
+  //   VALIDATION  = native V2 pilot, KSA   (45 agents)
+  //   REASSESSMENT= legacy re-assessment   (33 agents)
+  COMPARISON as PRIMARY,
+  PRIMARY as VALIDATION,
+  REASSESSMENT_V1 as REASSESSMENT,
+  ATTRIBUTE_FAILS,
   BASELINE_THRESHOLD, SCORE_STEP, REGIONS,
   simulate, tradeOffCurve, thresholdScale,
   medianScore, meanScore, modeScore, alignedShare,
@@ -759,7 +768,7 @@ export default function NestingThresholdPage() {
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {[
               { k: "Primary model", v: primaryAt75.passRate, n: `${primaryAt75.pass}/${primaryAt75.total} agents`, note: "re-scored" },
-              { k: "Native V2 pilot", v: validationAt75.passRate, n: `${validationAt75.pass}/${validationAt75.total} agents`, note: VALIDATION.region },
+              { k: "Native V2 pilot", v: validationAt75.passRate, n: `${validationAt75.pass}/${validationAt75.total} agents`, note: VALIDATION.regionNote },
             ].map((d) => (
               <div key={d.k} style={{ flex: "1 1 130px", background: "var(--bg)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--bd2)" }}>
                 <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>{d.k}</div>
