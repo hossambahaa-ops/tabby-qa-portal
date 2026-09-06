@@ -1,7 +1,13 @@
 // Data + maths for the Nesting Pass Threshold Simulator.
 //
-// SOURCE OF TRUTH — these figures came out of BigQuery via Metabase on
-// 2026-09-02, from `qa_crm_qa_tasks` on database `tabby-dp`:
+// SOURCE OF TRUTH — refreshed from BigQuery via Metabase on 2026-09-06, from
+// `customer_happiness_quality_datamarts.qa_crm_qa_tasks` on database `tabby-dp`:
+//
+// At that refresh the two LEGACY cohorts were byte-identical to the 2026-09-02
+// pull (177 and 33 agents, every bucket unchanged) — they are closed. Both V2
+// cohorts had grown: the assessment 45 -> 46 and the re-assessment 28 -> 32,
+// which is expected while V2 is still rolling out. Re-run the query at the
+// bottom to refresh again; the V2 numbers will keep moving.
 //
 //   monitoring_source = 'nesting_assessment'   -> the Nesting assessment
 //   monitoring_source = 'performance_follow_up'-> the re-assessment after coaching
@@ -63,12 +69,18 @@ export const ASSESSMENT_V2 = {
   label: "Assessment · V2 checklist",
   short: "V2 assessment",
   note: "Scored natively on the new checklist",
-  period: "26–29 Aug 2026",
-  agents: 45,
-  tickets: 180,
-  ticketsPerAgent: 4.0,
-  regionNote: "KSA only — V2 has not reached non-KSA nesting yet",
-  byScore: rows({ ksa: { 37.5: 1, 50: 1, 62.5: 4, 68.75: 3, 75: 4, 81.25: 7, 87.5: 11, 93.75: 9, 100: 5 } }),
+  period: "26 Aug – 4 Sep 2026",
+  agents: 46,
+  tickets: 182,
+  ticketsPerAgent: 3.96,
+  // Was KSA-only at the 2026-09-02 pull. The 2026-09-06 refresh brought the
+  // first non-KSA agent into the V2 assessment, so the old "KSA only" claim is
+  // retired rather than repeated.
+  regionNote: "Overwhelmingly KSA — 45 of 46; V2 is only starting to reach non-KSA nesting",
+  byScore: rows({
+    ksa:   { 37.5: 1, 50: 1, 62.5: 4, 68.75: 3, 75: 4, 81.25: 7, 87.5: 11, 93.75: 9, 100: 5 },
+    other: { 100: 1 },
+  }),
 };
 
 export const ASSESSMENT_V1 = {
@@ -95,13 +107,13 @@ export const REASSESSMENT_V2 = {
   id: "reassessment_v2",
   label: "Re-assessment · V2 checklist",
   short: "V2 re-assessment",
-  period: "24 Aug – 1 Sep 2026",
-  agents: 28,
-  tickets: 96,
-  ticketsPerAgent: 3.4,
+  period: "24 Aug – 6 Sep 2026",
+  agents: 32,
+  tickets: 142,
+  ticketsPerAgent: 4.44,
   byScore: rows({
-    ksa:   { 62.5: 1, 75: 5, 81.25: 2, 87.5: 1, 93.75: 1, 100: 1 },
-    other: { 31.25: 1, 50: 1, 62.5: 1, 68.75: 1, 75: 4, 81.25: 3, 87.5: 2, 100: 4 },
+    ksa:   { 75: 4, 81.25: 4, 87.5: 2, 93.75: 1, 100: 1 },
+    other: { 31.25: 1, 50: 1, 62.5: 1, 68.75: 1, 75: 5, 81.25: 3, 87.5: 4, 100: 4 },
   }),
 };
 
