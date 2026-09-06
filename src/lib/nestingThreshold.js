@@ -1,37 +1,26 @@
 // Data + maths for the Nesting Pass Threshold Simulator.
 //
-// SOURCE OF TRUTH — refreshed from BigQuery via Metabase on 2026-09-06, from
-// `customer_happiness_quality_datamarts.qa_crm_qa_tasks` on database `tabby-dp`:
+// SOURCE OF TRUTH — BigQuery via Metabase, refreshed 2026-09-06, from
+// `customer_happiness_quality_datamarts.qa_crm_qa_tasks` (database `tabby-dp`):
 //
-// At that refresh the two LEGACY cohorts were byte-identical to the 2026-09-02
-// pull (177 and 33 agents, every bucket unchanged) — they are closed. Both V2
-// cohorts had grown: the assessment 45 -> 46 and the re-assessment 28 -> 32,
-// which is expected while V2 is still rolling out. Re-run the query at the
-// bottom to refresh again; the V2 numbers will keep moving.
+//   monitoring_source = 'nesting_assessment'    -> the Nesting assessment
+//   monitoring_source = 'performance_follow_up' -> the re-assessment after coaching
+//   agent_checklist_version = 'legacy_v1'       -> the ONLY data used here
 //
-//   monitoring_source = 'nesting_assessment'   -> the Nesting assessment
-//   monitoring_source = 'performance_follow_up'-> the re-assessment after coaching
-//   agent_checklist_version                    -> 'legacy_v1' or 'v2'
+// The V2-scored cohorts were removed on 2026-09-06. They were a different 46
+// agents, so comparing them against the legacy population confounded "new
+// checklist" with "different people". The page now compares one population
+// against itself under two scorings — see the mapping note below.
 //
-// An agent's score is AVG(general_evaluation_score) over their tickets.
-// `general_evaluation_score` is the per-ticket total out of 100 and only ever
-// takes the values 0/25/50/75/100 — four scored attributes worth 25 each
-// (Investigation, Resolution, Tone of Voice, Empathy & Personalization). The
-// two compliance attributes (Customer Data, Avoidance & Misconduct) have no
-// score column at all; a violation zeroes the whole ticket, which is what the
-// 0-scoring tickets are.
-//
-// WHY THE COUNTS ARE BUCKETED BY FLOOR, NOT ROUNDED. Agents do not all have
-// exactly 4 tickets, so their averages do not land on the 6.25 grid. Each
+// WHY THE COUNTS ARE BUCKETED BY FLOOR, NOT ROUNDED. Agents do not all have the
+// same number of tickets, so their averages do not land on the 6.25 grid. Each
 // agent is filed under the highest grid value at or below their true score.
-// That choice is not cosmetic: it makes `count(bucket >= T)` exactly equal to
+// That is not cosmetic: it makes `count(bucket >= T)` exactly equal to
 // `count(true score >= T)` for any threshold T on the grid, so every pass rate
-// on this page is exact rather than approximate. Rounding to nearest would
-// have moved an agent scoring 84.5 into the 87.5 bucket and inflated the pass
-// rate at 87.5. Verified: all four cohorts reproduce the pass rates BigQuery
-// reported directly.
+// here is exact rather than approximate. Rounding to nearest would move an
+// agent scoring 84.5 into the 87.5 bucket and inflate the pass rate there.
 //
-// To refresh, re-run the query in the module comment at the bottom.
+// To refresh, re-run the query at the bottom of this file.
 
 export const SCORE_STEP = 6.25;
 export const MAX_SCORE = 100;
@@ -61,33 +50,42 @@ const rows = (pairs) =>
     other: pairs.other?.[score] ?? 0,
   }));
 
-// ── The Nesting assessment ───────────────────────────────────────────────
-// What an agent scores the first time they are assessed.
+// ── The four cohorts ─────────────────────────────────────────────────────
+// ONE population, TWO scorings. Same 177 agents, same 690 tickets, same
+// evaluations — the only thing that changes is which questions count. That
+// makes this a PAIRED comparison: every difference is the scoring change, not
+// a different group of people. The old V2-pilot comparison could not say that,
+// because it was a different 46 agents.
+//
+// THE MAPPING (agreed with Hossam 2026-09-06). The four new attributes were
+// never recorded on legacy evaluations — the score columns are all 0 and the
+// text columns all NULL, because the evaluator was answering a different
+// checklist. So "the same data scored on the new 4" has to be reconstructed
+// from the old questions that correspond to each new attribute:
+//
+//   Investigation   internal_research (5)  + probing_questions (5)      = 10
+//   Resolution      issue_handling (11)    + guidance (11)              = 22
+//   Tone of Voice   professionalism (11)   + grammar_language (5)
+//                                          + greeting (3)               = 19
+//   Empathy         empathy_personalization (11) + assurance (5)        = 16
+//                                                                  total  67
+//
+// closing_process was in Resolution in the first draft and removed on request.
+// Dropped entirely (33 of 100 points, no equivalent in the new four):
+// structure_readability 11, hold_time 5, response_time 5, status 3,
+// internal_notes 3, human_topic_selection 3, duplicate_management 3.
+//
+// The kept 67 points are rebased to 100 so the two scores share an axis.
+//
+// This mapping is a JUDGEMENT, not a fact in the data. If it is wrong, every
+// "new scoring" number on the page moves. It is stated here so it can be
+// argued with rather than discovered.
 
-export const ASSESSMENT_V2 = {
-  id: "assessment_v2",
-  label: "Assessment · V2 checklist",
-  short: "V2 assessment",
-  note: "Scored natively on the new checklist",
-  period: "26 Aug – 4 Sep 2026",
-  agents: 46,
-  tickets: 182,
-  ticketsPerAgent: 3.96,
-  // Was KSA-only at the 2026-09-02 pull. The 2026-09-06 refresh brought the
-  // first non-KSA agent into the V2 assessment, so the old "KSA only" claim is
-  // retired rather than repeated.
-  regionNote: "Overwhelmingly KSA — 45 of 46; V2 is only starting to reach non-KSA nesting",
-  byScore: rows({
-    ksa:   { 37.5: 1, 50: 1, 62.5: 4, 68.75: 3, 75: 4, 81.25: 7, 87.5: 11, 93.75: 9, 100: 5 },
-    other: { 100: 1 },
-  }),
-};
-
-export const ASSESSMENT_V1 = {
-  id: "assessment_v1",
-  label: "Assessment · legacy checklist",
-  short: "Legacy assessment",
-  note: "Scored on the checklist V2 replaces",
+export const ASSESSMENT_OLD = {
+  id: "assessment_old",
+  label: "Assessment · full old checklist",
+  short: "Old scoring",
+  note: "All ~15 attributes, as originally scored",
   period: "23 Jun – 27 Aug 2026",
   agents: 177,
   tickets: 690,
@@ -98,29 +96,27 @@ export const ASSESSMENT_V1 = {
   }),
 };
 
-// ── The re-assessment ────────────────────────────────────────────────────
-// Agents who failed, were coached, and were assessed again. This cohort is
-// SELECTED for having failed once, so it is not comparable to the assessment
-// cohorts as a population — only to itself across versions.
-
-export const REASSESSMENT_V2 = {
-  id: "reassessment_v2",
-  label: "Re-assessment · V2 checklist",
-  short: "V2 re-assessment",
-  period: "24 Aug – 6 Sep 2026",
-  agents: 32,
-  tickets: 142,
-  ticketsPerAgent: 4.44,
+export const ASSESSMENT_NEW4 = {
+  id: "assessment_new4",
+  label: "Assessment · new 4 attributes only",
+  short: "New-4 scoring",
+  note: "Same evaluations, counting only Investigation / Resolution / Tone / Empathy",
+  period: "23 Jun – 27 Aug 2026",
+  agents: 177,
+  tickets: 690,
+  ticketsPerAgent: 3.9,
   byScore: rows({
-    ksa:   { 75: 4, 81.25: 4, 87.5: 2, 93.75: 1, 100: 1 },
-    other: { 31.25: 1, 50: 1, 62.5: 1, 68.75: 1, 75: 5, 81.25: 3, 87.5: 4, 100: 4 },
+    ksa:   { 56.25: 1, 62.5: 3, 68.75: 1, 75: 10, 81.25: 22, 87.5: 28, 93.75: 23, 100: 8 },
+    other: { 50: 1, 56.25: 1, 62.5: 1, 68.75: 1, 75: 4, 81.25: 12, 87.5: 30, 93.75: 23, 100: 8 },
   }),
 };
 
-export const REASSESSMENT_V1 = {
-  id: "reassessment_v1",
-  label: "Re-assessment · legacy checklist",
-  short: "Legacy re-assessment",
+// Agents who failed, were coached, and were assessed again. SELECTED for
+// having failed once, so comparable only to itself across scorings.
+export const REASSESSMENT_OLD = {
+  id: "reassessment_old",
+  label: "Re-assessment · full old checklist",
+  short: "Old scoring",
   period: "25 Feb – 13 Aug 2026",
   agents: 33,
   tickets: 83,
@@ -131,9 +127,26 @@ export const REASSESSMENT_V1 = {
   }),
 };
 
-// The cohort the page defaults to: V2 is the checklist actually being adopted.
-export const PRIMARY = ASSESSMENT_V2;
-export const COMPARISON = ASSESSMENT_V1;
+export const REASSESSMENT_NEW4 = {
+  id: "reassessment_new4",
+  label: "Re-assessment · new 4 attributes only",
+  short: "New-4 scoring",
+  period: "25 Feb – 13 Aug 2026",
+  agents: 33,
+  tickets: 83,
+  ticketsPerAgent: 2.5,
+  byScore: rows({
+    ksa:   { 100: 1 },
+    other: { 43.75: 1, 68.75: 1, 75: 2, 81.25: 8, 87.5: 4, 93.75: 8, 100: 8 },
+  }),
+};
+
+// The page compares PRIMARY against COMPARISON. Primary is the old scoring,
+// because that is the status quo the decision is measured against.
+export const PRIMARY = ASSESSMENT_OLD;
+export const COMPARISON = ASSESSMENT_NEW4;
+export const REASSESSMENT = REASSESSMENT_OLD;
+export const REASSESSMENT_COMPARISON = REASSESSMENT_NEW4;
 export const PRIMARY_SCALE = SCORE_SCALE;
 
 // ── Attribute failure rates ──────────────────────────────────────────────
@@ -255,18 +268,29 @@ export function modeScore(dataset, region = "all") {
   return best;
 }
 
-/* Refresh query (BigQuery, database `tabby-dp`):
+/* Refresh query (BigQuery, database `tabby-dp`). Returns both scorings in one
+   pass; feed the buckets straight into the four cohorts above.
 
-WITH a AS (
-  SELECT agent_checklist_version AS v, monitoring_source AS src,
-         COALESCE(data_region,'unknown') AS region, agent_email,
-         AVG(general_evaluation_score) AS score
-  FROM qa_crm_qa_tasks
+WITH t AS (
+  SELECT monitoring_source src, COALESCE(data_region,'unknown') region,
+         LOWER(agent_email) ae,
+         general_evaluation_score AS old_s,
+         SAFE_DIVIDE(
+           COALESCE(internal_research_score,0) + COALESCE(probing_questions_score,0)
+         + COALESCE(issue_handling_score,0)   + COALESCE(guidance_score,0)
+         + COALESCE(professionalism_score,0)  + COALESCE(grammar_language_score,0)
+         + COALESCE(greeting_score,0)
+         + COALESCE(empathy_personalization_score,0) + COALESCE(assurance_score,0)
+         , 67) * 100 AS new_s
+  FROM `customer_happiness_quality_datamarts.qa_crm_qa_tasks`
   WHERE monitoring_source IN ('nesting_assessment','performance_follow_up')
+    AND agent_checklist_version = 'legacy_v1'
     AND general_evaluation_score IS NOT NULL
-  GROUP BY 1,2,3,4
-)
-SELECT v, src, region, FLOOR(score/6.25)*6.25 AS bucket, COUNT(*) AS agents
-FROM a GROUP BY 1,2,3,4 ORDER BY 1,2,3,4;
+),
+a AS (SELECT src, region, ae, AVG(old_s) o, AVG(new_s) n FROM t GROUP BY 1,2,3)
+SELECT src,'old'  scoring, region, FLOOR(o/6.25)*6.25 bucket, COUNT(*) agents FROM a GROUP BY 1,2,3,4
+UNION ALL
+SELECT src,'new4', region, FLOOR(n/6.25)*6.25, COUNT(*) FROM a GROUP BY 1,2,3,4
+ORDER BY 1,2,3,4;
 
 */

@@ -1,14 +1,12 @@
 import React, { useState, useMemo, useId, useEffect, useRef } from "react";
 import {
-  // nestingThreshold.js was reorganised into explicit V1/V2 cohorts and the
-  // meaning of PRIMARY flipped (it is now the V2 assessment, not the legacy
-  // one). Alias on import so this page keeps its original semantics:
-  //   PRIMARY     = legacy assessment      (177 agents)
-  //   VALIDATION  = native V2 pilot, KSA   (45 agents)
-  //   REASSESSMENT= legacy re-assessment   (33 agents)
-  COMPARISON as PRIMARY,
-  PRIMARY as VALIDATION,
-  REASSESSMENT_V1 as REASSESSMENT,
+  //   PRIMARY      = the same evaluations under the FULL OLD checklist
+  //   VALIDATION   = the same evaluations counting ONLY the new 4 attributes
+  //   REASSESSMENT = the re-assessment cohort, old checklist
+  // One population, two scorings — see the mapping note in nestingThreshold.js.
+  PRIMARY,
+  COMPARISON as VALIDATION,
+  REASSESSMENT,
   ATTRIBUTE_FAILS,
   BASELINE_THRESHOLD, SCORE_STEP, REGIONS,
   simulate, tradeOffCurve, thresholdScale,
@@ -410,8 +408,8 @@ export default function NestingThresholdPage() {
   // The validation and re-assessment cohorts have no region split, so they are
   // always computed on the full cohort. Filtering them by region would return
   // a truthful-looking zero for Egypt that actually means "never measured".
-  const validation = useMemo(() => simulate(threshold, "all", VALIDATION), [threshold]);
-  const validationAt75 = useMemo(() => simulate(75, "all", VALIDATION), []);
+  const validation = useMemo(() => simulate(threshold, region, VALIDATION), [threshold, region]);
+  const validationAt75 = useMemo(() => simulate(75, region, VALIDATION), [region]);
   const primaryAt75 = useMemo(() => simulate(75, "all", PRIMARY), []);
   const reassess = useMemo(() => simulate(threshold, "all", REASSESSMENT), [threshold]);
 
@@ -426,8 +424,8 @@ export default function NestingThresholdPage() {
   // Comparison layer: the cohort assessed natively on V2. Shares are computed
   // against each cohort's own total so 42 agents can be read against 137.
   const primaryShare = useMemo(() => alignedShare(PRIMARY, region), [region]);
-  const pilotShare   = useMemo(() => alignedShare(VALIDATION), []);
-  const pilotCurve   = useMemo(() => tradeOffCurve("all", VALIDATION), []);
+  const pilotShare   = useMemo(() => alignedShare(VALIDATION, region), [region]);
+  const pilotCurve   = useMemo(() => tradeOffCurve(region, VALIDATION), [region]);
   const barsWithShare = useMemo(
     () => sim.bars.map((b) => ({ ...b, share: primaryShare.find((r) => r.score === b.score)?.share ?? 0 })),
     [sim.bars, primaryShare],
@@ -436,7 +434,7 @@ export default function NestingThresholdPage() {
   // like-for-like. Say so rather than letting the gap be read as a finding.
   const cohortMismatch = compare && region !== "ksa";
 
-  const pilotAt = useMemo(() => simulate(threshold, "all", VALIDATION), [threshold]);
+  const pilotAt = useMemo(() => simulate(threshold, region, VALIDATION), [threshold, region]);
   const gapPts = Math.abs(sim.passRate - pilotAt.passRate);
 
   const animRate = useAnimatedNumber(sim.passRate, 1);
@@ -556,28 +554,13 @@ export default function NestingThresholdPage() {
               }}>
               <span style={{ width: 9, height: 9, borderRadius: 2, transform: "rotate(45deg)",
                 background: compare ? "var(--teal)" : "var(--bd)" }}/>
-              Native V2 pilot
+              New 4 attributes only
             </button>
           </div>
         </div>
 
-        {cohortMismatch && (
-          <div style={{
-            marginTop: 14, padding: "9px 12px", borderRadius: 8, fontSize: 12, lineHeight: 1.6,
-            background: "var(--amber-bg)", border: "1px solid var(--amber)", color: "var(--tx)",
-          }}>
-            The native V2 pilot is <strong>KSA only</strong>, so comparing it against{" "}
-            {regionLabel === "All" ? "all regions" : regionLabel} is not like-for-like — some of the
-            gap you see is just a different population.{" "}
-            <button className="mo-ctl" onClick={() => setRegion("ksa")}
-              style={{ border: "none", background: "none", padding: 0, cursor: "pointer",
-                color: "var(--tx)", fontWeight: 700, textDecoration: "underline",
-                fontFamily: "var(--font)", fontSize: 12 }}>
-              Switch the primary model to KSA
-            </button>{" "}
-            to compare fairly.
-          </div>
-        )}
+        {/* The old KSA-mismatch warning is gone: both scorings are the same
+            177 agents, so every region compares like-for-like by construction. */}
       </div>
 
       {/* ── Headline metrics ── */}
@@ -606,8 +589,8 @@ export default function NestingThresholdPage() {
             </div>
 
             {[
-              { k: `Re-scored model · ${regionLabel}`, r: sim.passRate, n: `${sim.pass}/${sim.total}`, c: "var(--primary-text)" },
-              { k: "Native V2 pilot · KSA", r: pilotAt.passRate, n: `${pilotAt.pass}/${pilotAt.total}`, c: "var(--teal)" },
+              { k: `Full old checklist · ${regionLabel}`, r: sim.passRate, n: `${sim.pass}/${sim.total}`, c: "var(--primary-text)" },
+              { k: `New 4 attributes only · ${regionLabel}`, r: pilotAt.passRate, n: `${pilotAt.pass}/${pilotAt.total}`, c: "var(--teal)" },
             ].map((d) => (
               <div key={d.k} style={{ flex: "1 1 160px" }}>
                 <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>{d.k}</div>
@@ -630,17 +613,16 @@ export default function NestingThresholdPage() {
             </div>
           </div>
           <div style={{ fontSize: 11.5, color: "var(--tx2)", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--bd2)", lineHeight: 1.6 }}>
-            The pilot was scored <strong>directly on V2</strong>; the primary model re-scores legacy
-            assessments under V2 rules. Where the two curves stay close, the re-scoring is doing an
-            honest job. Where they separate, trust the pilot and treat the re-score as optimistic —
-            it can only grade evidence an evaluator already wrote down.
+            Both curves are the <strong>same {sim.total} agents</strong>, scored two ways: the full
+            old checklist, and only the four attributes the new one keeps. The gap between them is
+            the scoring change and nothing else — no difference in people, tickets or evaluators.
           </div>
         </div>
       )}
 
       {/* ── Trade-off curve ── */}
       <Panel
-        title={compare ? "Trade-off: re-scored model vs native V2 pilot" : "Trade-off: pass rate at every candidate threshold"}
+        title={compare ? "Trade-off: full old checklist vs the new 4 attributes" : "Trade-off: pass rate at every candidate threshold"}
         caption={<>Each point is a policy option — <strong>click any point</strong> to select it. The curve is steepest
           between 75% and 87.5%, where the bulk of agents sit — so a step up from 75% costs far
           more people than a step down saves. Computed on {sim.total} agents ({regionLabel}).</>}>
@@ -648,16 +630,16 @@ export default function NestingThresholdPage() {
           <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 6 }}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--tx2)" }}>
               <svg width="26" height="10" aria-hidden="true"><line x1="0" y1="5" x2="26" y2="5" stroke="var(--primary-text)" strokeWidth="2.5"/></svg>
-              Re-scored model ({regionLabel}, {sim.total} agents)
+              Full old checklist ({regionLabel}, {sim.total} agents)
             </span>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 12, color: "var(--tx2)" }}>
               <svg width="26" height="10" aria-hidden="true"><line x1="0" y1="5" x2="26" y2="5" stroke="var(--teal)" strokeWidth="2.5" strokeDasharray="7 4"/></svg>
-              Native V2 pilot (KSA, {VALIDATION.agents} agents)
+              New 4 attributes only ({regionLabel}, {pilotAt.total} agents)
             </span>
           </div>
         )}
         <TradeOffCurve curve={curve} threshold={threshold} onPick={setThreshold}
-          curveB={compare ? pilotCurve : null} curveBLabel="native V2 pilot"/>
+          curveB={compare ? pilotCurve : null} curveBLabel="new 4 attributes only"/>
       </Panel>
 
       {/* ── Distribution ── */}
@@ -678,7 +660,7 @@ export default function NestingThresholdPage() {
             {compare && (
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--tx2)" }}>
                 <span style={{ width: 9, height: 9, transform: "rotate(45deg)", background: "var(--teal)" }}/>
-                Native V2 pilot (dashed)
+                New 4 attributes only (dashed)
               </span>
             )}
             <button className="mo-ctl" onClick={() => setShowTable((v) => !v)}
@@ -690,7 +672,7 @@ export default function NestingThresholdPage() {
           </div>
           <DistributionChart bars={barsWithShare} threshold={threshold} hatchId={`hatch-${hatchId}`}
             onPick={setThreshold}
-            overlay={compare ? pilotShare : null} overlayLabel="pilot"/>
+            overlay={compare ? pilotShare : null} overlayLabel="new-4"/>
           {showTable && (
             <div style={{ overflowX: "auto", marginTop: 12 }}>
               <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
@@ -762,16 +744,16 @@ export default function NestingThresholdPage() {
 
         {/* Validation */}
         <Panel
-          title="Independent validation"
-          caption={<>The pilot cohort was assessed <strong>natively on V2</strong>, not re-scored, so it
-            is a genuine check rather than a restatement of the same exercise. Two independent
-            datasets landing within{" "}
-            {Math.abs(primaryAt75.passRate - validationAt75.passRate).toFixed(1)} points at the 75%
-            mark is the strongest evidence here that the model generalises.</>}>
+          title="Same agents, two scorings"
+          caption={<>This is a <strong>paired</strong> comparison, not an independent one: the same{" "}
+            {primaryAt75.total} agents and the same evaluations, counted two ways. That makes the{" "}
+            {Math.abs(primaryAt75.passRate - validationAt75.passRate).toFixed(1)}-point gap at the 75%
+            mark attributable to the scoring change alone — but it is <em>not</em> outside evidence,
+            and it cannot tell you the new checklist generalises.</>}>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             {[
-              { k: "Primary model", v: primaryAt75.passRate, n: `${primaryAt75.pass}/${primaryAt75.total} agents`, note: "re-scored" },
-              { k: "Native V2 pilot", v: validationAt75.passRate, n: `${validationAt75.pass}/${validationAt75.total} agents`, note: VALIDATION.regionNote },
+              { k: "Full old checklist", v: primaryAt75.passRate, n: `${primaryAt75.pass}/${primaryAt75.total} agents`, note: "all ~15 attributes" },
+              { k: "New 4 attributes only", v: validationAt75.passRate, n: `${validationAt75.pass}/${validationAt75.total} agents`, note: VALIDATION.note },
             ].map((d) => (
               <div key={d.k} style={{ flex: "1 1 130px", background: "var(--bg)", borderRadius: 10, padding: "12px 14px", border: "1px solid var(--bd2)" }}>
                 <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>{d.k}</div>
@@ -782,7 +764,7 @@ export default function NestingThresholdPage() {
             ))}
           </div>
           <div style={{ fontSize: 11.5, color: "var(--tx2)", marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--bd2)" }}>
-            At the selected {fmtScore(threshold)}% mark the pilot passes{" "}
+            At the selected {fmtScore(threshold)}% mark, scoring on the new four alone passes{" "}
             <strong>{fmtPct(validation.passRate)}</strong> ({validation.pass}/{validation.total}).
           </div>
         </Panel>
@@ -821,14 +803,17 @@ export default function NestingThresholdPage() {
           What this model cannot tell you yet
         </div>
         <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: "var(--tx2)", lineHeight: 1.75 }}>
-          <li>The native V2 pilot is <strong>KSA only</strong>, run by 4 evaluators over 4 days. It has
-            no Egypt coverage, and inter-evaluator consistency has not been measured.</li>
+          <li>The four new attributes were <strong>never recorded on these evaluations</strong>. They
+            are reconstructed from the old questions that correspond to them (see the mapping in
+            nestingThreshold.js). That mapping is a judgement — if it is wrong, every "new 4" number
+            here moves.</li>
           <li><strong>Re-assessment has not been run under V2.</strong> The recovery evidence above
             comes from the legacy checklist, so it is indicative rather than a like-for-like
             projection.</li>
-          <li>The primary model is a <strong>re-score of legacy assessments</strong>, not a native V2
-            run. Re-scoring cannot recover evidence an evaluator never captured, so it may flatter
-            attributes that depend on written detail.</li>
+          <li>Dropping 33 of the 100 old points (structure &amp; readability, hold time, response
+            time, status, notes, topic selection) removes places agents lost marks. Scoring on the
+            four alone is <strong>mechanically easier</strong>, which is most of the gap you see —
+            it is not evidence that agents improved.</li>
           <li>Attribute failure rates sit on a {ATTRIBUTE_FAILS.ticketBase}-ticket pool, a different
             denominator from the {PRIMARY.agents}-agent score distribution. Treat them as direction,
             not as inputs to the pass rate.</li>

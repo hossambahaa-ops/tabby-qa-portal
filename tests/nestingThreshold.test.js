@@ -1,25 +1,25 @@
 import { describe, it, expect } from "vitest";
 import {
-  ASSESSMENT_V1, ASSESSMENT_V2, REASSESSMENT_V1, REASSESSMENT_V2,
+  ASSESSMENT_OLD, ASSESSMENT_NEW4, REASSESSMENT_OLD, REASSESSMENT_NEW4,
   ATTRIBUTE_FAILS, BASELINE_THRESHOLD, SCORE_STEP, SCORE_SCALE,
   simulate, tradeOffCurve, thresholdScale, alignedShare,
   medianScore, meanScore,
 } from "../src/lib/nestingThreshold.js";
 
 // These figures came out of BigQuery (`qa_crm_qa_tasks`, database tabby-dp) on
-// 2026-09-02 and are pinned here because the page drives a policy decision at
+// 2026-09-06 and are pinned here because the page drives a policy decision at
 // C-level. If one changes, either the warehouse was re-queried on purpose or
-// the transcription is wrong -- there is no third case.
+// the transcription is wrong — there is no third case.
 //
-// The pass rates below were cross-checked against what BigQuery computed
-// directly from the raw (unbucketed) scores, which is the real point of the
-// floor-bucketing: it has to be lossless at every grid threshold.
+// The V2-scored cohorts were removed on 2026-09-06. The page now compares ONE
+// population (the legacy cohort) under TWO scorings: the full old checklist,
+// and only the four attributes the new checklist keeps.
 
 const COHORTS = [
-  ["assessment v1", ASSESSMENT_V1, 177],
-  ["assessment v2", ASSESSMENT_V2, 46],
-  ["re-assessment v1", REASSESSMENT_V1, 33],
-  ["re-assessment v2", REASSESSMENT_V2, 32],
+  ["assessment · old",  ASSESSMENT_OLD,    177],
+  ["assessment · new4", ASSESSMENT_NEW4,   177],
+  ["re-assessment · old",  REASSESSMENT_OLD,  33],
+  ["re-assessment · new4", REASSESSMENT_NEW4, 33],
 ];
 
 describe("cohort totals match the warehouse", () => {
@@ -29,16 +29,23 @@ describe("cohort totals match the warehouse", () => {
     expect(counted).toBe(ds.agents);
   });
 
-  it("splits the legacy assessment 96 KSA / 81 non-KSA", () => {
-    expect(ASSESSMENT_V1.byScore.reduce((n, r) => n + r.ksa, 0)).toBe(96);
-    expect(ASSESSMENT_V1.byScore.reduce((n, r) => n + r.other, 0)).toBe(81);
+  // The load-bearing property of the whole page: both scorings describe the
+  // SAME people. If these ever diverge the comparison stops being paired and
+  // every "the gap is the scoring change" claim on the page becomes false.
+  it("scores the identical population under both scorings", () => {
+    for (const [a, b] of [[ASSESSMENT_OLD, ASSESSMENT_NEW4],
+                          [REASSESSMENT_OLD, REASSESSMENT_NEW4]]) {
+      expect(b.agents).toBe(a.agents);
+      expect(b.byScore.reduce((n, r) => n + r.ksa, 0))
+        .toBe(a.byScore.reduce((n, r) => n + r.ksa, 0));
+      expect(b.byScore.reduce((n, r) => n + r.other, 0))
+        .toBe(a.byScore.reduce((n, r) => n + r.other, 0));
+    }
   });
 
-  it("has the V2 assessment as almost entirely KSA", () => {
-    // Was KSA-only until 2026-09-06, when the first non-KSA agent appeared.
-    // Pinned so a sudden influx of non-KSA agents is noticed, not absorbed.
-    expect(ASSESSMENT_V2.byScore.reduce((n, r) => n + r.other, 0)).toBe(1);
-    expect(ASSESSMENT_V2.byScore.reduce((n, r) => n + r.ksa, 0)).toBe(45);
+  it("splits the assessment 96 KSA / 81 non-KSA", () => {
+    expect(ASSESSMENT_OLD.byScore.reduce((n, r) => n + r.ksa, 0)).toBe(96);
+    expect(ASSESSMENT_OLD.byScore.reduce((n, r) => n + r.other, 0)).toBe(81);
   });
 
   it("keeps every bucket on the 6.25 grid, starting at 0", () => {
@@ -51,74 +58,81 @@ describe("cohort totals match the warehouse", () => {
     }
   });
 
-  it("keeps the legacy agent who averaged zero", () => {
+  it("keeps the agent who averaged zero on the old checklist", () => {
     // A real agent with a compliance violation on every ticket. Truncating the
     // axis at 25 would have silently dropped them.
-    expect(ASSESSMENT_V1.byScore.find((r) => r.score === 0).ksa).toBe(1);
+    expect(ASSESSMENT_OLD.byScore.find((r) => r.score === 0).ksa).toBe(1);
   });
 });
 
 describe("pass rates reproduce BigQuery exactly", () => {
   // Floor-bucketing is lossless at grid thresholds; these assertions are what
   // prove it, because BigQuery computed the same numbers from raw scores.
-  it("legacy assessment: 143 of 177 pass at 75% (80.8%)", () => {
-    const r = simulate(75, "all", ASSESSMENT_V1);
+  it("assessment on the old checklist: 143 of 177 at 75% (80.8%)", () => {
+    const r = simulate(75, "all", ASSESSMENT_OLD);
     expect(r.pass).toBe(143);
     expect(r.total).toBe(177);
     expect(r.passRate).toBeCloseTo(80.79, 1);
   });
 
-  it("V2 assessment: 37 of 46 pass at 75% (80.4%)", () => {
-    const r = simulate(75, "all", ASSESSMENT_V2);
-    expect(r.pass).toBe(37);
-    expect(r.total).toBe(46);
-    expect(r.passRate).toBeCloseTo(80.43, 1);
+  it("assessment on the new 4 only: 168 of 177 at 75% (94.9%)", () => {
+    const r = simulate(75, "all", ASSESSMENT_NEW4);
+    expect(r.pass).toBe(168);
+    expect(r.passRate).toBeCloseTo(94.9, 1);
   });
 
-  it("legacy re-assessment: 28 of 33 pass at 75% (84.8%)", () => {
-    const r = simulate(75, "all", REASSESSMENT_V1);
+  it("re-assessment on the old checklist: 28 of 33 at 75% (84.8%)", () => {
+    const r = simulate(75, "all", REASSESSMENT_OLD);
     expect(r.pass).toBe(28);
     expect(r.passRate).toBeCloseTo(84.85, 1);
   });
 
-  it("V2 re-assessment: 28 of 32 pass at 75% (87.5%)", () => {
-    const r = simulate(75, "all", REASSESSMENT_V2);
-    expect(r.pass).toBe(28);
-    expect(r.total).toBe(32);
-    expect(r.passRate).toBeCloseTo(87.5, 1);
-  });
-
-  it("agrees on the higher bars too", () => {
-    expect(simulate(87.5, "all", ASSESSMENT_V1).passRate).toBeCloseTo(50.8, 1);
-    expect(simulate(87.5, "all", ASSESSMENT_V2).passRate).toBeCloseTo(56.5, 1);
-    expect(simulate(87.5, "all", REASSESSMENT_V2).passRate).toBeCloseTo(37.5, 1);
+  it("re-assessment on the new 4 only: 31 of 33 at 75% (93.9%)", () => {
+    const r = simulate(75, "all", REASSESSMENT_NEW4);
+    expect(r.pass).toBe(31);
+    expect(r.passRate).toBeCloseTo(93.94, 1);
   });
 });
 
-describe("the two checklists agree at the proposed bar", () => {
-  // The load-bearing claim of the whole page.
-  it("legacy and V2 assessment land within 1 point at 75%", () => {
-    const gap = Math.abs(
-      simulate(75, "all", ASSESSMENT_V1).passRate - simulate(75, "all", ASSESSMENT_V2).passRate,
-    );
-    expect(gap).toBeLessThan(1);
-  });
-});
-
-describe("re-assessment is weaker under V2 than legacy suggested", () => {
-  // The page used to claim coaching reliably recovers agents, on legacy data.
-  // V2 does not support that as strongly, and the panel must not overstate it.
-  it("V2 re-assessment scores below legacy re-assessment on average", () => {
-    expect(meanScore(REASSESSMENT_V2)).toBeLessThan(meanScore(REASSESSMENT_V1));
+describe("scoring on the new four alone is easier", () => {
+  // The finding the page exists to show. Dropping 33 of the 100 old points
+  // removes places agents lost marks, so the same work scores higher. If this
+  // ever inverts, the mapping has been changed and the page's conclusion with
+  // it — that should fail loudly rather than quietly redraw.
+  it("passes more agents at every candidate threshold", () => {
+    for (const t of thresholdScale().filter((t) => t >= 50 && t <= 93.75)) {
+      expect(simulate(t, "all", ASSESSMENT_NEW4).passRate)
+        .toBeGreaterThanOrEqual(simulate(t, "all", ASSESSMENT_OLD).passRate);
+    }
   });
 
-  it("still clears the 75% bar for most of the cohort", () => {
-    expect(simulate(75, "all", REASSESSMENT_V2).passRate).toBeGreaterThan(80);
+  it("lifts the mean by roughly 6 points", () => {
+    const lift = meanScore(ASSESSMENT_NEW4) - meanScore(ASSESSMENT_OLD);
+    expect(lift).toBeGreaterThan(3);
+    expect(lift).toBeLessThan(10);
   });
 
-  it("but collapses at 87.5%, unlike legacy", () => {
-    expect(simulate(87.5, "all", REASSESSMENT_V2).passRate).toBeLessThan(40);
-    expect(simulate(87.5, "all", REASSESSMENT_V1).passRate).toBeGreaterThan(50);
+  it("does not narrow as the bar rises", () => {
+    // Worth pinning, because the intuition is wrong. The gap is 14.1pts at 75%
+    // and WIDENS to 16.9 at 87.5 and 20.3 at 93.75 — the new-4 scoring is most
+    // generous exactly where a stricter bar would be set. An earlier reading of
+    // this data claimed the gap narrowed above 85%; it does not, and the
+    // difference matters because it kills "just raise the bar to compensate".
+    const gap = (t) => simulate(t, "all", ASSESSMENT_NEW4).passRate
+                     - simulate(t, "all", ASSESSMENT_OLD).passRate;
+    expect(gap(75)).toBeCloseTo(14.1, 0);
+    expect(gap(87.5)).toBeGreaterThan(gap(75));
+    expect(gap(93.75)).toBeGreaterThan(gap(87.5));
+  });
+
+  it("has no threshold where the new-4 bar matches the old one at 75%", () => {
+    // The obvious fix — "keep the same pass rate, just move the bar" — has no
+    // solution on the grid. Old at 75% passes 80.8%. The new-4 scoring passes
+    // 87.0% at 81.25 and 67.8% at 87.5: it steps straight over the target.
+    const target = simulate(75, "all", ASSESSMENT_OLD).passRate;
+    const matches = thresholdScale().filter((t) =>
+      Math.abs(simulate(t, "all", ASSESSMENT_NEW4).passRate - target) < 2);
+    expect(matches).toHaveLength(0);
   });
 });
 
@@ -169,49 +183,39 @@ describe("the trade-off curve", () => {
 });
 
 describe("aligning cohorts for comparison", () => {
-  it("normalises 46 agents against 177 onto one axis", () => {
-    const v2 = alignedShare(ASSESSMENT_V2);
-    const v1 = alignedShare(ASSESSMENT_V1);
-    expect(v2.map((r) => r.score)).toEqual(SCORE_SCALE);
-    expect(v2.reduce((n, r) => n + r.share, 0)).toBeCloseTo(100, 6);
-    expect(v1.reduce((n, r) => n + r.share, 0)).toBeCloseTo(100, 6);
-    expect(v2.reduce((n, r) => n + r.count, 0)).toBe(46);
+  it("puts both scorings on one axis as shares of their own total", () => {
+    const a = alignedShare(ASSESSMENT_OLD);
+    const b = alignedShare(ASSESSMENT_NEW4);
+    expect(b.map((r) => r.score)).toEqual(SCORE_SCALE);
+    expect(a.reduce((n, r) => n + r.share, 0)).toBeCloseTo(100, 6);
+    expect(b.reduce((n, r) => n + r.share, 0)).toBeCloseTo(100, 6);
+    expect(b.reduce((n, r) => n + r.count, 0)).toBe(177);
   });
 });
 
 describe("summary statistics", () => {
   it("reports the bucket median, which floors the true median", () => {
-    // BigQuery's median on raw scores is 87.5 for both assessment cohorts, so
-    // these agree. For V2 re-assessment BigQuery said 80 and the bucket median
-    // is 78.125 -- lower by construction, never higher.
-    expect(medianScore(ASSESSMENT_V1)).toBe(87.5);
-    expect(medianScore(ASSESSMENT_V2)).toBe(87.5);
-    // BigQuery's raw median for the V2 re-assessment is 83.33; the bucket
-    // median floors it to 81.25. Assert against the raw value, not a
-    // hand-copied constant that goes stale every time the cohort grows.
-    expect(medianScore(REASSESSMENT_V2)).toBeLessThanOrEqual(83.33);
+    expect(medianScore(ASSESSMENT_OLD)).toBe(87.5);
+    expect(medianScore(ASSESSMENT_NEW4)).toBeGreaterThanOrEqual(medianScore(ASSESSMENT_OLD));
   });
 
   it("sits below the warehouse mean by no more than one bucket", () => {
     // Floor-bucketing can only ever LOWER the mean, by at most SCORE_STEP.
-    // The old assertion compared the bucket mean directly against BigQuery's
-    // raw mean (83.0) to 0 decimal places, which floor-bucketing can never
-    // satisfy — the gap is ~3.1 points by construction, not an error.
-    // Raw means from BigQuery on 2026-09-06: V1 82.98, V2 83.02.
+    // Comparing the bucket mean directly against BigQuery's raw mean to 0dp
+    // can never pass — the gap is ~3 points by construction, not an error.
+    // Raw means from BigQuery on 2026-09-06: old 82.98, new-4 89.43.
     const check = (ds, rawMean) => {
       const m = meanScore(ds);
       expect(m).toBeLessThanOrEqual(rawMean);
       expect(m).toBeGreaterThan(rawMean - SCORE_STEP);
     };
-    check(ASSESSMENT_V1, 82.98);
-    check(ASSESSMENT_V2, 83.02);
+    check(ASSESSMENT_OLD, 82.98);
+    check(ASSESSMENT_NEW4, 89.43);
   });
 });
 
 describe("attribute failure rates", () => {
   it("are flagged as carried over rather than re-queried", () => {
-    // They came from the original brief, not the warehouse. The page says so;
-    // this stops the flag being dropped silently.
     expect(ATTRIBUTE_FAILS.provisional).toBe(true);
   });
 
