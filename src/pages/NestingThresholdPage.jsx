@@ -401,15 +401,18 @@ export default function NestingThresholdPage() {
   const [compare, setCompare] = useState(false);
   const hatchId = useId();
 
-  const sim = useMemo(() => simulate(threshold, region), [threshold, region]);
-  const curve = useMemo(() => tradeOffCurve(region), [region]);
+  // Pass PRIMARY explicitly. simulate() defaults to the library PRIMARY, which
+  // is now the V2 assessment — the same cohort as the pilot — so omitting it
+  // made the two comparison cards show identical numbers and a 0.0pt gap.
+  const sim = useMemo(() => simulate(threshold, region, PRIMARY), [threshold, region]);
+  const curve = useMemo(() => tradeOffCurve(region, PRIMARY), [region]);
 
   // The validation and re-assessment cohorts have no region split, so they are
   // always computed on the full cohort. Filtering them by region would return
   // a truthful-looking zero for Egypt that actually means "never measured".
   const validation = useMemo(() => simulate(threshold, "all", VALIDATION), [threshold]);
   const validationAt75 = useMemo(() => simulate(75, "all", VALIDATION), []);
-  const primaryAt75 = useMemo(() => simulate(75, "all"), []);
+  const primaryAt75 = useMemo(() => simulate(75, "all", PRIMARY), []);
   const reassess = useMemo(() => simulate(threshold, "all", REASSESSMENT), [threshold]);
 
   const regionLabel = REGIONS.find((r) => r.key === region)?.label ?? "All";
