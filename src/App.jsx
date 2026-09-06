@@ -3,7 +3,7 @@ import { lazyWithRetry as lazy } from "./lib/lazyWithRetry.js";
 import QualityPrinciple from "./components/QualityPrinciple.jsx";
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import "./index.css";
-import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc, canSeeNestingSim } from "./lib/constants.js";
+import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc } from "./lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { fetchUnreadReleases, ackRelease } from "./lib/featureReleases.js";
 import { avatarStyle, initialsFromEmail as initialsForAvatar } from "./lib/avatar.js";
@@ -111,7 +111,7 @@ const NAV_ITEMS=[
   {key:"expertise",label:"Expertise",icon:icons.expertise,minRole:"admin"},
   {key:"npa-winners",label:"NPA Winners",icon:icons.award,minRole:"qa_supervisor"},
   {key:"targets",label:"Targets",icon:icons.targets,minRole:"qa_lead"},
-  {key:"nesting-threshold",label:"Nesting Threshold",icon:icons.targets,ownerOnly:true},
+  {key:"nesting-threshold",label:"Nesting Threshold",icon:icons.targets},
   {key:"schedule",label:"Attendance",icon:icons.attendance,section:"Management"},
   {key:"tracker",label:"Tracker",icon:icons.tracker,minRole:"senior_qa"},
   {key:"quality",label:"Quality Control",icon:icons.quality,minRole:"qa_lead",isNew:"qc-ap-metrics-2026-06"},
@@ -657,9 +657,6 @@ function AppInner(){
     </div>
   </div>);
   const visibleNav=NAV_ITEMS.filter(n=>{
-    // ownerOnly wins over any role check: an unreleased decision tool must not
-    // appear for someone merely because they hold a senior role.
-    if (n.ownerOnly) return canSeeNestingSim(effectiveProfile?.email);
     if (n.key === "escalations") return true;
     return !n.minRole || hasRole(userRole, n.minRole);
   });let curSec=null;
@@ -1001,7 +998,7 @@ function AppInner(){
       <Route path="/scores" element={<ScoreEntryPage/>}/>
       <Route path="/csat" element={<CSATPage/>}/>
       <Route path="/expertise" element={hasRole(userRole,"admin")?<ExpertisePage/>:<PlaceholderPage title="Expertise" icon={icons.expertise} minRole="admin" userRole={userRole}/>}/>
-      <Route path="/nesting-threshold" element={canSeeNestingSim(effectiveProfile?.email)?<NestingThresholdPage/>:<PlaceholderPage title="Nesting Threshold" icon={icons.targets} minRole="super_admin" userRole={userRole}/>}/>
+      <Route path="/nesting-threshold" element={<NestingThresholdPage/>}/>
       <Route path="/npa-winners" element={hasRole(userRole,"qa_supervisor")?<NpaWinnersPage/>:<PlaceholderPage title="NPA Winners" icon={icons.award} minRole="qa_supervisor" userRole={userRole}/>}/>
       <Route path="/targets" element={<TargetsPage/>}/>
       <Route path="/leaderboard" element={hasRole(userRole,"super_admin")?<LeaderboardPage/>:<PlaceholderPage title="Leaderboard" icon={icons.podium} minRole="super_admin" userRole={userRole}/>}/>
