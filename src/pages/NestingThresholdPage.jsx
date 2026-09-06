@@ -41,9 +41,8 @@ const fmtScore = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(
    is the chart that answers "who am I cutting?".
 
    With a comparison cohort loaded it switches from counts to SHARE of cohort,
-   because the pilot is 42 agents against the primary model's 137 — plotting
-   raw counts side by side would draw a similar distribution as a flat line
-   along the bottom and invite exactly the wrong conclusion. */
+   because both series are the same 177 agents and raw counts would sit almost
+   on top of each other; shares make the shape difference legible. */
 function DistributionChart({ bars, threshold, hatchId, onPick, overlay, overlayLabel }) {
   const W = 880, H = 300;
   const padL = 46, padR = 12, padT = 22, padB = 52;
@@ -499,8 +498,8 @@ export default function NestingThresholdPage() {
   const hatchId = useId();
 
   // Pass PRIMARY explicitly. simulate() defaults to the library PRIMARY, which
-  // is now the V2 assessment — the same cohort as the pilot — so omitting it
-  // made the two comparison cards show identical numbers and a 0.0pt gap.
+  // is now the new-4 scoring, so omitting it made both comparison cards render
+  // the same dataset and report a 0.0pt gap.
   const sim = useMemo(() => simulate(threshold, region, PRIMARY), [threshold, region]);
   const curve = useMemo(() => tradeOffCurve(region, PRIMARY), [region]);
 
@@ -510,6 +509,11 @@ export default function NestingThresholdPage() {
   const validation = useMemo(() => simulate(threshold, region, VALIDATION), [threshold, region]);
   const validationAt75 = useMemo(() => simulate(75, region, VALIDATION), [region]);
   const primaryAt75 = useMemo(() => simulate(75, "all", PRIMARY), []);
+  // Candidate bars on the new-4 scoring, either side of today's strictness.
+  // There is no grid value between them, which is the whole finding.
+  const new4At75   = useMemo(() => simulate(75,    "all", VALIDATION), []);
+  const new4At8125 = useMemo(() => simulate(81.25, "all", VALIDATION), []);
+  const new4At875  = useMemo(() => simulate(87.5,  "all", VALIDATION), []);
   const reassess = useMemo(() => simulate(threshold, "all", REASSESSMENT), [threshold]);
 
   const regionLabel = REGIONS.find((r) => r.key === region)?.label ?? "All";
@@ -607,20 +611,37 @@ export default function NestingThresholdPage() {
             Provisional recommendation
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-            Set the Nesting pass mark at {fmtScore(BASELINE_THRESHOLD)}%
+            {fmtScore(BASELINE_THRESHOLD)}% holds on the old checklist. It does not transfer to the new one.
           </div>
-          <div style={{ fontSize: 13, color: "var(--tx2)", lineHeight: 1.6 }}>
-            It clears {fmtPct(primaryAt75.passRate)} of agents — high enough to be a real bar, low
-            enough that the {primaryAt75.fail} who fail can be absorbed by coaching — and two
-            independent datasets agree on that rate to within{" "}
-            {Math.abs(primaryAt75.passRate - validationAt75.passRate).toFixed(1)} points.
+          <div style={{ fontSize: 13, color: "var(--tx2)", lineHeight: 1.65 }}>
+            On the full old checklist {fmtScore(BASELINE_THRESHOLD)}% clears{" "}
+            <strong>{fmtPct(primaryAt75.passRate)}</strong> — a real bar, and the{" "}
+            {primaryAt75.fail} who fail are few enough to coach. Counting only the four new
+            attributes, the same agents and the same work clear{" "}
+            <strong>{fmtPct(new4At75.passRate)}</strong>: that is not a bar, it is a formality.
+            <br/><br/>
+            <strong>Raising the bar does not fix it.</strong> There is no threshold on the grid that
+            reproduces today&rsquo;s strictness — the nearest options are{" "}
+            {fmtScore(81.25)}% ({fmtPct(new4At8125.passRate)}, softer than today) and{" "}
+            {fmtScore(87.5)}% ({fmtPct(new4At875.passRate)}, considerably harsher). Pick one
+            deliberately, or change the attribute weights instead of the threshold.
           </div>
         </div>
-        <div style={{ flex: "0 0 auto", textAlign: "right", minWidth: 130 }}>
-          <div style={{ fontSize: 34, fontWeight: 800, color: "var(--primary-text)", lineHeight: 1, fontVariantNumeric: "tabular-nums" }}>
-            {fmtPct(primaryAt75.passRate)}
+        <div style={{ flex: "0 0 auto", minWidth: 190 }}>
+          {[
+            { l: "Old checklist @ 75%", v: primaryAt75.passRate, n: `${primaryAt75.pass}/${primaryAt75.total}`, c: "var(--primary-text)" },
+            { l: "New 4 only @ 75%",    v: new4At75.passRate,     n: `${new4At75.pass}/${new4At75.total}`,     c: "var(--teal)" },
+          ].map((d) => (
+            <div key={d.l} style={{ marginBottom: 10, textAlign: "right" }}>
+              <div style={{ fontSize: 28, fontWeight: 800, color: d.c, lineHeight: 1.1, fontVariantNumeric: "tabular-nums" }}>
+                {fmtPct(d.v)}
+              </div>
+              <div style={{ fontSize: 11, color: "var(--tx3)" }}>{d.l} · {d.n}</div>
+            </div>
+          ))}
+          <div style={{ fontSize: 10.5, color: "var(--tx3)", textAlign: "right", borderTop: "1px solid var(--bd2)", paddingTop: 6 }}>
+            {(new4At75.passRate - primaryAt75.passRate).toFixed(1)}pt easier · all regions
           </div>
-          <div style={{ fontSize: 11, color: "var(--tx3)" }}>pass at 75% · all regions</div>
         </div>
       </div>
 
