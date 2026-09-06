@@ -4,7 +4,8 @@
 // `customer_happiness_quality_datamarts.qa_crm_qa_tasks` (database `tabby-dp`):
 //
 //   monitoring_source = 'nesting_assessment'    -> the Nesting assessment
-//   monitoring_source = 'performance_follow_up' -> the re-assessment after coaching
+//   monitoring_source IN ('performance_follow_up','nesting_re_assessment')
+//                                               -> the re-assessment after coaching
 //   agent_checklist_version = 'legacy_v1'       -> the ONLY data used here
 //
 // The V2-scored cohorts were removed on 2026-09-06. They were a different 46
@@ -113,16 +114,22 @@ export const ASSESSMENT_NEW4 = {
 
 // Agents who failed, were coached, and were assessed again. SELECTED for
 // having failed once, so comparable only to itself across scorings.
+//
+// Two warehouse sources, merged 2026-09-06: `performance_follow_up` (33 agents)
+// and `nesting_re_assessment` (17). Only the first was being read. They are the
+// same event recorded under two names and share ZERO agents, so the merge adds
+// 17 people without any double-counting — verified before merging, because a
+// silent overlap would have inflated the cohort instead of widening it.
 export const REASSESSMENT_OLD = {
   id: "reassessment_old",
   label: "Re-assessment · full old checklist",
   short: "Old scoring",
-  period: "25 Feb – 13 Aug 2026",
-  agents: 33,
-  tickets: 83,
-  ticketsPerAgent: 2.5,
+  period: "25 Feb – 24 Aug 2026",
+  agents: 50,
+  tickets: 150,
+  ticketsPerAgent: 3.0,
   byScore: rows({
-    ksa:   { 93.75: 1 },
+    ksa:   { 68.75: 2, 81.25: 2, 87.5: 10, 93.75: 4 },
     other: { 43.75: 1, 56.25: 1, 62.5: 2, 68.75: 1, 75: 2, 81.25: 9, 87.5: 10, 93.75: 5, 100: 1 },
   }),
 };
@@ -131,12 +138,12 @@ export const REASSESSMENT_NEW4 = {
   id: "reassessment_new4",
   label: "Re-assessment · new 4 attributes only",
   short: "New-4 scoring",
-  period: "25 Feb – 13 Aug 2026",
-  agents: 33,
-  tickets: 83,
-  ticketsPerAgent: 2.5,
+  period: "25 Feb – 24 Aug 2026",
+  agents: 50,
+  tickets: 150,
+  ticketsPerAgent: 3.0,
   byScore: rows({
-    ksa:   { 100: 1 },
+    ksa:   { 68.75: 2, 75: 1, 81.25: 1, 87.5: 6, 93.75: 4, 100: 4 },
     other: { 43.75: 1, 68.75: 1, 75: 2, 81.25: 8, 87.5: 4, 93.75: 8, 100: 8 },
   }),
 };
@@ -148,6 +155,53 @@ export const COMPARISON = ASSESSMENT_NEW4;
 export const REASSESSMENT = REASSESSMENT_OLD;
 export const REASSESSMENT_COMPARISON = REASSESSMENT_NEW4;
 export const PRIMARY_SCALE = SCORE_SCALE;
+
+
+// ── Long history: the OLD checklist only ─────────────────────────────────
+// Pass rate at 75% for every month nesting has been assessed, back to the
+// start of the record. Two systems: the AppSheet era (Jul 2024 – Mar 2026,
+// `customer_happiness_datamarts.qa_manual_assessment`, monitoring_category
+// 'Nesting') and the CRM era (Jun 2026 onward, qa_crm_qa_tasks).
+//
+// THIS CANNOT CARRY THE NEW-4 COMPARISON. The AppSheet table has `final_score`
+// and a few yes/no fields — no attribute-level scores at all. There is nothing
+// to split, so the second column simply does not exist for these months. It is
+// kept as its own series answering a different question ("has nesting quality
+// moved?") rather than being drawn as a third line next to the comparison,
+// which would invite reading a gap that was never computed.
+//
+// Apr–May 2026 is a real gap: AppSheet stops in March, CRM nesting starts in
+// June. It is left as a hole rather than interpolated.
+export const HISTORY = {
+  metric: "Pass rate at 75% on the checklist in force at the time",
+  gapNote: "Apr–May 2026 missing: AppSheet ended March, the CRM began in June",
+  rows: [
+    { ym: "2024-07", src: "AppSheet", agents:  49, mean: 72.30, pass75: 63.3 },
+    { ym: "2024-08", src: "AppSheet", agents:  61, mean: 85.26, pass75: 82.0 },
+    { ym: "2024-09", src: "AppSheet", agents: 114, mean: 74.97, pass75: 61.4 },
+    { ym: "2024-10", src: "AppSheet", agents: 182, mean: 77.38, pass75: 65.4 },
+    { ym: "2024-11", src: "AppSheet", agents: 200, mean: 75.69, pass75: 62.0 },
+    { ym: "2024-12", src: "AppSheet", agents: 180, mean: 81.20, pass75: 72.8 },
+    { ym: "2025-01", src: "AppSheet", agents: 251, mean: 79.95, pass75: 75.3 },
+    { ym: "2025-02", src: "AppSheet", agents: 222, mean: 82.51, pass75: 76.1 },
+    { ym: "2025-03", src: "AppSheet", agents: 259, mean: 83.54, pass75: 80.7 },
+    { ym: "2025-04", src: "AppSheet", agents:  89, mean: 79.87, pass75: 71.9 },
+    { ym: "2025-05", src: "AppSheet", agents: 152, mean: 88.07, pass75: 93.4 },
+    { ym: "2025-06", src: "AppSheet", agents: 177, mean: 87.05, pass75: 88.7 },
+    { ym: "2025-07", src: "AppSheet", agents: 262, mean: 84.03, pass75: 80.5 },
+    { ym: "2025-08", src: "AppSheet", agents: 328, mean: 80.09, pass75: 73.2 },
+    { ym: "2025-09", src: "AppSheet", agents: 395, mean: 79.69, pass75: 71.4 },
+    { ym: "2025-10", src: "AppSheet", agents: 470, mean: 80.24, pass75: 72.3 },
+    { ym: "2025-11", src: "AppSheet", agents: 366, mean: 79.86, pass75: 72.7 },
+    { ym: "2025-12", src: "AppSheet", agents: 354, mean: 81.60, pass75: 76.3 },
+    { ym: "2026-01", src: "AppSheet", agents: 461, mean: 82.34, pass75: 77.2 },
+    { ym: "2026-02", src: "AppSheet", agents: 262, mean: 81.65, pass75: 75.2 },
+    { ym: "2026-03", src: "AppSheet", agents: 153, mean: 82.77, pass75: 77.8 },
+    { ym: "2026-06", src: "CRM",      agents:  54, mean: 81.69, pass75: 79.6 },
+    { ym: "2026-07", src: "CRM",      agents:  75, mean: 82.46, pass75: 77.3 },
+    { ym: "2026-08", src: "CRM",      agents:  64, mean: 82.01, pass75: 84.4 },
+  ],
+};
 
 // ── Attribute failure rates ──────────────────────────────────────────────
 // Share of V2 nesting-assessment TICKETS on which each attribute was failed.

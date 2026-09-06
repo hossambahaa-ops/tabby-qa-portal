@@ -7,7 +7,7 @@ import {
   PRIMARY,
   COMPARISON as VALIDATION,
   REASSESSMENT,
-  ATTRIBUTE_FAILS,
+  ATTRIBUTE_FAILS, HISTORY,
   BASELINE_THRESHOLD, SCORE_STEP, REGIONS,
   simulate, tradeOffCurve, thresholdScale,
   medianScore, meanScore, modeScore, alignedShare,
@@ -384,6 +384,105 @@ function Panel({ title, caption, children }) {
       {caption && (
         <div style={{ fontSize: 11.5, color: "var(--tx2)", marginTop: 12, lineHeight: 1.55 }}>
           {caption}
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ── History ──────────────────────────────────────────────────────────────
+   Pass rate at 75% for every month nesting has been assessed. This answers a
+   DIFFERENT question from the rest of the page — "has nesting quality moved?"
+   not "what happens if we change the scoring" — so it is deliberately its own
+   panel with its own axis, never a third line on the comparison chart.
+
+   The Apr–May 2026 gap is drawn as a gap. Joining across it would assert two
+   months of data that do not exist. */
+function HistoryChart({ rows, baseline }) {
+  const W = 880, H = 220;
+  const padL = 40, padR = 14, padT = 16, padB = 46;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const [hover, setHover] = useState(null);
+
+  const lo = 55, hi = 100;                       // y-window around the data
+  const x = (i) => padL + (plotW / (rows.length - 1)) * i;
+  const y = (v) => padT + plotH - ((v - lo) / (hi - lo)) * plotH;
+
+  // Break the line wherever months are not consecutive, so the missing
+  // Apr–May 2026 shows as a gap instead of a straight line through nothing.
+  const monthNum = (ym) => { const [a, b] = ym.split("-").map(Number); return a * 12 + b; };
+  const segments = [];
+  let cur = [];
+  rows.forEach((r, i) => {
+    if (i > 0 && monthNum(r.ym) !== monthNum(rows[i - 1].ym) + 1) { segments.push(cur); cur = []; }
+    cur.push({ ...r, i });
+  });
+  if (cur.length) segments.push(cur);
+
+  return (
+    <div style={{ position: "relative" }}>
+      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: "100%", height: "auto", display: "block" }}
+           role="img" aria-label="Nesting pass rate at 75 percent, by month, since July 2024">
+        {[55, 70, 85, 100].map((v) => (
+          <g key={v}>
+            <line x1={padL} x2={W - padR} y1={y(v)} y2={y(v)} stroke="var(--bd)" strokeWidth="1" opacity=".35"/>
+            <text x={padL - 7} y={y(v) + 4} textAnchor="end" fontSize="10" fill="var(--tx3)"
+                  style={{ fontVariantNumeric: "tabular-nums" }}>{v}%</text>
+          </g>
+        ))}
+
+        {/* Where the current cohort sits, so the reader can place today in the range */}
+        <line x1={padL} x2={W - padR} y1={y(baseline)} y2={y(baseline)}
+              stroke="var(--primary-text)" strokeWidth="1.5" strokeDasharray="4 4" opacity=".75"/>
+        {/* Left-aligned: at the right edge this label sat on top of the most
+            recent points, which are the ones a reader looks at first. */}
+        <text x={padL + 6} y={y(baseline) - 6} textAnchor="start" fontSize="9.5"
+              fill="var(--primary-text)" fontWeight="700">
+          cohort on this page · {baseline.toFixed(1)}%
+        </text>
+
+        {/* Name the hole. An unexplained break reads as a rendering bug; this
+            says the months are missing on purpose. */}
+        {segments.slice(0, -1).map((seg, si) => {
+          const gapFrom = x(seg.at(-1).i), gapTo = x(segments[si + 1][0].i);
+          return (
+            <g key={`gap-${si}`}>
+              <rect x={gapFrom} y={padT} width={gapTo - gapFrom} height={plotH}
+                    fill="var(--tx3)" opacity=".07"/>
+              <text x={(gapFrom + gapTo) / 2} y={padT + plotH / 2} textAnchor="middle"
+                    fontSize="8.5" fill="var(--tx3)">no data</text>
+            </g>
+          );
+        })}
+
+        {segments.map((seg, si) => (
+          <polyline key={si} fill="none" stroke="var(--teal)" strokeWidth="2"
+                    strokeLinejoin="round" strokeLinecap="round"
+                    points={seg.map((r) => `${x(r.i)},${y(r.pass75)}`).join(" ")}/>
+        ))}
+
+        {rows.map((r, i) => (
+          <g key={r.ym} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}>
+            <circle cx={x(i)} cy={y(r.pass75)} r={hover === i ? 4.5 : 2.8}
+                    fill={r.src === "CRM" ? "var(--primary-text)" : "var(--teal)"}/>
+            <rect x={x(i) - 10} y={padT} width={20} height={plotH} fill="transparent"/>
+            {(i % 3 === 0 || i === rows.length - 1) && (
+              <text x={x(i)} y={H - padB + 16} textAnchor="middle" fontSize="9" fill="var(--tx3)">
+                {r.ym.slice(2).replace("-", "/")}
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+      {hover != null && (
+        <div style={{ position: "absolute", left: `${(x(hover) / W) * 100}%`, top: 0,
+          transform: "translateX(-50%)", background: "var(--bg3)", border: "1px solid var(--bd)",
+          borderRadius: 8, padding: "6px 9px", fontSize: 11, pointerEvents: "none", whiteSpace: "nowrap" }}>
+          <strong>{rows[hover].ym}</strong> · {rows[hover].pass75}% pass
+          <div style={{ color: "var(--tx3)" }}>
+            {rows[hover].agents} agents · mean {rows[hover].mean} · {rows[hover].src}
+          </div>
         </div>
       )}
     </div>
@@ -846,6 +945,25 @@ export default function NestingThresholdPage() {
       </div>
 
       {/* ── Limitations ── */}
+      <Panel
+        title="Nesting pass rate since July 2024"
+        caption={<>Every month nesting has been assessed — {HISTORY.rows.reduce((n, r) => n + r.agents, 0).toLocaleString()} agent-months
+          across {HISTORY.rows.length} months. This is the OLD checklist only: the pre-2026 system
+          recorded a single total with no attribute breakdown, so the new-4 comparison cannot be
+          computed for it. Different question, its own panel — {HISTORY.gapNote}.</>}>
+        <HistoryChart rows={HISTORY.rows} baseline={primaryAt75.passRate}/>
+        <div style={{ fontSize: 11.5, color: "var(--tx2)", marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--bd2)", lineHeight: 1.6 }}>
+          The rate has moved between{" "}
+          <strong>{Math.min(...HISTORY.rows.map((r) => r.pass75))}%</strong> and{" "}
+          <strong>{Math.max(...HISTORY.rows.map((r) => r.pass75))}%</strong>, averaging{" "}
+          {(HISTORY.rows.reduce((n, r) => n + r.pass75, 0) / HISTORY.rows.length).toFixed(1)}%. The
+          cohort this page models sits at {primaryAt75.passRate.toFixed(1)}% — inside the normal
+          band, not an unusual month. The two systems also agree across the migration
+          (77.8% in the last AppSheet month, 79.6% in the first CRM one), which is the main reason
+          to trust them as one series.
+        </div>
+      </Panel>
+
       <div className="card" style={{ marginTop: 16, borderLeft: "4px solid var(--amber)" }}>
         <div style={{ fontSize: 10, fontWeight: 700, color: "var(--amber)", textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 8 }}>
           What this model cannot tell you yet

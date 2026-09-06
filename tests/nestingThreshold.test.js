@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   ASSESSMENT_OLD, ASSESSMENT_NEW4, REASSESSMENT_OLD, REASSESSMENT_NEW4,
-  ATTRIBUTE_FAILS, BASELINE_THRESHOLD, SCORE_STEP, SCORE_SCALE,
+  ATTRIBUTE_FAILS, HISTORY, BASELINE_THRESHOLD, SCORE_STEP, SCORE_SCALE,
   simulate, tradeOffCurve, thresholdScale, alignedShare,
   medianScore, meanScore,
 } from "../src/lib/nestingThreshold.js";
@@ -18,8 +18,8 @@ import {
 const COHORTS = [
   ["assessment · old",  ASSESSMENT_OLD,    177],
   ["assessment · new4", ASSESSMENT_NEW4,   177],
-  ["re-assessment · old",  REASSESSMENT_OLD,  33],
-  ["re-assessment · new4", REASSESSMENT_NEW4, 33],
+  ["re-assessment · old",  REASSESSMENT_OLD,  50],
+  ["re-assessment · new4", REASSESSMENT_NEW4, 50],
 ];
 
 describe("cohort totals match the warehouse", () => {
@@ -81,16 +81,19 @@ describe("pass rates reproduce BigQuery exactly", () => {
     expect(r.passRate).toBeCloseTo(94.9, 1);
   });
 
-  it("re-assessment on the old checklist: 28 of 33 at 75% (84.8%)", () => {
+  // 50 agents, not 33: performance_follow_up (33) merged with
+  // nesting_re_assessment (17) on 2026-09-06. Zero shared agents.
+  it("re-assessment on the old checklist: 43 of 50 at 75% (86.0%)", () => {
     const r = simulate(75, "all", REASSESSMENT_OLD);
-    expect(r.pass).toBe(28);
-    expect(r.passRate).toBeCloseTo(84.85, 1);
+    expect(r.pass).toBe(43);
+    expect(r.total).toBe(50);
+    expect(r.passRate).toBeCloseTo(86.0, 1);
   });
 
-  it("re-assessment on the new 4 only: 31 of 33 at 75% (93.9%)", () => {
+  it("re-assessment on the new 4 only: 46 of 50 at 75% (92.0%)", () => {
     const r = simulate(75, "all", REASSESSMENT_NEW4);
-    expect(r.pass).toBe(31);
-    expect(r.passRate).toBeCloseTo(93.94, 1);
+    expect(r.pass).toBe(46);
+    expect(r.passRate).toBeCloseTo(92.0, 1);
   });
 });
 
@@ -222,5 +225,52 @@ describe("attribute failure rates", () => {
   it("name Resolution and Investigation as the top two", () => {
     expect(ATTRIBUTE_FAILS.rows.slice(0, 2).map((r) => r.attribute))
       .toEqual(["Resolution", "Investigation"]);
+  });
+});
+
+describe("the long history series", () => {
+  it("covers every month on record with no duplicates", () => {
+    expect(HISTORY.rows.length).toBe(24);
+    expect(new Set(HISTORY.rows.map((r) => r.ym)).size).toBe(24);
+    expect(HISTORY.rows[0].ym).toBe("2024-07");
+    expect(HISTORY.rows.at(-1).ym).toBe("2026-08");
+  });
+
+  it("stays sorted, so the chart cannot draw backwards", () => {
+    const n = (ym) => { const [a, b] = ym.split("-").map(Number); return a * 12 + b; };
+    for (let i = 1; i < HISTORY.rows.length; i++) {
+      expect(n(HISTORY.rows[i].ym)).toBeGreaterThan(n(HISTORY.rows[i - 1].ym));
+    }
+  });
+
+  it("leaves Apr–May 2026 as a real hole rather than interpolating", () => {
+    // The AppSheet system stopped in March and the CRM started in June. Two
+    // months of invented data would be indistinguishable from measured ones on
+    // a line chart, so the gap is preserved and the chart breaks its line.
+    const months = HISTORY.rows.map((r) => r.ym);
+    expect(months).not.toContain("2026-04");
+    expect(months).not.toContain("2026-05");
+    expect(months).toContain("2026-03");
+    expect(months).toContain("2026-06");
+  });
+
+  it("hands over cleanly between the two systems", () => {
+    // The reason the series is trustworthy as one line: the last AppSheet month
+    // and the first CRM month agree closely. If a migration had shifted the
+    // measure, this is where it would show.
+    const lastApp = HISTORY.rows.filter((r) => r.src === "AppSheet").at(-1);
+    const firstCrm = HISTORY.rows.filter((r) => r.src === "CRM")[0];
+    expect(lastApp.ym).toBe("2026-03");
+    expect(firstCrm.ym).toBe("2026-06");
+    expect(Math.abs(lastApp.pass75 - firstCrm.pass75)).toBeLessThan(5);
+  });
+
+  it("places the modelled cohort inside the historical band", () => {
+    // If the 177-agent cohort were an outlier month, every conclusion drawn
+    // from it would be suspect. It is not.
+    const rate = simulate(75, "all", ASSESSMENT_OLD).passRate;
+    const all = HISTORY.rows.map((r) => r.pass75);
+    expect(rate).toBeGreaterThan(Math.min(...all));
+    expect(rate).toBeLessThan(Math.max(...all));
   });
 });
