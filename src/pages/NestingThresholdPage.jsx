@@ -450,6 +450,54 @@ export default function NestingThresholdPage() {
         </div>
       </div>
 
+      {/* ── What this page compares ──
+          Everything below is a re-scoring exercise, and a reader who does not
+          know that will read the "new 4" column as agents improving. Numbers
+          are computed, never typed, so this cannot drift from the data. */}
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: "var(--tx3)", textTransform: "uppercase", letterSpacing: ".6px", marginBottom: 8 }}>
+          What this page compares
+        </div>
+        <p style={{ margin: "0 0 12px", fontSize: 13, lineHeight: 1.65, color: "var(--tx2)", maxWidth: "72ch" }}>
+          One population, scored two ways. The <strong>same {PRIMARY.agents} agents</strong> across{" "}
+          <strong>{PRIMARY.tickets} tickets</strong> ({PRIMARY.ticketsPerAgent} each on average),
+          assessed between {PRIMARY.period}. Nobody is added or removed between the two columns —
+          so any difference you see is the <strong>scoring change alone</strong>, not a different
+          group of people, tickets or evaluators.
+        </p>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
+          {[
+            { k: "Full old checklist", v: `${PRIMARY.agents} agents`,
+              d: "All ~15 attributes, exactly as the evaluator originally scored them. 100 points.",
+              c: "var(--primary-text)" },
+            { k: "New 4 attributes only", v: `${VALIDATION.agents} agents`,
+              d: "The same evaluations, counting only Investigation, Resolution, Tone of Voice and Empathy. 67 of the 100 points, rebased to 100.",
+              c: "var(--teal)" },
+          ].map((x) => (
+            <div key={x.k} style={{ background: "var(--bg)", border: "1px solid var(--bd2)", borderRadius: 10, padding: "12px 14px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 3 }}>
+                <span style={{ width: 9, height: 9, borderRadius: 2, background: x.c }}/>
+                <span style={{ fontSize: 12.5, fontWeight: 700 }}>{x.k}</span>
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--tx3)", fontVariantNumeric: "tabular-nums", marginBottom: 5 }}>{x.v}</div>
+              <div style={{ fontSize: 11.5, color: "var(--tx2)", lineHeight: 1.55 }}>{x.d}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginTop: 12, paddingTop: 10, borderTop: "1px solid var(--bd2)", fontSize: 11.5, color: "var(--tx2)", lineHeight: 1.65, maxWidth: "78ch" }}>
+          <strong>Two things to hold onto.</strong> The four new attributes were never recorded on
+          these evaluations, so the second column is <em>reconstructed</em> from the old questions
+          that correspond to them — a judgement, not a measurement. And it drops{" "}
+          {100 - 67} of the 100 old points, which removes places agents lost marks: scoring on four
+          attributes is <strong>mechanically easier</strong>, so a higher pass rate there is not
+          agents improving.{" "}
+          {REASSESSMENT.agents} separately-tracked agents who failed and were coached are shown
+          lower down, scored the same two ways.
+        </div>
+      </div>
+
       {/* ── Recommendation ── */}
       <div className="card" style={{
         borderLeft: "4px solid var(--primary-text)", marginBottom: 16,
