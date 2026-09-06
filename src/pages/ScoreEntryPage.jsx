@@ -716,23 +716,25 @@ function ScoreEntryPage(){
           <div className="page-title">MTD</div>
           <div className="page-subtitle">Month-to-date performance — synced from Metabase hourly</div>
         </div>
-        {/* Refresh live — pulls the latest MTD CSV from Google Sheets via
-            the mtd-sync edge function, then reloads the table. Visible to
-            qa_lead+ only since it triggers a server-side sync. */}
+        {/* Reload the table from the database. It used to trigger the
+            sheet-based mtd-sync; see the comment in the handler for why it
+            no longer does. */}
         {hasRole(profile?.role,"qa_lead")&&<button className="btn btn-outline btn-sm" disabled={refreshing} onClick={async()=>{
           if (refreshing) return;
           setRefreshing(true);
-          const r = await callEdgeFunction("mtd-sync", { token });
-          if (!r.ok) {
-            globalToast("error", `Sync failed — ${r.error}`);
-          } else {
-            dataCache?.invalidate?.();
-            setReloadKey(k => k + 1);
-            const upserted = r.data?.rows_upserted ?? "?";
-            globalToast("success", `Synced ${upserted} row${upserted===1?"":"s"} — refreshing…`);
-          }
+          // Deliberately does NOT call mtd-sync any more. That function rewrites
+          // mtd_scores from the MTD Google Sheet and deletes every row in a
+          // touched month it did not itself write; the sheet stopped carrying
+          // complete data, so pressing this destroyed a correct Aug-2026 twice
+          // on 2026-09-06 — after its cron had already been paused. mtd_scores
+          // is warehouse-sourced now (supabase/queries/mtd_consolidated.sql).
+          // This button re-reads what is in the database, which is what
+          // "refresh" should have meant all along.
+          dataCache?.invalidate?.();
+          setReloadKey(k => k + 1);
+          globalToast("success", "Refreshed");
           setRefreshing(false);
-        }} title="Pull the latest MTD data from the Google Sheet" style={{fontSize:12,marginLeft:8,display:"flex",alignItems:"center",gap:6}}>
+        }} title="Reload the table from the database" style={{fontSize:12,marginLeft:8,display:"flex",alignItems:"center",gap:6}}>
           {refreshing
             ? <><div className="spinner" style={{width:12,height:12,borderWidth:2}}/>Refreshing…</>
             : <><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh live</>}
