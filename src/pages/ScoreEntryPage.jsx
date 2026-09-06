@@ -12,6 +12,7 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import PageFilters from "../components/PageFilters.jsx";
 import { useApp } from "../lib/AppContext.jsx";
 import { SYSTEM_COLS, DEFAULT_MTD_COLS, COL_LABELS } from "../lib/mtdColumns.js";
+import MtdCoverage from "../components/MtdCoverage.jsx";
 import { aggregateMtdRange, monthsInRange } from "../lib/mtdRange.js";
 import MonthRangePicker from "../components/MonthRangePicker.jsx";
 import MtdUploadModal from "../components/mtd/MtdUploadModal.jsx";
@@ -1068,6 +1069,7 @@ function ScoreEntryPage(){
               </>}
             </div>
           </div>
+          <MtdCoverage rows={sorted} month={selMonth} />
           <div className={`table-wrap table-wrap-sticky table-sticky-first${tableDense ? " table-dense" : ""}`}>
             <table>
               <thead>
