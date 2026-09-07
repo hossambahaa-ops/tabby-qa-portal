@@ -63,15 +63,27 @@ const rows = (pairs) =>
 // because the evaluator was answering a different checklist. So the "new 4"
 // score is reconstructed from the old questions that correspond to each:
 //
-//   Investigation   internal_research + probing_questions          (max 10)
-//   Resolution      issue_handling + guidance                      (max 22)
-//   Tone of Voice   professionalism + grammar_language + greeting  (max 19)
-//   Empathy         empathy_personalization + assurance            (max 16)
+//   Investigation   internal_research + probing_questions          all at max?
+//   Resolution      issue_handling + guidance                      all at max?
+//   Tone of Voice   professionalism + grammar_language + greeting   all at max?
+//   Empathy         empathy_personalization + assurance             all at max?
 //
-// EQUAL WEIGHTING (2026-09-07): each attribute is normalised to its OWN max
-// and then worth 25 points, so all four carry equal weight and the total is
-// 100. This matches how V2 is actually built — four attributes of 25 each —
-// rather than preserving the old checklist's point spread.
+// Each answers yes -> 25, no -> 0.
+//
+// ALL-OR-NOTHING PER ATTRIBUTE (2026-09-07, Hossam's decision). Each attribute
+// is worth 25 and is scored PASS/FAIL: full marks on every question inside it
+// scores 25, any deduction anywhere in it scores 0. There is no partial credit.
+// This is how the V2 checklist treats a mistake, so it is the closest the
+// legacy data can get to V2's mechanics.
+//
+// It matters more than the threshold does. The same four attributes scored
+// proportionally instead pass 81.4% at 75%; scored all-or-nothing they pass
+// 66.7%. A 15-point swing from a scoring rule, against a few points from any
+// realistic threshold move.
+//
+// Because a per-ticket score can only be 0/25/50/75/100, the bar is really a
+// count of clean attributes: 75% means "three of four perfect", 87.5%+ means
+// "all four". Nothing sits between them.
 //
 // VOIDED TICKETS (2026-09-07). This is the correction that made the model
 // honest. 46 legacy tickets score 0 on the old checklist while still carrying
@@ -114,16 +126,16 @@ export const ASSESSMENT_OLD = {
 
 export const ASSESSMENT_NEW4 = {
   id: "assessment_new4",
-  label: "Assessment · new 4 attributes only",
+  label: "Assessment · new 4, any mistake costs the attribute",
   short: "New-4 scoring",
-  note: "Same evaluations · 4 attributes at 25 each · voided tickets stay voided",
+  note: "Same evaluations · each attribute all-or-nothing, 25 each · voided tickets stay voided",
   period: "23 Jun – 27 Aug 2026",
   agents: 177,
   tickets: 690,
   ticketsPerAgent: 3.9,
   byScore: rows({
-    ksa:   { 0: 1, 31.25: 1, 37.5: 2, 43.75: 4, 50: 1, 56.25: 3, 62.5: 3, 68.75: 4, 75: 6, 81.25: 16, 87.5: 26, 93.75: 22, 100: 7 },
-    other: { 25: 1, 43.75: 1, 50: 2, 56.25: 1, 62.5: 4, 68.75: 5, 75: 4, 81.25: 8, 87.5: 28, 93.75: 20, 100: 7 },
+    ksa:   { 0: 1, 12.5: 1, 25: 3, 31.25: 1, 37.5: 1, 43.75: 4, 50: 5, 56.25: 6, 62.5: 6, 68.75: 8, 75: 13, 81.25: 18, 87.5: 9, 93.75: 13, 100: 7 },
+    other: { 18.75: 1, 37.5: 1, 43.75: 1, 50: 5, 56.25: 3, 62.5: 5, 68.75: 7, 75: 20, 81.25: 11, 87.5: 16, 93.75: 4, 100: 7 },
   }),
 };
 
@@ -151,15 +163,15 @@ export const REASSESSMENT_OLD = {
 
 export const REASSESSMENT_NEW4 = {
   id: "reassessment_new4",
-  label: "Re-assessment · new 4 attributes only",
+  label: "Re-assessment · new 4, any mistake costs the attribute",
   short: "New-4 scoring",
   period: "25 Feb – 24 Aug 2026",
   agents: 50,
   tickets: 150,
   ticketsPerAgent: 3.0,
   byScore: rows({
-    ksa:   { 68.75: 2, 81.25: 2, 87.5: 3, 93.75: 7, 100: 4 },
-    other: { 43.75: 2, 68.75: 2, 75: 2, 81.25: 3, 87.5: 7, 93.75: 8, 100: 8 },
+    ksa:   { 43.75: 1, 62.5: 1, 68.75: 1, 75: 3, 81.25: 1, 87.5: 2, 93.75: 5, 100: 4 },
+    other: { 25: 1, 37.5: 1, 50: 2, 56.25: 1, 62.5: 2, 68.75: 1, 75: 6, 81.25: 4, 87.5: 3, 93.75: 3, 100: 8 },
   }),
 };
 

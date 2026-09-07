@@ -611,19 +611,20 @@ export default function NestingThresholdPage() {
             Provisional recommendation
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-            Keep the pass mark at {fmtScore(BASELINE_THRESHOLD)}%. It carries over to the new checklist.
+            {fmtScore(BASELINE_THRESHOLD)}% on the new checklist is a real tightening — decide that deliberately.
           </div>
           <div style={{ fontSize: 13, color: "var(--tx2)", lineHeight: 1.65 }}>
-            On the full old checklist {fmtScore(BASELINE_THRESHOLD)}% clears{" "}
-            <strong>{fmtPct(primaryAt75.passRate)}</strong>. Scoring the same agents on only the four
-            new attributes — equally weighted, and voiding the tickets the old checklist voided —
-            clears <strong>{fmtPct(new4At75.passRate)}</strong>. Under one point apart, so the bar
-            does not need to move to keep the same strictness.
+            Scoring the same agents on the four new attributes, where{" "}
+            <strong>any mistake costs the whole attribute</strong>, {fmtScore(BASELINE_THRESHOLD)}%
+            clears <strong>{fmtPct(new4At75.passRate)}</strong> against{" "}
+            <strong>{fmtPct(primaryAt75.passRate)}</strong> on the old checklist. That is about{" "}
+            {Math.round(primaryAt75.passRate - new4At75.passRate)} points stricter — roughly one in
+            three agents failing rather than one in five.
             <br/><br/>
-            <strong>An independent check agrees.</strong> The {46} agents actually assessed on V2
-            natively — different people, real V2 scoring, not a reconstruction — pass{" "}
-            <strong>80.4%</strong> at the same mark. Three routes to the same number is the
-            strongest evidence on this page.
+            <strong>The bar is really a count of clean attributes.</strong> A ticket can only score
+            0, 25, 50, 75 or 100, so {fmtScore(BASELINE_THRESHOLD)}% means &ldquo;three of four
+            perfect&rdquo; and anything above {fmtScore(81.25)}% means &ldquo;all four&rdquo;. There
+            is no policy in between, and moving the slider between those points changes nothing.
           </div>
         </div>
         <div style={{ flex: "0 0 auto", minWidth: 190 }}>
