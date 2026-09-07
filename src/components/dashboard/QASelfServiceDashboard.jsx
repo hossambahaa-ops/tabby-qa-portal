@@ -4,6 +4,7 @@ import { useApp } from "../../lib/AppContext.jsx";
 import { listTeamTargets } from "../../api/teamTargets.js";
 import { csatPctValue, csatColor } from "../../lib/utils.js";
 import HelpTip from "../HelpTip.jsx";
+import { ratesFrom, productiveMinutes, dailyOccupancyPct } from "../../lib/occupancy.js";
 
 // Normalize any percent-shaped value to its 0–100 numeric form.
 // A 0–2 raw value is treated as a fraction (× 100), anything larger is
@@ -73,14 +74,16 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
   const nonSbsTarget = parseFloat(findTgt("daily_non_sbs")?.target_value) || 10;
   const occTarget = parseFloat(findTgt("occupancy_pct")?.target_value) || 95;
   const coachingTarget = parseFloat(findTgt("daily_coaching")?.target_value) || 1;
-  const whTarget = parseFloat(findTgt("daily_working_hours")?.target_value) || 8;
-  const sbsDur = parseFloat(findTgt("sbs_duration_minutes")?.target_value) || 20;
-  const nonSbsDur = parseFloat(findTgt("non_sbs_duration_minutes")?.target_value) || 15;
-  const coachingDur = parseFloat(findTgt("coaching_duration_minutes")?.target_value) || 30;
-
-  const shiftMins = whTarget * 60;
-  const productiveMins = (sbs * sbsDur) + (nonSbs * nonSbsDur) + (coaching * coachingDur) + stMins + loginMins;
-  const occPct = shiftMins > 0 ? (productiveMins / shiftMins) * 100 : 0;
+  const rates = ratesFrom(findTgt);
+  const shiftMins = rates.shiftMin;
+  // NOTE: this widget alone folds login minutes into the numerator. Every
+  // month-level view excludes them (login is availability, not output) — the
+  // difference is deliberate, which is why it is passed as an explicit
+  // `extraMin` rather than hidden inside a re-derived formula.
+  // nonSbs is today's all-non-SBS bucket, so dsat is already inside it.
+  const occParts = { sbs, nonSbs, dsat: 0, coaching, sideTaskMin: stMins, extraMin: loginMins };
+  const productiveMins = productiveMinutes(occParts, rates);
+  const occPct = dailyOccupancyPct(occParts, rates) ?? 0;
   const workingHrs = productiveMins / 60;
   const totalTarget = sbsTarget + nonSbsTarget;
   const evalPct = totalTarget > 0 ? totalEvals / totalTarget : 0;

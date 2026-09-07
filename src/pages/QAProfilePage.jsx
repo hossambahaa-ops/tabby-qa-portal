@@ -26,6 +26,7 @@ import AttendanceHealthCard from "../components/attendance/AttendanceHealthCard.
 import MtdAdjustModal from "../components/qaProfile/MtdAdjustModal.jsx";
 import { computeTitleHolders, holdersByEmail, getLastCompletedMonth, getCurrentCalendarMonth, monthBefore } from "../lib/titles.js";
 import { ATT_MAP } from "../lib/attendance.js";
+import { ratesFrom, productiveMinutes, occupancyPct, dailyOccupancyPct } from "../lib/occupancy.js";
 
 // Safe render: prevent objects/arrays from crashing React
 const safe = (v) => {
@@ -396,7 +397,7 @@ function QAProfilePage() {
     // honored by team_targets — already loaded in qaTargetsTL state).
     // Without targets in scope here, fall back to standard defaults so
     // the math always runs.
-    const SBS_DUR = 20, NSBS_DUR = 15, COACH_DUR = 30, SHIFT_MIN = 480;
+    // Rates live in src/lib/occupancy.js — do not re-declare them here.
     const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
     // Working days come from MTD (m.working_days + ramadan_wds) — the same
     // denominator the Eval-History table uses (see below), so all three views
@@ -434,8 +435,17 @@ function QAProfilePage() {
       // productive numerator. Monthly aggregate — not daily — so it can't be
       // excluded-for-today like the feed rows; harmless since it only ever
       // holds post-2026-07-22 activity.
-      const prod = (s.sbs * SBS_DUR) + (s.non_sbs * NSBS_DUR) + (s.coach * COACH_DUR) + s.side + (qualMinByYM[ym] || 0);
-      out.set(ym, (prod / (wds * SHIFT_MIN)) * 100);
+      // dsat: 0 — productivity_history's non_sbs ALREADY includes DSATs (the
+      // daily feed doesn't split them), so it is the all-non-SBS bucket.
+      const occ = occupancyPct(
+        {
+          sbs: s.sbs, nonSbs: s.non_sbs, dsat: 0,
+          coaching: s.coach, sideTaskMin: s.side,
+          extraMin: qualMinByYM[ym] || 0,
+        },
+        wds,
+      );
+      if (occ != null) out.set(ym, occ);
     }
     return out;
   })();
@@ -719,16 +729,19 @@ function QAProfilePage() {
         const nonSbsTarget = parseFloat(findTgt("daily_non_sbs")?.target_value) || 10;
         const occTarget = parseFloat(findTgt("occupancy_pct")?.target_value) || 95;
         const whTarget = parseFloat(findTgt("daily_working_hours")?.target_value) || 8;
-        const sbsDur = parseFloat(findTgt("sbs_duration_minutes")?.target_value) || 20;
-        const nonSbsDur = parseFloat(findTgt("non_sbs_duration_minutes")?.target_value) || 15;
-        const coachingDur = parseFloat(findTgt("coaching_duration_minutes")?.target_value) || 30;
-        const shiftMins = whTarget * 60;
+        const rates = ratesFrom(findTgt);
+        const shiftMins = rates.shiftMin;
         // Occupancy = QA-task time / shift. Login hours are NOT productive
         // output and were inflating today's occupancy above what MTD,
         // Leaderboard and EvalHistory show (all of which exclude login).
         // Login hours are still displayed separately in the card below.
-        const productiveMins = (sbs * sbsDur) + (nonSbs * nonSbsDur) + (coaching * coachingDur) + stMins;
-        const occPct = shiftMins > 0 ? (productiveMins / shiftMins) * 100 : 0;
+        // nonSbs here is today's all-non-SBS bucket, so dsat is folded into it.
+        const productiveMins = productiveMinutes(
+          { sbs, nonSbs, dsat: 0, coaching, sideTaskMin: stMins }, rates,
+        );
+        const occPct = dailyOccupancyPct(
+          { sbs, nonSbs, dsat: 0, coaching, sideTaskMin: stMins }, rates,
+        ) ?? 0;
         const workingHrs = productiveMins / 60;
         const target = sbsTarget + nonSbsTarget;
         const pct = target > 0 ? Math.min(100, Math.round((totalEvals / target) * 100)) : 0;

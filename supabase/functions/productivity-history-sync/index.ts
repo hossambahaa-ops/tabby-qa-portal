@@ -61,11 +61,18 @@ function normEmail(e: string | null | undefined): string {
 // Daily occupancy is recomputed from the component counts rather than trusting
 // the source's Occupancy column — a split/typo row (an eval that landed on a
 // mistyped email) used to clobber the real value with a nonsense % (the Jun-2026
-// "4%" case). Mirrors the in-app monthly recompute (SBS/Non-SBS evals at 20/15
-// min, coaching 30 min, over a 480-min shift) so daily and monthly agree.
-const SBS_DUR = 20, NSBS_DUR = 15, COACH_DUR = 30, SHIFT_MIN = 480;
+// "4%" case).
+//
+// Mirrors src/lib/occupancy.js — that file is the definition and explains the
+// rule; this is a Deno edge function so it cannot import from src/. If you
+// change one, change both. The rule, restated so it cannot be got wrong here:
+// EVERY evaluation costs 15 minutes and a side-by-side costs 20 MORE on top of
+// that (35 total), NOT 20 instead of 15. `non` is the feed's all-non-SBS bucket
+// and already contains DSATs.
+const EVAL_BASE_MIN = 15, SBS_SURCHARGE_MIN = 20, COACH_MIN = 30, SHIFT_MIN = 480;
 function computeOccupancy(sbs: number, non: number, coach: number, side: number): number {
-  const productive = sbs * SBS_DUR + non * NSBS_DUR + coach * COACH_DUR + side;
+  const productive =
+    (sbs + non) * EVAL_BASE_MIN + sbs * SBS_SURCHARGE_MIN + coach * COACH_MIN + side;
   return Math.round((productive / SHIFT_MIN) * 10000) / 100;
 }
 

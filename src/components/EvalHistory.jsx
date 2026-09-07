@@ -4,6 +4,7 @@ import { callEdgeFunction } from "../lib/edgeSync.js";
 import { useApp } from "../lib/AppContext.jsx";
 import { PulseLoader } from "./Charts.jsx";
 import { riyadhTodayStr } from "../lib/attendancePlan.js";
+import { ratesFrom, occupancyPct, dailyOccupancyPct } from "../lib/occupancy.js";
 
 function isoMonday(d) {
   const dt = new Date(d + "T12:00:00");
@@ -149,15 +150,11 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [], qualM
     const find = (team, dom) => teamTargets.find(t => !t.qa_email && t.team_name === team && t.domain === dom && t.metric === metric);
     return find(qaQueue, qaDomain) || find(qaQueue, "all") || find("Default", qaDomain) || find("Default", "all");
   };
-  const whTarget = parseFloat(findTgt("daily_working_hours")?.target_value) || 8;
-  const sbsDur = parseFloat(findTgt("sbs_duration_minutes")?.target_value) || 20;
-  const nonSbsDur = parseFloat(findTgt("non_sbs_duration_minutes")?.target_value) || 15;
-  const coachingDur = parseFloat(findTgt("coaching_duration_minutes")?.target_value) || 30;
-  const shiftMins = whTarget * 60;
-  const calcOcc = (sbs, nsbs, coaching, side) => {
-    const productive = (sbs * sbsDur) + (nsbs * nonSbsDur) + (coaching * coachingDur) + side;
-    return shiftMins > 0 ? (productive / shiftMins) * 100 : 0;
-  };
+  const rates = ratesFrom(findTgt);
+  const shiftMins = rates.shiftMin;
+  // nsbs is the feed's all-non-SBS bucket (DSATs are not split out), so dsat: 0.
+  const calcOcc = (sbs, nsbs, coaching, side) =>
+    dailyOccupancyPct({ sbs, nonSbs: nsbs, dsat: 0, coaching, sideTaskMin: side }, rates) ?? 0;
   // Source's stored occupancy already includes APPROVED side-task
   // minutes (side_task_minutes column). Pending minutes live in
   // pending_side_minutes and have not yet been counted.
@@ -446,8 +443,14 @@ function EvalHistory({ qaEmail, matchQA, teamTargets = [], qa, qaMtd = [], qualM
                   ? (() => {
                       // + ABT SBS / ABT Validation minutes (post-cutoff),
                       // matching the QA Profile trend's numerator.
-                      const prod = (r.sbs * sbsDur) + (r.non_sbs * nonSbsDur) + (r.coaching * coachingDur) + r.side + (qualMinByYM[r.monthStart] || 0);
-                      return (prod / (mtdWds * shiftMins)) * 100;
+                      return occupancyPct(
+                        {
+                          sbs: r.sbs, nonSbs: r.non_sbs, dsat: 0,
+                          coaching: r.coaching, sideTaskMin: r.side,
+                          extraMin: qualMinByYM[r.monthStart] || 0,
+                        },
+                        mtdWds, rates,
+                      );
                     })()
                   : null;
                 const occ =

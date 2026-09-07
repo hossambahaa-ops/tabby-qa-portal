@@ -23,8 +23,11 @@ const TARGET_METRICS = [
   {key:"ticket_per_day",label:"Tickets / day",type:"number"},
   {key:"final_performance",label:"Final performance score",type:"decimal"},
   {key:"daily_working_hours",label:"Working hours / day",type:"hours"},
-  {key:"sbs_duration_minutes",label:"SBS duration (minutes)",type:"number"},
-  {key:"non_sbs_duration_minutes",label:"Non-SBS duration (minutes)",type:"number"},
+  // Naming matters here: "SBS duration = 20" was read as a total for years and
+  // implemented as one in six places. It is a SURCHARGE — a side-by-side costs
+  // the per-evaluation base PLUS this, i.e. 15 + 20 = 35 minutes.
+  {key:"sbs_duration_minutes",label:"SBS surcharge (minutes, added on top of the base)",type:"number"},
+  {key:"non_sbs_duration_minutes",label:"Per-evaluation base (minutes, every evaluation)",type:"number"},
   {key:"coaching_duration_minutes",label:"Coaching duration (minutes)",type:"number"},
 ];
 
