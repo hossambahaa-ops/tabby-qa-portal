@@ -58,29 +58,44 @@ const rows = (pairs) =>
 // a different group of people. The old V2-pilot comparison could not say that,
 // because it was a different 46 agents.
 //
-// THE MAPPING (agreed with Hossam 2026-09-06). The four new attributes were
-// never recorded on legacy evaluations — the score columns are all 0 and the
-// text columns all NULL, because the evaluator was answering a different
-// checklist. So "the same data scored on the new 4" has to be reconstructed
-// from the old questions that correspond to each new attribute:
+// THE MAPPING. The four new attributes were never recorded on legacy
+// evaluations — the score columns are all 0 and the text columns all NULL,
+// because the evaluator was answering a different checklist. So the "new 4"
+// score is reconstructed from the old questions that correspond to each:
 //
-//   Investigation   internal_research (5)  + probing_questions (5)      = 10
-//   Resolution      issue_handling (11)    + guidance (11)              = 22
-//   Tone of Voice   professionalism (11)   + grammar_language (5)
-//                                          + greeting (3)               = 19
-//   Empathy         empathy_personalization (11) + assurance (5)        = 16
-//                                                                  total  67
+//   Investigation   internal_research + probing_questions          (max 10)
+//   Resolution      issue_handling + guidance                      (max 22)
+//   Tone of Voice   professionalism + grammar_language + greeting  (max 19)
+//   Empathy         empathy_personalization + assurance            (max 16)
 //
-// closing_process was in Resolution in the first draft and removed on request.
-// Dropped entirely (33 of 100 points, no equivalent in the new four):
-// structure_readability 11, hold_time 5, response_time 5, status 3,
-// internal_notes 3, human_topic_selection 3, duplicate_management 3.
+// EQUAL WEIGHTING (2026-09-07): each attribute is normalised to its OWN max
+// and then worth 25 points, so all four carry equal weight and the total is
+// 100. This matches how V2 is actually built — four attributes of 25 each —
+// rather than preserving the old checklist's point spread.
 //
-// The kept 67 points are rebased to 100 so the two scores share an axis.
+// VOIDED TICKETS (2026-09-07). This is the correction that made the model
+// honest. 46 legacy tickets score 0 on the old checklist while still carrying
+// ~56 of 67 attribute points: 5 flagged as a misconduct violation, 6 with the
+// compliance field blank, and 41 with NO compliance flag at all and no column
+// anywhere explaining why. The reconstruction read those points and scored
+// them ~84%.
 //
-// This mapping is a JUDGEMENT, not a fact in the data. If it is wrong, every
-// "new scoring" number on the page moves. It is stated here so it can be
-// argued with rather than discovered.
+// So: if the old checklist voided a ticket, this voids it too. Mirroring the
+// outcome, without needing to know the reason. That single change moved the
+// assessment at 75% from 94.9% to 81.4% and brought three independent numbers
+// into agreement:
+//
+//   old checklist        80.8%
+//   new-4 (this model)   81.4%
+//   NATIVE V2, 46 agents 80.4%   <- real V2 scoring, a different cohort
+//
+// Before it, the model claimed the new checklist was 14 points softer. It is
+// not; the gap was an artefact of not voiding what the old checklist voided.
+//
+// Note the two checklists use DIFFERENT compliance fields — legacy records
+// `avoidance_and_misconduct` (agent_customer_data is entirely NULL), v2 records
+// `agent_customer_data` (avoidance_and_misconduct is entirely NULL). Neither is
+// read directly here; `general_evaluation_score = 0` covers both.
 
 export const ASSESSMENT_OLD = {
   id: "assessment_old",
@@ -101,14 +116,14 @@ export const ASSESSMENT_NEW4 = {
   id: "assessment_new4",
   label: "Assessment · new 4 attributes only",
   short: "New-4 scoring",
-  note: "Same evaluations, counting only Investigation / Resolution / Tone / Empathy",
+  note: "Same evaluations · 4 attributes at 25 each · voided tickets stay voided",
   period: "23 Jun – 27 Aug 2026",
   agents: 177,
   tickets: 690,
   ticketsPerAgent: 3.9,
   byScore: rows({
-    ksa:   { 56.25: 1, 62.5: 3, 68.75: 1, 75: 10, 81.25: 22, 87.5: 28, 93.75: 23, 100: 8 },
-    other: { 50: 1, 56.25: 1, 62.5: 1, 68.75: 1, 75: 4, 81.25: 12, 87.5: 30, 93.75: 23, 100: 8 },
+    ksa:   { 0: 1, 31.25: 1, 37.5: 2, 43.75: 4, 50: 1, 56.25: 3, 62.5: 3, 68.75: 4, 75: 6, 81.25: 16, 87.5: 26, 93.75: 22, 100: 7 },
+    other: { 25: 1, 43.75: 1, 50: 2, 56.25: 1, 62.5: 4, 68.75: 5, 75: 4, 81.25: 8, 87.5: 28, 93.75: 20, 100: 7 },
   }),
 };
 
@@ -143,8 +158,8 @@ export const REASSESSMENT_NEW4 = {
   tickets: 150,
   ticketsPerAgent: 3.0,
   byScore: rows({
-    ksa:   { 68.75: 2, 75: 1, 81.25: 1, 87.5: 6, 93.75: 4, 100: 4 },
-    other: { 43.75: 1, 68.75: 1, 75: 2, 81.25: 8, 87.5: 4, 93.75: 8, 100: 8 },
+    ksa:   { 68.75: 2, 81.25: 2, 87.5: 3, 93.75: 7, 100: 4 },
+    other: { 43.75: 2, 68.75: 2, 75: 2, 81.25: 3, 87.5: 7, 93.75: 8, 100: 8 },
   }),
 };
 

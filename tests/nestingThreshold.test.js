@@ -75,10 +75,11 @@ describe("pass rates reproduce BigQuery exactly", () => {
     expect(r.passRate).toBeCloseTo(80.79, 1);
   });
 
-  it("assessment on the new 4 only: 168 of 177 at 75% (94.9%)", () => {
+  it("assessment on the new 4 only: 144 of 177 at 75% (81.4%)", () => {
     const r = simulate(75, "all", ASSESSMENT_NEW4);
-    expect(r.pass).toBe(168);
-    expect(r.passRate).toBeCloseTo(94.9, 1);
+    expect(r.pass).toBe(144);
+    expect(r.total).toBe(177);
+    expect(r.passRate).toBeCloseTo(81.36, 1);
   });
 
   // 50 agents, not 33: performance_follow_up (33) merged with
@@ -90,52 +91,52 @@ describe("pass rates reproduce BigQuery exactly", () => {
     expect(r.passRate).toBeCloseTo(86.0, 1);
   });
 
-  it("re-assessment on the new 4 only: 46 of 50 at 75% (92.0%)", () => {
+  it("re-assessment on the new 4 only: 44 of 50 at 75% (88.0%)", () => {
     const r = simulate(75, "all", REASSESSMENT_NEW4);
-    expect(r.pass).toBe(46);
-    expect(r.passRate).toBeCloseTo(92.0, 1);
+    expect(r.pass).toBe(44);
+    expect(r.passRate).toBeCloseTo(88.0, 1);
   });
 });
 
-describe("scoring on the new four alone is easier", () => {
-  // The finding the page exists to show. Dropping 33 of the 100 old points
-  // removes places agents lost marks, so the same work scores higher. If this
-  // ever inverts, the mapping has been changed and the page's conclusion with
-  // it — that should fail loudly rather than quietly redraw.
-  it("passes more agents at every candidate threshold", () => {
-    for (const t of thresholdScale().filter((t) => t >= 50 && t <= 93.75)) {
-      expect(simulate(t, "all", ASSESSMENT_NEW4).passRate)
-        .toBeGreaterThanOrEqual(simulate(t, "all", ASSESSMENT_OLD).passRate);
+describe("the new-4 scoring tracks the old checklist", () => {
+  // This block replaced one asserting the new-4 scoring was ~14 points EASIER.
+  // That was an artefact: the reconstruction was not voiding the 46 tickets the
+  // old checklist voided, so agents kept ~56 of 67 attribute points on work
+  // that had actually been written off. Voiding them closed the gap almost
+  // entirely. The old assertions are gone rather than relaxed, because they
+  // encoded a conclusion the data does not support.
+  it("lands within a point of the old checklist at the working bar", () => {
+    const oldR = simulate(75, "all", ASSESSMENT_OLD).passRate;
+    const newR = simulate(75, "all", ASSESSMENT_NEW4).passRate;
+    expect(Math.abs(newR - oldR)).toBeLessThan(1);
+  });
+
+  // The corroboration that makes the whole page credible: a DIFFERENT cohort of
+  // 46 agents assessed natively on V2 passes 80.4% at the same mark. Three
+  // routes — old checklist, this reconstruction, real V2 — inside 1.1 points.
+  // Pinned as a constant because that cohort is not modelled in this file.
+  it("agrees with the natively-scored V2 cohort (80.4%)", () => {
+    const NATIVE_V2_PASS75 = 80.4;
+    for (const ds of [ASSESSMENT_OLD, ASSESSMENT_NEW4]) {
+      expect(Math.abs(simulate(75, "all", ds).passRate - NATIVE_V2_PASS75)).toBeLessThan(1.5);
     }
   });
 
-  it("lifts the mean by roughly 6 points", () => {
-    const lift = meanScore(ASSESSMENT_NEW4) - meanScore(ASSESSMENT_OLD);
-    expect(lift).toBeGreaterThan(3);
-    expect(lift).toBeLessThan(10);
-  });
-
-  it("does not narrow as the bar rises", () => {
-    // Worth pinning, because the intuition is wrong. The gap is 14.1pts at 75%
-    // and WIDENS to 16.9 at 87.5 and 20.3 at 93.75 — the new-4 scoring is most
-    // generous exactly where a stricter bar would be set. An earlier reading of
-    // this data claimed the gap narrowed above 85%; it does not, and the
-    // difference matters because it kills "just raise the bar to compensate".
+  it("still runs slightly generous above the working bar", () => {
+    // Not identical — the reconstruction is kinder higher up, because equal
+    // weighting promotes Investigation, the attribute agents score best on.
+    // Worth knowing before anyone sets a bar above 75%.
     const gap = (t) => simulate(t, "all", ASSESSMENT_NEW4).passRate
                      - simulate(t, "all", ASSESSMENT_OLD).passRate;
-    expect(gap(75)).toBeCloseTo(14.1, 0);
+    expect(gap(75)).toBeLessThan(1);
     expect(gap(87.5)).toBeGreaterThan(gap(75));
-    expect(gap(93.75)).toBeGreaterThan(gap(87.5));
   });
 
-  it("has no threshold where the new-4 bar matches the old one at 75%", () => {
-    // The obvious fix — "keep the same pass rate, just move the bar" — has no
-    // solution on the grid. Old at 75% passes 80.8%. The new-4 scoring passes
-    // 87.0% at 81.25 and 67.8% at 87.5: it steps straight over the target.
-    const target = simulate(75, "all", ASSESSMENT_OLD).passRate;
-    const matches = thresholdScale().filter((t) =>
-      Math.abs(simulate(t, "all", ASSESSMENT_NEW4).passRate - target) < 2);
-    expect(matches).toHaveLength(0);
+  it("keeps the agents the old checklist voided at zero", () => {
+    // 46 tickets were written off by the old checklist while still carrying
+    // attribute points. If this bucket empties, the voiding rule has been
+    // dropped and every figure on the page shifts up by several points.
+    expect(ASSESSMENT_NEW4.byScore.find((r) => r.score === 0).ksa).toBeGreaterThan(0);
   });
 });
 
@@ -206,14 +207,15 @@ describe("summary statistics", () => {
     // Floor-bucketing can only ever LOWER the mean, by at most SCORE_STEP.
     // Comparing the bucket mean directly against BigQuery's raw mean to 0dp
     // can never pass — the gap is ~3 points by construction, not an error.
-    // Raw means from BigQuery on 2026-09-06: old 82.98, new-4 89.43.
+    // Raw means from BigQuery on 2026-09-07: old 82.98, new-4 84.85
+    // (equal 25% weighting, voided tickets zeroed).
     const check = (ds, rawMean) => {
       const m = meanScore(ds);
       expect(m).toBeLessThanOrEqual(rawMean);
       expect(m).toBeGreaterThan(rawMean - SCORE_STEP);
     };
     check(ASSESSMENT_OLD, 82.98);
-    check(ASSESSMENT_NEW4, 89.43);
+    check(ASSESSMENT_NEW4, 84.85);
   });
 });
 

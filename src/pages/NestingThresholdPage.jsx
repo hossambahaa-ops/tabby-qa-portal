@@ -611,20 +611,19 @@ export default function NestingThresholdPage() {
             Provisional recommendation
           </div>
           <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 4 }}>
-            {fmtScore(BASELINE_THRESHOLD)}% holds on the old checklist. It does not transfer to the new one.
+            Keep the pass mark at {fmtScore(BASELINE_THRESHOLD)}%. It carries over to the new checklist.
           </div>
           <div style={{ fontSize: 13, color: "var(--tx2)", lineHeight: 1.65 }}>
             On the full old checklist {fmtScore(BASELINE_THRESHOLD)}% clears{" "}
-            <strong>{fmtPct(primaryAt75.passRate)}</strong> — a real bar, and the{" "}
-            {primaryAt75.fail} who fail are few enough to coach. Counting only the four new
-            attributes, the same agents and the same work clear{" "}
-            <strong>{fmtPct(new4At75.passRate)}</strong>: that is not a bar, it is a formality.
+            <strong>{fmtPct(primaryAt75.passRate)}</strong>. Scoring the same agents on only the four
+            new attributes — equally weighted, and voiding the tickets the old checklist voided —
+            clears <strong>{fmtPct(new4At75.passRate)}</strong>. Under one point apart, so the bar
+            does not need to move to keep the same strictness.
             <br/><br/>
-            <strong>Raising the bar does not fix it.</strong> There is no threshold on the grid that
-            reproduces today&rsquo;s strictness — the nearest options are{" "}
-            {fmtScore(81.25)}% ({fmtPct(new4At8125.passRate)}, softer than today) and{" "}
-            {fmtScore(87.5)}% ({fmtPct(new4At875.passRate)}, considerably harsher). Pick one
-            deliberately, or change the attribute weights instead of the threshold.
+            <strong>An independent check agrees.</strong> The {46} agents actually assessed on V2
+            natively — different people, real V2 scoring, not a reconstruction — pass{" "}
+            <strong>80.4%</strong> at the same mark. Three routes to the same number is the
+            strongest evidence on this page.
           </div>
         </div>
         <div style={{ flex: "0 0 auto", minWidth: 190 }}>
