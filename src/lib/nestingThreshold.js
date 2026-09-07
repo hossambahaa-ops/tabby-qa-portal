@@ -43,9 +43,10 @@ export const REGIONS = [
   { key: "other", label: "Non-KSA" },
 ];
 
-// Full 0→100 grid. It starts at 0, not 25, because the legacy assessment
-// cohort genuinely contains an agent who averaged a zero — a compliance
-// violation on every ticket. Truncating the axis would hide them.
+// Full 0→100 grid for the histogram. It starts at 0, not 25, because the cohort
+// genuinely contains an agent who averaged zero — every one of their tickets
+// was voided. (Not necessarily a compliance violation: most voided tickets
+// carry no compliance flag at all.) Truncating the axis would hide them.
 export const SCORE_SCALE = Array.from({ length: 17 }, (_, i) => i * SCORE_STEP);
 
 // EXACT SCORES, not pre-bucketed counts.
