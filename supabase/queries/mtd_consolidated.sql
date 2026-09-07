@@ -89,7 +89,12 @@ qa_email_map AS (
     STRUCT('esraa.ibrahim'         AS local_part, 'esraa.ibrahim.786@tabby.sa'     AS canonical_email),
     STRUCT('esraa.ibrahim.786'     AS local_part, 'esraa.ibrahim.786@tabby.sa'     AS canonical_email),
     STRUCT('alaa.elhady'           AS local_part, 'alaa.elhady.786@tabby.sa'       AS canonical_email),
-    STRUCT('alaa.elhady.786'       AS local_part, 'alaa.elhady.786@tabby.sa'       AS canonical_email)
+    STRUCT('alaa.elhady.786'       AS local_part, 'alaa.elhady.786@tabby.sa'       AS canonical_email),
+    -- Yara: rostered as yara.ashraf.786@tabby.sa, but her work is split across
+    -- yara.ashraf@tabby.ai (login/status, CSAT) and the .786 address
+    -- (evaluations). Both local parts must fold onto the roster identity.
+    STRUCT('yara.ashraf'           AS local_part, 'yara.ashraf.786@tabby.sa'       AS canonical_email),
+    STRUCT('yara.ashraf.786'       AS local_part, 'yara.ashraf.786@tabby.sa'       AS canonical_email)
   ])
 ),
 

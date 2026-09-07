@@ -45,23 +45,46 @@
 -- Spot-check: sara.abdeltwab Aug = 85.7% (6 good / 1 bad, 7 surveys), confirmed
 -- by Hossam. Beware sara.abdelraheem@tabby.ai — a different person, not rostered.
 
-WITH roster AS (
-  SELECT lp FROM UNNEST([
-   'abdallah.ashraf','abdelrahman.osama','abdulrahman.hesham','ahmed.hegazy','ahmed.mostafa','ahmed.sami','ahmed.soliman.6','alaa.elhady.786','amr.salah','arwa.alzahrani.2','asmaa.mohamed','bushra.kaabi','esraa.ibrahim.786','george.amir','hagar.dawood','hesham.mostafa.39','hossam.bahaa','hussam.khaled','kyrillos.malak','lama.alanezi.95','mahmoud.hesham','mariam.gad','marwa.sobhy','mohamed.mamdouh','mohamed.salah','mohammed.aljandal.5','mohammed.faran','mohammed.mohsen','mostafa.sami','muhammad.ramadan','nardeen.wafaey','nourhan.hussien','omar.abdelsamee','omar.fetouh','omar.mohammad','peter.mikhail','pola.emad','rahma.mohamed','rana.salah','reem.mansour','sameh.ahmed','sara.abdeltwab','saud.alasiri','sohaila.adel','tarek.mostafa','youssef.housh','zainab.hasan'
+-- Source local part -> roster identity. Esraa, Alaa and Yara are rostered under
+-- `.786@tabby.sa`, but this CSAT source files them under the plain `@tabby.ai`
+-- local part. Without the mapping they match no roster row and their CSAT
+-- vanishes with no error: Aug-2026 dropped 125 (alaa), 15 (esraa) and 12 (yara)
+-- tickets that way. Unlisted local parts map to themselves.
+WITH alias AS (
+  SELECT * FROM UNNEST([
+    STRUCT('esraa.ibrahim' AS src_lp, 'esraa.ibrahim.786' AS roster_lp),
+    STRUCT('alaa.elhady',  'alaa.elhady.786'),
+    STRUCT('yara.ashraf',  'yara.ashraf.786')
+  ])
+),
+roster AS (
+  -- only_email pins a local part that TWO DIFFERENT PEOPLE share. The QA
+  -- ahmed.sami is @tabby.ai; a KSA agent holds ahmed.sami@tabby.sa and resolved
+  -- 4 tickets of his own in Aug-2026. Unpinned, both people's surveys were
+  -- summed into the QA's CSAT. Mirrors the pin in mtd_login_hours_by_qa.sql.
+  SELECT lp, IF(lp = 'ahmed.sami', 'ahmed.sami@tabby.ai', NULL) AS only_email
+  FROM UNNEST([
+   'abdallah.ashraf','abdelrahman.osama','abdulrahman.hesham','ahmed.hegazy','ahmed.mostafa','ahmed.sami','ahmed.soliman.6','alaa.elhady.786','amr.salah','arwa.alzahrani.2','asmaa.mohamed','bushra.kaabi','esraa.ibrahim.786','george.amir','hagar.dawood','hesham.mostafa.39','hossam.bahaa','hussam.khaled','kyrillos.malak','lama.alanezi.95','mahmoud.hesham','mariam.gad','marwa.sobhy','mohamed.mamdouh','mohamed.salah','mohammed.aljandal.5','mohammed.faran','mohammed.mohsen','mostafa.sami','muhammad.ramadan','nardeen.wafaey','nourhan.hussien','omar.abdelsamee','omar.fetouh','omar.mohammad','peter.mikhail','pola.emad','rahma.mohamed','rana.salah','reem.mansour','sameh.ahmed','sara.abdeltwab','saud.alasiri','sohaila.adel','tarek.mostafa','yara.ashraf.786','youssef.housh','zainab.hasan'
   ]) lp
 ),
 f AS (
   SELECT DISTINCT
     s.ticket_id,
     FORMAT_DATE('%b-%Y', s.resolved_date)              AS mth,
-    LOWER(SPLIT(s.assignee,'@')[OFFSET(0)])            AS lp,
+    COALESCE(al.roster_lp, LOWER(SPLIT(s.assignee,'@')[OFFSET(0)])) AS lp,
     COALESCE(s.csat, s.ziwo_csat, h.csat)              AS csat
   FROM `customer_happiness_datamarts.productivity_karma_csat_rules` s
   LEFT JOIN `customer_happiness_datamarts.helpdesk_refiner_ziwo_tickets_csat` h
          ON s.ticket_id = h.ticket_id
+  -- Resolve to the roster identity BEFORE joining the roster, so a QA whose
+  -- source email differs (see `alias`) is still counted.
+  LEFT JOIN alias al
+         ON al.src_lp = LOWER(SPLIT(s.assignee,'@')[OFFSET(0)])
+  JOIN roster r
+         ON r.lp = COALESCE(al.roster_lp, LOWER(SPLIT(s.assignee,'@')[OFFSET(0)]))
   WHERE s.resolved_date BETWEEN '2026-08-01' AND '2026-09-30'   -- edit window
     AND s.resolver = s.assignee                                  -- is_resolver = 1
-    AND LOWER(SPLIT(s.assignee,'@')[OFFSET(0)]) IN (SELECT lp FROM roster)
+    AND (r.only_email IS NULL OR LOWER(s.assignee) = r.only_email)
     AND ((s.csat_attr != 0 AND s.csat = 'good')
       OR (s.dsat_attr != 0 AND s.csat = 'bad')
       OR s.ziwo_csat IS NOT NULL

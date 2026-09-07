@@ -86,8 +86,18 @@ WITH qa_roster AS (
     STRUCT('rahma.mohamed','rahma.mohamed@tabby.ai'),
     STRUCT('amr.salah','amr.salah@tabby.ai'),
     STRUCT('mahmoud.hesham','mahmoud.hesham@tabby.sa'),
-    STRUCT('esraa.ibrahim','esraa.ibrahim@tabby.ai'),
-    STRUCT('alaa.elhady','alaa.elhady@tabby.ai')
+    -- Esraa, Alaa and Yara are rostered as `.786@tabby.sa`; the warehouse logs
+    -- them without the `.786`. BOTH forms must resolve to the roster identity.
+    -- Until 2026-09-07 the first two mapped to @tabby.ai instead, which emits a
+    -- canonical address no Pulse row has, so their ABT and ticket counts were
+    -- dropped on the floor with no error. The other three committed queries
+    -- already used `.786@tabby.sa`; this file was the odd one out.
+    STRUCT('esraa.ibrahim','esraa.ibrahim.786@tabby.sa'),
+    STRUCT('esraa.ibrahim.786','esraa.ibrahim.786@tabby.sa'),
+    STRUCT('alaa.elhady','alaa.elhady.786@tabby.sa'),
+    STRUCT('alaa.elhady.786','alaa.elhady.786@tabby.sa'),
+    STRUCT('yara.ashraf','yara.ashraf.786@tabby.sa'),
+    STRUCT('yara.ashraf.786','yara.ashraf.786@tabby.sa')
   ])
 ),
 

@@ -69,7 +69,12 @@ WITH alias AS (
     STRUCT('esraa.ibrahim'     AS crm_lp, 'esraa.ibrahim.786' AS roster_lp),
     STRUCT('esraa.ibrahim.786', 'esraa.ibrahim.786'),
     STRUCT('alaa.elhady',       'alaa.elhady.786'),
-    STRUCT('alaa.elhady.786',   'alaa.elhady.786')
+    STRUCT('alaa.elhady.786',   'alaa.elhady.786'),
+    -- Yara is rostered as yara.ashraf.786@tabby.sa but her CRM status/persona
+    -- events are logged under yara.ashraf@tabby.ai. Without this she matches no
+    -- roster row and her login hours read as zero.
+    STRUCT('yara.ashraf',       'yara.ashraf.786'),
+    STRUCT('yara.ashraf.786',   'yara.ashraf.786')
   ])
 ),
 roster AS (
@@ -80,7 +85,7 @@ roster AS (
     SELECT lp AS local_part,
            IF(lp = 'ahmed.sami', 'ahmed.sami@tabby.ai', NULL) AS only_email
     FROM UNNEST([
-     'abdallah.ashraf','abdelrahman.osama','abdulrahman.hesham','ahmed.hegazy','ahmed.mostafa','ahmed.sami','ahmed.soliman.6','alaa.elhady.786','amr.salah','arwa.alzahrani.2','asmaa.mohamed','bushra.kaabi','esraa.ibrahim.786','george.amir','hagar.dawood','hesham.mostafa.39','hossam.bahaa','hussam.khaled','kyrillos.malak','lama.alanezi.95','mahmoud.hesham','mariam.gad','marwa.sobhy','mohamed.mamdouh','mohamed.salah','mohammed.aljandal.5','mohammed.faran','mohammed.mohsen','mostafa.sami','muhammad.ramadan','nardeen.wafaey','nourhan.hussien','omar.abdelsamee','omar.fetouh','omar.mohammad','peter.mikhail','pola.emad','rahma.mohamed','rana.salah','reem.mansour','sameh.ahmed','sara.abdeltwab','saud.alasiri','sohaila.adel','tarek.mostafa','youssef.housh','zainab.hasan'
+     'abdallah.ashraf','abdelrahman.osama','abdulrahman.hesham','ahmed.hegazy','ahmed.mostafa','ahmed.sami','ahmed.soliman.6','alaa.elhady.786','amr.salah','arwa.alzahrani.2','asmaa.mohamed','bushra.kaabi','esraa.ibrahim.786','george.amir','hagar.dawood','hesham.mostafa.39','hossam.bahaa','hussam.khaled','kyrillos.malak','lama.alanezi.95','mahmoud.hesham','mariam.gad','marwa.sobhy','mohamed.mamdouh','mohamed.salah','mohammed.aljandal.5','mohammed.faran','mohammed.mohsen','mostafa.sami','muhammad.ramadan','nardeen.wafaey','nourhan.hussien','omar.abdelsamee','omar.fetouh','omar.mohammad','peter.mikhail','pola.emad','rahma.mohamed','rana.salah','reem.mansour','sameh.ahmed','sara.abdeltwab','saud.alasiri','sohaila.adel','tarek.mostafa','yara.ashraf.786','youssef.housh','zainab.hasan'
     ]) lp
   )
 ),
