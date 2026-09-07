@@ -2,15 +2,13 @@ import React, { useState, useMemo, useId, useEffect, useRef } from "react";
 import {
   //   PRIMARY      = the same evaluations under the FULL OLD checklist
   //   VALIDATION   = the same evaluations counting ONLY the new 4 attributes
-  //   REASSESSMENT = the re-assessment cohort, old checklist
   // One population, two scorings — see the mapping note in nestingThreshold.js.
   PRIMARY,
   COMPARISON as VALIDATION,
-  REASSESSMENT,
   ATTRIBUTE_FAILS, HISTORY,
   BASELINE_THRESHOLD, SCORE_STEP, REGIONS,
   simulate, tradeOffCurve, thresholdScale,
-  medianScore, meanScore, modeScore, alignedShare,
+  medianScore, meanScore, alignedShare,
 } from "../lib/nestingThreshold.js";
 
 // Nesting Pass Threshold Simulator — a decision tool for choosing the pass
@@ -503,9 +501,6 @@ export default function NestingThresholdPage() {
   const sim = useMemo(() => simulate(threshold, region, PRIMARY), [threshold, region]);
   const curve = useMemo(() => tradeOffCurve(region, PRIMARY), [region]);
 
-  // The validation and re-assessment cohorts have no region split, so they are
-  // always computed on the full cohort. Filtering them by region would return
-  // a truthful-looking zero for Egypt that actually means "never measured".
   const validation = useMemo(() => simulate(threshold, region, VALIDATION), [threshold, region]);
   const validationAt75 = useMemo(() => simulate(75, region, VALIDATION), [region]);
   const primaryAt75 = useMemo(() => simulate(75, "all", PRIMARY), []);
@@ -514,7 +509,6 @@ export default function NestingThresholdPage() {
   const new4At75   = useMemo(() => simulate(75,    "all", VALIDATION), []);
   const new4At8125 = useMemo(() => simulate(81.25, "all", VALIDATION), []);
   const new4At875  = useMemo(() => simulate(87.5,  "all", VALIDATION), []);
-  const reassess = useMemo(() => simulate(threshold, "all", REASSESSMENT), [threshold]);
 
   const regionLabel = REGIONS.find((r) => r.key === region)?.label ?? "All";
   const deltaAgents = sim.deltaFail;
@@ -595,9 +589,7 @@ export default function NestingThresholdPage() {
           that correspond to them — a judgement, not a measurement. And it drops{" "}
           {100 - 67} of the 100 old points, which removes places agents lost marks: scoring on four
           attributes is <strong>mechanically easier</strong>, so a higher pass rate there is not
-          agents improving.{" "}
-          {REASSESSMENT.agents} separately-tracked agents who failed and were coached are shown
-          lower down, scored the same two ways.
+          agents improving.
         </div>
       </div>
 
@@ -937,32 +929,6 @@ export default function NestingThresholdPage() {
           </div>
         </Panel>
 
-        {/* Re-assessment */}
-        <Panel
-          title="Coaching recovers failed agents"
-          caption={<>{REASSESSMENT.agents} agents who failed were coached and re-assessed. Median{" "}
-            {fmtScore(medianScore(REASSESSMENT))}, most common score {fmtScore(modeScore(REASSESSMENT))} —
-            a failed Nesting assessment is recoverable, which is what makes a{" "}
-            {fmtScore(BASELINE_THRESHOLD)}% bar defensible rather than punitive.{" "}
-            <strong>Caveat:</strong> this cohort was re-assessed on the legacy checklist. No
-            re-assessment has run under V2 yet.</>}>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 6 }}>
-            <div style={{ flex: "1 1 100px" }}>
-              <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>Median after coaching</div>
-              <div style={{ fontSize: 24, fontWeight: 800, color: "var(--green)", fontVariantNumeric: "tabular-nums" }}>
-                {fmtScore(medianScore(REASSESSMENT))}%
-              </div>
-            </div>
-            <div style={{ flex: "1 1 100px" }}>
-              <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600 }}>
-                Clear {fmtScore(threshold)}%
-              </div>
-              <div style={{ fontSize: 24, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>
-                {reassess.pass}<span style={{ fontSize: 14, color: "var(--tx3)", fontWeight: 600 }}>/{reassess.total}</span>
-              </div>
-            </div>
-          </div>
-        </Panel>
       </div>
 
       {/* ── Limitations ── */}
@@ -994,18 +960,19 @@ export default function NestingThresholdPage() {
             are reconstructed from the old questions that correspond to them (see the mapping in
             nestingThreshold.js). That mapping is a judgement — if it is wrong, every "new 4" number
             here moves.</li>
-          <li><strong>Re-assessment has not been run under V2.</strong> The recovery evidence above
-            comes from the legacy checklist, so it is indicative rather than a like-for-like
-            projection.</li>
-          <li>Dropping 33 of the 100 old points (structure &amp; readability, hold time, response
-            time, status, notes, topic selection) removes places agents lost marks. Scoring on the
-            four alone is <strong>mechanically easier</strong>, which is most of the gap you see —
-            it is not evidence that agents improved.</li>
+          <li>Scoring each attribute <strong>all-or-nothing</strong> drives the result more than the
+            threshold does: the same four attributes with partial credit pass 81.4% at{" "}
+            {fmtScore(BASELINE_THRESHOLD)}%, against {fmtPct(new4At75.passRate)} here. That rule is
+            taken on advice about how V2 treats a miss — no column in the data proves it.</li>
+          <li>This model is <strong>stricter than the agents actually assessed on V2</strong>, who
+            passed 80.4% at {fmtScore(BASELINE_THRESHOLD)}%. Read it as the harsh end of the range,
+            not as a forecast of V2.</li>
           <li>Attribute failure rates sit on a {ATTRIBUTE_FAILS.ticketBase}-ticket pool, a different
             denominator from the {PRIMARY.agents}-agent score distribution. Treat them as direction,
             not as inputs to the pass rate.</li>
           <li><strong>Recommended review point:</strong> revisit this threshold once Egypt has completed
-            one or two full V2 batches, and again after the first V2 re-assessment round.</li>
+            one or two full V2 batches, and as soon as anyone can confirm how V2 scores an attribute
+            that is only partly failed.</li>
         </ul>
       </div>
 

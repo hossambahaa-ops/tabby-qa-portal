@@ -3,10 +3,14 @@
 // SOURCE OF TRUTH — BigQuery via Metabase, refreshed 2026-09-06, from
 // `customer_happiness_quality_datamarts.qa_crm_qa_tasks` (database `tabby-dp`):
 //
-//   monitoring_source = 'nesting_assessment'    -> the Nesting assessment
-//   monitoring_source IN ('performance_follow_up','nesting_re_assessment')
-//                                               -> the re-assessment after coaching
-//   agent_checklist_version = 'legacy_v1'       -> the ONLY data used here
+//   monitoring_source = 'nesting_assessment'  -> the ONLY cohort used here
+//   agent_checklist_version = 'legacy_v1'     -> the ONLY checklist used here
+//
+// The re-assessment cohort (performance_follow_up + nesting_re_assessment, 50
+// agents) was removed on 2026-09-07. It answered a different question — does
+// coaching recover a failed agent — and mixing it into a page about where to
+// set the pass mark invited reading a recovery rate as a pass rate. The query
+// at the bottom still returns it if it is ever wanted back.
 //
 // The V2-scored cohorts were removed on 2026-09-06. They were a different 46
 // agents, so comparing them against the legacy population confounded "new
@@ -139,48 +143,10 @@ export const ASSESSMENT_NEW4 = {
   }),
 };
 
-// Agents who failed, were coached, and were assessed again. SELECTED for
-// having failed once, so comparable only to itself across scorings.
-//
-// Two warehouse sources, merged 2026-09-06: `performance_follow_up` (33 agents)
-// and `nesting_re_assessment` (17). Only the first was being read. They are the
-// same event recorded under two names and share ZERO agents, so the merge adds
-// 17 people without any double-counting — verified before merging, because a
-// silent overlap would have inflated the cohort instead of widening it.
-export const REASSESSMENT_OLD = {
-  id: "reassessment_old",
-  label: "Re-assessment · full old checklist",
-  short: "Old scoring",
-  period: "25 Feb – 24 Aug 2026",
-  agents: 50,
-  tickets: 150,
-  ticketsPerAgent: 3.0,
-  byScore: rows({
-    ksa:   { 68.75: 2, 81.25: 2, 87.5: 10, 93.75: 4 },
-    other: { 43.75: 1, 56.25: 1, 62.5: 2, 68.75: 1, 75: 2, 81.25: 9, 87.5: 10, 93.75: 5, 100: 1 },
-  }),
-};
-
-export const REASSESSMENT_NEW4 = {
-  id: "reassessment_new4",
-  label: "Re-assessment · new 4, any mistake costs the attribute",
-  short: "New-4 scoring",
-  period: "25 Feb – 24 Aug 2026",
-  agents: 50,
-  tickets: 150,
-  ticketsPerAgent: 3.0,
-  byScore: rows({
-    ksa:   { 43.75: 1, 62.5: 1, 68.75: 1, 75: 3, 81.25: 1, 87.5: 2, 93.75: 5, 100: 4 },
-    other: { 25: 1, 37.5: 1, 50: 2, 56.25: 1, 62.5: 2, 68.75: 1, 75: 6, 81.25: 4, 87.5: 3, 93.75: 3, 100: 8 },
-  }),
-};
-
 // The page compares PRIMARY against COMPARISON. Primary is the old scoring,
 // because that is the status quo the decision is measured against.
 export const PRIMARY = ASSESSMENT_OLD;
 export const COMPARISON = ASSESSMENT_NEW4;
-export const REASSESSMENT = REASSESSMENT_OLD;
-export const REASSESSMENT_COMPARISON = REASSESSMENT_NEW4;
 export const PRIMARY_SCALE = SCORE_SCALE;
 
 
@@ -364,7 +330,7 @@ WITH t AS (
          + COALESCE(empathy_personalization_score,0) + COALESCE(assurance_score,0)
          , 67) * 100 AS new_s
   FROM `customer_happiness_quality_datamarts.qa_crm_qa_tasks`
-  WHERE monitoring_source IN ('nesting_assessment','performance_follow_up')
+  WHERE monitoring_source = 'nesting_assessment'
     AND agent_checklist_version = 'legacy_v1'
     AND general_evaluation_score IS NOT NULL
 ),

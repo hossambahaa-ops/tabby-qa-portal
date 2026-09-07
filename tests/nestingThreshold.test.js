@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  ASSESSMENT_OLD, ASSESSMENT_NEW4, REASSESSMENT_OLD, REASSESSMENT_NEW4,
+  ASSESSMENT_OLD, ASSESSMENT_NEW4,
   ATTRIBUTE_FAILS, HISTORY, BASELINE_THRESHOLD, SCORE_STEP, SCORE_SCALE,
   simulate, tradeOffCurve, thresholdScale, alignedShare,
   medianScore, meanScore,
@@ -15,11 +15,12 @@ import {
 // population (the legacy cohort) under TWO scorings: the full old checklist,
 // and only the four attributes the new checklist keeps.
 
+// Re-assessment removed 2026-09-07 — it answered a different question (does
+// coaching recover a failed agent) and did not belong on a page about setting
+// the pass mark.
 const COHORTS = [
-  ["assessment · old",  ASSESSMENT_OLD,    177],
-  ["assessment · new4", ASSESSMENT_NEW4,   177],
-  ["re-assessment · old",  REASSESSMENT_OLD,  50],
-  ["re-assessment · new4", REASSESSMENT_NEW4, 50],
+  ["assessment · old",  ASSESSMENT_OLD,  177],
+  ["assessment · new4", ASSESSMENT_NEW4, 177],
 ];
 
 describe("cohort totals match the warehouse", () => {
@@ -33,8 +34,7 @@ describe("cohort totals match the warehouse", () => {
   // SAME people. If these ever diverge the comparison stops being paired and
   // every "the gap is the scoring change" claim on the page becomes false.
   it("scores the identical population under both scorings", () => {
-    for (const [a, b] of [[ASSESSMENT_OLD, ASSESSMENT_NEW4],
-                          [REASSESSMENT_OLD, REASSESSMENT_NEW4]]) {
+    for (const [a, b] of [[ASSESSMENT_OLD, ASSESSMENT_NEW4]]) {
       expect(b.agents).toBe(a.agents);
       expect(b.byScore.reduce((n, r) => n + r.ksa, 0))
         .toBe(a.byScore.reduce((n, r) => n + r.ksa, 0));
@@ -82,20 +82,6 @@ describe("pass rates reproduce BigQuery exactly", () => {
     expect(r.passRate).toBeCloseTo(66.7, 1);
   });
 
-  // 50 agents, not 33: performance_follow_up (33) merged with
-  // nesting_re_assessment (17) on 2026-09-06. Zero shared agents.
-  it("re-assessment on the old checklist: 43 of 50 at 75% (86.0%)", () => {
-    const r = simulate(75, "all", REASSESSMENT_OLD);
-    expect(r.pass).toBe(43);
-    expect(r.total).toBe(50);
-    expect(r.passRate).toBeCloseTo(86.0, 1);
-  });
-
-  it("re-assessment on the new 4, all-or-nothing: 39 of 50 at 75% (78.0%)", () => {
-    const r = simulate(75, "all", REASSESSMENT_NEW4);
-    expect(r.pass).toBe(39);
-    expect(r.passRate).toBeCloseTo(78.0, 1);
-  });
 });
 
 describe("all-or-nothing scoring is stricter than the old checklist", () => {
