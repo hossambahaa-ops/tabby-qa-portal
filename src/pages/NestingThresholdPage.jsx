@@ -25,9 +25,13 @@ import {
 // diagonal hatch, every bar is labelled, and there is a legend plus a data
 // table. That redundancy is deliberate; don't strip it back to colour.
 
-// 70 was removed: no agent can score between 68.75 and 75, so a "70%" bar was
-// the same policy as 75% and only ever added a false choice to the room.
-const PRESETS = [75, 80, 85, 90, 100];
+// 65 and 70 added 2026-09-07. A previous revision removed 70 claiming "no agent
+// can score between 68.75 and 75, so it is the same policy as 75%". That was
+// wrong: 3 agents sit in that range under the new-4 scoring and 7 under the old
+// one. The claim came from reading pre-bucketed counts, which could not see
+// between grid steps — the library now counts exact per-agent scores, so every
+// value here is a distinct, correctly-computed policy.
+const PRESETS = [65, 70, 75, 80, 85, 90, 100];
 
 const fmtPct = (n) => `${n.toFixed(1)}%`;
 // Scores land on 6.25 steps, so they need 2dp to be exact but look absurd as

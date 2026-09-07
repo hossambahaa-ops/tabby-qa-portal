@@ -48,12 +48,44 @@ export const REGIONS = [
 // violation on every ticket. Truncating the axis would hide them.
 export const SCORE_SCALE = Array.from({ length: 17 }, (_, i) => i * SCORE_STEP);
 
-const rows = (pairs) =>
-  SCORE_SCALE.map((score) => ({
-    score,
-    ksa: pairs.ksa?.[score] ?? 0,
-    other: pairs.other?.[score] ?? 0,
-  }));
+// EXACT SCORES, not pre-bucketed counts.
+//
+// Until 2026-09-07 this file stored counts already bucketed to the 6.25 grid,
+// and simulate() counted buckets. That is only lossless when the threshold is
+// ITSELF on the grid. The picker offers 80, 85 and 90, none of which are, and
+// the error was large: at 85% the page reported 90 agents passing when 121
+// actually did, and at 90% it reported 26 against a true 65. Adding 65 and 70
+// would have inherited the same flaw — 5 agents sit between 65 and 68.75, and
+// 3 between 70 and 75.
+//
+// So the source of truth is now one score per agent. Pass rates are counted
+// from those directly and are exact at ANY threshold. Buckets are derived from
+// them purely to draw the histogram, which is the only thing that needs them.
+const bucketOf = (score) => Math.min(MAX_SCORE, Math.floor(score / SCORE_STEP) * SCORE_STEP);
+
+const toBuckets = (ksa, other) => {
+  const idx = new Map(SCORE_SCALE.map((sc) => [sc, { score: sc, ksa: 0, other: 0 }]));
+  ksa.forEach((v) => { idx.get(bucketOf(v)).ksa += 1; });
+  other.forEach((v) => { idx.get(bucketOf(v)).other += 1; });
+  return SCORE_SCALE.map((sc) => idx.get(sc));
+};
+
+/** Build a cohort from exact per-agent scores. */
+const cohort = (meta, ksa, other) => ({
+  ...meta,
+  scores: { ksa, other },
+  byScore: toBuckets(ksa, other),
+});
+
+// Per-agent scores for the 177-agent assessment cohort, KSA then non-KSA.
+// Same agents in both arrays, same order — index i is one person under the two
+// scorings, which is what makes this a paired comparison.
+const RAW = {
+  ksaOld:   [0, 37.75, 39.75, 40.75, 40.75, 44.75, 48, 48.75, 53.5, 59.6667, 62.25, 63, 65.25, 67.25, 69.5, 69.75, 71, 71, 72.25, 78, 78, 78.5, 78.75, 81.3333, 81.75, 83.25, 83.6667, 84, 84.5, 85, 85.25, 85.5, 85.75, 86, 86.25, 86.5, 86.5, 86.75, 86.75, 87, 87, 87.25, 87.25, 87.5, 88, 88.25, 88.25, 88.3333, 88.5, 88.5, 88.5, 88.75, 89, 89, 89.25, 89.5, 90, 90, 90, 90, 90.5, 90.75, 90.75, 91, 91.25, 91.5, 92, 92.25, 92.25, 92.5, 92.5, 92.6667, 92.75, 93, 93.25, 93.25, 93.5, 93.5, 93.5, 93.6667, 94, 94, 94, 94.25, 94.75, 95.25, 95.5, 95.5, 95.75, 96, 96, 96.3333, 96.75, 97.25, 97.5, 100],
+  ksaNew:   [0, 12.5, 25, 25, 37.5, 43.75, 50, 43.75, 31.25, 58.3333, 50, 43.75, 68.75, 62.5, 62.5, 62.5, 75, 75, 31.25, 43.75, 50, 56.25, 56.25, 58.3333, 62.5, 75, 66.6667, 50, 68.75, 56.25, 68.75, 81.25, 75, 68.75, 56.25, 75, 68.75, 75, 68.75, 68.75, 81.25, 68.75, 81.25, 75, 81.25, 75, 93.75, 66.6667, 81.25, 81.25, 93.75, 81.25, 81.25, 75, 81.25, 87.5, 75, 75, 75, 50, 75, 81.25, 93.75, 81.25, 87.5, 81.25, 81.25, 93.75, 81.25, 87.5, 93.75, 83.3333, 81.25, 93.75, 87.5, 100, 87.5, 93.75, 87.5, 83.3333, 93.75, 93.75, 87.5, 87.5, 87.5, 93.75, 93.75, 100, 93.75, 100, 100, 83.3333, 93.75, 100, 100, 100],
+  otherOld: [29.2, 41, 47.5, 56, 59.3333, 62.25, 62.75, 65.25, 66.625, 67.5, 68.3, 70.25, 71, 74.2, 74.25, 76, 76.8333, 77.75, 78, 78, 80, 81.5, 82, 82.25, 83.5, 84.3333, 84.75, 85, 85.25, 85.5, 85.5, 85.75, 85.75, 86, 86, 86, 86.25, 86.5, 86.5, 86.75, 86.75, 87, 87.25, 87.25, 87.5, 88, 88.25, 88.25, 88.5, 88.5, 88.75, 89, 89, 89.25, 89.5, 89.5, 90, 90, 90.5, 90.5, 90.75, 91.3333, 91.5, 92, 92, 92.5, 92.5, 92.75, 92.75, 92.75, 93.5, 94, 94, 94.5, 94.75, 95.5, 96.25, 97.5, 100, 100, 100],
+  otherNew: [20, 43.75, 50, 50, 66.6667, 37.5, 50, 50, 65.625, 56.25, 65, 62.5, 68.75, 70, 56.25, 71.875, 70.8333, 78.125, 68.75, 50, 86.1111, 56.25, 75, 75, 75, 75, 75, 81.25, 75, 62.5, 75, 81.25, 68.75, 83.3333, 75, 75, 75, 75, 75, 81.25, 87.5, 81.25, 75, 75, 81.25, 87.5, 84.375, 75, 68.75, 75, 87.5, 81.25, 100, 87.5, 87.5, 75, 75, 87.5, 75, 81.25, 87.5, 83.3333, 93.75, 87.5, 100, 87.5, 87.5, 87.5, 87.5, 93.75, 93.75, 93.75, 100, 87.5, 87.5, 87.5, 87.5, 100, 100, 100, 100],
+};
 
 // ── The four cohorts ─────────────────────────────────────────────────────
 // ONE population, TWO scorings. Same 177 agents, same 690 tickets, same
@@ -113,7 +145,7 @@ const rows = (pairs) =>
 // `agent_customer_data` (avoidance_and_misconduct is entirely NULL). Neither is
 // read directly here; `general_evaluation_score = 0` covers both.
 
-export const ASSESSMENT_OLD = {
+export const ASSESSMENT_OLD = cohort({
   id: "assessment_old",
   label: "Assessment · full old checklist",
   short: "Old scoring",
@@ -122,13 +154,9 @@ export const ASSESSMENT_OLD = {
   agents: 177,
   tickets: 690,
   ticketsPerAgent: 3.9,
-  byScore: rows({
-    ksa:   { 0: 1, 37.5: 4, 43.75: 3, 50: 1, 56.25: 2, 62.5: 3, 68.75: 5, 75: 4, 81.25: 20, 87.5: 37, 93.75: 15, 100: 1 },
-    other: { 25: 1, 37.5: 1, 43.75: 1, 50: 1, 56.25: 2, 62.5: 5, 68.75: 4, 75: 6, 81.25: 23, 87.5: 27, 93.75: 7, 100: 3 },
-  }),
-};
+}, RAW.ksaOld, RAW.otherOld);
 
-export const ASSESSMENT_NEW4 = {
+export const ASSESSMENT_NEW4 = cohort({
   id: "assessment_new4",
   label: "Assessment · new 4, any mistake costs the attribute",
   short: "New-4 scoring",
@@ -137,11 +165,7 @@ export const ASSESSMENT_NEW4 = {
   agents: 177,
   tickets: 690,
   ticketsPerAgent: 3.9,
-  byScore: rows({
-    ksa:   { 0: 1, 12.5: 1, 25: 3, 31.25: 1, 37.5: 1, 43.75: 4, 50: 5, 56.25: 6, 62.5: 6, 68.75: 8, 75: 13, 81.25: 18, 87.5: 9, 93.75: 13, 100: 7 },
-    other: { 18.75: 1, 37.5: 1, 43.75: 1, 50: 5, 56.25: 3, 62.5: 5, 68.75: 7, 75: 20, 81.25: 11, 87.5: 16, 93.75: 4, 100: 7 },
-  }),
-};
+}, RAW.ksaNew, RAW.otherNew);
 
 // The page compares PRIMARY against COMPARISON. Primary is the old scoring,
 // because that is the status quo the decision is measured against.
@@ -236,21 +260,26 @@ export const thresholdScale = () => {
  * fail than at the 75% baseline. Pass rates are returned unrounded.
  */
 export function simulate(threshold, region = "all", dataset = PRIMARY) {
+  const pick = (ds) =>
+    region === "ksa" ? ds.scores.ksa
+    : region === "other" ? ds.scores.other
+    : ds.scores.ksa.concat(ds.scores.other);
+
+  const scores = pick(dataset);
+  const total = scores.length;
+  // Counted from exact per-agent scores, so this is right at ANY threshold,
+  // not only at multiples of SCORE_STEP.
+  const pass = scores.reduce((n, v) => n + (v >= threshold ? 1 : 0), 0);
+  const borderline = scores.reduce(
+    (n, v) => n + (v >= threshold && v < threshold + SCORE_STEP ? 1 : 0), 0);
+  const baselinePass = scores.reduce((n, v) => n + (v >= BASELINE_THRESHOLD ? 1 : 0), 0);
+
+  // Bars stay bucketed — the histogram needs discrete columns. `passing` is
+  // decided on the bucket's own value, which is what the chart draws.
   const bars = dataset.byScore.map((row) => {
-    const count = countFor(row, region);
+    const count = region === "ksa" ? row.ksa : region === "other" ? row.other : row.ksa + row.other;
     return { score: row.score, count, passing: row.score >= threshold };
   });
-
-  const total = bars.reduce((n, b) => n + b.count, 0);
-  const pass = bars.reduce((n, b) => n + (b.passing ? b.count : 0), 0);
-  const borderline = bars.reduce(
-    (n, b) => n + (b.score >= threshold && b.score < threshold + SCORE_STEP ? b.count : 0),
-    0,
-  );
-  const baselinePass = dataset.byScore.reduce(
-    (n, row) => n + (row.score >= BASELINE_THRESHOLD ? countFor(row, region) : 0),
-    0,
-  );
 
   return {
     total,

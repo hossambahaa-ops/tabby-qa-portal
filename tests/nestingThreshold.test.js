@@ -257,3 +257,47 @@ describe("the long history series", () => {
     expect(rate).toBeLessThan(Math.max(...all));
   });
 });
+
+describe("pass rates are exact off the 6.25 grid", () => {
+  // Added 2026-09-07 after finding the picker had been wrong for months.
+  // The library used to store counts already bucketed to 6.25 and count
+  // buckets, which is only lossless when the threshold is itself on the grid.
+  // 80, 85 and 90 never were: at 85% the page reported 90 agents passing when
+  // 121 did, and at 90% it reported 26 against 65. Scores are now stored per
+  // agent and counted directly. These are BigQuery's own counts.
+  const EXACT = {
+    65:    { new4: 138, old: 158 },
+    68.75: { new4: 133, old: 152 },
+    70:    { new4: 121, old: 150 },
+    75:    { new4: 118, old: 143 },
+    80:    { new4:  85, old: 134 },
+    85:    { new4:  57, old: 121 },
+    87.5:  { new4:  56, old:  90 },
+    90:    { new4:  31, old:  65 },
+    100:   { new4:  14, old:   4 },
+  };
+
+  it.each(Object.entries(EXACT))("threshold %s matches BigQuery", (t, want) => {
+    expect(simulate(Number(t), "all", ASSESSMENT_NEW4).pass).toBe(want.new4);
+    expect(simulate(Number(t), "all", ASSESSMENT_OLD).pass).toBe(want.old);
+  });
+
+  it("distinguishes thresholds that sit between grid steps", () => {
+    // The specific claim that justified deleting the 70% preset — "no agent
+    // scores between 68.75 and 75" — was false. If these ever collapse to
+    // equal, the library has gone back to counting buckets.
+    expect(simulate(70, "all", ASSESSMENT_NEW4).pass)
+      .not.toBe(simulate(75, "all", ASSESSMENT_NEW4).pass);
+    expect(simulate(65, "all", ASSESSMENT_NEW4).pass)
+      .not.toBe(simulate(68.75, "all", ASSESSMENT_NEW4).pass);
+  });
+
+  it("keeps the histogram consistent with the exact counts", () => {
+    // Bars are still bucketed for drawing. Their total must equal the agent
+    // count, or the chart and the headline are describing different cohorts.
+    for (const ds of [ASSESSMENT_OLD, ASSESSMENT_NEW4]) {
+      const r = simulate(75, "all", ds);
+      expect(r.bars.reduce((n, b) => n + b.count, 0)).toBe(r.total);
+    }
+  });
+});
