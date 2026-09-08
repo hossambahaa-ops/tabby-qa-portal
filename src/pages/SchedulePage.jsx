@@ -5,6 +5,7 @@ import { sb, SUPABASE_URL, SUPABASE_ANON, dataCache } from "../lib/supabase.js";
 import { nameFromEmail, safeError, emailsMatchLoose } from "../lib/utils.js";
 import { listRoster } from "../api/roster.js";
 import { listProfiles } from "../api/profiles.js";
+import { listMyAttendanceGrants, grantedLocalPartsFrom, isGranted, localPartOf } from "../api/attendanceGrants.js";
 import { useConfirm } from "../lib/hooks.jsx";
 import { Icon, icons } from "../components/Icons.jsx";
 import { SkeletonGrid } from "../components/Skeleton.jsx";
@@ -40,6 +41,11 @@ function SchedulePage() {
   // list so a lead never has to switch months to find a pending approval.
   const [allPending, setAllPending] = useState([]);
   const [roster, setRoster] = useState([]);
+  // Local parts of QAs this viewer has an individual attendance grant for
+  // (attendance_view_grants). Local parts, not addresses, because the same QA
+  // is @tabby.ai in one table and @tabby.sa in another — matching on the full
+  // address is what silently drops people across this codebase.
+  const [grantedLocalParts, setGrantedLocalParts] = useState(new Set());
   const [loading, setLoading] = useState(true);
   // Set when any part of the month load fails. Rendered as a persistent banner
   // rather than a toast: these failures used to be console-only, so a lead just
@@ -83,6 +89,13 @@ function SchedulePage() {
   // which would move them into the supervisor grouping and un-anchor their own
   // team on the calendar. Scoped to their domain, so they see all of (e.g.)
   // KSA and nothing else. Add an email here to grant; nobody else is affected.
+  //
+  // This handles WHOLE OFFICES only. For individual people outside the
+  // viewer's domain — a cross-domain squad like the LLM team, who are
+  // @tabby.ai while their reviewer is @tabby.sa — use the
+  // `attendance_view_grants` table instead (see grantedLocalParts below).
+  // That is a DB row rather than a code change, and the attendance_select RLS
+  // policy reads the same table, so the two layers cannot drift apart.
   const FULL_DOMAIN_ATTENDANCE_LEADS = new Set(["abdelrahman.shahat@tabby.sa"]);
   const myEmail = profile?.email?.toLowerCase() || "";
   const isQA = profile?.role === "qa" || profile?.role === "senior_qa";
@@ -188,6 +201,20 @@ function SchedulePage() {
 
   useEffect(() => { loadData(); }, [loadData]);
   useEffect(() => { loadAllPending(); }, [loadAllPending]);
+
+  // Individual attendance grants. Deliberately NOT part of loadData: grants do
+  // not vary by month, so refetching them on every month change is waste. On
+  // failure keep whatever we already have — narrowing someone's view because a
+  // request blipped is worse than showing a slightly stale grant list, and RLS
+  // is the real boundary either way.
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    listMyAttendanceGrants({ token })
+      .then(rows => { if (!cancelled) setGrantedLocalParts(grantedLocalPartsFrom(rows)); })
+      .catch(e => console.error("attendance grants:", safeError(e)));
+    return () => { cancelled = true; };
+  }, [token]);
 
   // Reset picker sub-stage whenever the open cell changes (or picker closes)
   useEffect(() => { setPickerStage(null); }, [editCell]);
@@ -456,14 +483,25 @@ function SchedulePage() {
     // them — the exact thing that broke when the role was bumped to supervisor.
     if (isLead && !hasRole(profile?.role, "qa_supervisor") && FULL_DOMAIN_ATTENDANCE_LEADS.has(myEmail)) {
       const myDom = (profile?.operational_domain || (myEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai")).toLowerCase();
-      return groupByLead().filter(r => (r.email || "").toLowerCase().endsWith("@" + myDom));
+      // Their own office, PLUS anyone individually granted to them — the
+      // cross-domain case a domain rule cannot express (Shahat is @tabby.sa;
+      // the LLM squad he reviews is @tabby.ai).
+      return groupByLead().filter(r =>
+        (r.email || "").toLowerCase().endsWith("@" + myDom) || isGranted(r.email, grantedLocalParts));
     }
 
-    // Normal qa_lead: their own team only.
+    // Normal qa_lead: their own team, plus anyone individually granted to them.
+    // The grant path is here too so attendance_view_grants works for any lead
+    // without another code change — the RLS policy already applies to all of
+    // them, and a UI that hid rows the DB was willing to return would just
+    // read as a bug.
     if (isLead && !hasRole(profile?.role, "qa_supervisor")) {
       const team = allQAs.filter(r => emailsMatchLoose(r.manager_email, myEmail));
+      const seen = new Set(team.map(r => localPartOf(r.email)));
+      const granted = allQAs.filter(r => isGranted(r.email, grantedLocalParts) && !seen.has(localPartOf(r.email)));
       const meRow = leadRosterRows.find(r => emailsMatchLoose(r.email, myEmail));
-      return meRow ? [meRow, ...team] : team;
+      const rows = [...team, ...granted];
+      return meRow ? [meRow, ...rows] : rows;
     }
 
     // Supervisors / admins viewing the calendar tab can narrow by a specific
