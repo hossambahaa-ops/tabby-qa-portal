@@ -76,6 +76,9 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
   const coachingTarget = parseFloat(findTgt("daily_coaching")?.target_value) || 1;
   const rates = ratesFrom(findTgt);
   const shiftMins = rates.shiftMin;
+  // Shift length in hours — the "/ 8h shift" label, the working-hours bar and the
+  // pace comparison all read hours, while the occupancy maths reads minutes.
+  const whTarget = shiftMins / 60;
   // NOTE: this widget alone folds login minutes into the numerator. Every
   // month-level view excludes them (login is availability, not output) — the
   // difference is deliberate, which is why it is passed as an explicit
@@ -193,7 +196,7 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
 
         {/* Occupancy */}
         <div className="card" style={{ padding: 20, textAlign: "center" }}>
-          <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>Occupancy<HelpTip text={`Productive time / shift hours. SBS=${sbsDur}min, Non-SBS=${nonSbsDur}min, Coaching=${coachingDur}min + side tasks + ticket login hours.`}/></div>
+          <div style={{ fontSize: 11, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px", marginBottom: 10 }}>Occupancy<HelpTip text={`Productive time / shift hours. Every evaluation costs ${rates.evalBaseMin}min, a side-by-side adds ${rates.sbsSurchargeMin}min on top of that, coaching is ${rates.coachingMin}min — plus side tasks and ticket login hours.`}/></div>
           <div style={{ fontSize: 36, fontWeight: 800, color: occPct > 0 ? pctColor(occPct, occTarget) : "var(--tx3)", lineHeight: 1.1 }}>
             {occPct > 0 ? occPct.toFixed(1) + "%" : "—"}
           </div>

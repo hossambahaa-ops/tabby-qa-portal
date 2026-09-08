@@ -730,7 +730,6 @@ function QAProfilePage() {
         const occTarget = parseFloat(findTgt("occupancy_pct")?.target_value) || 95;
         const whTarget = parseFloat(findTgt("daily_working_hours")?.target_value) || 8;
         const rates = ratesFrom(findTgt);
-        const shiftMins = rates.shiftMin;
         // Occupancy = QA-task time / shift. Login hours are NOT productive
         // output and were inflating today's occupancy above what MTD,
         // Leaderboard and EvalHistory show (all of which exclude login).
