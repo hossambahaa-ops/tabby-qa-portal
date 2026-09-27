@@ -293,9 +293,21 @@ export default function QASelfServiceDashboard({ dailyScores, myData, myEmail, r
       {myData && <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 16 }}>
         <div className="card" style={{ padding: "14px 16px", textAlign: "center" }}>
           <div style={{ fontSize: 10, color: "var(--tx3)", fontWeight: 600, textTransform: "uppercase", letterSpacing: ".5px" }}>MTD Score</div>
-          <div style={{ fontSize: 22, fontWeight: 800, color: myData.final_performance >= 0.4 ? "var(--green)" : myData.final_performance >= 0.25 ? "var(--amber)" : "var(--red)", marginTop: 4 }}>
-            {myData.final_performance ? (myData.final_performance * 100).toFixed(1) + "%" : "—"}
-          </div>
+          {/* Grey, not red, when there is no score. Nothing computes
+              final_performance any more (see QAProfilePage's Final Score tile),
+              so it is 0 from Sep-2026 — a red "—" reads as a failing grade for
+              what is really an absent number. */}
+          {(() => {
+            const fp = Number(myData.final_performance);
+            const hasScore = Number.isFinite(fp) && fp > 0;
+            return (
+              <div
+                title={hasScore ? undefined : "No MTD score recorded for this month yet."}
+                style={{ fontSize: 22, fontWeight: 800, color: hasScore ? (fp >= 0.4 ? "var(--green)" : fp >= 0.25 ? "var(--amber)" : "var(--red)") : "var(--tx3)", marginTop: 4 }}>
+                {hasScore ? (fp * 100).toFixed(1) + "%" : "—"}
+              </div>
+            );
+          })()}
           <div style={{ fontSize: 10, color: "var(--tx3)", marginTop: 2 }}>{latestMonth}</div>
         </div>
         <div className="card" style={{ padding: "14px 16px", textAlign: "center" }}>

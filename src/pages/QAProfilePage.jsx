@@ -829,9 +829,23 @@ function QAProfilePage() {
               <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>Final Score</span>
-                  <span style={{fontSize:13,fontWeight:700,color:latestMtd?((latestMtd.final_performance||0)>=0.4?"var(--green)":(latestMtd.final_performance||0)>=0.25?"var(--amber)":"var(--red)"):"var(--tx3)"}}>
-                    {latestMtd ? ((latestMtd.final_performance||0)*100).toFixed(1)+"%" : "—"}
-                  </span>
+                  {/* A missing score is NOT a score of zero. final_performance is
+                      only ever written by the (now disarmed) sheet sync or a manual
+                      admin override — nothing computes it — so from Sep-2026 every
+                      row reads 0. Rendering that as "0.0%" in red told every QA they
+                      had failed catastrophically. Show "—" in grey until a real
+                      value exists. */}
+                  {(() => {
+                    const fp = Number(latestMtd?.final_performance);
+                    const hasScore = latestMtd && Number.isFinite(fp) && fp > 0;
+                    return (
+                      <span
+                        title={hasScore ? undefined : "No final score recorded for this month yet."}
+                        style={{fontSize:13,fontWeight:700,color:hasScore?(fp>=0.4?"var(--green)":fp>=0.25?"var(--amber)":"var(--red)"):"var(--tx3)"}}>
+                        {hasScore ? (fp*100).toFixed(1)+"%" : "—"}
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div style={{fontSize:10,color:"var(--tx3)"}}>{ latestMtd?.month || "No data"}</div>
               </div>
@@ -894,7 +908,12 @@ function QAProfilePage() {
                   <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",textAlign:"center",minWidth:60}}>vs</div>
                   <div style={{textAlign:"left",fontWeight:700,fontSize:14,color:"var(--tx)"}}>{nameFromEmail(compareQA)}</div>
                 </div>
-                {renderRow("Score", parseFloat(myLatest?.final_performance), parseFloat(compareLatest?.final_performance))}
+                {/* scoreOrNull: an absent final_performance must compare as "—",
+                    not as a real 0.0 — see the Final Score tile above. */}
+                {(() => {
+                  const scoreOrNull = (v) => { const n = parseFloat(v); return Number.isFinite(n) && n > 0 ? n : null; };
+                  return renderRow("Score", scoreOrNull(myLatest?.final_performance), scoreOrNull(compareLatest?.final_performance));
+                })()}
                 {renderRow("CSAT", csatPctValue(myLatest?.csat_pct), csatPctValue(compareLatest?.csat_pct), fmtPct)}
                 {renderRow("DSAT", parseFloat(myLatest?.dsat) || 0, parseFloat(compareLatest?.dsat) || 0, (v)=>v==null?"—":Math.round(v), false /* lower is better */)}
                 {renderRow("Tickets/day", parseFloat(myLatest?.ticket_per_day), parseFloat(compareLatest?.ticket_per_day))}
