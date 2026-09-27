@@ -119,16 +119,16 @@ function DashboardPage(){
       <FreshnessBadge ts={freshness} pulseKey={syncPulse} />
       <div style={{display:"flex",gap:8}}>
       {hasRole(profile?.role,"super_admin")&&<button className="btn btn-outline btn-sm" disabled={syncing} onClick={async()=>{
-        // Pulls all three live CSVs (Today_Productivity, MTD,
-        // Q_Support_Performance) through the Supabase edge functions
-        // — same path as the QA Profile "Refresh live" button. Cron
-        // already fires every 5 min; this is the manual trigger.
+        // Pulls the live feeds (Today_Productivity, Q_Support_Performance)
+        // through the Supabase edge functions — same path as the QA Profile
+        // "Refresh live" button. mtd-sync is deliberately NOT called: it
+        // rebuilds mtd_scores from a stale sheet and deletes rows it did not
+        // write. mtd_scores is owned by the scheduled warehouse refresh.
         if (syncing) return;
         setSyncing(true);
         try {
-          const [daily, mtdRes, csat] = await Promise.all([
+          const [daily, csat] = await Promise.all([
             callEdgeFunction("daily-scores-sync", { token }),
-            callEdgeFunction("mtd-sync", { token }),
             callEdgeFunction("csat-topic-sync", { token }),
           ]);
           dataCache?.invalidate?.();
@@ -143,13 +143,11 @@ function DashboardPage(){
           };
           const fail = [
             syncErr("daily", daily),
-            syncErr("mtd",   mtdRes),
             syncErr("csat",  csat),
           ].filter(Boolean);
           if (fail.length === 0) {
             const parts = [];
             if (daily.data.rows_upserted) parts.push(`${daily.data.rows_upserted} daily`);
-            if (mtdRes.data.rows_upserted) parts.push(`${mtdRes.data.rows_upserted} MTD`);
             if (csat.data.rows_aggregated) parts.push(`${csat.data.rows_aggregated} CSAT topics`);
             globalToast("success", `Live sync — ${parts.join(" · ")}`);
             setSyncPulse(p => p + 1);

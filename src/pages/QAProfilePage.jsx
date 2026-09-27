@@ -89,13 +89,16 @@ function QAProfilePage() {
     if (refreshing) return;
     setRefreshing(true);
     try {
-      // Productivity first, awaited, so mtd-sync's chained occupancy/WD
-      // recompute reads the fresh feed (occupancy is the number people
-      // most often refresh for). Then the rest in parallel.
+      // mtd-sync is deliberately NOT called from here. It rebuilds mtd_scores
+      // from a Google Sheet that no longer carries complete data, and deletes
+      // any row in a touched month it did not itself write — this button
+      // destroyed a correct Aug-2026 twice. mtd_scores is owned by the
+      // warehouse refresh now; this button only pulls the live feeds.
+      // Occupancy still updates: this page derives it in-app from
+      // productivity_history, which IS refreshed here.
       const prod = await callEdgeFunction("productivity-history-sync", { token });
-      const [daily, mtdRes, csat] = await Promise.all([
+      const [daily, csat] = await Promise.all([
         callEdgeFunction("daily-scores-sync", { token }),
-        callEdgeFunction("mtd-sync", { token }),
         callEdgeFunction("csat-topic-sync", { token }),
       ]);
       // Re-fetch the rows the page reads from, in parallel.
@@ -113,14 +116,12 @@ function QAProfilePage() {
       const fail = [
         syncErr("productivity", prod),
         syncErr("daily", daily),
-        syncErr("mtd",   mtdRes),
         syncErr("csat",  csat),
       ].filter(Boolean);
       if (fail.length === 0) {
         const parts = [];
         if (prod.data?.rows_upserted) parts.push(`${prod.data.rows_upserted} prod`);
         if (daily.data.rows_upserted) parts.push(`${daily.data.rows_upserted} daily`);
-        if (mtdRes.data.rows_upserted) parts.push(`${mtdRes.data.rows_upserted} MTD`);
         if (csat.data.rows_aggregated) parts.push(`${csat.data.rows_aggregated} CSAT topics`);
         globalToast?.("success", `Live sync — ${parts.join(" · ")}`);
         setSyncPulse(p => p + 1); // pulse the FreshnessBadge to confirm visually
@@ -531,7 +532,7 @@ function QAProfilePage() {
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <FreshnessBadge ts={freshness} pulseKey={syncPulse} />
-          <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the latest Today_Productivity CSV from Google Sheets" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+          <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the live feeds now — productivity, daily scores and CSAT topics. Monthly MTD figures come from the scheduled warehouse refresh, not from this button." style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
             {refreshing
               ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />Refreshing…</>
               : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh live</>}
@@ -578,7 +579,7 @@ function QAProfilePage() {
         </button>}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <FreshnessBadge ts={freshness} pulseKey={syncPulse} />
-          <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the latest Today_Productivity CSV from Google Sheets" style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
+          <button className="btn btn-outline btn-sm" onClick={refreshLive} disabled={refreshing} title="Pull the live feeds now — productivity, daily scores and CSAT topics. Monthly MTD figures come from the scheduled warehouse refresh, not from this button." style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
             {refreshing
               ? <><div className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />Refreshing…</>
               : <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>Refresh live</>}
@@ -807,7 +808,14 @@ function QAProfilePage() {
               <div style={{borderTop:"1px solid var(--bd2)",paddingTop:8,marginTop:2}}>
                 <div style={{fontSize:10,color:"var(--tx3)",fontWeight:600,textTransform:"uppercase",letterSpacing:".5px",marginBottom:6,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                   <span>CSAT ({headlineCsatMonth || "—"})</span>
-                  <QuartilePill quartile={latestMtd?.csat_quartile} lob={latestMtd?.lob} size="sm" />
+                  <QuartilePill
+                    quartile={latestMtd?.csat_quartile}
+                    lob={latestMtd?.lob}
+                    size="sm"
+                    // No LOB row for this month means csat_population was never
+                    // loaded for it — a publishing gap, not a shortfall by this QA.
+                    populationMissing={!!headlineCsatMonth && !lobCsatByMonth?.[headlineCsatMonth]}
+                  />
                 </div>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
                   <span style={{fontSize:12,color:"var(--tx2)"}}>CSAT %</span>

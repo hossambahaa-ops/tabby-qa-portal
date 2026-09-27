@@ -15,7 +15,13 @@ import React from "react";
 //
 // `size = "sm" | "md"` for sizing. `lob` (optional) shows up in the
 // tooltip so the QA sees which cohort they're being compared against.
-export default function QuartilePill({ quartile, size = "sm", lob = null }) {
+//
+// `populationMissing` separates the two very different reasons a quartile can
+// be absent. Without it the pill blamed the QA ("you need ≥5 surveys") even
+// when the real cause was that Ops had not published the company-wide CSAT for
+// that month at all — in Sep-2026 that mislabelled 27 QAs who DID have enough
+// surveys. Pass it whenever the caller knows the month's population is empty.
+export default function QuartilePill({ quartile, size = "sm", lob = null, populationMissing = false }) {
   const isSm = size === "sm";
   const baseStyle = {
     display: "inline-flex",
@@ -39,7 +45,9 @@ export default function QuartilePill({ quartile, size = "sm", lob = null }) {
   if (quartile == null) {
     return (
       <span
-        title={`No quartile — the QA needs ≥5 CSAT surveys this month to be ranked (or ${cohortLabel} has < 4 resolvers in the pool).`}
+        title={populationMissing
+          ? "Ranking pending — the company-wide CSAT figures for this month haven't been published yet, so no one can be ranked. This is not about this QA's own survey count."
+          : `No quartile — the QA needs ≥5 CSAT surveys this month to be ranked (or ${cohortLabel} has < 4 resolvers in the pool).`}
         style={{
           ...baseStyle,
           background: "rgba(156,163,175,0.12)",
@@ -49,7 +57,7 @@ export default function QuartilePill({ quartile, size = "sm", lob = null }) {
           fontStyle: "italic",
         }}
       >
-        — n/a
+        {populationMissing ? "— pending" : "— n/a"}
       </span>
     );
   }
