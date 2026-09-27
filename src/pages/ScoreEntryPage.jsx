@@ -119,7 +119,12 @@ function ScoreEntryPage(){
         // Working-days per (local-part | "Mon-YYYY") from attendance (worked-day
         // statuses only). Local-part keying is cross-domain safe.
         const WD_MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-        const WD_STATUSES = new Set(["P","H","CDO","PH"]);
+        // Must match recompute_pulse_wd_occupancy's WD_CODES and mtd_scores_v's
+        // working_days_effective exactly, or this page's working-day count
+        // silently disagrees with the stored one. OT added 2026-09-27 (Hossam):
+        // an overtime day is a day worked — one QA logged whole months as OT and
+        // read 0 working days / 0% occupancy.
+        const WD_STATUSES = new Set(["P","H","CDO","PH","OT"]);
         const wdMap = new Map();
         for (const a of (attRows || [])) {
           if (!a.date || !WD_STATUSES.has(a.status)) continue;
