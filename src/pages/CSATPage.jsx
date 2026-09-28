@@ -213,7 +213,7 @@ export default function CSATPage() {
           }
           return true;
         });
-        setData(visibleQaRows(profile?.role, filtered));
+        setData(visibleQaRows(profile?.role, filtered, "qa_email", profile?.email));
         const uniqueMonths = sortMonthsDesc([...new Set(filtered.map(r => r.month))]);
         setMonths(uniqueMonths);
         // Only auto-pick month/team when the effect was triggered by a

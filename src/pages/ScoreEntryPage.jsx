@@ -249,7 +249,7 @@ function ScoreEntryPage(){
           };
         });
         // Supervisor-only QAs are filtered out for lead-level viewers.
-        setData(visibleQaRows(profile?.role, [...mtdRows, ...syntheticRows]));
+        setData(visibleQaRows(profile?.role, [...mtdRows, ...syntheticRows], "qa_email", profile?.email));
         setMonths(uniqueMonths);
         // Seed-from-defaults block — ONLY runs on first load.
         // Re-runs (auto-refresh every 60s, manual ↻ Refresh button)

@@ -157,7 +157,7 @@ function LeaderboardPage() {
           if (email.endsWith("@tabby.sa")) blacklist.add(local + "@tabby.ai");
         });
         const qaOnlyRows = rows.filter(r => !blacklist.has(r.qa_email?.toLowerCase()));
-        setData(visibleQaRows(profile?.role, qaOnlyRows));
+        setData(visibleQaRows(profile?.role, qaOnlyRows, "qa_email", profile?.email));
         const uniqueMonths = sortMonthsDesc([...new Set(qaOnlyRows.map(r => r.month))]);
         setMonths(uniqueMonths);
         // Global filter month takes priority, then default to latest

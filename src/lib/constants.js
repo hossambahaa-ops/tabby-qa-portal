@@ -44,15 +44,31 @@ export const canSeeNestingSim = () => true;
 // @tabby.ai and @tabby.sa (which several are) can't leak through the domain
 // they happen to be keyed under. See the alias handling in
 // supabase/queries/mtd_login_hours_by_qa.sql for the same problem.
-const SUPERVISOR_ONLY_LOCALPARTS = ["yara.ashraf.786", "yara.ashraf"];
+// Each inner array is ONE person whose identity is split across domains, so
+// the two spellings must never be treated as two different restricted QAs.
+const SUPERVISOR_ONLY_GROUPS = [["yara.ashraf.786", "yara.ashraf"]];
+const SUPERVISOR_ONLY_LOCALPARTS = SUPERVISOR_ONLY_GROUPS.flat();
+const localPartOf = (email) => String(email || "").toLowerCase().trim().split("@")[0];
+const sameRestrictedPerson = (a, b) =>
+  !!a && (a === b || SUPERVISOR_ONLY_GROUPS.some(g => g.includes(a) && g.includes(b)));
 
-/** True when `viewerRole` is allowed to see this QA's row. */
-export const canSeeQaRow = (viewerRole, qaEmail) => {
-  const lp = String(qaEmail || "").toLowerCase().split("@")[0];
+/**
+ * True when `viewerRole` is allowed to see this QA's row.
+ *
+ * `viewerEmail` matters for exactly one case: a restricted QA looking at their
+ * OWN row. The restriction above exists to keep these numbers away from QA
+ * LEADS — it was never meant to hide a QA's figures from herself, but that is
+ * what happened, because the rule tested role alone and a senior_qa sits below
+ * qa_supervisor. Yara could not see her own MTD (Hossam, 2026-09-28). Callers
+ * that omit `viewerEmail` keep the old strict behaviour.
+ */
+export const canSeeQaRow = (viewerRole, qaEmail, viewerEmail = null) => {
+  const lp = localPartOf(qaEmail);
   if (!SUPERVISOR_ONLY_LOCALPARTS.includes(lp)) return true;
-  return hasRole(viewerRole, "qa_supervisor");
+  if (hasRole(viewerRole, "qa_supervisor")) return true;
+  return sameRestrictedPerson(localPartOf(viewerEmail), lp);
 };
 
 /** Filter a list of rows (each with a qa_email) down to what the viewer may see. */
-export const visibleQaRows = (viewerRole, rows, key = "qa_email") =>
-  (rows || []).filter((r) => canSeeQaRow(viewerRole, r?.[key]));
+export const visibleQaRows = (viewerRole, rows, key = "qa_email", viewerEmail = null) =>
+  (rows || []).filter((r) => canSeeQaRow(viewerRole, r?.[key], viewerEmail));
