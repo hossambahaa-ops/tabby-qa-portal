@@ -3,7 +3,7 @@ import { lazyWithRetry as lazy } from "./lib/lazyWithRetry.js";
 import QualityPrinciple from "./components/QualityPrinciple.jsx";
 import { HashRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import "./index.css";
-import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc } from "./lib/constants.js";
+import { hasRole, ROLE_LABELS, defaultFilters, sortMonthsDesc, canSeeQaProfile } from "./lib/constants.js";
 import { sb, SUPABASE_URL, SUPABASE_ANON } from "./lib/supabase.js";
 import { fetchUnreadReleases, ackRelease } from "./lib/featureReleases.js";
 import { avatarStyle, initialsFromEmail as initialsForAvatar } from "./lib/avatar.js";
@@ -105,7 +105,7 @@ const NAV_ITEMS=[
   {key:"dashboard",label:"Dashboard",icon:icons.dashboard,section:"Overview"},
   {key:"leaderboard",label:"Leaderboard",icon:icons.podium,minRole:"super_admin"},
   {key:"quality-dna",label:"Quality DNA",icon:icons.northstar},
-  {key:"profile",label:"QA Profile",icon:icons.profile,section:"Performance"},
+  {key:"profile",label:"QA Profile",icon:icons.profile,section:"Performance",hidden:!canSeeQaProfile()},
   {key:"scores",label:"MTD",icon:icons.scores},
   {key:"csat",label:"CSAT",icon:icons.csat},
   {key:"expertise",label:"Expertise",icon:icons.expertise,minRole:"admin"},
@@ -657,6 +657,9 @@ function AppInner(){
     </div>
   </div>);
   const visibleNav=NAV_ITEMS.filter(n=>{
+    // `hidden` is checked before the escalations exemption so a hidden page
+    // stays hidden for every role, including super_admin.
+    if (n.hidden) return false;
     if (n.key === "escalations") return true;
     return !n.minRole || hasRole(userRole, n.minRole);
   });let curSec=null;
@@ -1003,7 +1006,7 @@ function AppInner(){
       <Route path="/targets" element={<TargetsPage/>}/>
       <Route path="/leaderboard" element={hasRole(userRole,"super_admin")?<LeaderboardPage/>:<PlaceholderPage title="Leaderboard" icon={icons.podium} minRole="super_admin" userRole={userRole}/>}/>
       <Route path="/dsat-reviews" element={hasRole(userRole,"super_admin")?<DsatReviewsPage/>:<PlaceholderPage title="Brixi Review" icon={icons.csat} minRole="super_admin" userRole={userRole}/>}/>
-      <Route path="/profile" element={<QAProfilePage/>}/>
+      <Route path="/profile" element={canSeeQaProfile()?<QAProfilePage/>:<PlaceholderPage title="QA Profile" icon={icons.profile} description="The QA Profile is temporarily unavailable while its performance scores are being rebuilt."/>}/>
       <Route path="/schedule" element={<SchedulePage/>}/>
       <Route path="/escalations" element={<EscalationsPage/>}/>
       <Route path="/tracker" element={hasRole(userRole,"senior_qa")?<TrackerPage/>:<PlaceholderPage title="Tracker" icon={icons.tracker} minRole="senior_qa" userRole={userRole}/>}/>

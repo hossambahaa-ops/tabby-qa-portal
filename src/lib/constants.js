@@ -34,6 +34,20 @@ export const defaultFilters = { domain: "", month: "" };
 // again is a one-line change here instead of an edit across App.jsx.
 export const canSeeNestingSim = () => true;
 
+// ── QA Profile page visibility ───────────────────────────────────────────
+// HIDDEN FOR EVERYONE 2026-09-30 on Hossam's instruction. The page is not
+// deleted — it is gated here so bringing it back is a one-line change rather
+// than restoring a route, a nav entry and a prefetch across App.jsx.
+//
+// Context: the derived score columns it leans on (coaching_observation_score,
+// occupancy_score, calibration_score, rtr_score, final_performance) are NULL
+// for every Sep-2026 row, because the sheet that used to write them is gone
+// and nothing computes them yet. The page therefore shows blanks that read as
+// "zero" rather than "not calculated".
+//
+// Flip to true (and re-run the checks on those columns) to restore it.
+export const canSeeQaProfile = () => false;
+
 /* ═══ SUPERVISOR-ONLY QAs ═══ */
 // A few QAs' numbers are visible only from qa_supervisor upward — QA leads
 // (level 3) do not see their rows at all. This is a deliberate reporting
