@@ -16,7 +16,8 @@ export const DEFAULT_MTD_COLS = [
   "observed_coaching_count", "avg_observation_score_pct", "calibration_count",
   "phase_1_score", "phase_1_status", "phase_2_score", "phase_2_status",
   "coaching_completion_pct", "ontime_coaching_pct", "jkq_score", "jkq_result", "jkq_episode",
-  "working_days", "ramadan_wds", "occupancy_pct", "coaching_ontime_score", "ticket_per_day",
+  "working_days", "ramadan_wds", "occupancy_pct", "pending_side_tasks_mins", "occupancy_pending_pct",
+  "coaching_ontime_score", "ticket_per_day",
   "occupancy_score", "calibration_score", "coaching_observation_score", "rtr_score", "final_performance",
   "csat_pct", "csat_total", "csat_good", "csat_bad",
 ];
@@ -36,6 +37,11 @@ export const COL_LABELS = {
   phase_2_score: "Phase 2 Score", phase_2_status: "Phase 2 Status",
   ontime_coaching_pct: "On-time coaching %", jkq_score: "JKQ score", jkq_result: "JKQ result", jkq_episode: "JKQ episode",
   working_days: "Working days", ramadan_wds: "Ramadan WDs", occupancy_pct: "Occupancy %",
+  // Side tasks logged but not yet approved. They are excluded from
+  // side_tasks_duration_mins and so from Occupancy %, which is why a QA can read
+  // low while the missing time sits in a senior's approval queue.
+  // occupancy_pending_pct is a projection, never a performance figure.
+  pending_side_tasks_mins: "Pending ST (mins)", occupancy_pending_pct: "Occupancy if approved",
   coaching_ontime_score: "Coaching on-time score", ticket_per_day: "Tickets/day", occupancy_score: "Occupancy score",
   calibration_score: "Calibration score", coaching_observation_score: "CO score", rtr_score: "RTR score (calc)",
   final_performance: "Final performance", csat_pct: "CSAT %", csat_total: "Surveys", csat_good: "CSAT good", csat_bad: "CSAT bad",
