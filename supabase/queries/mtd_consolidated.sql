@@ -191,18 +191,27 @@ eval_data AS (
     END AS monitoring_category,
     NULL AS evaluation_type,
     CASE WHEN t.monitoring_source = 'dsat_analysis' THEN 1 ELSE 0 END AS dsat,
+    -- SBS is the EXPLICIT monitoring_source only. The old rule also counted
+    -- `qa_task_source = 'manually_created'`, which was a proxy from before
+    -- side_by_side existed as a value -- and it was wrong in both directions:
+    -- it caught nothing extra that is genuinely side-by-side (every real SBS
+    -- already carries the explicit label), while sweeping in every manually
+    -- picked ticket. In Sep-2026 that was 1,448 tasks: 944 random, 281 nesting
+    -- assessments, 140 performance follow-ups, 83 other.
+    -- Since SBS carries a +20min occupancy surcharge, those inflated occupancy
+    -- by ~29,000 minutes across the team. Tarek Mostafa read 129 SBS with zero
+    -- actual side-by-sides -- all nesting -- worth 23pp of his occupancy.
+    -- Dropped 2026-10-01 on Hossam's instruction. Do not reinstate.
     CASE
       WHEN t.monitoring_source = 'dsat_analysis' THEN 0
       WHEN LOWER(TRIM(t.agent_email)) LIKE 'brixi_agent@tabby%' THEN 0
-      WHEN t.monitoring_source IN ('side_by_side', 'side_by_side_in_person')
-        OR t.qa_task_source = 'manually_created' THEN 1
+      WHEN t.monitoring_source IN ('side_by_side', 'side_by_side_in_person') THEN 1
       ELSE 0
     END AS sbs,
     CASE
       WHEN t.monitoring_source = 'dsat_analysis' THEN 0
       WHEN LOWER(TRIM(t.agent_email)) LIKE 'brixi_agent@tabby%' THEN 1
-      WHEN t.monitoring_source IN ('side_by_side', 'side_by_side_in_person')
-        OR t.qa_task_source = 'manually_created' THEN 0
+      WHEN t.monitoring_source IN ('side_by_side', 'side_by_side_in_person') THEN 0
       ELSE 1
     END AS non_sbs,
     'CRM' AS source
