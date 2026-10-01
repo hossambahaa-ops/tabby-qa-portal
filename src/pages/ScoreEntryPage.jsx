@@ -557,6 +557,8 @@ function ScoreEntryPage(){
       case "tickets_handled": return r.tickets_touched == null ? null : Number(r.tickets_touched);
       case "q_sessions":      return r.q_sessions || null;
       case "st_time":         return r.side_tasks_duration_mins ?? null;
+      case "st_pending":      return r.pending_side_tasks_mins ?? null;
+      case "occupancy_pending": return numFromText(r.occupancy_pending_pct);
       case "performance":     return Number(r.final_performance) || null;
       default:                return null;
     }
@@ -649,6 +651,20 @@ function ScoreEntryPage(){
     { k: "tickets_per_day", label: "Tickets/D",            presets: ["all","perf"],  render: r => <span style={{color:"var(--blue)",fontWeight:500}}>{r.ticket_per_day ?? "—"}</span> },
     { k: "occupancy",       label: "Occupancy",            presets: ["all","perf"],  render: r => { const eff = r.occupancy_pct_effective; const fromSheet = Number(r.occupancy_pct_stored) > 0; if (eff == null) return fmtPct(r.occupancy_pct); return <span title={fromSheet ? undefined : "Recomputed from the daily productivity feed — the MTD sheet has no occupancy for this QA"} style={{color: fromSheet ? undefined : "var(--blue)"}}>{Number(eff).toFixed(1)}%</span>; } },
     { k: "st_time",         label: "ST Time",              presets: ["all"],         render: r => <span style={{fontSize:12,color:"var(--tx2)"}}>{r.side_tasks_duration_mins ? `${Math.floor(r.side_tasks_duration_mins/60)}h ${r.side_tasks_duration_mins%60}m` : "—"}</span> },
+    // Side tasks logged but NOT yet approved. They are excluded from ST Time and
+    // from Occupancy, so a QA can read low purely because their senior has not
+    // actioned the queue — that is invisible without these two columns.
+    { k: "st_pending",      label: "Pending ST",           presets: ["all"],         render: r => {
+        const m = r.pending_side_tasks_mins;
+        if (!m) return <span style={{color:"var(--tx3)"}}>—</span>;
+        return <span title="Logged but not yet approved — not counted in ST Time or Occupancy" style={{fontSize:12,color:"var(--amber)",fontWeight:500}}>{`${Math.floor(m/60)}h ${m%60}m`}</span>;
+      } },
+    // Projection, never a performance figure — hence the muted styling and the
+    // explicit "if approved" in the tooltip.
+    { k: "occupancy_pending", label: "Occ. if approved",   presets: ["all"],         render: r => {
+        if (!r.occupancy_pending_pct) return <span style={{color:"var(--tx3)"}}>—</span>;
+        return <span title="What Occupancy would read if every pending side task were approved. Projection only." style={{color:"var(--amber)"}}>{r.occupancy_pending_pct}</span>;
+      } },
   ];
   // Two collapsible groups. EVAL_KEYS / COACH_KEYS list the underlying
   // MTD_COLUMNS that fold into each synthetic header column. The
