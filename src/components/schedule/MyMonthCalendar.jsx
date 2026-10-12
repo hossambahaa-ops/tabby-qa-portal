@@ -145,6 +145,7 @@ export default function MyMonthCalendar({
             dayNum={day}
             isQA={isQA}
             canApprove={false}
+            canMarkNsnc={isLead}
             pickerStage={isEditing ? pickerStage : null}
             pendingReason={isEditing ? pendingReason : ""}
             onSetAtt={onSetAtt}

@@ -14,7 +14,7 @@ import CellPicker from "./CellPicker.jsx";
 export default function CalendarDayCell({
   day, dateStr, att, st, planned, attType, isPending, isDenied,
   isOff, isToday, isEditing, canEdit, onOpen, onClose,
-  em, dayNum, isQA, canApprove, pickerStage, pendingReason,
+  em, dayNum, isQA, canApprove, canMarkNsnc, pickerStage, pendingReason,
   onSetAtt, onApproveAtt, onClearAtt, setPendingReason, setPickerStage,
   enhanced = false,
 }) {
@@ -155,6 +155,7 @@ export default function CalendarDayCell({
           st={st}
           isQA={isQA}
           canApprove={canApprove}
+          canMarkNsnc={canMarkNsnc}
           pickerStage={pickerStage}
           pendingReason={pendingReason}
           onClose={onClose}

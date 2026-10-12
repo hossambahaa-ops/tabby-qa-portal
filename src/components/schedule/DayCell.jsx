@@ -156,6 +156,7 @@ const DayCell = React.memo(function DayCell({
           st={st}
           isQA={isQA}
           canApprove={canApprove}
+          canMarkNsnc={isLead}
           pickerStage={pickerStage}
           pendingReason={pendingReason}
           onClose={onClose}

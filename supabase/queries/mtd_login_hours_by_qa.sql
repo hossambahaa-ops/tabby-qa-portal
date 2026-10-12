@@ -91,8 +91,8 @@ roster AS (
 ),
 months AS (
   -- Edit this to the month(s) being pushed.
-  SELECT 'Aug-2026' mth, DATETIME '2026-08-01' m0, DATETIME '2026-09-01' m1 UNION ALL
-  SELECT 'Sep-2026', DATETIME '2026-09-01', DATETIME '2026-10-01'
+  SELECT 'Sep-2026' mth, DATETIME '2026-09-01' m0, DATETIME '2026-10-01' m1 UNION ALL
+  SELECT 'Oct-2026', DATETIME '2026-10-01', DATETIME '2026-11-01'
 ),
 src AS (
   -- Resolve the CRM identity to the roster identity BEFORE joining the roster,

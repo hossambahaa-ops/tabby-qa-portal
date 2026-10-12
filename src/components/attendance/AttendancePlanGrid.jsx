@@ -199,15 +199,20 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
     return null;
   };
 
-  // Click handler: empty → H → P → LD → OFF → empty
+  // Click handler: empty → H → P → OFF → empty
+  //
+  // LD (Login Day) was dropped from the cycle on 2026-10-12 — logging in is
+  // no longer mandatory, so there is nothing to designate. An existing LD
+  // cell still renders as LD, and one more click moves it on to OFF rather
+  // than stranding it in a state the cycle can no longer reach.
   const cycleCell = (email, date) => {
     if (!isPlanEditableDate(date, undefined, { allowPast: isSuperAdmin })) return;
     const current = cellPlan(email, date);
     let next;
     if (current === null || current === undefined) next = "H";
     else if (current === "H") next = "P";
-    else if (current === "P") next = "LD";
-    else if (current === "LD") next = "OFF";
+    else if (current === "P") next = "OFF";
+    else if (current === "LD") next = "OFF";   // legacy value → exit to OFF
     else next = null; // OFF → clear
     setPendingChanges((prev) => ({ ...prev, [`${email}__${date}`]: next }));
   };
@@ -565,7 +570,7 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
           {pendingCount > 0 ? `${pendingCount} unsaved change${pendingCount !== 1 ? "s" : ""}` : "All changes saved"}
         </span>
         <span style={{ fontSize: 11, color: "var(--tx3)", marginRight: "auto" }}>
-          Click cells to cycle: empty → 🏠 H → 🏢 P → 🔑 LD → OFF → empty. Each QA should have a Login Day. Past days and today are read-only — plan the next days only.
+          Click cells to cycle: empty → 🏠 H → 🏢 P → OFF → empty. Past days and today are read-only — plan the next days only.
         </span>
         {pendingCount > 0 && (
           <button className="btn btn-outline btn-sm" onClick={discard}>
@@ -611,10 +616,10 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
           <tbody>
             {visibleQAs.map((qa) => {
               const em = qa.email?.toLowerCase();
-              // Each QA should have a Login Day planned for the month —
-              // flag anyone who doesn't (counts pending edits too) so leads
-              // can spot the gaps at a glance.
-              const hasLoginDay = days.some((d) => cellPlan(em, d.date) === "LD");
+              // The "No login day" badge that used to live here is gone
+              // (2026-10-12). It existed to nag leads into giving every QA a
+              // Login Day; logging in is no longer mandatory, so a month
+              // without one is now correct rather than a gap to chase.
               return (
                 <tr key={em}>
                   <td
@@ -634,14 +639,6 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                       {qa.__isLead && (
                         <span style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(60,255,165,.18)", color: "#3CFFA5", letterSpacing: ".4px", textTransform: "uppercase" }}>
                           Lead
-                        </span>
-                      )}
-                      {!hasLoginDay && (
-                        <span
-                          title="No Login Day planned this month — cycle a cell to 🔑 LD to set one"
-                          style={{ fontSize: 9, fontWeight: 700, padding: "1px 6px", borderRadius: 3, background: "rgba(139,92,246,.16)", color: "#8B5CF6", letterSpacing: ".3px", textTransform: "uppercase", whiteSpace: "nowrap" }}
-                        >
-                          No login day
                         </span>
                       )}
                     </div>
@@ -679,6 +676,9 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                       txt = "P";
                       txtColor = "#16A34A";
                     } else if (planned === "LD") {
+                      // Retired 2026-10-12 and no longer assignable, but rows
+                      // planned LD before then still exist — keep rendering
+                      // them as LD so the cell isn't mysteriously blank.
                       bg = "rgba(139,92,246,.20)";
                       txt = "LD";
                       txtColor = "#8B5CF6";
@@ -697,9 +697,9 @@ export default function AttendancePlanGrid({ attendance, qaList, roster, selMont
                         : planned === "H"
                           ? `H — Work from Home${d.isWeekend ? " (weekend)" : ""}. Click for P (Office).`
                           : planned === "P"
-                            ? `P — Office${d.isWeekend ? " (weekend)" : ""}. Click for LD (Login Day).`
+                            ? `P — Office${d.isWeekend ? " (weekend)" : ""}. Click for OFF (planned off-day).`
                             : planned === "LD"
-                              ? `LD — Login Day${d.isWeekend ? " (weekend)" : ""}. Click for OFF (planned off-day).`
+                              ? `LD — Login Day (retired${d.isWeekend ? ", weekend" : ""}). Click for OFF (planned off-day).`
                               : planned === "OFF"
                                 ? `OFF — Planned off-day${d.isWeekend ? " (weekend)" : ""}. Click to clear.`
                                 : `Click to set H (Home)${d.isWeekend ? " (weekend day)" : ""}`;

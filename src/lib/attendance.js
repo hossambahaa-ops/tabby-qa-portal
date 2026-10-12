@@ -189,7 +189,16 @@ export const SIMPLIFIED_TYPES = ATTENDANCE_TYPES.filter(t => SIMPLIFIED_CODES.ha
 
 // Plan grid picker — schedule/work codes only. Leaves are actual outcomes,
 // not something a lead schedules ahead, so they're intentionally excluded.
-export const PLAN_CODES = new Set(["P", "H", "OFF", "LD"]);
+//
+// LD (Login Day) was REMOVED from the plan on 2026-10-12 (Hossam: "the QAs
+// now doesn't need to login and remove the LD from the Attendance plan
+// also"). Logging in is no longer mandatory, so there is nothing for a
+// Login Day to designate. The code itself stays in ATTENDANCE_TYPES — rows
+// planned as LD between 2026-06-24 and this change still exist and must
+// keep rendering with their own label and colour rather than falling back
+// to a blank cell. It simply can no longer be ASSIGNED, and no longer
+// expects a check-in (see attendancePlan.js).
+export const PLAN_CODES = new Set(["P", "H", "OFF"]);
 export const PLAN_TYPES = ATTENDANCE_TYPES.filter(t => PLAN_CODES.has(t.code));
 
 // Pick which dropdown list to use given the target date. Accepts:
@@ -198,13 +207,27 @@ export const PLAN_TYPES = ATTENDANCE_TYPES.filter(t => PLAN_CODES.has(t.code));
 //   - anything falsy → returns simplified (forward-looking default)
 // On/after ATT_SIMPLIFIED_START → simplified 6-code list.
 // Before → legacy full list (excludes OT, same as before).
-export function pickerCodesForDate(date) {
+//
+// `opts.canMarkNsnc` adds NSNC to whichever list is returned. NSNC is an
+// accusation ("no show, no call") with a real consequence — it is the only
+// status that counts against Attendance Health — so marking one by hand is
+// restricted to qa_lead and above (Hossam, 2026-10-12: "give the option only
+// to the roles above Seniors ... so starting leader can mark someone NSNC").
+// Pass `hasRole(role, "qa_lead")`; the gate is OFF by default, which also
+// strips NSNC out of the legacy pre-June-2026 list where it used to be
+// offered to anyone who could edit the cell.
+//
+// This is a UI gate. It stops the accidental and the casual, not a crafted
+// PATCH — enforce server-side too if that matters.
+export function pickerCodesForDate(date, opts = {}) {
   let iso;
   if (!date) iso = ATT_SIMPLIFIED_START;
   else if (typeof date === "string") iso = date.slice(0, 10);
   else if (date instanceof Date) iso = date.toISOString().slice(0, 10);
   else iso = String(date).slice(0, 10);
-  return iso >= ATT_SIMPLIFIED_START ? SIMPLIFIED_TYPES : PICKER_TYPES;
+  const base = iso >= ATT_SIMPLIFIED_START ? SIMPLIFIED_TYPES : PICKER_TYPES;
+  if (!opts.canMarkNsnc) return base.filter(t => t.code !== "NSNC");
+  return base.some(t => t.code === "NSNC") ? base : [...base, ATT_MAP.NSNC];
 }
 
 // Approved-leave codes that should be excluded from auto-NSNC,

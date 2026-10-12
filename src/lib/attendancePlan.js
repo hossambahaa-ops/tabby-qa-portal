@@ -52,8 +52,15 @@ export function isMismatch(row, now = new Date()) {
 export function isMissingCheckIn(row, now = new Date()) {
   if (!row || row.mismatch_approved) return false;
   const planned = row.planned_code;
-  // H, P and LD (Login Day) all expect a check-in; OFF / leave never do.
-  if (planned !== "H" && planned !== "P" && planned !== "LD") return false;
+  // H and P expect a check-in; OFF / leave never do.
+  //
+  // LD (Login Day) used to expect one too. Logging in stopped being
+  // mandatory on 2026-10-12, so an LD day now carries no expectation —
+  // it behaves like OFF here. This is retroactive by design: historical LD
+  // days with no check-in no longer read as a missing check-in, because the
+  // thing that was missing is no longer required. LD can also no longer be
+  // assigned (see PLAN_CODES in attendance.js).
+  if (planned !== "H" && planned !== "P") return false;
   // status NULL is the new "not yet checked in" sentinel (NOT NULL was
   // dropped 2026-05-17). A row with status set to a real outcome (P/H
   // self-check-in, AL/SL/PH leave, NSNC) is already resolved.
@@ -146,6 +153,12 @@ export function isPlanEditableDate(dateStr, now = new Date(), opts = {}) {
 //   denominator = scheduled days (planned_code in {H, P}) up to today
 //   health %    = numerator / denominator * 100
 //
+// LD (Login Day) left the denominator on 2026-10-12 when logging in stopped
+// being mandatory. A day with no expectation can't be shown up for or missed,
+// so counting it would penalise a QA for skipping a login that is no longer
+// required. This moves historical health UP for anyone who had LD days
+// sitting unchecked — intended, not a regression.
+//
 // Days after today are excluded so the metric doesn't dilute with future
 // plan rows that haven't happened yet. A QA with zero scheduled days
 // returns healthPct = null so callers can show "—".
@@ -154,7 +167,7 @@ export function computeAttendanceHealth(rows, monthYM, now = new Date()) {
   const monthStart = `${monthYM}-01`;
   const scheduled = (rows || []).filter(r =>
     r.date && r.date >= monthStart && r.date <= todayStr &&
-    (r.planned_code === "H" || r.planned_code === "P" || r.planned_code === "LD")
+    (r.planned_code === "H" || r.planned_code === "P")
   );
   // Today's planned-P rows are "pending" if the QA hasn't checked in
   // yet AND the cron hasn't auto-flipped them to NSNC. They shouldn't
@@ -168,7 +181,7 @@ export function computeAttendanceHealth(rows, monthYM, now = new Date()) {
   // before the cleanup ran.
   const isPendingToday = (r) =>
     r.date === todayStr &&
-    (r.planned_code === "P" || r.planned_code === "LD") &&
+    r.planned_code === "P" &&
     !r.checked_in_at &&
     r.status !== "NSNC" &&
     !LEAVE_CODES.has(r.status);

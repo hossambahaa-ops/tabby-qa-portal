@@ -59,7 +59,7 @@ export default function AttendanceBulkModal({
                 still get the full granular list; June 1 onwards is the
                 simplified 6-code set. */}
             <select className="select form-input" value={bulkStatus} onChange={e => setBulkStatus(e.target.value)}>
-              {pickerCodesForDate(bulkFrom).map(t => <option key={t.code} value={t.code}>{t.code} — {t.label}</option>)}
+              {pickerCodesForDate(bulkFrom, { canMarkNsnc: isLead }).map(t => <option key={t.code} value={t.code}>{t.code} — {t.label}</option>)}
             </select>
           </div>
           <div className="form-group">

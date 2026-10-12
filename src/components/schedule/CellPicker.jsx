@@ -12,7 +12,7 @@ import { APPROVAL_CODES, PICKER_TYPES, pickerCodesForDate } from "../../lib/atte
 // on data + layout. Public API unchanged — props match the original
 // definition byte-for-byte.
 export default function CellPicker({
-  anchorEl, em, dayNum, dateIso, st, isQA, canApprove,
+  anchorEl, em, dayNum, dateIso, st, isQA, canApprove, canMarkNsnc,
   pickerStage, pendingReason,
   onClose, onSetAtt, onApproveAtt, onClearAtt,
   setPendingReason, setPickerStage,
@@ -21,7 +21,11 @@ export default function CellPicker({
   // 2026-06-01 cutover show the simplified 6-code set; earlier cells
   // keep the full legacy list so leads can still clean up May with
   // granular AL / Paid SL / EL / UL / Tabby Day / L picks.
-  const codesForThisCell = pickerCodesForDate(dateIso);
+  //
+  // NSNC only appears for qa_lead and above — it's the one status that
+  // counts against Attendance Health, so it isn't offered to the person
+  // it would be recorded against.
+  const codesForThisCell = pickerCodesForDate(dateIso, { canMarkNsnc });
   const PICKER_W = 220;     // a touch wider than before; codes never overlap text now
   const PICKER_H_EST = 110; // rough height for clamping decisions
 

@@ -82,7 +82,7 @@ f AS (
          ON al.src_lp = LOWER(SPLIT(s.assignee,'@')[OFFSET(0)])
   JOIN roster r
          ON r.lp = COALESCE(al.roster_lp, LOWER(SPLIT(s.assignee,'@')[OFFSET(0)]))
-  WHERE s.resolved_date BETWEEN '2026-08-01' AND '2026-09-30'   -- edit window
+  WHERE s.resolved_date BETWEEN '2026-09-01' AND '2026-10-31'   -- edit window
     AND s.resolver = s.assignee                                  -- is_resolver = 1
     AND (r.only_email IS NULL OR LOWER(s.assignee) = r.only_email)
     AND ((s.csat_attr != 0 AND s.csat = 'good')

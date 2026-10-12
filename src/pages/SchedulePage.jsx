@@ -1675,6 +1675,7 @@ function SchedulePage() {
                                     canEdit={cellCanEdit}
                                     isQA={isQA}
                                     canApprove={cellCanApprove}
+                                    canMarkNsnc={isLead}
                                     pickerStage={editing ? pickerStage : null}
                                     pendingReason={editing ? pendingReason : ""}
                                     onOpen={() => { setEditCell(ck); setPendingReason(""); }}

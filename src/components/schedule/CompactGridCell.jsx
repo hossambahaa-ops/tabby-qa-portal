@@ -13,7 +13,7 @@ import CellPicker from "./CellPicker.jsx";
 // badge, status text, time text) so the lead-grid styling is unchanged.
 export default function CompactGridCell({
   cellKey, em, dayNum, dateIso, st,
-  isEditing, canEdit, isQA, canApprove,
+  isEditing, canEdit, isQA, canApprove, canMarkNsnc,
   pickerStage, pendingReason,
   onOpen, onClose, onSetAtt, onApproveAtt, onClearAtt,
   setPendingReason, setPickerStage,
@@ -37,6 +37,7 @@ export default function CompactGridCell({
           st={st}
           isQA={isQA}
           canApprove={canApprove}
+          canMarkNsnc={canMarkNsnc}
           pickerStage={pickerStage}
           pendingReason={pendingReason}
           onClose={onClose}
