@@ -101,7 +101,7 @@ function ScoreEntryPage(){
     (async () => {
       try {
         const wdRangeStart = new Date(Date.now() - 62 * 864e5).toISOString().slice(0, 10);
-        const [rows, rosterRows, profRows, qualRows, attRows, sessRows] = await Promise.all([
+        const [rows, rosterRows, profRows, qualRows, attRows, sessRows, manualRows] = await Promise.all([
           listMtd({ token, filters: "order=month.desc,qa_email.asc" }),
           listRoster({ token, select: "email,queue,manager_email" }),
           listProfiles({ token, select: "id,email,role", cacheKey: "profiles_slim" }),
@@ -114,6 +114,10 @@ function ScoreEntryPage(){
           // hours + sample-size eval deduction (>4h/wk), pre-aggregated per
           // (qa_local, month) by quality_session_deductions_v.
           sb.query("quality_session_deductions_v", { token, select: "qa_local,month_label,session_count,deduct_evals,total_hours" }).catch(() => []),
+          // Hand-logged quality work with no CRM row (display-only, like ABT).
+          // Never folded into sbs/non_sbs: the eval count is the numerator of
+          // Occupancy %, which feeds final_performance.
+          sb.query("manual_eval_log_v", { token, select: "qa_email,month,manual_count,manual_minutes,work_types" }).catch(() => []),
         ]);
         setRoster(rosterRows);
         // Working-days per (local-part | "Mon-YYYY") from attendance (worked-day
@@ -136,6 +140,7 @@ function ScoreEntryPage(){
         }
         // Merge quality-task figures onto each MTD row by (qa_email, month).
         const qualByKey = new Map((qualRows || []).map(q => [`${(q.qa_email || "").toLowerCase()}|${q.month}`, q]));
+        const manualByKey = new Map((manualRows || []).map(m => [`${(m.qa_email || "").toLowerCase()}|${m.month}`, m]));
         // Quality sessions delivered — count + hours + sample-size deduction,
         // keyed by (local-part | "Mon-YYYY"). qa_local is already the local-part.
         const sessInfoByKey = new Map();
@@ -209,6 +214,10 @@ function ScoreEntryPage(){
         const mtdRows = filtered.map(r => {
           const q = qualByKey.get(`${(r.qa_email || "").toLowerCase()}|${r.month}`);
           const base = q ? { ...r, abt_sbs_count: q.abt_sbs_count, abt_sbs_minutes: q.abt_sbs_minutes, abt_validation_count: q.abt_validation_count, abt_validation_minutes: q.abt_validation_minutes } : { ...r };
+          const ml = manualByKey.get(`${(r.qa_email || "").toLowerCase()}|${r.month}`);
+          base.manual_count = ml?.manual_count || 0;
+          base.manual_minutes = ml?.manual_minutes || 0;
+          base.manual_work_types = ml?.work_types || "";
           const si = sessInfoByKey.get(`${(r.qa_email || "").toLowerCase().split("@")[0]}|${r.month}`);
           base.q_sessions = si?.count || 0;
           base.q_session_deduct = si?.deduct || 0;
@@ -246,6 +255,9 @@ function ScoreEntryPage(){
             q_session_deduct: (sessInfoByKey.get(`${lp}|${latestMonth}`)?.deduct) || 0,
             q_session_hours: (sessInfoByKey.get(`${lp}|${latestMonth}`)?.hours) || 0,
             ...(q ? { abt_sbs_count: q.abt_sbs_count, abt_sbs_minutes: q.abt_sbs_minutes, abt_validation_count: q.abt_validation_count, abt_validation_minutes: q.abt_validation_minutes } : {}),
+            manual_count: manualByKey.get(`${em}|${latestMonth}`)?.manual_count || 0,
+            manual_minutes: manualByKey.get(`${em}|${latestMonth}`)?.manual_minutes || 0,
+            manual_work_types: manualByKey.get(`${em}|${latestMonth}`)?.work_types || "",
           };
         });
         // Supervisor-only QAs are filtered out for lead-level viewers.
@@ -529,7 +541,8 @@ function ScoreEntryPage(){
       // Synthetic keys for the collapsed column groups — sort the
       // combined "Evaluations" column by total evals (SBS+Non-SBS+
       // DSAT) and the combined "Coachings" column by session count.
-      case "__evals__":       return (r.sbs || 0) + (r.non_sbs || 0) + (r.dsat || 0);
+      case "__evals__":       return (r.sbs || 0) + (r.non_sbs || 0) + (r.dsat || 0) + (r.manual_count || 0);
+      case "manual_count":    return r.manual_count ?? null;
       case "__coachings__":   return r.coaching_sessions ?? null;
       case "late":            return r.late_count ?? null;
       case "never":           return r.never_count ?? null;
@@ -618,6 +631,12 @@ function ScoreEntryPage(){
     { k: "sbs",             label: "SBS",         presets: ["all","perf"],         render: r => r.sbs ?? "—" },
     { k: "non_sbs",         label: "Non-SBS",     presets: ["all","perf"],         render: r => r.non_sbs ?? "—" },
     { k: "dsat",            label: "DSAT",        presets: ["all","perf"],         render: r => r.dsat ?? "—" },
+    // Hand-logged quality work with no CRM row. Display-only: it is summed into
+    // the Evaluations group total but never written to sbs/non_sbs, because the
+    // eval count drives Occupancy % and therefore final_performance.
+    { k: "manual_count",    label: "Manual Log",  presets: ["all","perf"],         render: r => r.manual_count
+        ? <span title={r.manual_work_types || "manual log"} style={{fontSize:12,fontWeight:500}}>{r.manual_count}</span>
+        : <span style={{color:"var(--tx3)"}}>—</span> },
     // ABT SBS + ABT Validation (from qa_quality_tasks) — placed just before the
     // coaching group. Display-only here; these feed the QA Profile occupancy,
     // not this table's Occupancy column. "count · minutes"; "—" until the sync
@@ -671,7 +690,7 @@ function ScoreEntryPage(){
   // synthetic column is sortable (via __evals__ / __coachings__ in
   // qaSortVal) and renders a chevron next to the label so the
   // affordance ("click to expand") is obvious.
-  const EVAL_KEYS = new Set(["sbs", "non_sbs", "dsat"]);
+  const EVAL_KEYS = new Set(["sbs", "non_sbs", "dsat", "manual_count"]);
   const COACH_KEYS = new Set();
   const toggleGroup = (g) => setGroupsCollapsed(prev => ({ ...prev, [g]: !prev[g] }));
   // Build the actual rendered column list by walking MTD_COLUMNS in
@@ -689,8 +708,17 @@ function ScoreEntryPage(){
       // works via the body's accessor, just on a normal click of the
       // sort chevron via toggleQaSort.
       render: r => {
-        const total = (r.sbs || 0) + (r.non_sbs || 0) + (r.dsat || 0);
-        return total > 0 ? total : "—";
+        const crm = (r.sbs || 0) + (r.non_sbs || 0) + (r.dsat || 0);
+        const manual = r.manual_count || 0;
+        const total = crm + manual;
+        if (total <= 0) return "—";
+        // When part of the total is hand-logged, show the split inline so the
+        // figure can never be read as all-CRM.
+        return manual > 0
+          ? <span title={`${crm} from the CRM, ${manual} logged manually (${r.manual_work_types || "manual log"})`}>
+              {total}<span style={{ fontSize: 10, color: "var(--tx3)", marginLeft: 3 }}>+{manual}m</span>
+            </span>
+          : total;
       },
       isGroupHeader: "evals",
     };
@@ -1007,13 +1035,13 @@ function ScoreEntryPage(){
             </div>
             <span style={{fontSize:12,color:"var(--tx3)"}} title={sorted[0]?.synced_at ? new Date(sorted[0].synced_at).toLocaleString() : ""}>{(()=>{const ts=sorted[0]?.synced_at;if(!ts)return "Synced: —";const s=(Date.now()-new Date(ts).getTime())/1000;const rel=s<60?"just now":s<3600?`${Math.floor(s/60)}m ago`:s<86400?`${Math.floor(s/3600)}h ago`:`${Math.floor(s/86400)}d ago`;return `Updated ${rel}`;})()}</span>
             <button className="btn btn-outline btn-sm" onClick={()=>{
-              const csv=["QA,Email,TL,SBS,Non-SBS,DSAT,Late,Never,Valid,Invalid,Sessions,On-time Coaching,Eligible,Not Coached,RTR,RTR Score,Observations,Obs %,Calibrations,Calib %,Completion %,On-time %,JKQ,JKQ Result,Tickets/day,Occupancy %,Login hrs,Handled Tickets,Q Sessions,Working Days,ST Time (mins),ST Time,CSAT %,Surveys"];
+              const csv=["QA,Email,TL,SBS,Non-SBS,DSAT,Manual Log,Late,Never,Valid,Invalid,Sessions,On-time Coaching,Eligible,Not Coached,RTR,RTR Score,Observations,Obs %,Calibrations,Calib %,Completion %,On-time %,JKQ,JKQ Result,Tickets/day,Occupancy %,Login hrs,Handled Tickets,Q Sessions,Working Days,ST Time (mins),ST Time,CSAT %,Surveys"];
               sorted.forEach(r=>{
                 const stMins=r.side_tasks_duration_mins||0;
                 const stFormatted=stMins?`${Math.floor(stMins/60)}h ${stMins%60}m`:"";
                 csv.push([
                   `"${nameFromEmail(r.qa_email)}"`,r.qa_email,`"${r.qa_tl?nameFromEmail(r.qa_tl):""}"`,
-                  r.sbs||0,r.non_sbs||0,r.dsat||0,r.late_count||0,r.never_count||0,r.valid_count||0,r.invalid_count||0,
+                  r.sbs||0,r.non_sbs||0,r.dsat||0,r.manual_count||0,r.late_count||0,r.never_count||0,r.valid_count||0,r.invalid_count||0,
                   r.coaching_sessions||0,r.total_ontime_coachings||0,r.coaching_eligibility_count||0,r.not_coached||0,
                   r.rtr_count||0,r.avg_rtr_score||0,r.observed_coaching_count||0,r.avg_observation_score_pct||0,
                   r.calibration_count||0,r.avg_calibration_match_rate||0,
@@ -1029,13 +1057,13 @@ function ScoreEntryPage(){
               <Icon d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" size={13}/>Export CSV
             </button>
             <button className="btn btn-outline btn-sm" onClick={()=>{
-              const header="QA\tEmail\tTL\tSBS\tNon-SBS\tDSAT\tLate\tNever\tValid\tInvalid\tSessions\tOn-time Coaching\tEligible\tNot Coached\tRTR\tRTR Score\tObservations\tObs %\tCalibrations\tCalib %\tCompletion %\tOn-time %\tJKQ\tJKQ Result\tTickets/day\tOccupancy %\tLogin hrs\tHandled Tickets\tQ Sessions\tWorking Days\tST Time (mins)\tST Time\tCSAT %\tSurveys";
+              const header="QA\tEmail\tTL\tSBS\tNon-SBS\tDSAT\tManual Log\tLate\tNever\tValid\tInvalid\tSessions\tOn-time Coaching\tEligible\tNot Coached\tRTR\tRTR Score\tObservations\tObs %\tCalibrations\tCalib %\tCompletion %\tOn-time %\tJKQ\tJKQ Result\tTickets/day\tOccupancy %\tLogin hrs\tHandled Tickets\tQ Sessions\tWorking Days\tST Time (mins)\tST Time\tCSAT %\tSurveys";
               const rows=sorted.map(r=>{
                 const stMins=r.side_tasks_duration_mins||0;
                 const stFormatted=stMins?`${Math.floor(stMins/60)}h ${stMins%60}m`:"";
                 return [
                   nameFromEmail(r.qa_email),r.qa_email,r.qa_tl?nameFromEmail(r.qa_tl):"",
-                  r.sbs||0,r.non_sbs||0,r.dsat||0,r.late_count||0,r.never_count||0,r.valid_count||0,r.invalid_count||0,
+                  r.sbs||0,r.non_sbs||0,r.dsat||0,r.manual_count||0,r.late_count||0,r.never_count||0,r.valid_count||0,r.invalid_count||0,
                   r.coaching_sessions||0,r.total_ontime_coachings||0,r.coaching_eligibility_count||0,r.not_coached||0,
                   r.rtr_count||0,r.avg_rtr_score||0,r.observed_coaching_count||0,r.avg_observation_score_pct||0,
                   r.calibration_count||0,r.avg_calibration_match_rate||0,

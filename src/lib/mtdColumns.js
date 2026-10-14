@@ -27,6 +27,9 @@ export const DEFAULT_MTD_COLS = [
 export const COL_LABELS = {
   sbs: "SBS", non_sbs: "Non-SBS", dsat: "DSAT", late_count: "Late count", never_count: "Never count",
   valid_count: "Valid count", invalid_count: "Invalid count", side_tasks_duration_mins: "Side tasks (mins)",
+  // Hand-logged quality work with no CRM row. Shown in the Evaluations group
+  // total, never written into sbs/non_sbs (that would move final_performance).
+  manual_count: "Manual Log", manual_minutes: "Manual Log (mins)",
   coaching_sessions: "Coachings", total_coachings_by_coaching_created_date: "Total coachings (by coaching date)",
   total_coachings_by_eval_created_date: "Total coachings (by eval date)", total_ontime_coachings: "On-time coachings",
   coaching_eligibility_count: "Coaching eligibility", not_coached: "Not coached", rtr_count: "RTR count",
