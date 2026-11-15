@@ -14,7 +14,7 @@ export const CANONICAL_APP_URL =
     ? _envAppUrl.trim().replace(/\/+$/, "")
     : (typeof window !== "undefined" && /^(localhost|127\.|\[::1\])/.test(window.location.hostname)
         ? window.location.origin
-        : "https://tabby-qa-portal.pages.dev");
+        : "https://qa-pulse-portal.pages.dev");
 
 if (!SUPABASE_URL) {
   console.error("Missing VITE_SUPABASE_URL — check your .env file");
