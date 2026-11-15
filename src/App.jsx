@@ -58,6 +58,7 @@ const ExpertisePage = lazy(() => import("./pages/ExpertisePage.jsx"));
 const TrackerPage = lazy(() => import("./pages/TrackerPage.jsx"));
 const NpaWinnersPage = lazy(() => import("./pages/NpaWinnersPage.jsx"));
 const NestingThresholdPage = lazy(() => import("./pages/NestingThresholdPage.jsx"));
+const WfmPage = lazy(() => import("./pages/WfmPage.jsx"));
 
 // Hover-prefetch map. Calling import() warms the chunk cache; the
 // subsequent React.lazy() resolution on click is instant. Keys must
@@ -87,6 +88,7 @@ const PAGE_PREFETCH = {
   expertise:   safePrefetch(() => import("./pages/ExpertisePage.jsx")),
   tracker:     safePrefetch(() => import("./pages/TrackerPage.jsx")),
   "npa-winners": safePrefetch(() => import("./pages/NpaWinnersPage.jsx")),
+  wfm:         safePrefetch(() => import("./pages/WfmPage.jsx")),
 };
 function prefetchPage(key) { try { PAGE_PREFETCH[key]?.(); } catch {} }
 const PlaceholderPage = lazy(() => import("./pages/PlaceholderPage.jsx"));
@@ -113,6 +115,10 @@ const NAV_ITEMS=[
   {key:"targets",label:"Targets",icon:icons.targets,minRole:"qa_lead"},
   {key:"nesting-threshold",label:"Nesting Threshold",icon:icons.targets},
   {key:"schedule",label:"Attendance",icon:icons.attendance,section:"Management"},
+  // WFM Report — mirror of the Metabase attendance report. super_admin only
+  // while the numbers are being signed off; audience will widen to the QA,
+  // their lead and the supervisor once it is final.
+  {key:"wfm",label:"WFM Report",icon:icons.attendance,minRole:"super_admin"},
   {key:"tracker",label:"Tracker",icon:icons.tracker,minRole:"senior_qa"},
   {key:"quality",label:"Quality Control",icon:icons.quality,minRole:"qa_lead",isNew:"qc-ap-metrics-2026-06"},
   {key:"escalations",label:"Escalations",icon:icons.escalation},
@@ -1008,6 +1014,7 @@ function AppInner(){
       <Route path="/dsat-reviews" element={hasRole(userRole,"super_admin")?<DsatReviewsPage/>:<PlaceholderPage title="Brixi Review" icon={icons.csat} minRole="super_admin" userRole={userRole}/>}/>
       <Route path="/profile" element={canSeeQaProfile()?<QAProfilePage/>:<PlaceholderPage title="QA Profile" icon={icons.profile} description="The QA Profile is temporarily unavailable while its performance scores are being rebuilt."/>}/>
       <Route path="/schedule" element={<SchedulePage/>}/>
+      <Route path="/wfm" element={guardRole("super_admin",<WfmPage/>,{title:"WFM Report",icon:icons.attendance})}/>
       <Route path="/escalations" element={<EscalationsPage/>}/>
       <Route path="/tracker" element={hasRole(userRole,"senior_qa")?<TrackerPage/>:<PlaceholderPage title="Tracker" icon={icons.tracker} minRole="senior_qa" userRole={userRole}/>}/>
       <Route path="/quality" element={guardRole("qa_lead",<QualityControlPage/>,{title:"Quality Control",icon:icons.quality})}/>
