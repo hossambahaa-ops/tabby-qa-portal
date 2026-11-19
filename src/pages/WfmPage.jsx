@@ -19,8 +19,8 @@ import { useApp } from "../lib/AppContext.jsx";
 //    that a lead clicked a button. There is no dismiss action, by design.
 //  • Pulse's own status sits next to the WFM verdict and is never
 //    overwritten by it. The source's no_show flag is known to fire on
-//    approved leave and day-offs too (Nov: an AL day and an OFF day both
-//    came through as no_show), so the lead reads the pair and decides.
+//    approved leave and day-offs too, so the lead reads the pair and
+//    decides.
 //
 // See src/api/wfm.js for the three source semantics (missing_h clipping,
 // no-show zeroing, day-offs having no row).
@@ -30,10 +30,37 @@ const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov
 const num = (v) => (v == null || v === "" ? null : Number(v));
 const h2 = (v) => (v == null ? "—" : Number(v).toFixed(2));
 const m0 = (v) => (v == null ? "—" : `${Math.round(Number(v))}m`);
+
+// Clock helpers. plan_shift_start / _end hold the Dubai wall-clock time the
+// warehouse reported. Formatting them through the browser's timezone would
+// silently shift every shift by the local offset, so the HH:MM is read
+// straight out of the ISO string instead of being re-interpreted as an
+// instant.
+const clockOf = (ts) => {
+  const m = String(ts || "").match(/[T ](\d{2}:\d{2})/);
+  return m ? m[1] : null;
+};
+const toMin = (hhmm) => {
+  if (!hhmm) return null;
+  const [h, m] = hhmm.split(":").map(Number);
+  return h * 60 + m;
+};
+const fromMin = (mins) => {
+  if (mins == null) return "—";
+  let v = Math.round(mins);
+  const wrapped = ((v % 1440) + 1440) % 1440;
+  return `${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(wrapped % 60).padStart(2, "0")}`;
+};
+const fmtHrs = (h) => {
+  if (h == null) return "—";
+  const mins = Math.round(Math.abs(h) * 60);
+  const hh = Math.floor(mins / 60), mm = mins % 60;
+  return hh ? `${hh}h ${mm}m` : `${mm}m`;
+};
 const dayLabel = (d) => {
   if (!d) return "—";
   const dt = new Date(`${d}T00:00:00`);
-  return dt.toLocaleDateString("en-US", { weekday: "short", day: "numeric", month: "short" });
+  return dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
 };
 const monthBounds = (ym) => {
   const [y, m] = ym.split("-").map(Number);
@@ -53,13 +80,123 @@ const monthOptions = () => {
   return out;
 };
 
-// What the WFM row is claiming, in the report's own vocabulary.
+// Work out what a row's missing hours actually consist of, and render it in
+// the report's own terms. Late + left-early are measured; anything the
+// stored missing_h carries BEYOND those two is unaccounted time sitting
+// inside the shift. The stored value always wins — it is never recomputed
+// from the parts (15 of 350 Nov rows disagree in both directions).
+const explainRow = (r) => {
+  const planIn = clockOf(r.plan_shift_start);
+  const planOut = clockOf(r.plan_shift_end);
+  const late = num(r.late_m) || 0;
+  const early = num(r.left_early_m) || 0;
+  const missing = num(r.missing_h);
+
+  const inMin = toMin(planIn), outMin = toMin(planOut);
+  const loggedIn = r.no_show ? null : (inMin != null ? fromMin(inMin + late) : null);
+  const loggedOut = r.no_show ? null : (outMin != null ? fromMin(outMin - early) : null);
+
+  const parts = [];
+  if (r.no_show) {
+    parts.push("No show — never logged in");
+  } else {
+    if (late > 0) parts.push(`Late start: ${planIn}–${loggedIn}`);
+    if (early > 0) parts.push(`Left early: ${loggedOut}–${planOut}`);
+    const gap = (missing || 0) - (late + early) / 60;
+    if (gap > 0.02) {
+      parts.push(parts.length ? `Gap inside the shift: ${fmtHrs(gap)}` : "Gap inside the shift, no clock time");
+    }
+    if (!parts.length && missing > 0) parts.push("Gap inside the shift, no clock time");
+    if (!parts.length && (late > 0 || early > 0)) parts.push("Recorded, but the source counts no missing time");
+  }
+  if (r.absences) parts.push(r.absences);
+
+  return {
+    planned: planIn && planOut ? `${planIn}-${planOut}` : "—",
+    loggedIn, loggedOut,
+    missing,
+    where: parts.join(". ") || "—",
+  };
+};
+
 const wfmVerdict = (r) => {
   if (r.no_show) return { label: "No show", tone: "red" };
   if (r.nsnc_not_reported) return { label: "NSNC — not reported", tone: "red" };
   if (r.nsnc_reported) return { label: "NSNC — reported", tone: "amber" };
   return null;
 };
+
+// ── Expandable per-QA group ─────────────────────────────────────────────
+function QaGroup({ open, onToggle, name, lead, stats, children }) {
+  return (
+    <>
+      <tr
+        onClick={onToggle}
+        style={{ cursor: "pointer", background: open ? "var(--bg2,rgba(127,127,127,.06))" : undefined }}
+      >
+        <td style={{ whiteSpace: "nowrap", fontWeight: 600 }}>
+          <span style={{
+            display: "inline-block", width: 14, color: "var(--tx3)",
+            transform: open ? "rotate(90deg)" : "none",
+          }}>›</span>
+          {name}
+        </td>
+        {stats.map((s, i) => (
+          <td key={i} style={{ fontWeight: s.strong ? 700 : 400, color: s.color || undefined, whiteSpace: "nowrap" }}>
+            {s.value}
+          </td>
+        ))}
+        <td style={{ color: "var(--tx3)", fontSize: 12, whiteSpace: "nowrap" }}>{lead || "—"}</td>
+      </tr>
+      {open && (
+        <tr>
+          <td colSpan={stats.length + 2} style={{ padding: 0, background: "var(--bg2,rgba(127,127,127,.03))" }}>
+            <div style={{ padding: "6px 10px 12px 28px" }}>{children}</div>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+const detailTableHead = (
+  <thead>
+    <tr>
+      <th>Date</th><th>Planned shift</th><th>Logged in</th><th>Logged out</th><th>Missing</th><th>Where it sits</th>
+    </tr>
+  </thead>
+);
+
+function DetailRows({ rows, pulseByKey }) {
+  return (
+    <div style={{ overflowX: "auto" }}>
+      <table style={{ fontSize: 12 }}>
+        {detailTableHead}
+        <tbody>
+          {rows.map((r, i) => {
+            const e = explainRow(r);
+            const p = pulseByKey[`${lp(r.email)}|${r.shift_date}`];
+            return (
+              <tr key={i}>
+                <td style={{ whiteSpace: "nowrap" }}>{dayLabel(r.shift_date)}</td>
+                <td style={{ whiteSpace: "nowrap" }}>{e.planned}</td>
+                <td style={{ whiteSpace: "nowrap" }}>{e.loggedIn || "—"}</td>
+                <td style={{ whiteSpace: "nowrap" }}>{e.loggedOut || "—"}</td>
+                <td style={{ fontWeight: 600 }}>{h2(e.missing)}</td>
+                <td style={{ color: "var(--tx2)" }}>
+                  {e.where}
+                  {p?.status && (
+                    <span style={{ color: "var(--tx3)" }}> · Pulse: {p.status}{p.planned_code ? ` (plan ${p.planned_code})` : ""}</span>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 export default function WfmPage() {
   const { token, userRole } = useApp();
@@ -73,13 +210,17 @@ export default function WfmPage() {
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
+  const [openNs, setOpenNs] = useState(() => new Set());
+  const [openMh, setOpenMh] = useState(() => new Set());
 
   const { from, to } = useMemo(() => monthBounds(month), [month]);
+  const toggle = (setFn) => (k) =>
+    setFn((prev) => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setErr(null);
+    setLoading(true); setErr(null);
+    setOpenNs(new Set()); setOpenMh(new Set());
     Promise.all([
       listWfmShiftDays({ token, from, to }),
       listPulseAttendance({ token, from, to }),
@@ -88,18 +229,13 @@ export default function WfmPage() {
     ])
       .then(([w, p, l, r]) => {
         if (!alive) return;
-        setRows(w || []);
-        setPulse(p || []);
-        setLeave(l || []);
-        setRoster(r || []);
+        setRows(w || []); setPulse(p || []); setLeave(l || []); setRoster(r || []);
       })
       .catch((e) => alive && setErr(e?.message || String(e)))
       .finally(() => alive && setLoading(false));
     return () => { alive = false; };
   }, [token, from, to]);
 
-  // Pulse status keyed on local-part + date, so the @tabby.ai / @tabby.sa
-  // split can't silently miss a match (see project_cross_domain_identity).
   const pulseByKey = useMemo(() => {
     const m = {};
     for (const p of pulse) m[`${lp(p.email)}|${p.date}`] = p;
@@ -116,51 +252,40 @@ export default function WfmPage() {
     return set;
   }, [leave, from, to]);
 
-  // Per-QA rollup. Nulls are skipped rather than counted as zero — a leave
-  // day has no scheduled hours, which is not the same as zero worked.
-  const perQa = useMemo(() => {
-    const by = {};
+  // One entry per QA — names are reconciled on the local-part so the
+  // @tabby.ai / @tabby.sa split can't list the same person twice.
+  const byQa = useMemo(() => {
+    const m = {};
     for (const r of rows) {
       const k = lp(r.email);
-      by[k] = by[k] || {
-        key: k, email: r.email, team_lead: r.team_lead, country: r.country,
-        days: 0, sched: 0, login: 0, missing: 0, late: 0, early: 0,
-        nsnc: 0, leaveDays: 0,
-      };
-      const a = by[k];
-      a.days += 1;
-      const s = num(r.scheduled_h), lg = num(r.login_h), ms = num(r.missing_h);
-      if (s != null) a.sched += s;
-      if (lg != null) a.login += lg;
-      if (ms != null) a.missing += ms;
-      if (num(r.late_m) != null) a.late += num(r.late_m);
-      if (num(r.left_early_m) != null) a.early += num(r.left_early_m);
-      if (r.no_show || r.nsnc_not_reported || r.nsnc_reported) a.nsnc += 1;
-      if (r.absences) a.leaveDays += 1;
-      a.team_lead = a.team_lead || r.team_lead;
+      m[k] = m[k] || { key: k, email: r.email, lead: r.team_lead, days: [] };
+      m[k].days.push(r);
+      m[k].lead = m[k].lead || r.team_lead;
     }
-    return Object.values(by).sort((x, y) => y.missing - x.missing);
+    for (const q of Object.values(m)) q.days.sort((a, b) => (a.shift_date < b.shift_date ? -1 : 1));
+    return m;
   }, [rows]);
 
-  // NSNC alerts, newest first — what a lead needs to fix in the CRM.
-  const alerts = useMemo(() => {
-    const out = [];
-    for (const r of rows) {
-      const v = wfmVerdict(r);
-      if (!v) continue;
-      const p = pulseByKey[`${lp(r.email)}|${r.shift_date}`];
-      out.push({
-        ...r, verdict: v,
-        pulseStatus: p?.status || null,
-        pulsePlan: p?.planned_code || null,
-        pulseAuto: !!p?.auto_nsnc,
-      });
-    }
-    return out.sort((a, b) => (a.shift_date < b.shift_date ? 1 : -1));
-  }, [rows, pulseByKey]);
+  const noShowGroups = useMemo(() =>
+    Object.values(byQa)
+      .map((q) => ({ ...q, hits: q.days.filter((d) => wfmVerdict(d)) }))
+      .filter((q) => q.hits.length)
+      .sort((a, b) => b.hits.length - a.hits.length || a.key.localeCompare(b.key)),
+  [byQa]);
 
-  // QAs on the roster with no WFM row at all this month. Long leave is
-  // labelled rather than hidden, so the panel never quietly drops someone.
+  const missingGroups = useMemo(() =>
+    Object.values(byQa)
+      .map((q) => {
+        const hits = q.days.filter((d) => (num(d.missing_h) || 0) > 0);
+        const total = hits.reduce((s, d) => s + (num(d.missing_h) || 0), 0);
+        const late = hits.reduce((s, d) => s + (num(d.late_m) || 0), 0);
+        const early = hits.reduce((s, d) => s + (num(d.left_early_m) || 0), 0);
+        return { ...q, hits, total, late, early };
+      })
+      .filter((q) => q.hits.length)
+      .sort((a, b) => b.total - a.total),
+  [byQa]);
+
   const coverage = useMemo(() => {
     const present = new Set(rows.map((r) => lp(r.email)));
     return roster
@@ -170,14 +295,15 @@ export default function WfmPage() {
   }, [roster, rows, onLongLeave]);
 
   const totals = useMemo(() => ({
-    missing: perQa.reduce((s, q) => s + q.missing, 0),
-    nsnc: alerts.length,
+    nsncDays: noShowGroups.reduce((s, q) => s + q.hits.length, 0),
+    nsncPeople: noShowGroups.length,
+    missing: missingGroups.reduce((s, q) => s + q.total, 0),
+    missingPeople: missingGroups.length,
     gaps: coverage.filter((c) => !c.leave).length,
-    qas: perQa.length,
     synced: rows.reduce((mx, r) => (r.synced_at && r.synced_at > mx ? r.synced_at : mx), ""),
-  }), [perQa, alerts, coverage, rows]);
+  }), [noShowGroups, missingGroups, coverage, rows]);
 
-  if (!["super_admin"].includes(String(userRole))) {
+  if (String(userRole) !== "super_admin") {
     return (
       <div className="page">
         <div className="card" style={{ padding: 32, textAlign: "center", color: "var(--tx3)" }}>
@@ -215,9 +341,9 @@ export default function WfmPage() {
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10, marginBottom: 12 }}>
             {[
-              { label: "NSNC / no-show days", value: totals.nsnc, tone: totals.nsnc ? "var(--red)" : "var(--tx1)", hint: "Needs a CRM update" },
-              { label: "Missing hours", value: h2(totals.missing), tone: "var(--tx1)", hint: "Inside planned windows only" },
-              { label: "QAs covered", value: totals.qas, tone: "var(--tx1)", hint: `of ${roster.length} on roster` },
+              { label: "NSNC / no-show days", value: totals.nsncDays, tone: totals.nsncDays ? "var(--red)" : "var(--tx1)", hint: `${totals.nsncPeople} ${totals.nsncPeople === 1 ? "person" : "people"}` },
+              { label: "Missing hours", value: h2(totals.missing), tone: "var(--tx1)", hint: `${totals.missingPeople} affected` },
+              { label: "QAs covered", value: Object.keys(byQa).length, tone: "var(--tx1)", hint: `of ${roster.length} on roster` },
               { label: "Unexplained gaps", value: totals.gaps, tone: totals.gaps ? "var(--amber)" : "var(--tx1)", hint: "No WFM rows, not on leave" },
             ].map((t, i) => (
               <div key={i} className="card" style={{ padding: 14 }}>
@@ -228,87 +354,87 @@ export default function WfmPage() {
             ))}
           </div>
 
+          {/* ── No shows / NSNC ───────────────────────────────────────── */}
           <div className="card" style={{ padding: 0, marginBottom: 12 }}>
             <div className="card-header" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
               <Icon d={icons.attendance} size={15} />
-              <span className="card-title">NSNC alerts — update the CRM</span>
+              <span className="card-title">No shows &amp; NSNC — update the CRM</span>
               <span style={{ flex: 1 }} />
-              <span style={{ fontSize: 11, color: "var(--tx3)" }}>Clears when the WFM report stops reporting it</span>
+              <span style={{ fontSize: 11, color: "var(--tx3)" }}>Click a name for the days · clears when the WFM report stops reporting it</span>
             </div>
-            {!alerts.length ? (
+            {!noShowGroups.length ? (
               <div style={{ padding: 20, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>Nothing flagged this month.</div>
             ) : (
               <div style={{ overflowX: "auto" }}>
                 <table>
-                  <thead><tr>
-                    <th>QA</th><th>Day</th><th>WFM says</th><th>Pulse says</th><th>Scheduled</th><th>Logged</th><th>Missing</th>
-                  </tr></thead>
+                  <thead><tr><th>QA</th><th>No shows</th><th>Not reported</th><th>Lead</th></tr></thead>
                   <tbody>
-                    {alerts.map((a, i) => {
-                      const mismatch = a.pulseStatus && !["NSNC", "A", "ABS"].includes(String(a.pulseStatus).toUpperCase());
-                      return (
-                        <tr key={i}>
-                          <td style={{ whiteSpace: "nowrap" }}>{nameFromEmail(a.email)}</td>
-                          <td style={{ whiteSpace: "nowrap" }}>{dayLabel(a.shift_date)}</td>
-                          <td>
-                            <span className="badge" style={{
-                              background: a.verdict.tone === "red" ? "var(--red-bg)" : "var(--amber-bg)",
-                              color: a.verdict.tone === "red" ? "var(--red)" : "var(--amber)",
-                            }}>{a.verdict.label}</span>
-                          </td>
-                          <td>
-                            {a.pulseStatus ? (
-                              <span style={{ color: mismatch ? "var(--amber)" : "var(--tx2)", fontWeight: mismatch ? 600 : 400 }}>
-                                {a.pulseStatus}{a.pulsePlan ? ` · plan ${a.pulsePlan}` : ""}{mismatch ? " ⚠" : ""}
-                              </span>
-                            ) : <span style={{ color: "var(--tx3)" }}>nothing logged</span>}
-                          </td>
-                          <td>{h2(num(a.scheduled_h))}</td>
-                          <td>{h2(num(a.login_h))}</td>
-                          <td>{h2(num(a.missing_h))}</td>
-                        </tr>
-                      );
-                    })}
+                    {noShowGroups.map((q) => (
+                      <QaGroup
+                        key={q.key}
+                        open={openNs.has(q.key)}
+                        onToggle={() => toggle(setOpenNs)(q.key)}
+                        name={nameFromEmail(q.email)}
+                        lead={q.lead}
+                        stats={[
+                          { value: q.hits.length, strong: true, color: "var(--red)" },
+                          { value: q.hits.filter((d) => d.nsnc_not_reported).length || "—" },
+                        ]}
+                      >
+                        <DetailRows rows={q.hits} pulseByKey={pulseByKey} />
+                      </QaGroup>
+                    ))}
                   </tbody>
                 </table>
               </div>
             )}
             <div style={{ padding: "8px 14px", fontSize: 11, color: "var(--tx3)", borderTop: "1px solid var(--bd)" }}>
-              A no-show day carries <strong>0 missing hours</strong> in the source — the two columns are separate signals, never a single total.
-              The source also flags approved leave and day-offs as no-show, so read Pulse's status beside it before acting.
+              A no-show day carries <strong>0 missing hours</strong> in the source — the two sections are separate signals, never a single total.
+              The source also flags approved leave and day-offs as no-show, so check Pulse's status in the detail before acting.
             </div>
           </div>
 
+          {/* ── Missing hours ─────────────────────────────────────────── */}
           <div className="card" style={{ padding: 0, marginBottom: 12 }}>
-            <div className="card-header" style={{ padding: "10px 14px" }}>
-              <span className="card-title">Missing hours by QA</span>
+            <div className="card-header" style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+              <span className="card-title">Missing hours</span>
+              <span style={{ flex: 1 }} />
+              <span style={{ fontSize: 11, color: "var(--tx3)" }}>Click a name for the day-by-day breakdown</span>
             </div>
-            <div style={{ overflowX: "auto" }}>
-              <table>
-                <thead><tr>
-                  <th>QA</th><th>Lead</th><th>Days</th><th>Scheduled</th><th>Logged</th><th>Missing</th><th>Late</th><th>Left early</th><th>NSNC</th><th>Leave</th>
-                </tr></thead>
-                <tbody>
-                  {perQa.map((q) => (
-                    <tr key={q.key}>
-                      <td style={{ whiteSpace: "nowrap" }}>{nameFromEmail(q.email)}</td>
-                      <td style={{ whiteSpace: "nowrap", color: "var(--tx3)", fontSize: 12 }}>{q.team_lead || "—"}</td>
-                      <td>{q.days}</td>
-                      <td>{h2(q.sched)}</td>
-                      <td>{h2(q.login)}</td>
-                      <td style={{ fontWeight: q.missing > 0 ? 700 : 400, color: q.missing >= 2 ? "var(--red)" : q.missing > 0 ? "var(--amber)" : "var(--tx2)" }}>{h2(q.missing)}</td>
-                      <td>{m0(q.late)}</td>
-                      <td>{m0(q.early)}</td>
-                      <td style={{ color: q.nsnc ? "var(--red)" : "var(--tx3)", fontWeight: q.nsnc ? 700 : 400 }}>{q.nsnc || "—"}</td>
-                      <td style={{ color: "var(--tx3)" }}>{q.leaveDays || "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            {!missingGroups.length ? (
+              <div style={{ padding: 20, textAlign: "center", color: "var(--tx3)", fontSize: 13 }}>No missing hours this month.</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table>
+                  <thead><tr><th>QA</th><th>Total missing</th><th>Days</th><th>Late</th><th>Left early</th><th>Lead</th></tr></thead>
+                  <tbody>
+                    {missingGroups.map((q) => (
+                      <QaGroup
+                        key={q.key}
+                        open={openMh.has(q.key)}
+                        onToggle={() => toggle(setOpenMh)(q.key)}
+                        name={nameFromEmail(q.email)}
+                        lead={q.lead}
+                        stats={[
+                          { value: h2(q.total), strong: true, color: q.total >= 2 ? "var(--red)" : "var(--amber)" },
+                          { value: q.hits.length },
+                          { value: m0(q.late) },
+                          { value: m0(q.early) },
+                        ]}
+                      >
+                        <DetailRows rows={q.hits} pulseByKey={pulseByKey} />
+                      </QaGroup>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
             <div style={{ padding: "8px 14px", fontSize: 11, color: "var(--tx3)", borderTop: "1px solid var(--bd)" }}>
               Missing hours counts absence <strong>inside</strong> the planned window — staying past your shift end earns none of it back.
-              It is taken from the warehouse as-is and is not the sum of late + left early.
+              The figure is taken from the warehouse as-is; it is not the sum of late + left early, and the two can disagree.
+              <br />
+              <strong>Logged in / Logged out are derived</strong> from the planned shift plus the late and left-early minutes —
+              the warehouse's own clock times aren't stored in Pulse yet, so treat them as indicative until they are.
             </div>
           </div>
 
