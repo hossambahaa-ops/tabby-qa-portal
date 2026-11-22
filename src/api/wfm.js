@@ -28,7 +28,7 @@ import { sb } from "../lib/supabase.js";
 export const listWfmShiftDays = ({ token, from, to }) =>
   sb.query("wfm_shift_days", {
     select:
-      "email,shift_date,plan_shift_start,plan_shift_end,scheduled_h,login_h,missing_h,late_m,left_early_m,no_show,nsnc_reported,nsnc_not_reported,absences,team_lead,country,synced_at",
+      "email,shift_date,plan_shift_start,plan_shift_end,scheduled_h,login_h,missing_h,late_m,left_early_m,no_show,nsnc_reported,nsnc_not_reported,absences,team_lead,country,synced_at,fact_start_time,fact_end_time,adjusted_start_time,adjusted_end_time",
     filters: `shift_date=gte.${from}&shift_date=lte.${to}&order=shift_date.asc`,
     token,
   });

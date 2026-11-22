@@ -40,6 +40,13 @@ const clockOf = (ts) => {
   const m = String(ts || "").match(/[T ](\d{2}:\d{2})/);
   return m ? m[1] : null;
 };
+// Punch times are shown to the second — a 10:25:02 start is the evidence a
+// lead quotes back, and rounding it to 10:25 invites an argument about
+// whether the minute was grace.
+const clockSec = (ts) => {
+  const m = String(ts || "").match(/[T ](\d{2}:\d{2}:\d{2})/);
+  return m ? m[1] : null;
+};
 const toMin = (hhmm) => {
   if (!hhmm) return null;
   const [h, m] = hhmm.split(":").map(Number);
@@ -92,9 +99,18 @@ const explainRow = (r) => {
   const early = num(r.left_early_m) || 0;
   const missing = num(r.missing_h);
 
+  // Prefer the warehouse's own punch times. Fall back to plan ± the late /
+  // left-early minutes only where they haven't been backfilled, and say so
+  // — a derived time looks identical to a measured one on screen, which is
+  // exactly how an estimate gets quoted back as evidence.
   const inMin = toMin(planIn), outMin = toMin(planOut);
-  const loggedIn = r.no_show ? null : (inMin != null ? fromMin(inMin + late) : null);
-  const loggedOut = r.no_show ? null : (outMin != null ? fromMin(outMin - early) : null);
+  const factIn = clockSec(r.fact_start_time);
+  const factOut = clockSec(r.fact_end_time);
+  const derivedIn = inMin != null ? fromMin(inMin + late) : null;
+  const derivedOut = outMin != null ? fromMin(outMin - early) : null;
+  const loggedIn = r.no_show ? null : (factIn || derivedIn);
+  const loggedOut = r.no_show ? null : (factOut || derivedOut);
+  const estimated = !r.no_show && !factIn && !!derivedIn;
 
   const parts = [];
   if (r.no_show) {
@@ -113,7 +129,7 @@ const explainRow = (r) => {
 
   return {
     planned: planIn && planOut ? `${planIn}-${planOut}` : "—",
-    loggedIn, loggedOut,
+    loggedIn, loggedOut, estimated,
     missing,
     where: parts.join(". ") || "—",
   };
@@ -180,8 +196,12 @@ function DetailRows({ rows, pulseByKey }) {
               <tr key={i}>
                 <td style={{ whiteSpace: "nowrap" }}>{dayLabel(r.shift_date)}</td>
                 <td style={{ whiteSpace: "nowrap" }}>{e.planned}</td>
-                <td style={{ whiteSpace: "nowrap" }}>{e.loggedIn || "—"}</td>
-                <td style={{ whiteSpace: "nowrap" }}>{e.loggedOut || "—"}</td>
+                <td style={{ whiteSpace: "nowrap" }} title={e.estimated ? "Estimated from the planned shift — the warehouse punch time isn't stored for this day" : undefined}>
+                  {e.loggedIn || "—"}{e.estimated && <span style={{ color: "var(--tx3)" }}> ~</span>}
+                </td>
+                <td style={{ whiteSpace: "nowrap" }} title={e.estimated ? "Estimated from the planned shift — the warehouse punch time isn't stored for this day" : undefined}>
+                  {e.loggedOut || "—"}{e.estimated && <span style={{ color: "var(--tx3)" }}> ~</span>}
+                </td>
                 <td style={{ fontWeight: 600 }}>{h2(e.missing)}</td>
                 <td style={{ color: "var(--tx2)" }}>
                   {e.where}
@@ -293,6 +313,16 @@ export default function WfmPage() {
       .map((r) => ({ ...r, leave: onLongLeave.has(lp(r.email)) }))
       .sort((a, b) => Number(a.leave) - Number(b.leave));
   }, [roster, rows, onLongLeave]);
+
+  // True while any displayed day still lacks a warehouse punch time, so the
+  // "~ means estimated" note only appears when something on screen is.
+  // Only rows that actually render in a section count: a leave day has no
+  // punch either, but it never reaches the screen, and letting it raise the
+  // note would caption a table in which nothing is estimated.
+  const anyEstimated = useMemo(
+    () => rows.some((r) => !r.no_show && !r.fact_start_time && (num(r.missing_h) || 0) > 0),
+    [rows],
+  );
 
   const totals = useMemo(() => ({
     nsncDays: noShowGroups.reduce((s, q) => s + q.hits.length, 0),
@@ -432,9 +462,13 @@ export default function WfmPage() {
             <div style={{ padding: "8px 14px", fontSize: 11, color: "var(--tx3)", borderTop: "1px solid var(--bd)" }}>
               Missing hours counts absence <strong>inside</strong> the planned window — staying past your shift end earns none of it back.
               The figure is taken from the warehouse as-is; it is not the sum of late + left early, and the two can disagree.
-              <br />
-              <strong>Logged in / Logged out are derived</strong> from the planned shift plus the late and left-early minutes —
-              the warehouse's own clock times aren't stored in Pulse yet, so treat them as indicative until they are.
+              {anyEstimated && (
+                <>
+                  <br />
+                  A <strong>~</strong> beside a time means it was estimated from the planned shift plus the late / left-early
+                  minutes, because the warehouse punch time isn't stored for that day. Times without it are the real punch.
+                </>
+              )}
             </div>
           </div>
 
