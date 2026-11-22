@@ -96,11 +96,22 @@ function SchedulePage() {
   // `attendance_view_grants` table instead (see grantedLocalParts below).
   // That is a DB row rather than a code change, and the attendance_select RLS
   // policy reads the same table, so the two layers cannot drift apart.
-  const FULL_DOMAIN_ATTENDANCE_LEADS = new Set(["abdelrahman.shahat@tabby.sa"]);
+  // Mirrors full_domain_attendance_leads() in Postgres — the attendance_select
+  // RLS policy reads that function, so if the two lists drift the UI either
+  // hides rows the DB returns or renders names with an empty month.
+  const FULL_DOMAIN_ATTENDANCE_LEADS = new Set([
+    "abdelrahman.shahat@tabby.sa", // KSA, payroll
+    "ahmed.hesham@tabby.ai",       // EGY, added 2026-11-22
+    "mahmoud.ahmed@tabby.ai",      // EGY, added 2026-11-22
+  ]);
   const myEmail = profile?.email?.toLowerCase() || "";
   const isQA = profile?.role === "qa" || profile?.role === "senior_qa";
   const isLead = hasRole(profile?.role, "qa_lead");
   const isSuperAdmin = hasRole(profile?.role, "super_admin");
+  // A qa_lead with the whole-office view. Kept as its own flag because the
+  // calendar's lead filter has to work for them too — without it they land on
+  // 20+ QAs with no way back to just their own team.
+  const isFullDomainLead = isLead && !hasRole(profile?.role, "qa_supervisor") && FULL_DOMAIN_ATTENDANCE_LEADS.has(myEmail);
   const monthIsLocked = !!monthLock && !isSuperAdmin;
 
   const _nameFromEmail = (email) => {
@@ -481,13 +492,20 @@ function SchedulePage() {
     // Granted leads (e.g. Shahat, for payroll): full view of their own office,
     // grouped by lead. They stay qa_lead, so their own team still anchors under
     // them — the exact thing that broke when the role was bumped to supervisor.
-    if (isLead && !hasRole(profile?.role, "qa_supervisor") && FULL_DOMAIN_ATTENDANCE_LEADS.has(myEmail)) {
+    if (isFullDomainLead) {
       const myDom = (profile?.operational_domain || (myEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai")).toLowerCase();
       // Their own office, PLUS anyone individually granted to them — the
       // cross-domain case a domain rule cannot express (Shahat is @tabby.sa;
       // the LLM squad he reviews is @tabby.ai).
-      return groupByLead().filter(r =>
+      const office = groupByLead().filter(r =>
         (r.email || "").toLowerCase().endsWith("@" + myDom) || isGranted(r.email, grantedLocalParts));
+      // The filter narrows WITHIN the office — it can never widen the scope,
+      // because `office` is already everything RLS will return for them.
+      if (!selectedLeadFilter) return office;
+      const sel = selectedLeadFilter.toLowerCase();
+      const selLocal = sel.split("@")[0];
+      const isSel = (em) => { const e = (em || "").toLowerCase(); return e === sel || e.split("@")[0] === selLocal; };
+      return office.filter(r => isSel(r.manager_email) || isSel(r.email));
     }
 
     // Normal qa_lead: their own team, plus anyone individually granted to them.
@@ -1150,15 +1168,18 @@ function SchedulePage() {
             </button>
           )}
 
-          {/* QA Lead filter — calendar tab, supervisors / admins only.
-              QAs and individual leads see only their own scope so the
-              filter would do nothing for them. */}
-          {activeTab === "calendar" && hasRole(profile?.role, "qa_supervisor") && (() => {
+          {/* QA Lead filter — calendar tab, supervisors / admins, plus leads on
+              the full-domain list. QAs and ordinary leads see only their own
+              scope so the filter would do nothing for them. */}
+          {activeTab === "calendar" && (hasRole(profile?.role, "qa_supervisor") || isFullDomainLead) && (() => {
             // Build the lead options from the current roster's manager_email
             // values intersected with the qa_lead profile set.
+            // A full-domain lead only has rows for their own office, so offering
+            // them the other office's leads would just blank the grid.
+            const myDom = (profile?.operational_domain || (myEmail.endsWith("@tabby.sa") ? "tabby.sa" : "tabby.ai")).toLowerCase();
             const leadEmails = [...new Set(
               roster.map(r => r.manager_email?.toLowerCase()).filter(Boolean).filter(em => qaLeadSet.has(em) || qaLeadSet.has(em.split("@")[0])),
-            )].sort();
+            )].filter(em => !isFullDomainLead || em.endsWith("@" + myDom)).sort();
             return (
               <select
                 value={selectedLeadFilter}
